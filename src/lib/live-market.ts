@@ -14,7 +14,11 @@ function formatPrice(value: number) {
 
 function normalizeQuote(fallback: MarketItem, quote?: StooqQuote): MarketItem {
   if (!quote || !Number.isFinite(quote.close) || quote.close <= 0) {
-    return fallback;
+    return {
+      ...fallback,
+      dataStatus: fallback.dataStatus === "representative" ? "representative" : "close",
+      source: fallback.source === "representative" ? "representative" : "fallback",
+    };
   }
 
   const changePercent = quote.open > 0 ? ((quote.close - quote.open) / quote.open) * 100 : fallback.changePercent;
@@ -24,6 +28,8 @@ function normalizeQuote(fallback: MarketItem, quote?: StooqQuote): MarketItem {
     price: formatPrice(quote.close),
     priceUsd: quote.close,
     changePercent,
+    dataStatus: "delayed",
+    source: "stooq",
   };
 }
 
@@ -72,24 +78,33 @@ async function fetchStooqQuote(symbol: string): Promise<StooqQuote | null> {
 }
 
 export async function getLiveMarketItems(): Promise<MarketItem[]> {
-  const quoteResults = await Promise.allSettled(
-    mixedMarketItems.map((item) => fetchStooqQuote(item.dataSymbol)),
-  );
-  const quoteMap = new Map(
-    quoteResults
-      .map((result) => (result.status === "fulfilled" ? result.value : null))
-      .filter((quote): quote is StooqQuote => Boolean(quote))
-      .map((quote) => [quote.symbol, quote]),
-  );
+  try {
+    const quoteableItems = mixedMarketItems.filter((item) => item.source !== "representative");
+    const quoteResults = await Promise.allSettled(
+      quoteableItems.map((item) => fetchStooqQuote(item.dataSymbol)),
+    );
+    const quoteMap = new Map(
+      quoteResults
+        .map((result) => (result.status === "fulfilled" ? result.value : null))
+        .filter((quote): quote is StooqQuote => Boolean(quote))
+        .map((quote) => [quote.symbol, quote]),
+    );
 
-  return mixedMarketItems.map((fallback) =>
-    normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase())),
-  );
+    return mixedMarketItems.map((fallback) =>
+      normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase())),
+    );
+  } catch {
+    return mixedMarketItems.map((fallback) => normalizeQuote(fallback));
+  }
 }
 
 export async function getLiveMarketItem(symbol: string): Promise<MarketItem | undefined> {
-  const items = await getLiveMarketItems();
-  return items.find((item) => item.symbol === symbol);
+  try {
+    const items = await getLiveMarketItems();
+    return items.find((item) => item.symbol === symbol);
+  } catch {
+    return mixedMarketItems.find((item) => item.symbol === symbol);
+  }
 }
 
 export function getTopRisersFrom(items: MarketItem[]) {

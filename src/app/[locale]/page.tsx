@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { AdBanner } from "@/components/AdBanner";
 import { MiniLineChart } from "@/components/MiniLineChart";
+import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
+import { PortfolioDonut } from "@/components/PortfolioDonut";
 import { PremiumCard } from "@/components/PremiumCard";
 import { getSafeLocale } from "@/i18n/config";
 import { getAds } from "@/lib/ads";
 import { getSessionUser } from "@/lib/auth";
 import { getLiveMarketItems, getTopFallersFrom, getTopRisersFrom } from "@/lib/live-market";
-import { getPortfolioChartPeriods, getUserRankingPeriods } from "@/lib/leaderboard";
+import { getUserRankingPeriods } from "@/lib/leaderboard";
 import { marketNews, rotaryNews } from "@/lib/market-data";
+import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
+import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
@@ -16,8 +20,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const user = await getSessionUser();
   const [ads, liveItems] = await Promise.all([getAds("home_top"), getLiveMarketItems()]);
   const snapshot = user ? await getPortfolioSnapshot(user.id) : null;
-  const chartPeriods = snapshot ? getPortfolioChartPeriods(snapshot.totalValueUsd) : [];
+  const chartPeriods = user && snapshot ? await getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd) : [];
   const rankingPeriods = user ? await getUserRankingPeriods(user.id) : [];
+  const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
 
   return (
     <div className="grid gap-6">
@@ -40,6 +45,27 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
             <h2 className="text-lg font-black text-[#152033]">Portföyüm</h2>
             <p className="mt-3 text-2xl font-black text-[#0f766e]">{snapshot ? formatMoney(snapshot.totalValueUsd) : "-"}</p>
             <p className="mt-1 text-sm text-slate-500">Giriş yapan kullanıcı için anlık sanal değer.</p>
+            {snapshot ? (
+              <>
+                <div className="mt-4">
+                  <PortfolioDonut
+                    total={snapshot.totalValueUsd}
+                    size="sm"
+                    animated
+                    items={[
+                      { label: "Nakit", value: snapshot.cashValueUsd },
+                      ...snapshot.positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
+                    ]}
+                  />
+                </div>
+                <div className="mt-4">
+                  <PortfolioBreakdown items={breakdownItems} compact />
+                </div>
+                <PerformanceBadges periods={chartPeriods} />
+              </>
+            ) : (
+              <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">Kar/zarar yüzdeleri için giriş yapmalısın.</p>
+            )}
           </PremiumCard>
           <MarketList title="En hızlı yükselen 10" items={getTopRisersFrom(liveItems)} />
           <MarketList title="En hızlı düşen 10" items={getTopFallersFrom(liveItems)} />
@@ -50,9 +76,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           <div className="mt-4 grid gap-4">
             {chartPeriods.length === 0 ? <p className="text-sm text-slate-500">Grafikler için giriş yapmalısın.</p> : chartPeriods.map((period) => (
               <div key={period.label} className="rounded-md bg-[#f8fafc] p-4">
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="font-black text-[#152033]">{period.label}</p>
-                  <p className={period.change >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>{period.change.toFixed(2)}%</p>
+                  <div className="text-right">
+                    <p className={period.change === null ? "font-black text-slate-500" : period.change >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>
+                      {period.change === null ? "-" : formatPercent(period.change)}
+                    </p>
+                    {period.source === "modeled" ? <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">geçici model</p> : null}
+                  </div>
                 </div>
                 <MiniLineChart points={period.points} />
               </div>
@@ -82,6 +113,40 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       </section>
     </div>
   );
+}
+
+function PerformanceBadges({ periods }: { periods: PortfolioPerformancePeriod[] }) {
+  if (periods.length === 0) {
+    return <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">Henüz yeterli veri yok.</p>;
+  }
+
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      {periods.map((period) => {
+        const tone =
+          period.change === null || Math.abs(period.change) < 0.0000001
+            ? "bg-slate-100 text-slate-600"
+            : period.change > 0
+              ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+              : "bg-red-50 text-red-700 ring-red-200";
+
+        return (
+          <div key={period.key} className={`rounded-md px-2.5 py-2 text-xs font-black ring-1 ring-inset ${tone}`}>
+            <span className="block text-[10px] uppercase tracking-[0.12em] opacity-70">{period.label}</span>
+            <span>{period.change === null ? "Yeterli veri yok" : formatPercent(period.change, true)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatPercent(value: number, signed = false) {
+  const absValue = Math.abs(value);
+  const decimals = absValue > 0 && absValue < 1 ? 4 : 2;
+  const prefix = signed && value > 0 ? "+" : "";
+
+  return `${prefix}${value.toFixed(decimals)}%`;
 }
 
 function MarketList({ title, items }: { title: string; items: { symbol: string; name: string; changePercent: number }[] }) {

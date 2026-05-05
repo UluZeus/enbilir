@@ -1,20 +1,24 @@
 import Link from "next/link";
+import { randomUUID } from "crypto";
 import { AdBanner } from "@/components/AdBanner";
 import { FormMessage } from "@/components/FormMessage";
+import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
+import { TradeTicketForm } from "@/components/TradeTicketForm";
 import { getSafeLocale } from "@/i18n/config";
 import { getAds } from "@/lib/ads";
 import { tradeAction, updateCashModeAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
+import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 
 export default async function TradePage({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ error?: string; success?: string }>;
 }) {
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
@@ -38,24 +42,19 @@ export default async function TradePage({
     getLiveMarketItems(),
     getPortfolioSnapshot(user.id),
   ]);
+  const breakdownItems = getPortfolioBreakdownItems(snapshot);
 
   return (
     <div className="grid gap-6">
       <FormMessage message={query.error} />
+      <FormMessage message={query.success} tone="success" />
       <AdBanner ads={topAds} />
       <section className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="grid gap-5">
           <div className="glass-card rounded-lg p-6 shadow-sm">
             <h1 className="text-2xl font-black text-[#152033]">Sanal işlem yap</h1>
             <p className="mt-2 text-sm leading-6 text-slate-600">Gerçek emir gönderilmez; işlemler eğitim amaçlı sanal portföye yazılır.</p>
-            <form action={tradeAction} className="mt-5 grid gap-4 md:grid-cols-4 md:items-end">
-              <input type="hidden" name="locale" value={locale} />
-              <input type="hidden" name="userId" value={user.id} />
-              <label className="grid gap-2 text-sm font-bold text-slate-700">Ürün<select name="symbol" className="rounded-md border border-slate-300 px-4 py-3 font-normal">{marketItems.map((item) => <option key={item.symbol} value={item.symbol}>{item.symbol} - {item.name}</option>)}</select></label>
-              <label className="grid gap-2 text-sm font-bold text-slate-700">İşlem<select name="side" className="rounded-md border border-slate-300 px-4 py-3 font-normal"><option value="BUY">Al</option><option value="SELL">Sat</option></select></label>
-              <label className="grid gap-2 text-sm font-bold text-slate-700">Tutar USD<input name="amountUsd" type="number" min="1" step="1" className="rounded-md border border-slate-300 px-4 py-3 font-normal" /></label>
-              <button className="premium-cta px-5 py-3 text-sm font-black">İşlemi uygula</button>
-            </form>
+            <TradeTicketForm locale={locale} userId={user.id} marketItems={marketItems} idempotencyKey={randomUUID()} action={tradeAction} />
           </div>
 
           <div className="glass-card rounded-lg p-6 shadow-sm">
@@ -77,17 +76,16 @@ export default async function TradePage({
             <p className="mt-2 text-2xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
             <PortfolioDonut
               total={snapshot.totalValueUsd}
+              animated
               items={[
                 { label: "Nakit", value: snapshot.cashValueUsd },
                 ...snapshot.positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
               ]}
             />
             <p className="mt-3 text-sm text-slate-600">Kalan nakit: {formatMoney(snapshot.cashValueUsd)}</p>
-            {snapshot.positions.length === 0 ? (
-              <p className="mt-3 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">
-                Portföyünde henüz yatırım ürünü yok. İlk sanal alımını yaptığında dağılım burada nakit dışındaki varlıklarla birlikte görünür.
-              </p>
-            ) : null}
+            <div className="mt-4">
+              <PortfolioBreakdown items={breakdownItems} />
+            </div>
           </div>
           <AdBanner ads={sideAds} variant="side" />
         </aside>

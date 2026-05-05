@@ -8,15 +8,19 @@ const colors = ["#0f766e", "#f5a623", "#2563eb", "#dc2626", "#7c3aed", "#0891b2"
 type PortfolioDonutProps = {
   items: DonutItem[];
   total: number;
+  size?: "sm" | "md";
+  animated?: boolean;
 };
 
-export function PortfolioDonut({ items, total }: PortfolioDonutProps) {
+export function PortfolioDonut({ items, total, size = "md", animated = false }: PortfolioDonutProps) {
   const positiveItems = items.filter((item) => item.value > 0);
+  const shellSize = size === "sm" ? "h-32 w-32" : "h-44 w-44";
+  const centerSize = size === "sm" ? "h-16 w-16" : "h-24 w-24";
 
   if (positiveItems.length === 0 || total <= 0) {
     return (
       <div className="grid place-items-center rounded-lg bg-[#f8fafc] p-5">
-        <div className="grid h-44 w-44 place-items-center rounded-full border-[26px] border-slate-200">
+        <div className={`grid ${shellSize} place-items-center rounded-full border-[22px] border-slate-200`}>
           <span className="text-center text-xs font-bold text-slate-500">Pozisyon yok</span>
         </div>
       </div>
@@ -43,10 +47,10 @@ export function PortfolioDonut({ items, total }: PortfolioDonutProps) {
   return (
     <div className="grid place-items-center rounded-lg bg-[#f8fafc] p-5">
       <div
-        className="grid h-44 w-44 place-items-center rounded-full"
+        className={`portfolio-donut grid ${shellSize} place-items-center rounded-full ${animated ? "portfolio-donut--animated" : ""}`}
         style={{ background: `conic-gradient(${gradientStops})` }}
       >
-        <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-sm">
+        <div className={`grid ${centerSize} place-items-center rounded-full bg-white text-center shadow-sm`}>
           <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">USD</span>
         </div>
       </div>
