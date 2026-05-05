@@ -1,0 +1,316 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  USER
+  ADMIN
+  MASTER_ADMIN
+}
+
+enum CashMode {
+  USD
+  EUR
+  CHF
+  TRY_REPO
+}
+
+enum TradeSide {
+  BUY
+  SELL
+}
+
+enum DisplayNameMode {
+  REAL_NAME
+  NICKNAME
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum LeagueType {
+  ROTARY
+  ROTARACT
+  INTERACT
+  PRIVATE
+  GENERAL
+}
+
+enum LeagueRole {
+  MEMBER
+  MODERATOR
+  OWNER
+}
+
+enum CompetitionPeriodType {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  YEARLY
+}
+
+enum SiteVisualSettingType {
+  TEXT
+  COLOR
+  IMAGE_URL
+  BOOLEAN
+}
+
+model User {
+  id                                  String    @id @default(cuid())
+  name                                String
+  nickname                            String?
+  displayNameMode                     DisplayNameMode @default(REAL_NAME)
+  email                               String    @unique
+  passwordHash                        String
+  role                                Role      @default(USER)
+  score                               Int       @default(0)
+  kvkkDisclosureAccepted              Boolean   @default(false)
+  kvkkDisclosureAcceptedAt            DateTime?
+  termsAccepted                       Boolean   @default(false)
+  termsAcceptedAt                     DateTime?
+  noInvestmentAdviceAccepted          Boolean   @default(false)
+  noInvestmentAdviceAcceptedAt        DateTime?
+  electronicCommunicationConsent      Boolean   @default(false)
+  electronicCommunicationConsentAt    DateTime?
+  createdAt                           DateTime  @default(now())
+  updatedAt                           DateTime  @updatedAt
+  virtualAccount                      VirtualAccount?
+  positions                           PortfolioPosition[]
+  trades                              VirtualTrade[]
+  sentFriendRequests                  FriendRequest[] @relation("SentFriendRequests")
+  receivedFriendRequests              FriendRequest[] @relation("ReceivedFriendRequests")
+  createdLeagues                      League[] @relation("CreatedLeagues")
+  leagueMemberships                   LeagueMembership[]
+  badges                              UserBadge[]
+  achievementEvents                   AchievementEvent[]
+  portfolioSnapshots                  PortfolioSnapshot[]
+}
+
+model BlogPost {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  titleTr   String
+  titleEn   String
+  excerptTr String
+  excerptEn String
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdPlacement {
+  id              String   @id @default(cuid())
+  slot            String
+  title           String
+  body            String
+  linkUrl         String?
+  linkLabel       String?
+  isActive        Boolean  @default(true)
+  displaySeconds  Int      @default(8)
+  priority        Int      @default(0)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slot, isActive, priority])
+}
+
+model ManagedContentPage {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  title     String
+  body      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SiteVisualSetting {
+  id          String                @id @default(cuid())
+  key         String                @unique
+  title       String
+  value       String
+  type        SiteVisualSettingType
+  description String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([type])
+}
+
+model VirtualAccount {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  cashMode           CashMode @default(USD)
+  cashAmount         Float    @default(1000000)
+  baseCurrency       String   @default("USD")
+  dailyRepoRate      Float    @default(0.00125)
+  repoLastAccruedAt  DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PortfolioPosition {
+  id              String   @id @default(cuid())
+  userId          String
+  symbol          String
+  name            String
+  market          String
+  quantity        Float
+  averagePriceUsd Float
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
+}
+
+model VirtualTrade {
+  id          String    @id @default(cuid())
+  userId      String
+  symbol      String
+  name        String
+  market      String
+  side        TradeSide
+  quantity    Float
+  priceUsd    Float
+  totalUsd    Float
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model FriendRequest {
+  id          String              @id @default(cuid())
+  pairKey     String              @unique
+  senderId    String
+  receiverId  String
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  sender      User                @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User                @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, status])
+  @@index([receiverId, status])
+}
+
+model League {
+  id              String             @id @default(cuid())
+  name            String
+  slug            String             @unique
+  description     String?
+  type            LeagueType
+  inviteCode      String             @unique
+  createdByUserId String
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  createdBy       User               @relation("CreatedLeagues", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  memberships     LeagueMembership[]
+
+  @@index([type, isActive])
+  @@index([createdByUserId])
+}
+
+model LeagueMembership {
+  id        String     @id @default(cuid())
+  leagueId  String
+  userId    String
+  role      LeagueRole @default(MEMBER)
+  joinedAt  DateTime   @default(now())
+  league    League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId])
+  @@index([userId])
+}
+
+model Badge {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  nameTr        String
+  nameEn        String
+  descriptionTr String
+  descriptionEn String
+  icon          String
+  category      String
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  users         UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([badgeId])
+}
+
+model AchievementEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  metadata  String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+}
+
+model CompetitionPeriod {
+  id        String                @id @default(cuid())
+  type      CompetitionPeriodType
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  snapshots PortfolioSnapshot[]
+
+  @@index([type, isActive])
+  @@index([startsAt, endsAt])
+}
+
+model PortfolioSnapshot {
+  id                String            @id @default(cuid())
+  userId            String
+  periodId          String
+  portfolioValueUsd Float
+  cashUsd           Float
+  positionsValueUsd Float
+  returnPercent     Float
+  rank              Int?
+  capturedAt        DateTime          @default(now())
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period            CompetitionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodId])
+  @@index([periodId, rank])
+  @@index([userId])
+}

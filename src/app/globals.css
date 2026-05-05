@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f7fb;
+  --foreground: #152033;
+  --visual-gradient-primary: #d8f7b7;
+  --visual-gradient-secondary: #8fd8ff;
+  --visual-accent: #f5a623;
+  --visual-hero-image: none;
+  --visual-home-overlay-image: none;
+  --visual-ad-image: none;
 }
 
 @theme inline {
@@ -12,15 +18,373 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+a,
+button {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease,
+    filter 220ms ease;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover,
+a:hover {
+  transform: translateY(-1px);
+}
+
+input,
+select,
+textarea {
+  background-color: rgb(255 255 255 / 84%);
+  color: #152033;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgb(100 116 139 / 88%);
+}
+
+.premium-card--dark input:not([type="checkbox"]):not([type="radio"]),
+.premium-card--dark select,
+.premium-card--dark textarea,
+.premium-dark input:not([type="checkbox"]):not([type="radio"]),
+.premium-dark select,
+.premium-dark textarea {
+  border-color: rgb(255 255 255 / 10%);
+  background-color: rgb(0 0 0 / 30%);
+  color: #ffffff;
+  color-scheme: dark;
+}
+
+.premium-card--dark input::placeholder,
+.premium-card--dark textarea::placeholder,
+.premium-dark input::placeholder,
+.premium-dark textarea::placeholder {
+  color: rgb(203 213 225 / 72%);
+}
+
+.animated-background {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(38deg, var(--visual-gradient-primary) 0%, #eefbe6 20%, #dff8f5 46%, var(--visual-gradient-secondary) 76%, #edf7ff 100%);
+}
+
+.animated-background__mesh {
+  position: absolute;
+  inset: -12%;
+  background:
+    radial-gradient(ellipse at 15% 82%, color-mix(in srgb, var(--visual-gradient-primary) 82%, white) 0%, transparent 42%),
+    radial-gradient(ellipse at 82% 16%, color-mix(in srgb, var(--visual-gradient-secondary) 74%, white) 0%, transparent 46%),
+    linear-gradient(115deg, transparent 10%, rgb(255 255 255 / 34%) 42%, rgb(245 166 35 / 18%) 58%, transparent 78%);
+  filter: saturate(1.08);
+  transform: translate3d(0, 0, 0);
+  animation: premium-mesh-drift 18s ease-in-out infinite alternate;
+}
+
+.animated-background__market-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.28;
+  background:
+    var(--visual-home-overlay-image),
+    linear-gradient(135deg, transparent 0 45%, rgb(16 24 39 / 13%) 45% 46%, transparent 46% 100%),
+    linear-gradient(90deg, rgb(16 24 39 / 7%) 1px, transparent 1px),
+    linear-gradient(0deg, rgb(16 24 39 / 6%) 1px, transparent 1px);
+  background-position: center;
+  background-repeat: no-repeat, repeat, repeat, repeat;
+  background-size: min(900px, 88vw) auto, 180px 120px, 44px 44px, 44px 44px;
+  mask-image: linear-gradient(to top right, rgb(0 0 0 / 70%), rgb(0 0 0 / 24%));
+}
+
+.animated-background__noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background-image:
+    repeating-radial-gradient(circle at 0 0, rgb(16 24 39 / 35%) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(115deg, rgb(255 255 255 / 22%) 0 1px, transparent 1px 6px);
+  background-size: 15px 15px, 21px 21px;
+  mix-blend-mode: multiply;
+}
+
+.visual-shell {
+  --visual-surface: rgb(255 255 255 / 70%);
+  --visual-surface-strong: rgb(255 255 255 / 86%);
+  --visual-border: rgb(255 255 255 / 58%);
+  position: relative;
+  min-height: 100vh;
+  color: #152033;
+}
+
+.visual-shell > header,
+.visual-shell > main,
+.visual-shell > footer {
+  position: relative;
+  z-index: 1;
+}
+
+.glass-card,
+.premium-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 58%);
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 58%)),
+    rgb(255 255 255 / 68%);
+  box-shadow: 0 18px 50px rgb(16 24 39 / 10%);
+  backdrop-filter: blur(18px) saturate(1.16);
+}
+
+.premium-card {
+  border-radius: 0.5rem;
+  transform-style: preserve-3d;
+  transition:
+    border-color 220ms ease,
+    box-shadow 260ms ease,
+    transform 260ms ease,
+    background 260ms ease;
+}
+
+.premium-card::before,
+.premium-card::after,
+.hero-visual::before,
+.hero-visual::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.premium-card::before {
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, transparent 18%, rgb(255 255 255 / 45%) 34%, transparent 52%);
+  opacity: 0;
+  transform: translateX(-42%);
+  transition: opacity 220ms ease, transform 420ms ease;
+}
+
+.premium-card--interactive:hover {
+  border-color: color-mix(in srgb, var(--visual-accent) 48%, white);
+  box-shadow:
+    0 24px 64px rgb(16 24 39 / 16%),
+    0 0 0 1px color-mix(in srgb, var(--visual-accent) 28%, transparent),
+    0 0 32px color-mix(in srgb, var(--visual-accent) 22%, transparent);
+  transform: perspective(900px) rotateX(2.2deg) rotateY(-3deg) translateY(-4px);
+}
+
+.premium-card--interactive:hover::before {
+  opacity: 1;
+  transform: translateX(36%);
+}
+
+.premium-card--dark,
+.premium-dark {
+  border-color: rgb(245 166 35 / 30%);
+  background:
+    linear-gradient(145deg, rgb(16 24 39 / 95%), rgb(17 35 52 / 92%)),
+    #101827;
+  color: white;
+  box-shadow: 0 22px 60px rgb(16 24 39 / 24%);
+}
+
+.premium-cta,
+.premium-action {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--visual-accent) 92%, white), #ffe2a1, color-mix(in srgb, var(--visual-gradient-secondary) 30%, var(--visual-accent)));
+  background-size: 180% 180%;
+  box-shadow:
+    0 12px 30px color-mix(in srgb, var(--visual-accent) 24%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 35%);
+  color: #101827;
+}
+
+.premium-cta::after,
+.premium-action::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 25%, rgb(255 255 255 / 42%) 48%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 520ms ease;
+}
+
+.premium-cta:hover,
+.premium-action:hover {
+  background-position: 100% 50%;
+  box-shadow:
+    0 16px 38px color-mix(in srgb, var(--visual-accent) 30%, transparent),
+    0 0 28px color-mix(in srgb, var(--visual-accent) 26%, transparent);
+  filter: saturate(1.04);
+}
+
+.premium-cta:hover::after,
+.premium-action:hover::after {
+  transform: translateX(120%);
+}
+
+.premium-link {
+  border: 1px solid color-mix(in srgb, var(--visual-accent) 58%, transparent);
+  color: color-mix(in srgb, var(--visual-accent) 84%, white);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+}
+
+.premium-link:hover {
+  background: color-mix(in srgb, var(--visual-accent) 18%, transparent);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--visual-accent) 18%, transparent);
+}
+
+.hero-visual {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(245 166 35 / 30%);
+  background:
+    linear-gradient(120deg, rgb(16 24 39 / 94%), rgb(12 40 52 / 90%)),
+    #101827;
+  color: white;
+  box-shadow: 0 28px 80px rgb(16 24 39 / 24%);
+}
+
+.hero-visual::before {
+  inset: 0;
+  opacity: 0.24;
+  background:
+    var(--visual-hero-image),
+    linear-gradient(135deg, transparent 0 46%, rgb(245 166 35 / 54%) 46% 47%, transparent 47% 100%),
+    linear-gradient(115deg, transparent 0 44%, rgb(255 255 255 / 20%) 44% 45%, transparent 45% 100%),
+    radial-gradient(ellipse at 78% 28%, rgb(245 166 35 / 34%), transparent 32%);
+  background-position: center, center, center, center;
+  background-repeat: no-repeat, repeat, repeat, no-repeat;
+  background-size: cover, 150px 100px, 210px 130px, auto;
+}
+
+.hero-visual::after {
+  right: 8%;
+  bottom: -12%;
+  width: min(360px, 48vw);
+  aspect-ratio: 1;
+  border: 1px solid rgb(245 166 35 / 24%);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, transparent 42%, rgb(245 166 35 / 35%) 43% 45%, transparent 46%),
+    linear-gradient(0deg, transparent 62%, rgb(255 255 255 / 18%) 63% 64%, transparent 65%);
+  opacity: 0.48;
+}
+
+.ad-visual {
+  background-image:
+    linear-gradient(120deg, rgb(255 255 255 / 88%), rgb(255 249 232 / 78%)),
+    var(--visual-ad-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.visual-motion-off *,
+.visual-shell.visual-motion-off * {
+  animation: none !important;
+  transition-duration: 1ms !important;
+}
+
+.visual-shell.visual-card3d-off .premium-card--interactive:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes premium-mesh-drift {
+  from {
+    transform: translate3d(-1.5%, 1%, 0) scale(1);
+  }
+
+  to {
+    transform: translate3d(1.5%, -1%, 0) scale(1.025);
+  }
+}
+
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  .animated-background__mesh,
+  .animated-background__market-grid,
+  .premium-card,
+  .premium-cta,
+  .premium-action {
+    animation: none !important;
+  }
+
+  .premium-card--interactive:hover,
+  button:hover,
+  a:hover {
+    transform: none;
+  }
+
+  .glass-card,
+  .premium-card {
+    backdrop-filter: blur(10px);
+  }
+}
+
+.flag {
+  display: inline-block;
+  height: 16px;
+  width: 24px;
+  overflow: hidden;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 18%);
+}
+
+.flag-tr {
+  position: relative;
+  background: #e30a17;
+}
+
+.flag-tr::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+  box-shadow: -2px 0 0 2px #fff;
+}
+
+.flag-tr::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 5px;
+  height: 0;
+  width: 0;
+  border-bottom: 3px solid transparent;
+  border-left: 8px solid #fff;
+  border-top: 3px solid transparent;
+  transform: rotate(18deg);
+}
+
+.flag-gb {
+  position: relative;
+  background:
+    linear-gradient(32deg, transparent 42%, #fff 42% 48%, #c8102e 48% 53%, #fff 53% 59%, transparent 59%),
+    linear-gradient(148deg, transparent 42%, #fff 42% 48%, #c8102e 48% 53%, #fff 53% 59%, transparent 59%),
+    linear-gradient(90deg, transparent 38%, #fff 38% 45%, #c8102e 45% 55%, #fff 55% 62%, transparent 62%),
+    linear-gradient(0deg, transparent 32%, #fff 32% 42%, #c8102e 42% 58%, #fff 58% 68%, transparent 68%),
+    #012169;
 }

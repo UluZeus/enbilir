@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-labelledby="title desc">
+  <title id="title">enbilir.com logo</title>
+  <desc id="desc">Black and gold finance competition logo with a crown, trophy and rising chart icon.</desc>
+  <defs>
+    <linearGradient id="gold" x1="160" y1="76" x2="560" y2="604" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff2a8"/>
+      <stop offset="0.34" stop-color="#f5c84b"/>
+      <stop offset="0.68" stop-color="#b77a12"/>
+      <stop offset="1" stop-color="#ffe08a"/>
+    </linearGradient>
+    <linearGradient id="gold-soft" x1="192" y1="160" x2="528" y2="518" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f9d86a"/>
+      <stop offset="1" stop-color="#9d650c"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0.95 0 1 0 0 0.68 0 0 1 0 0.18 0 0 0 0.5 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="720" height="720" rx="96" fill="#050505"/>
+  <circle cx="360" cy="306" r="220" fill="#111111"/>
+  <circle cx="360" cy="306" r="219" fill="none" stroke="#2b210c"/>
+
+  <g filter="url(#glow)">
+    <path
+      d="M218 184 L286 236 L360 154 L434 236 L502 184 L480 318 C470 378 422 424 360 424 C298 424 250 378 240 318 L218 184 Z"
+      fill="none"
+      stroke="url(#gold)"
+      stroke-width="22"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M260 322 C268 394 310 438 360 438 C410 438 452 394 460 322"
+      fill="none"
+      stroke="url(#gold-soft)"
+      stroke-width="24"
+      stroke-linecap="round"
+    />
+    <path
+      d="M286 442 H434"
+      fill="none"
+      stroke="url(#gold)"
+      stroke-width="22"
+      stroke-linecap="round"
+    />
+    <path
+      d="M322 442 L300 500 H420 L398 442"
+      fill="none"
+      stroke="url(#gold)"
+      stroke-width="20"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M264 508 H456"
+      fill="none"
+      stroke="url(#gold)"
+      stroke-width="22"
+      stroke-linecap="round"
+    />
+    <path
+      d="M276 336 L330 292 L368 318 L444 244"
+      fill="none"
+      stroke="#fff0a4"
+      stroke-width="18"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M418 244 H444 V270"
+      fill="none"
+      stroke="#fff0a4"
+      stroke-width="18"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+
+  <text
+    x="360"
+    y="632"
+    text-anchor="middle"
+    fill="#f5c84b"
+    font-family="Inter, Montserrat, Arial, sans-serif"
+    font-size="54"
+    font-weight="800"
+    letter-spacing="1.5"
+  >
+    enbilir.com
+  </text>
+</svg>
