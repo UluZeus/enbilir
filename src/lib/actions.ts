@@ -15,6 +15,16 @@ import { awardBadge, evaluateTradeBadges } from "@/lib/badges";
 import { awardLeaderBadgesForActivePeriods, competitionPeriodTypes } from "@/lib/competition-periods";
 import { defaultVisualSettings, getSettingDefinition } from "@/lib/site-visual-settings";
 
+export type TradeActionState = {
+  ok: boolean;
+  message: string;
+};
+
+const initialTradeActionState: TradeActionState = {
+  ok: false,
+  message: "",
+};
+
 function normalizeEmail(email: FormDataEntryValue | null) {
   return String(email ?? "").trim().toLowerCase();
 }
@@ -49,12 +59,6 @@ function getRedirect(localeValue: FormDataEntryValue | null, path: string, error
   const query = error ? `?error=${encodeURIComponent(error)}` : "";
 
   return `/${locale}/${path}${query}`;
-}
-
-function getSuccessRedirect(localeValue: FormDataEntryValue | null, path: string, success: string) {
-  const locale = getSafeLocale(String(localeValue ?? "tr"));
-
-  return `/${locale}/${path}?success=${encodeURIComponent(success)}`;
 }
 
 async function requireSession(locale: FormDataEntryValue | null, returnPath: string, message: string) {
@@ -182,9 +186,14 @@ export async function logoutAction(formData: FormData) {
   redirect(getRedirect(locale, "giris"));
 }
 
-export async function tradeAction(formData: FormData) {
-  const locale = formData.get("locale");
-  const sessionUser = await requireSession(locale, "giris", "Sanal işlem yapabilmek için önce giriş yapmalısın.");
+export async function tradeAction(previousState: TradeActionState = initialTradeActionState, formData: FormData): Promise<TradeActionState> {
+  void previousState;
+  const sessionUser = await getSessionUser();
+
+  if (!sessionUser) {
+    return { ok: false, message: "Sanal işlem yapabilmek için önce giriş yapmalısın." };
+  }
+
   const submittedUserId = String(formData.get("userId") ?? "");
   const userId = sessionUser.id;
   const symbol = String(formData.get("symbol") ?? "");
@@ -196,26 +205,26 @@ export async function tradeAction(formData: FormData) {
   const marketItem = await getLiveMarketItem(symbol);
 
   if (idempotencyKey && cookieStore.get(nonceCookieName)?.value === idempotencyKey) {
-    redirect(getSuccessRedirect(locale, "islem-yap", "Bu işlem zaten uygulanmıştı; tekrar yazılmadı."));
+    return { ok: true, message: "Bu işlem zaten uygulanmıştı; tekrar yazılmadı." };
   }
 
   if (submittedUserId && submittedUserId !== sessionUser.id) {
-    redirect(getRedirect(locale, "islem-yap", "Bu işlemi yalnızca kendi hesabın için yapabilirsin."));
+    return { ok: false, message: "Bu işlemi yalnızca kendi hesabın için yapabilirsin." };
   }
 
   if (!userId || !marketItem || !["BUY", "SELL"].includes(side) || !Number.isFinite(amountUsd) || amountUsd <= 0) {
-    redirect(getRedirect(locale, "islem-yap", "Lütfen ürün, işlem yönü ve pozitif USD tutarı seç."));
+    return { ok: false, message: "Lütfen ürün, işlem yönü ve pozitif USD tutarı seç." };
   }
 
   if (!Number.isFinite(marketItem.priceUsd) || marketItem.priceUsd <= 0) {
-    redirect(getRedirect(locale, "islem-yap", "Seçilen ürün için geçerli fiyat bulunamadı."));
+    return { ok: false, message: "Seçilen ürün için geçerli fiyat bulunamadı." };
   }
 
   const account = await ensureVirtualAccount(userId);
   const cashValueUsd = cashToUsd(account.cashAmount, account.cashMode);
 
   if (side === "BUY" && amountUsd > cashValueUsd) {
-    redirect(getRedirect(locale, "islem-yap", "Bu alım için yeterli sanal nakdin yok."));
+    return { ok: false, message: "Bu alım için yeterli sanal nakdin yok." };
   }
 
   const quantity = amountUsd / marketItem.priceUsd;
@@ -226,11 +235,11 @@ export async function tradeAction(formData: FormData) {
     });
 
     if (!position || position.quantity <= 0) {
-      redirect(getRedirect(locale, "islem-yap", "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor."));
+      return { ok: false, message: "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor." };
     }
 
     if (position.quantity + 0.000001 < quantity) {
-      redirect(getRedirect(locale, "islem-yap", "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla."));
+      return { ok: false, message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla." };
     }
   }
 
@@ -322,7 +331,7 @@ export async function tradeAction(formData: FormData) {
   }
 
   if (transactionError) {
-    redirect(getRedirect(locale, "islem-yap", transactionError));
+    return { ok: false, message: transactionError };
   }
 
   if (idempotencyKey) {
@@ -341,7 +350,10 @@ export async function tradeAction(formData: FormData) {
     // Badge calculation is secondary; a completed trade must still return a success state.
   }
 
-  redirect(getSuccessRedirect(locale, "islem-yap", side === "BUY" ? "Alım başarıyla portföyüne işlendi." : "Satış başarıyla portföyüne işlendi."));
+  return {
+    ok: true,
+    message: side === "BUY" ? "Alım işlemi başarıyla gerçekleşti." : "Satış işlemi başarıyla gerçekleşti.",
+  };
 }
 
 export async function updateCashModeAction(formData: FormData) {

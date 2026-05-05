@@ -9,9 +9,26 @@ import { getSafeLocale } from "@/i18n/config";
 import { getAds } from "@/lib/ads";
 import { tradeAction, updateCashModeAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
-import { getLiveMarketItems } from "@/lib/live-market";
+import { getFallbackMarketItems } from "@/lib/live-market";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
+import type { DisplayAd } from "@/lib/ads";
+import type { MarketItem } from "@/lib/market-data";
+
+type PortfolioSnapshot = Awaited<ReturnType<typeof getPortfolioSnapshot>>;
+
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number, fallback: T) {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), milliseconds);
+    }),
+  ]);
+}
 
 export default async function TradePage({
   params,
@@ -35,19 +52,34 @@ export default async function TradePage({
     );
   }
 
-  const [topAds, sideAds, bottomAds, marketItems, snapshot] = await Promise.all([
+  const fallbackMarketItems = getFallbackMarketItems();
+  const [topAdsResult, sideAdsResult, bottomAdsResult, snapshotResult] = await Promise.allSettled([
     getAds("trade_top"),
     getAds("trade_right"),
     getAds("trade_bottom"),
-    getLiveMarketItems(),
-    getPortfolioSnapshot(user.id),
+    withTimeout(getPortfolioSnapshot(user.id, fallbackMarketItems), 2600, null),
   ]);
-  const breakdownItems = getPortfolioBreakdownItems(snapshot);
+  const topAds = settledValue<DisplayAd[]>(topAdsResult, []);
+  const sideAds = settledValue<DisplayAd[]>(sideAdsResult, []);
+  const bottomAds = settledValue<DisplayAd[]>(bottomAdsResult, []);
+  const marketItems: MarketItem[] = Array.isArray(fallbackMarketItems) ? fallbackMarketItems : [];
+  const snapshot = settledValue<PortfolioSnapshot | null>(snapshotResult, null);
+  const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
+  const dataError = snapshotResult.status === "rejected"
+    ? "Portföy bilgileri geçici olarak yüklenemedi. İşlem formunu kullanmadan önce sayfayı yenilemeyi dene."
+    : undefined;
+
+  console.log("Trade page render data", {
+    marketItemsCount: marketItems.length,
+    hasUser: Boolean(user),
+    hasSnapshot: Boolean(snapshot),
+  });
 
   return (
     <div className="grid gap-6">
       <FormMessage message={query.error} />
       <FormMessage message={query.success} tone="success" />
+      <FormMessage message={dataError} tone="info" />
       <AdBanner ads={topAds} />
       <section className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="grid gap-5">
@@ -73,19 +105,27 @@ export default async function TradePage({
         <aside className="grid content-start gap-5">
           <div className="premium-card premium-card--interactive p-5 shadow-sm">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Toplam portföy</p>
-            <p className="mt-2 text-2xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
-            <PortfolioDonut
-              total={snapshot.totalValueUsd}
-              animated
-              items={[
-                { label: "Nakit", value: snapshot.cashValueUsd },
-                ...snapshot.positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
-              ]}
-            />
-            <p className="mt-3 text-sm text-slate-600">Kalan nakit: {formatMoney(snapshot.cashValueUsd)}</p>
-            <div className="mt-4">
-              <PortfolioBreakdown items={breakdownItems} />
-            </div>
+            {snapshot ? (
+              <>
+                <p className="mt-2 text-2xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
+                <PortfolioDonut
+                  total={snapshot.totalValueUsd}
+                  animated
+                  items={[
+                    { label: "Nakit", value: snapshot.cashValueUsd },
+                    ...snapshot.positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
+                  ]}
+                />
+                <p className="mt-3 text-sm text-slate-600">Kalan nakit: {formatMoney(snapshot.cashValueUsd)}</p>
+                <div className="mt-4">
+                  <PortfolioBreakdown items={breakdownItems} />
+                </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                Portföy bilgileri şu anda yüklenemedi. Veriler korunuyor; biraz sonra sayfayı yenileyebilirsin.
+              </div>
+            )}
           </div>
           <AdBanner ads={sideAds} variant="side" />
         </aside>

@@ -13,15 +13,42 @@ import { marketNews, rotaryNews } from "@/lib/market-data";
 import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
+import type { DisplayAd } from "@/lib/ads";
+import type { MarketItem } from "@/lib/market-data";
+
+type UserRankingPeriod = Awaited<ReturnType<typeof getUserRankingPeriods>>[number];
+
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number, fallback: T) {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), milliseconds);
+    }),
+  ]);
+}
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const user = await getSessionUser();
-  const [ads, liveItems] = await Promise.all([getAds("home_top"), getLiveMarketItems()]);
-  const snapshot = user ? await getPortfolioSnapshot(user.id) : null;
-  const chartPeriods = user && snapshot ? await getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd) : [];
-  const rankingPeriods = user ? await getUserRankingPeriods(user.id) : [];
+  const [adsResult, liveItemsResult, snapshotResult] = await Promise.allSettled([
+    getAds("home_top"),
+    withTimeout(getLiveMarketItems(), 2200, []),
+    user ? withTimeout(getPortfolioSnapshot(user.id), 2600, null) : Promise.resolve(null),
+  ]);
+  const ads = settledValue<DisplayAd[]>(adsResult, []);
+  const liveItems = settledValue<MarketItem[]>(liveItemsResult, []);
+  const snapshot = settledValue<Awaited<ReturnType<typeof getPortfolioSnapshot>> | null>(snapshotResult, null);
+  const [chartPeriodsResult, rankingPeriodsResult] = await Promise.allSettled([
+    user && snapshot ? withTimeout(getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd), 2600, []) : Promise.resolve([]),
+    user ? withTimeout(getUserRankingPeriods(user.id), 2600, []) : Promise.resolve([]),
+  ]);
+  const chartPeriods = settledValue<PortfolioPerformancePeriod[]>(chartPeriodsResult, []);
+  const rankingPeriods = settledValue<UserRankingPeriod[]>(rankingPeriodsResult, []);
   const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
 
   return (

@@ -33,6 +33,10 @@ function normalizeQuote(fallback: MarketItem, quote?: StooqQuote): MarketItem {
   };
 }
 
+export function getFallbackMarketItems(): MarketItem[] {
+  return mixedMarketItems.map((fallback) => normalizeQuote(fallback));
+}
+
 function parseStooqCsv(csv: string): StooqQuote | null {
   const [, row] = csv.trim().split(/\r?\n/);
 
@@ -53,6 +57,16 @@ function parseStooqCsv(csv: string): StooqQuote | null {
   };
 }
 
+function timeout<T>(milliseconds: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(fallback), milliseconds);
+  });
+}
+
+function liveFetchEnabled() {
+  return process.env.ENABLE_LIVE_MARKET_FETCH === "true";
+}
+
 async function fetchStooqQuote(symbol: string): Promise<StooqQuote | null> {
   try {
     const response = await fetch(
@@ -64,6 +78,7 @@ async function fetchStooqQuote(symbol: string): Promise<StooqQuote | null> {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
         },
         next: { revalidate: 60 },
+        signal: AbortSignal.timeout(900),
       },
     );
 
@@ -78,7 +93,13 @@ async function fetchStooqQuote(symbol: string): Promise<StooqQuote | null> {
 }
 
 export async function getLiveMarketItems(): Promise<MarketItem[]> {
-  try {
+  const fallbackItems = getFallbackMarketItems();
+
+  if (!liveFetchEnabled()) {
+    return fallbackItems;
+  }
+
+  async function loadItems() {
     const quoteableItems = mixedMarketItems.filter((item) => item.source !== "representative");
     const quoteResults = await Promise.allSettled(
       quoteableItems.map((item) => fetchStooqQuote(item.dataSymbol)),
@@ -93,17 +114,27 @@ export async function getLiveMarketItems(): Promise<MarketItem[]> {
     return mixedMarketItems.map((fallback) =>
       normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase())),
     );
+  }
+
+  try {
+    return await Promise.race([loadItems(), timeout(1800, fallbackItems)]);
   } catch {
-    return mixedMarketItems.map((fallback) => normalizeQuote(fallback));
+    return fallbackItems;
   }
 }
 
 export async function getLiveMarketItem(symbol: string): Promise<MarketItem | undefined> {
+  const fallbackItem = getFallbackMarketItems().find((item) => item.symbol === symbol);
+
+  if (!liveFetchEnabled()) {
+    return fallbackItem;
+  }
+
   try {
     const items = await getLiveMarketItems();
-    return items.find((item) => item.symbol === symbol);
+    return items.find((item) => item.symbol === symbol) ?? fallbackItem;
   } catch {
-    return mixedMarketItems.find((item) => item.symbol === symbol);
+    return fallbackItem;
   }
 }
 

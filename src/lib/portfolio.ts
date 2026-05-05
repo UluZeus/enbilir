@@ -1,4 +1,5 @@
 import type { CashMode } from "@/generated/prisma/enums";
+import type { MarketItem } from "@/lib/market-data";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
 
@@ -29,6 +30,17 @@ export function cashToUsd(amount: number, mode: CashMode) {
 
 export function usdToCash(amount: number, mode: CashMode) {
   return amount / exchangeRatesToUsd[mode];
+}
+
+function getPortfolioPriceUsd(
+  position: { averagePriceUsd: number; symbol: string },
+  marketItem: { priceUsd: number; source: string } | undefined,
+) {
+  if (marketItem?.source === "stooq" && Number.isFinite(marketItem.priceUsd) && marketItem.priceUsd > 0) {
+    return marketItem.priceUsd;
+  }
+
+  return position.averagePriceUsd;
 }
 
 export async function ensureVirtualAccount(userId: string) {
@@ -74,9 +86,9 @@ export async function accrueRepoIfNeeded(userId: string) {
   });
 }
 
-export async function getPortfolioSnapshot(userId: string) {
+export async function getPortfolioSnapshot(userId: string, marketItems?: MarketItem[]) {
   const account = await accrueRepoIfNeeded(userId);
-  const liveMarketItems = await getLiveMarketItems();
+  const liveMarketItems = marketItems ?? await getLiveMarketItems();
   const positions = await prisma.portfolioPosition.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
@@ -89,7 +101,7 @@ export async function getPortfolioSnapshot(userId: string) {
 
   const enrichedPositions = positions.map((position) => {
     const marketItem = liveMarketItems.find((item) => item.symbol === position.symbol);
-    const currentPriceUsd = marketItem?.priceUsd ?? position.averagePriceUsd;
+    const currentPriceUsd = getPortfolioPriceUsd(position, marketItem);
     const valueUsd = position.quantity * currentPriceUsd;
     const profitLossUsd = valueUsd - position.quantity * position.averagePriceUsd;
 
