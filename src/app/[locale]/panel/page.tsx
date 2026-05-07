@@ -109,7 +109,7 @@ export default async function DashboardPage({
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">Yarışma dönemleri</p>
             <h2 className="mt-2 text-xl font-black text-[#152033]">Dönem derecelerim</h2>
           </div>
-          <p className="text-sm text-slate-500">Snapshot yoksa anlık portföy değeriyle geçici hesaplanır.</p>
+          <p className="text-sm text-slate-500">Anlık sıralama canlı portföy değeriyle hesaplanır.</p>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-5">
           {competitionRankings.map((period) => (

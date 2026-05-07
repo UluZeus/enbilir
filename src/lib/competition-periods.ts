@@ -40,6 +40,8 @@ type RankedRow = {
   source: "snapshot" | "live";
 };
 
+type PeriodLeaderboardMode = "live" | "snapshot";
+
 function createFallbackPeriod(type: CompetitionPeriodType) {
   const now = new Date();
   const startsAt = new Date(now);
@@ -78,7 +80,7 @@ export async function getCompetitionPeriods() {
   });
 }
 
-export async function getPeriodLeaderboard(type: CompetitionPeriodType) {
+export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: PeriodLeaderboardMode = "live") {
   const period = await getActiveCompetitionPeriod(type);
   const hasPersistedPeriod = !period.id.startsWith("fallback-");
   const users = await prisma.user.findMany({
@@ -92,7 +94,7 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType) {
     },
   });
 
-  if (hasPersistedPeriod) {
+  if (mode === "snapshot" && hasPersistedPeriod) {
     const snapshots = await prisma.portfolioSnapshot.findMany({
       where: { periodId: period.id },
     });

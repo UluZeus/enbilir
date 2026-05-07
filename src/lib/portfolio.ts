@@ -12,6 +12,9 @@ const exchangeRatesToUsd: Record<CashMode, number> = {
   TRY_REPO: 1 / 32.4,
 };
 
+const fallbackPriceLowerBound = 0.65;
+const fallbackPriceUpperBound = 1.6;
+
 export function formatMoney(value: number, currency = "USD") {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
@@ -32,11 +35,31 @@ export function usdToCash(amount: number, mode: CashMode) {
   return amount / exchangeRatesToUsd[mode];
 }
 
-function getPortfolioPriceUsd(
+export function getSafePortfolioPriceUsd(
   position: { averagePriceUsd: number; symbol: string },
   marketItem: { priceUsd: number; source: string } | undefined,
 ) {
-  if (marketItem?.source === "stooq" && Number.isFinite(marketItem.priceUsd) && marketItem.priceUsd > 0) {
+  if (marketItem?.source === "fallback") {
+    if (!Number.isFinite(position.averagePriceUsd) || position.averagePriceUsd <= 0) {
+      return Number.isFinite(marketItem.priceUsd) && marketItem.priceUsd > 0 ? marketItem.priceUsd : 0;
+    }
+
+    const fallbackRatio = marketItem.priceUsd / position.averagePriceUsd;
+
+    if (
+      Number.isFinite(fallbackRatio) &&
+      fallbackRatio >= fallbackPriceLowerBound &&
+      fallbackRatio <= fallbackPriceUpperBound &&
+      Number.isFinite(marketItem.priceUsd) &&
+      marketItem.priceUsd > 0
+    ) {
+      return marketItem.priceUsd;
+    }
+
+    return position.averagePriceUsd;
+  }
+
+  if (marketItem && Number.isFinite(marketItem.priceUsd) && marketItem.priceUsd > 0) {
     return marketItem.priceUsd;
   }
 
@@ -86,7 +109,7 @@ export async function accrueRepoIfNeeded(userId: string) {
   });
 }
 
-export async function getPortfolioSnapshot(userId: string, marketItems?: MarketItem[]) {
+export async function getCurrentPortfolio(userId: string, marketItems?: MarketItem[]) {
   const account = await accrueRepoIfNeeded(userId);
   const liveMarketItems = marketItems ?? await getLiveMarketItems();
   const positions = await prisma.portfolioPosition.findMany({
@@ -101,7 +124,7 @@ export async function getPortfolioSnapshot(userId: string, marketItems?: MarketI
 
   const enrichedPositions = positions.map((position) => {
     const marketItem = liveMarketItems.find((item) => item.symbol === position.symbol);
-    const currentPriceUsd = getPortfolioPriceUsd(position, marketItem);
+    const currentPriceUsd = getSafePortfolioPriceUsd(position, marketItem);
     const valueUsd = position.quantity * currentPriceUsd;
     const profitLossUsd = valueUsd - position.quantity * position.averagePriceUsd;
 
@@ -127,3 +150,5 @@ export async function getPortfolioSnapshot(userId: string, marketItems?: MarketI
     profitLossUsd: cashValueUsd + positionsValueUsd - initialCashUsd,
   };
 }
+
+export const getPortfolioSnapshot = getCurrentPortfolio;

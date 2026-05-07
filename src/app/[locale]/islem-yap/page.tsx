@@ -9,7 +9,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { getAds } from "@/lib/ads";
 import { tradeAction, updateCashModeAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
-import { getFallbackMarketItems } from "@/lib/live-market";
+import { getFallbackMarketItems, getLiveMarketItems } from "@/lib/live-market";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import type { DisplayAd } from "@/lib/ads";
@@ -53,27 +53,22 @@ export default async function TradePage({
   }
 
   const fallbackMarketItems = getFallbackMarketItems();
+  const liveMarketItems = await withTimeout(getLiveMarketItems(), 2200, fallbackMarketItems);
   const [topAdsResult, sideAdsResult, bottomAdsResult, snapshotResult] = await Promise.allSettled([
     getAds("trade_top"),
     getAds("trade_right"),
     getAds("trade_bottom"),
-    withTimeout(getPortfolioSnapshot(user.id, fallbackMarketItems), 2600, null),
+    withTimeout(getPortfolioSnapshot(user.id, liveMarketItems), 2600, null),
   ]);
   const topAds = settledValue<DisplayAd[]>(topAdsResult, []);
   const sideAds = settledValue<DisplayAd[]>(sideAdsResult, []);
   const bottomAds = settledValue<DisplayAd[]>(bottomAdsResult, []);
-  const marketItems: MarketItem[] = Array.isArray(fallbackMarketItems) ? fallbackMarketItems : [];
+  const marketItems: MarketItem[] = Array.isArray(liveMarketItems) ? liveMarketItems : fallbackMarketItems;
   const snapshot = settledValue<PortfolioSnapshot | null>(snapshotResult, null);
   const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
   const dataError = snapshotResult.status === "rejected"
     ? "Portföy bilgileri geçici olarak yüklenemedi. İşlem formunu kullanmadan önce sayfayı yenilemeyi dene."
     : undefined;
-
-  console.log("Trade page render data", {
-    marketItemsCount: marketItems.length,
-    hasUser: Boolean(user),
-    hasSnapshot: Boolean(snapshot),
-  });
 
   return (
     <div className="grid gap-6">

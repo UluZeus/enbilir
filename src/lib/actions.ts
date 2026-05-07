@@ -3,11 +3,12 @@
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { canAccessAdmin, createSession, destroySession, getSessionUser, masterAdminEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSafeLocale } from "@/i18n/config";
 import { getLiveMarketItem } from "@/lib/live-market";
-import { cashToUsd, ensureVirtualAccount, usdToCash } from "@/lib/portfolio";
+import { cashToUsd, ensureVirtualAccount, getSafePortfolioPriceUsd, usdToCash } from "@/lib/portfolio";
 import type { CashMode, CompetitionPeriodType, DisplayNameMode, LeagueType, TradeSide } from "@/generated/prisma/enums";
 import { getFriendPairKey } from "@/lib/friends";
 import { getUniqueInviteCode, getUniqueLeagueSlug, leagueTypes } from "@/lib/leagues";
@@ -24,6 +25,10 @@ const initialTradeActionState: TradeActionState = {
   ok: false,
   message: "",
 };
+
+type TradePricePosition = {
+  averagePriceUsd: number;
+} | null;
 
 function normalizeEmail(email: FormDataEntryValue | null) {
   return String(email ?? "").trim().toLowerCase();
@@ -59,6 +64,32 @@ function getRedirect(localeValue: FormDataEntryValue | null, path: string, error
   const query = error ? `?error=${encodeURIComponent(error)}` : "";
 
   return `/${locale}/${path}${query}`;
+}
+
+function revalidatePortfolioViews(localeValue: FormDataEntryValue | null) {
+  const locale = getSafeLocale(String(localeValue ?? "tr"));
+
+  revalidatePath(`/${locale}`);
+  revalidatePath(`/${locale}/panel`);
+  revalidatePath(`/${locale}/islem-yap`);
+  revalidatePath(`/${locale}/liderlik-tablosu`);
+}
+
+function revalidateSocialViews(localeValue: FormDataEntryValue | null) {
+  const locale = getSafeLocale(String(localeValue ?? "tr"));
+
+  revalidatePath(`/${locale}/topluluk`);
+  revalidatePath(`/${locale}/panel`);
+  revalidatePath(`/${locale}/ligler`);
+  revalidatePath(`/${locale}/liderlik-tablosu`);
+}
+
+function getSafeTradePriceUsd(marketItem: { priceUsd: number; source: string }, position: TradePricePosition) {
+  if (position) {
+    return getSafePortfolioPriceUsd({ ...position, symbol: "" }, marketItem);
+  }
+
+  return marketItem.priceUsd;
 }
 
 async function requireSession(locale: FormDataEntryValue | null, returnPath: string, message: string) {
@@ -195,6 +226,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   }
 
   const submittedUserId = String(formData.get("userId") ?? "");
+  const locale = formData.get("locale");
   const userId = sessionUser.id;
   const symbol = String(formData.get("symbol") ?? "");
   const side = String(formData.get("side") ?? "") as TradeSide;
@@ -216,7 +248,12 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: "Lütfen ürün, işlem yönü ve pozitif USD tutarı seç." };
   }
 
-  if (!Number.isFinite(marketItem.priceUsd) || marketItem.priceUsd <= 0) {
+  const existingPosition = await prisma.portfolioPosition.findUnique({
+    where: { userId_symbol: { userId, symbol } },
+  });
+  const tradePriceUsd = getSafeTradePriceUsd(marketItem, existingPosition);
+
+  if (!Number.isFinite(tradePriceUsd) || tradePriceUsd <= 0) {
     return { ok: false, message: "Seçilen ürün için geçerli fiyat bulunamadı." };
   }
 
@@ -227,18 +264,14 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: "Bu alım için yeterli sanal nakdin yok." };
   }
 
-  const quantity = amountUsd / marketItem.priceUsd;
+  const quantity = amountUsd / tradePriceUsd;
 
   if (side === "SELL") {
-    const position = await prisma.portfolioPosition.findUnique({
-      where: { userId_symbol: { userId, symbol } },
-    });
-
-    if (!position || position.quantity <= 0) {
+    if (!existingPosition || existingPosition.quantity <= 0) {
       return { ok: false, message: "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor." };
     }
 
-    if (position.quantity + 0.000001 < quantity) {
+    if (existingPosition.quantity + 0.000001 < quantity) {
       return { ok: false, message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla." };
     }
   }
@@ -258,13 +291,15 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       const currentPosition = await tx.portfolioPosition.findUnique({
         where: { userId_symbol: { userId, symbol } },
       });
+      const currentTradePriceUsd = getSafeTradePriceUsd(marketItem, currentPosition);
+      const currentQuantity = amountUsd / currentTradePriceUsd;
 
       if (side === "SELL") {
         if (!currentPosition || currentPosition.quantity <= 0) {
           throw new Error("Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor.");
         }
 
-        if (currentPosition.quantity + 0.000001 < quantity) {
+        if (currentPosition.quantity + 0.000001 < currentQuantity) {
           throw new Error("Satmak istediğiniz miktar portföyünüzdeki miktardan fazla.");
         }
       }
@@ -278,7 +313,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
 
       if (side === "BUY") {
         if (currentPosition) {
-          const totalQuantity = currentPosition.quantity + quantity;
+          const totalQuantity = currentPosition.quantity + currentQuantity;
           const totalCost = currentPosition.quantity * currentPosition.averagePriceUsd + amountUsd;
 
           await tx.portfolioPosition.update({
@@ -295,13 +330,13 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
               symbol,
               name: marketItem.name,
               market: marketItem.market,
-              quantity,
-              averagePriceUsd: marketItem.priceUsd,
+              quantity: currentQuantity,
+              averagePriceUsd: currentTradePriceUsd,
             },
           });
         }
       } else if (currentPosition) {
-        const nextQuantity = currentPosition.quantity - quantity;
+        const nextQuantity = currentPosition.quantity - currentQuantity;
 
         if (nextQuantity <= 0.000001) {
           await tx.portfolioPosition.delete({ where: { userId_symbol: { userId, symbol } } });
@@ -320,8 +355,8 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
           name: marketItem.name,
           market: marketItem.market,
           side,
-          quantity,
-          priceUsd: marketItem.priceUsd,
+          quantity: currentQuantity,
+          priceUsd: currentTradePriceUsd,
           totalUsd: amountUsd,
         },
       });
@@ -349,6 +384,8 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   } catch {
     // Badge calculation is secondary; a completed trade must still return a success state.
   }
+
+  revalidatePortfolioViews(locale);
 
   return {
     ok: true,
@@ -382,6 +419,8 @@ export async function updateCashModeAction(formData: FormData) {
       repoLastAccruedAt: cashMode === "TRY_REPO" ? new Date() : null,
     },
   });
+
+  revalidatePortfolioViews(locale);
 
   redirect(getRedirect(locale, "islem-yap"));
 }
@@ -674,6 +713,69 @@ export async function sendFriendRequestAction(formData: FormData) {
   redirect(getRedirect(locale, "panel"));
 }
 
+export async function sendCommunityFriendRequestAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const sessionUser = await requireSession(locale, "giris", "Arkadaş eklemek için önce giriş yapmalısın.");
+  const targetUserId = String(formData.get("targetUserId") ?? "");
+
+  if (!targetUserId || targetUserId === sessionUser.id) {
+    redirect(getRedirect(locale, "topluluk", "Kendine arkadaşlık isteği gönderemezsin."));
+  }
+
+  const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
+
+  if (!targetUser) {
+    redirect(getRedirect(locale, "topluluk", "Kullanıcı bulunamadı."));
+  }
+
+  const pairKey = getFriendPairKey(sessionUser.id, targetUserId);
+  const existingRequest = await prisma.friendRequest.findUnique({ where: { pairKey }, select: { id: true } });
+
+  if (existingRequest) {
+    redirect(getRedirect(locale, "topluluk", "Bu kullanıcı ile zaten bir arkadaşlık kaydı var."));
+  }
+
+  await prisma.friendRequest.create({
+    data: {
+      pairKey,
+      senderId: sessionUser.id,
+      receiverId: targetUserId,
+      status: "PENDING",
+    },
+  });
+
+  revalidateSocialViews(locale);
+  redirect(getRedirect(locale, "topluluk"));
+}
+
+export async function removeCommunityFriendAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const sessionUser = await requireSession(locale, "giris", "Arkadaş yönetimi için önce giriş yapmalısın.");
+  const targetUserId = String(formData.get("targetUserId") ?? "");
+
+  if (!targetUserId || targetUserId === sessionUser.id) {
+    redirect(getRedirect(locale, "topluluk", "Bu arkadaşlık işlemi uygulanamaz."));
+  }
+
+  const pairKey = getFriendPairKey(sessionUser.id, targetUserId);
+  const existingRequest = await prisma.friendRequest.findUnique({
+    where: { pairKey },
+    select: { id: true, status: true },
+  });
+
+  if (!existingRequest || existingRequest.status !== "ACCEPTED") {
+    redirect(getRedirect(locale, "topluluk", "Aktif arkadaşlık kaydı bulunamadı."));
+  }
+
+  await prisma.friendRequest.update({
+    where: { id: existingRequest.id },
+    data: { status: "REJECTED" },
+  });
+
+  revalidateSocialViews(locale);
+  redirect(getRedirect(locale, "topluluk"));
+}
+
 export async function respondFriendRequestAction(formData: FormData) {
   const locale = formData.get("locale");
   const requestId = String(formData.get("requestId") ?? "");
@@ -811,4 +913,87 @@ export async function joinLeagueAction(formData: FormData) {
   await awardBadge(sessionUser.id, "FIRST_LEAGUE", { action: "join", leagueId: league.id });
 
   redirect(getRedirect(locale, "panel"));
+}
+
+export async function changeLeagueAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const sessionUser = await requireSession(locale, "giris", "Lig değiştirmek için önce giriş yapmalısın.");
+  const submittedUserId = String(formData.get("userId") ?? "");
+  const leagueId = String(formData.get("leagueId") ?? "");
+
+  if (submittedUserId && submittedUserId !== sessionUser.id) {
+    redirect(getRedirect(locale, "topluluk", "Yalnızca kendi ligini değiştirebilirsin."));
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: sessionUser.id },
+    select: { id: true, lastLeagueChangeAt: true },
+  });
+
+  if (!user) {
+    redirect(getRedirect(locale, "topluluk", "Oturum kullanıcısı bulunamadı."));
+  }
+
+  if (!leagueId) {
+    redirect(getRedirect(locale, "topluluk", "Lütfen geçerli bir lig seç."));
+  }
+
+  const league = await prisma.league.findFirst({
+    where: { id: leagueId, isActive: true },
+    select: { id: true },
+  });
+
+  if (!league) {
+    redirect(getRedirect(locale, "topluluk", "Seçilen lig aktif değil veya bulunamadı."));
+  }
+
+  const memberships = await prisma.leagueMembership.findMany({
+    where: { userId: sessionUser.id },
+    orderBy: { joinedAt: "desc" },
+    select: { id: true, leagueId: true },
+  });
+  const currentMembership = memberships[0] ?? null;
+
+  if (currentMembership?.leagueId === leagueId) {
+    redirect(getRedirect(locale, "topluluk"));
+  }
+
+  const now = new Date();
+  const lastLeagueChangeAt = user.lastLeagueChangeAt;
+
+  if (lastLeagueChangeAt && now.getTime() - lastLeagueChangeAt.getTime() < 30 * 86_400_000) {
+    redirect(getRedirect(locale, "topluluk", "Lig değişikliği ayda yalnızca 1 kez yapılabilir."));
+  }
+
+  const existingTargetMembership = memberships.find((membership) => membership.leagueId === leagueId);
+
+  await prisma.$transaction(async (tx) => {
+    if (existingTargetMembership) {
+      await tx.leagueMembership.update({
+        where: { id: existingTargetMembership.id },
+        data: { joinedAt: now },
+      });
+    } else if (currentMembership) {
+      await tx.leagueMembership.update({
+        where: { id: currentMembership.id },
+        data: { leagueId, joinedAt: now },
+      });
+    } else {
+      await tx.leagueMembership.create({
+        data: {
+          leagueId,
+          userId: sessionUser.id,
+          role: "MEMBER",
+        },
+      });
+    }
+
+    await tx.user.update({
+      where: { id: sessionUser.id },
+      data: { lastLeagueChangeAt: now },
+    });
+  });
+
+  revalidateSocialViews(locale);
+  redirect(getRedirect(locale, "topluluk"));
 }

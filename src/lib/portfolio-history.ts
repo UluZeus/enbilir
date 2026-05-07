@@ -67,7 +67,7 @@ function getSnapshotChange(row: PeriodLeaderboardRow | undefined, totalValueUsd:
 }
 
 export async function getPortfolioPerformancePeriods(userId: string, totalValueUsd: number): Promise<PortfolioPerformancePeriod[]> {
-  const leaderboards = await Promise.all(competitionKeys.map((key) => getPeriodLeaderboard(key)));
+  const leaderboards = await Promise.all(competitionKeys.map((key) => getPeriodLeaderboard(key, "snapshot")));
   const rowsByKey = new Map<CompetitionPeriodType, PeriodLeaderboardRow | undefined>(
     leaderboards.map((leaderboard, index) => [competitionKeys[index], leaderboard.rows.find((row) => row.userId === userId)]),
   );

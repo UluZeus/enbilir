@@ -12,7 +12,19 @@ function formatPrice(value: number) {
   }).format(value);
 }
 
-function normalizeQuote(fallback: MarketItem, quote?: StooqQuote): MarketItem {
+function getQuotePriceUsd(fallback: MarketItem, quote: StooqQuote, usdTryClose?: number) {
+  if (fallback.symbol === "USD/TRY") {
+    return 1;
+  }
+
+  if (fallback.dataSymbol.endsWith(".tr") || fallback.dataSymbol.toLowerCase().endsWith("try")) {
+    return usdTryClose && usdTryClose > 0 ? quote.close / usdTryClose : fallback.priceUsd;
+  }
+
+  return quote.close;
+}
+
+function normalizeQuote(fallback: MarketItem, quote?: StooqQuote, usdTryClose?: number): MarketItem {
   if (!quote || !Number.isFinite(quote.close) || quote.close <= 0) {
     return {
       ...fallback,
@@ -22,11 +34,12 @@ function normalizeQuote(fallback: MarketItem, quote?: StooqQuote): MarketItem {
   }
 
   const changePercent = quote.open > 0 ? ((quote.close - quote.open) / quote.open) * 100 : fallback.changePercent;
+  const priceUsd = getQuotePriceUsd(fallback, quote, usdTryClose);
 
   return {
     ...fallback,
-    price: formatPrice(quote.close),
-    priceUsd: quote.close,
+    price: formatPrice(priceUsd),
+    priceUsd,
     changePercent,
     dataStatus: "delayed",
     source: "stooq",
@@ -64,7 +77,7 @@ function timeout<T>(milliseconds: number, fallback: T): Promise<T> {
 }
 
 function liveFetchEnabled() {
-  return process.env.ENABLE_LIVE_MARKET_FETCH === "true";
+  return process.env.ENABLE_LIVE_MARKET_FETCH !== "false";
 }
 
 async function fetchStooqQuote(symbol: string): Promise<StooqQuote | null> {
@@ -77,7 +90,7 @@ async function fetchStooqQuote(symbol: string): Promise<StooqQuote | null> {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
         },
-        next: { revalidate: 60 },
+        cache: "no-store",
         signal: AbortSignal.timeout(900),
       },
     );
@@ -111,8 +124,10 @@ export async function getLiveMarketItems(): Promise<MarketItem[]> {
         .map((quote) => [quote.symbol, quote]),
     );
 
+    const usdTryClose = quoteMap.get("usdtry")?.close;
+
     return mixedMarketItems.map((fallback) =>
-      normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase())),
+      normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase()), usdTryClose),
     );
   }
 

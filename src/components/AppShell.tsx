@@ -5,6 +5,8 @@ import { AnimatedBackground } from "@/components/AnimatedBackground";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
+import { logoutAction } from "@/lib/actions";
+import { getDisplayName, getSessionUser } from "@/lib/auth";
 import { getSiteVisualSettings, isVisualEnabled } from "@/lib/site-visual-settings";
 
 const primaryNav = [
@@ -13,6 +15,7 @@ const primaryNav = [
   { href: "egitim", label: "education" },
   { href: "liderlik-tablosu", label: "leaderboard" },
   { href: "ligler", label: "leagues" },
+  { href: "topluluk", label: "community" },
   { href: "blog", label: "blog" },
   { href: "iletisim", label: "contact" },
 ] as const;
@@ -44,8 +47,20 @@ function imageVariable(url: string) {
   return url ? `url("${url.replaceAll('"', "%22")}")` : "none";
 }
 
+function CommunityIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
 export async function AppShell({ children, locale }: AppShellProps) {
   const dictionary = getDictionary(locale);
+  const sessionUser = await getSessionUser();
   const visualSettings = await getSiteVisualSettings();
   const animationsEnabled = isVisualEnabled(visualSettings, "animationsEnabled");
   const card3dEnabled = isVisualEnabled(visualSettings, "card3dEnabled");
@@ -115,8 +130,9 @@ export async function AppShell({ children, locale }: AppShellProps) {
                 <Link
                 key={item.href}
                 href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                  className="rounded-md px-3 py-2 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm"
                 >
+                  {item.label === "community" ? <CommunityIcon /> : null}
                   {dictionary.nav[item.label]}
                 </Link>
               ))}
@@ -124,15 +140,32 @@ export async function AppShell({ children, locale }: AppShellProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {accountNav.map((item) => (
-              <Link
-                key={item.href}
-                href={`/${locale}/${item.href}`}
-                className="rounded-md border border-white/60 bg-white/70 px-3 py-2 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e]"
-              >
-                {dictionary.nav[item.label]}
-              </Link>
-            ))}
+            {sessionUser ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/${locale}/panel`}
+                  className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e]"
+                >
+                  Merhaba, {getDisplayName(sessionUser)}
+                </Link>
+                <form action={logoutAction}>
+                  <input type="hidden" name="locale" value={locale} />
+                  <button className="rounded-md border border-white/60 bg-white/70 px-3 py-2 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e]">
+                    Çıkış yap
+                  </button>
+                </form>
+              </div>
+            ) : (
+              accountNav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={`/${locale}/${item.href}`}
+                  className="rounded-md border border-white/60 bg-white/70 px-3 py-2 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e]"
+                >
+                  {dictionary.nav[item.label]}
+                </Link>
+              ))
+            )}
             <a
               href={whatsappUrl}
               target="_blank"
