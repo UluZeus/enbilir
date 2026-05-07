@@ -87,7 +87,6 @@ model User {
   noInvestmentAdviceAcceptedAt        DateTime?
   electronicCommunicationConsent      Boolean   @default(false)
   electronicCommunicationConsentAt    DateTime?
-  lastLeagueChangeAt                  DateTime?
   createdAt                           DateTime  @default(now())
   updatedAt                           DateTime  @updatedAt
   virtualAccount                      VirtualAccount?

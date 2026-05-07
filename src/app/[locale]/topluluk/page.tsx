@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FormMessage } from "@/components/FormMessage";
 import { PageHeader } from "@/components/PageHeader";
-import { changeLeagueAction, removeCommunityFriendAction, sendCommunityFriendRequestAction } from "@/lib/actions";
+import { removeCommunityFriendAction, sendCommunityFriendRequestAction } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
 import { getFriendPairKey } from "@/lib/friends";
 import { getSafeLocale } from "@/i18n/config";
@@ -38,10 +38,6 @@ function getCategory(type?: LeagueType): UserCategory {
   return "Diğer";
 }
 
-function canChangeLeague(lastLeagueChangeAt: Date | null) {
-  return !lastLeagueChangeAt || Date.now() - lastLeagueChangeAt.getTime() >= 30 * 86_400_000;
-}
-
 function initials(name: string) {
   return name
     .split(/\s+/)
@@ -63,14 +59,13 @@ export default async function CommunityPage({
   const locale = getSafeLocale(rawLocale);
   const search = String(query.q ?? "").trim().toLowerCase();
   const sessionUser = await getSessionUser();
-  const [users, activeLeagues, friendships] = await Promise.all([
+  const [users, friendships] = await Promise.all([
     prisma.user.findMany({
       select: {
         id: true,
         name: true,
         nickname: true,
         displayNameMode: true,
-        lastLeagueChangeAt: true,
         leagueMemberships: {
           orderBy: { joinedAt: "desc" },
           include: { league: true },
@@ -78,11 +73,6 @@ export default async function CommunityPage({
       },
       orderBy: { createdAt: "desc" },
       take: 120,
-    }),
-    prisma.league.findMany({
-      where: { isActive: true },
-      orderBy: [{ type: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, type: true },
     }),
     sessionUser
       ? prisma.friendRequest.findMany({
@@ -192,7 +182,6 @@ export default async function CommunityPage({
                 locale={locale}
                 row={row}
                 sessionUserId={sessionUser?.id ?? null}
-                activeLeagues={activeLeagues}
               />
             ))
           )}
@@ -206,7 +195,6 @@ function CommunityRow({
   locale,
   row,
   sessionUserId,
-  activeLeagues,
 }: {
   locale: string;
   row: {
@@ -215,7 +203,6 @@ function CommunityRow({
       name: string;
       nickname: string | null;
       displayNameMode: "REAL_NAME" | "NICKNAME";
-      lastLeagueChangeAt: Date | null;
     };
     displayName: string;
     realName: string;
@@ -226,10 +213,8 @@ function CommunityRow({
     friendship: FriendshipState;
   };
   sessionUserId: string | null;
-  activeLeagues: { id: string; name: string; type: LeagueType }[];
 }) {
   const isSelf = sessionUserId === row.user.id;
-  const leagueChangeAllowed = canChangeLeague(row.user.lastLeagueChangeAt);
 
   return (
     <div className="grid gap-4 p-5 transition hover:bg-[#f8fafc] xl:grid-cols-[1.25fr_1fr_150px_170px_260px] xl:items-center">
@@ -257,15 +242,7 @@ function CommunityRow({
         </span>
       </div>
       <FriendshipControl locale={locale} userId={row.user.id} isSelf={isSelf} friendship={row.friendship} disabled={!sessionUserId} />
-      <LeagueControl
-        locale={locale}
-        userId={row.user.id}
-        isSelf={isSelf}
-        currentLeagueId={row.primaryLeagueId}
-        activeLeagues={activeLeagues}
-        leagueChangeAllowed={leagueChangeAllowed}
-        disabled={!sessionUserId}
-      />
+      <LeagueControl isSelf={isSelf} disabled={!sessionUserId} />
     </div>
   );
 }
@@ -327,20 +304,10 @@ function FriendshipControl({
 }
 
 function LeagueControl({
-  locale,
-  userId,
   isSelf,
-  currentLeagueId,
-  activeLeagues,
-  leagueChangeAllowed,
   disabled,
 }: {
-  locale: string;
-  userId: string;
   isSelf: boolean;
-  currentLeagueId: string;
-  activeLeagues: { id: string; name: string; type: LeagueType }[];
-  leagueChangeAllowed: boolean;
   disabled: boolean;
 }) {
   if (!isSelf) {
@@ -351,29 +318,5 @@ function LeagueControl({
     return <span className="text-sm font-bold text-slate-500">Giriş gerekli</span>;
   }
 
-  if (!leagueChangeAllowed) {
-    return <span className="text-sm font-bold text-slate-500">Lig değişikliği ayda yalnızca 1 kez yapılabilir.</span>;
-  }
-
-  return (
-    <form action={changeLeagueAction} className="grid gap-2 sm:grid-cols-[1fr_auto]">
-      <input type="hidden" name="locale" value={locale} />
-      <input type="hidden" name="userId" value={userId} />
-      <select
-        name="leagueId"
-        defaultValue={currentLeagueId || activeLeagues[0]?.id}
-        disabled={activeLeagues.length === 0}
-        className="min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 disabled:opacity-60"
-      >
-        {activeLeagues.map((league) => (
-          <option key={league.id} value={league.id}>
-            {league.name}
-          </option>
-        ))}
-      </select>
-      <button disabled={activeLeagues.length === 0} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-black text-[#152033] hover:border-[#0f766e] hover:text-[#0f766e] disabled:opacity-60">
-        Lig Değiştir
-      </button>
-    </form>
-  );
+  return <span className="text-sm font-bold text-slate-500">Lig değişikliği yakında aktif olacak.</span>;
 }
