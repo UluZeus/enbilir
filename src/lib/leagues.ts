@@ -1,4 +1,5 @@
 import { getDisplayName } from "@/lib/auth";
+import { getLiveMarketItems } from "@/lib/live-market";
 import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import type { LeagueType } from "@/generated/prisma/enums";
@@ -129,9 +130,10 @@ export async function getLeagueLeaderboard(leagueId: string, currentUserId?: str
     },
   });
 
+  const liveMarketItems = await getLiveMarketItems();
   const rows = await Promise.all(
     memberships.map(async (membership) => {
-      const snapshot = await getPortfolioSnapshot(membership.userId);
+      const snapshot = await getPortfolioSnapshot(membership.userId, liveMarketItems);
 
       return {
         membershipId: membership.id,

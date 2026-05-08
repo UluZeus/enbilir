@@ -12,9 +12,6 @@ const exchangeRatesToUsd: Record<CashMode, number> = {
   TRY_REPO: 1 / 32.4,
 };
 
-const fallbackPriceLowerBound = 0.65;
-const fallbackPriceUpperBound = 1.6;
-
 export function formatMoney(value: number, currency = "USD") {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
@@ -39,26 +36,6 @@ export function getSafePortfolioPriceUsd(
   position: { averagePriceUsd: number; symbol: string },
   marketItem: { priceUsd: number; source: string } | undefined,
 ) {
-  if (marketItem?.source === "fallback") {
-    if (!Number.isFinite(position.averagePriceUsd) || position.averagePriceUsd <= 0) {
-      return Number.isFinite(marketItem.priceUsd) && marketItem.priceUsd > 0 ? marketItem.priceUsd : 0;
-    }
-
-    const fallbackRatio = marketItem.priceUsd / position.averagePriceUsd;
-
-    if (
-      Number.isFinite(fallbackRatio) &&
-      fallbackRatio >= fallbackPriceLowerBound &&
-      fallbackRatio <= fallbackPriceUpperBound &&
-      Number.isFinite(marketItem.priceUsd) &&
-      marketItem.priceUsd > 0
-    ) {
-      return marketItem.priceUsd;
-    }
-
-    return position.averagePriceUsd;
-  }
-
   if (marketItem && Number.isFinite(marketItem.priceUsd) && marketItem.priceUsd > 0) {
     return marketItem.priceUsd;
   }

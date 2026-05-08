@@ -5,8 +5,6 @@ import process from "node:process";
 import Database from "better-sqlite3";
 
 const initialCashUsd = 1_000_000;
-const fallbackPriceLowerBound = 0.65;
-const fallbackPriceUpperBound = 1.6;
 const args = new Set(process.argv.slice(2));
 const apply = args.has("--apply");
 const confirmProduction = args.has("--confirm-production");
@@ -56,17 +54,7 @@ function cashToUsd(amount, mode) {
 function safePriceUsd(position, fallbackPrices) {
   const fallbackPrice = fallbackPrices.get(position.symbol);
 
-  if (!Number.isFinite(position.averagePriceUsd) || position.averagePriceUsd <= 0) {
-    return Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? fallbackPrice : 0;
-  }
-
-  if (!Number.isFinite(fallbackPrice) || fallbackPrice <= 0) {
-    return position.averagePriceUsd;
-  }
-
-  const ratio = fallbackPrice / position.averagePriceUsd;
-
-  if (ratio >= fallbackPriceLowerBound && ratio <= fallbackPriceUpperBound) {
+  if (Number.isFinite(fallbackPrice) && fallbackPrice > 0) {
     return fallbackPrice;
   }
 
