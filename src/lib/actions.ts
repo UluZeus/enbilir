@@ -193,6 +193,10 @@ export async function loginAction(formData: FormData) {
     redirect(getRedirect(locale, "giris", "E-posta veya şifre hatalı."));
   }
 
+  if (!user.passwordHash) {
+    redirect(getRedirect(locale, "giris", "Bu hesap Google ile giriş için oluşturulmuş. Lütfen Google ile giriş yapın."));
+  }
+
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {
@@ -665,6 +669,45 @@ export async function awardLeaderBadgesAction(formData: FormData) {
   redirect(getRedirect(locale, "admin"));
 }
 
+async function addFriendImmediately(userId: string, targetUserId: string) {
+  const pairKey = getFriendPairKey(userId, targetUserId);
+  const existingRequest = await prisma.friendRequest.findUnique({
+    where: { pairKey },
+    select: { id: true, status: true },
+  });
+
+  if (existingRequest?.status === "ACCEPTED") {
+    return existingRequest.id;
+  }
+
+  const request = existingRequest
+    ? await prisma.friendRequest.update({
+        where: { id: existingRequest.id },
+        data: {
+          senderId: userId,
+          receiverId: targetUserId,
+          status: "ACCEPTED",
+        },
+        select: { id: true },
+      })
+    : await prisma.friendRequest.create({
+        data: {
+          pairKey,
+          senderId: userId,
+          receiverId: targetUserId,
+          status: "ACCEPTED",
+        },
+        select: { id: true },
+      });
+
+  await Promise.all([
+    awardBadge(userId, "FIRST_FRIEND", { requestId: request.id, mode: "instant" }),
+    awardBadge(targetUserId, "FIRST_FRIEND", { requestId: request.id, mode: "instant" }),
+  ]);
+
+  return request.id;
+}
+
 export async function sendFriendRequestAction(formData: FormData) {
   const locale = formData.get("locale");
   const rawQuery = normalizeText(formData.get("query"));
@@ -694,21 +737,8 @@ export async function sendFriendRequestAction(formData: FormData) {
     redirect(getRedirect(locale, "panel", "Kendine arkadaşlık isteği gönderemezsin."));
   }
 
-  const pairKey = getFriendPairKey(sessionUser.id, targetUser.id);
-  const existingRequest = await prisma.friendRequest.findUnique({ where: { pairKey } });
-
-  if (existingRequest) {
-    redirect(getRedirect(locale, "panel", "Bu kullanıcı ile zaten bir arkadaşlık kaydı var."));
-  }
-
-  await prisma.friendRequest.create({
-    data: {
-      pairKey,
-      senderId: sessionUser.id,
-      receiverId: targetUser.id,
-      status: "PENDING",
-    },
-  });
+  await addFriendImmediately(sessionUser.id, targetUser.id);
+  revalidateSocialViews(locale);
 
   redirect(getRedirect(locale, "panel"));
 }
@@ -728,21 +758,7 @@ export async function sendCommunityFriendRequestAction(formData: FormData) {
     redirect(getRedirect(locale, "topluluk", "Kullanıcı bulunamadı."));
   }
 
-  const pairKey = getFriendPairKey(sessionUser.id, targetUserId);
-  const existingRequest = await prisma.friendRequest.findUnique({ where: { pairKey }, select: { id: true } });
-
-  if (existingRequest) {
-    redirect(getRedirect(locale, "topluluk", "Bu kullanıcı ile zaten bir arkadaşlık kaydı var."));
-  }
-
-  await prisma.friendRequest.create({
-    data: {
-      pairKey,
-      senderId: sessionUser.id,
-      receiverId: targetUserId,
-      status: "PENDING",
-    },
-  });
+  await addFriendImmediately(sessionUser.id, targetUserId);
 
   revalidateSocialViews(locale);
   redirect(getRedirect(locale, "topluluk"));

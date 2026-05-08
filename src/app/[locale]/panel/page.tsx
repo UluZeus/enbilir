@@ -7,7 +7,6 @@ import {
   createLeagueAction,
   joinLeagueAction,
   logoutAction,
-  respondFriendRequestAction,
   sendFriendRequestAction,
   updateProfileDisplayAction,
 } from "@/lib/actions";
@@ -247,7 +246,7 @@ export default async function DashboardPage({
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">Sosyal yarışma</p>
           <h2 className="mt-2 text-2xl font-black">Arkadaşlarım</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-            E-posta veya rumuz ile kullanıcı bulup arkadaşlık isteği gönder. Kabul edilen arkadaşlar ana sayfadaki arkadaşlar arası sıralamaya dahil edilir.
+            E-posta veya rumuz ile kullanıcı bulup doğrudan arkadaş ekle. Arkadaşların ana sayfadaki arkadaşlar arası sıralamaya dahil edilir.
           </p>
         </div>
         <div className="grid gap-6 p-6 lg:grid-cols-[0.95fr_1.05fr]">
@@ -258,49 +257,11 @@ export default async function DashboardPage({
                 Kullanıcı ara
                 <input name="query" placeholder="E-posta veya rumuz" className="rounded-md border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]" />
               </label>
-              <button className="premium-action mt-4 w-full px-5 py-3 text-sm font-black">Arkadaşlık isteği gönder</button>
+              <button className="premium-action mt-4 w-full px-5 py-3 text-sm font-black">Arkadaş ekle</button>
             </form>
-            <div className="rounded-lg border border-slate-200 p-5">
-              <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#152033]">Giden istekler</h3>
-              <div className="mt-4 grid gap-3">
-                {friendDashboard.outgoingRequests.length === 0 ? <p className="text-sm text-slate-500">Bekleyen giden istek yok.</p> : friendDashboard.outgoingRequests.map((request) => (
-                  <div key={request.id} className="rounded-md bg-[#f8fafc] p-4">
-                    <p className="font-black text-[#152033]">{request.displayName}</p>
-                    <p className="mt-1 text-xs text-slate-500">{request.user.email}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           <div className="grid content-start gap-5">
-            <div className="rounded-lg border border-slate-200 p-5">
-              <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#152033]">Gelen istekler</h3>
-              <div className="mt-4 grid gap-3">
-                {friendDashboard.incomingRequests.length === 0 ? <p className="text-sm text-slate-500">Bekleyen gelen istek yok.</p> : friendDashboard.incomingRequests.map((request) => (
-                  <div key={request.id} className="rounded-md border border-slate-200 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-black text-[#152033]">{request.displayName}</p>
-                        <p className="mt-1 text-xs text-slate-500">{request.user.email}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <form action={respondFriendRequestAction}>
-                          <input type="hidden" name="locale" value={locale} />
-                          <input type="hidden" name="requestId" value={request.id} />
-                          <button name="response" value="ACCEPTED" className="rounded-md bg-[#0f766e] px-3 py-2 text-xs font-black text-white">Kabul et</button>
-                        </form>
-                        <form action={respondFriendRequestAction}>
-                          <input type="hidden" name="locale" value={locale} />
-                          <input type="hidden" name="requestId" value={request.id} />
-                          <button name="response" value="REJECTED" className="rounded-md border border-slate-300 px-3 py-2 text-xs font-black text-slate-700">Reddet</button>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
             <div className="rounded-lg border border-slate-200 p-5">
               <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#152033]">Mevcut arkadaşlar</h3>
               <div className="mt-4 grid gap-3">

@@ -274,30 +274,19 @@ function FriendshipControl({
         <input type="hidden" name="locale" value={locale} />
         <input type="hidden" name="targetUserId" value={userId} />
         <button className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-black text-red-700 hover:bg-red-100">
-          Arkadaştan Çıkar
+          Arkadaştan çıkar
         </button>
       </form>
     );
   }
 
-  if (friendship?.status === "PENDING") {
-    return (
-      <span className="inline-flex rounded-md bg-amber-50 px-3 py-2 text-sm font-black text-amber-700 ring-1 ring-inset ring-amber-200">
-        {friendship.direction === "outgoing" ? "İstek Gönderildi" : "İstek Bekliyor"}
-      </span>
-    );
-  }
-
-  if (friendship?.status === "REJECTED") {
-    return <span className="text-sm font-bold text-slate-500">Tekrar gönderilemez</span>;
-  }
 
   return (
     <form action={sendCommunityFriendRequestAction}>
       <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="targetUserId" value={userId} />
       <button className="rounded-md bg-[#0f766e] px-3 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0b5f59]">
-        Arkadaş Ekle
+        Arkadaş ekle
       </button>
     </form>
   );

@@ -76,7 +76,7 @@ model User {
   nickname                            String?
   displayNameMode                     DisplayNameMode @default(REAL_NAME)
   email                               String    @unique
-  passwordHash                        String
+  passwordHash                        String?
   role                                Role      @default(USER)
   score                               Int       @default(0)
   kvkkDisclosureAccepted              Boolean   @default(false)
@@ -99,6 +99,20 @@ model User {
   badges                              UserBadge[]
   achievementEvents                   AchievementEvent[]
   portfolioSnapshots                  PortfolioSnapshot[]
+  oauthAccounts                       OAuthAccount[]
+}
+
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  provider          String
+  providerAccountId String
+  userId            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model BlogPost {
