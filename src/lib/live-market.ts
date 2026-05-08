@@ -44,7 +44,10 @@ function normalizeQuote(fallback: MarketItem, quote?: StooqQuote, usdTryClose?: 
   }
 
   const changePercent = quote.open > 0 ? ((quote.close - quote.open) / quote.open) * 100 : fallback.changePercent;
-  const priceUsd = getQuotePriceUsd(fallback, quote, usdTryClose);
+  const rawPriceUsd = getQuotePriceUsd(fallback, quote, usdTryClose);
+  const priceUsd = Number.isFinite(changePercent)
+    ? fallback.priceUsd * (1 + changePercent / 100)
+    : rawPriceUsd;
 
   return {
     ...fallback,
