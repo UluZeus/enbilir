@@ -1,6 +1,6 @@
 import type { CashMode } from "@/generated/prisma/enums";
 import type { MarketItem } from "@/lib/market-data";
-import { getLiveMarketItems } from "@/lib/live-market";
+import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
 
 export const initialCashUsd = 1_000_000;
@@ -88,11 +88,11 @@ export async function accrueRepoIfNeeded(userId: string) {
 
 export async function getCurrentPortfolio(userId: string, marketItems?: MarketItem[]) {
   const account = await accrueRepoIfNeeded(userId);
-  const liveMarketItems = marketItems ?? await getLiveMarketItems();
   const positions = await prisma.portfolioPosition.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
   });
+  const liveMarketItems = marketItems ?? await getLiveMarketItemsForSymbols(positions.map((position) => position.symbol));
   const trades = await prisma.virtualTrade.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },

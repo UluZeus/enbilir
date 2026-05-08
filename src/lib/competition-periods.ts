@@ -1,7 +1,7 @@
 import { getDisplayName } from "@/lib/auth";
 import { awardBadge } from "@/lib/badges";
 import { getAcceptedFriendIds } from "@/lib/friends";
-import { getLiveMarketItems } from "@/lib/live-market";
+import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import type { CompetitionPeriodType } from "@/generated/prisma/enums";
@@ -124,7 +124,11 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
     }
   }
 
-  const liveMarketItems = await getLiveMarketItems();
+  const heldSymbols = await prisma.portfolioPosition.findMany({
+    select: { symbol: true },
+    distinct: ["symbol"],
+  });
+  const liveMarketItems = await getLiveMarketItemsForSymbols(heldSymbols.map((position) => position.symbol));
   const liveRows = await Promise.all(
     users.map(async (user) => {
       const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);

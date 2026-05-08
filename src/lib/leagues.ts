@@ -1,5 +1,5 @@
 import { getDisplayName } from "@/lib/auth";
-import { getLiveMarketItems } from "@/lib/live-market";
+import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import type { LeagueType } from "@/generated/prisma/enums";
@@ -130,7 +130,13 @@ export async function getLeagueLeaderboard(leagueId: string, currentUserId?: str
     },
   });
 
-  const liveMarketItems = await getLiveMarketItems();
+  const membershipUserIds = memberships.map((membership) => membership.userId);
+  const heldSymbols = await prisma.portfolioPosition.findMany({
+    where: { userId: { in: membershipUserIds } },
+    select: { symbol: true },
+    distinct: ["symbol"],
+  });
+  const liveMarketItems = await getLiveMarketItemsForSymbols(heldSymbols.map((position) => position.symbol));
   const rows = await Promise.all(
     memberships.map(async (membership) => {
       const snapshot = await getPortfolioSnapshot(membership.userId, liveMarketItems);

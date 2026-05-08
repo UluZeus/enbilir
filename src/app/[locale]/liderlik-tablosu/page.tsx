@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { getSafeLocale } from "@/i18n/config";
 import { getDisplayName } from "@/lib/auth";
-import { getLiveMarketItems } from "@/lib/live-market";
+import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getPortfolioSnapshot, formatMoney } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 
@@ -11,7 +11,11 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ lo
   const users = await prisma.user.findMany({
     select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
   });
-  const liveMarketItems = await getLiveMarketItems();
+  const heldSymbols = await prisma.portfolioPosition.findMany({
+    select: { symbol: true },
+    distinct: ["symbol"],
+  });
+  const liveMarketItems = await getLiveMarketItemsForSymbols(heldSymbols.map((position) => position.symbol));
   const rows = await Promise.all(users.map(async (user) => {
     const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
     return { id: user.id, displayName: getDisplayName(user), totalValueUsd: snapshot.totalValueUsd };
