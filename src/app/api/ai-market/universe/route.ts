@@ -14,10 +14,13 @@ const excludedBaseAssets = new Set([
   "BUSD",
   "DAI",
   "USDP",
+  "USD1",
   "USDD",
   "UST",
   "USTC",
   "EUR",
+  "AEUR",
+  "EURI",
   "GBP",
   "TRY",
   "BRL",
@@ -34,7 +37,7 @@ const excludedBaseAssets = new Set([
   "JPY",
 ]);
 
-const excludedBaseSuffixes = ["BULL", "BEAR"];
+const excludedBaseSuffixes = ["UP", "DOWN", "BULL", "BEAR", "3L", "3S"];
 
 type BinanceTicker = {
   symbol: string;
