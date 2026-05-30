@@ -140,8 +140,8 @@ export function MarketAssistantDashboard({ symbols }: MarketAssistantDashboardPr
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-      <div className="grid gap-5">
+    <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-4">
         <AssetWatchlist
           symbols={symbols}
           selectedSymbol={selectedSymbol}
@@ -161,7 +161,7 @@ export function MarketAssistantDashboard({ symbols }: MarketAssistantDashboardPr
         <AssetUniversePanel favorites={favorites} onAddFavorite={addFavorite} />
       </div>
 
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-5">
         <AnalysisTable interval={interval} />
         {state.status === "loading" && !state.analysis ? <LoadingPanel /> : null}
         {state.status === "error" ? <ErrorPanel message={state.error ?? "Analiz alinamadi."} /> : null}

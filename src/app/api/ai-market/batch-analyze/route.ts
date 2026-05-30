@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchBinanceCandles } from "@/lib/ai-market/binance-public";
 import { AI_MARKET_DISCLAIMER, buildExplanation } from "@/lib/ai-market/explanation-engine";
 import { fetchGateCandles } from "@/lib/ai-market/gate-public";
-import { calculateIndicators } from "@/lib/ai-market/indicators";
+import { calculateIndicators, calculateTechnicalSeries } from "@/lib/ai-market/indicators";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import type { Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_BATCH_SYMBOLS = 30;
 const MIN_CANDLE_COUNT = 30;
-const allowedIntervals = new Set(["15m", "1h", "4h", "1d"]);
+const allowedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 const allowedExchanges = new Set(["binance", "gate"]);
 
 type BatchAssetClass = "CRYPTO" | "METAL" | "US_STOCK" | "INDEX" | "FX";
@@ -35,7 +35,9 @@ type BatchAnalyzeBody = {
 type BatchAnalyzeSuccess = {
   symbol: string;
   ok: true;
-  analysis: MarketAnalysis;
+  analysis: MarketAnalysis & {
+    technicalSeries: ReturnType<typeof calculateTechnicalSeries>;
+  };
 };
 
 type BatchAnalyzeFailure = {
@@ -148,7 +150,12 @@ async function loadCandles(symbol: BatchSymbol, exchange: MarketExchange, interv
   };
 }
 
-function buildAnalysis(symbol: BatchSymbol, exchange: MarketExchange, interval: string, candles: Candle[]): MarketAnalysis {
+function buildAnalysis(
+  symbol: BatchSymbol,
+  exchange: MarketExchange,
+  interval: string,
+  candles: Candle[],
+): BatchAnalyzeSuccess["analysis"] {
   const indicators = calculateIndicators(candles);
   const signal = analyzeSignal(candles, indicators);
   const risk = assessRisk(candles, indicators);
@@ -170,6 +177,7 @@ function buildAnalysis(symbol: BatchSymbol, exchange: MarketExchange, interval: 
 
   return {
     ...base,
+    technicalSeries: calculateTechnicalSeries(candles, 100),
     explanation: buildExplanation(base),
     disclaimer: AI_MARKET_DISCLAIMER,
   };

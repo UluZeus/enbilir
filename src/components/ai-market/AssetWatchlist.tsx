@@ -11,6 +11,8 @@ type AssetWatchlistProps = {
 };
 
 const intervals = [
+  { value: "1m", label: "1 dk" },
+  { value: "5m", label: "5 dk" },
   { value: "15m", label: "15 dk" },
   { value: "1h", label: "1 saat" },
   { value: "4h", label: "4 saat" },

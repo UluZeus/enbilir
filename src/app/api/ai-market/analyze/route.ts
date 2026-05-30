@@ -11,7 +11,7 @@ import type { Candle, MarketAnalysis, MarketExchange, WatchSymbol } from "@/lib/
 
 export const dynamic = "force-dynamic";
 
-const allowedIntervals = new Set(["15m", "1h", "4h", "1d"]);
+const allowedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 
 function getExchange(value: string | null): MarketExchange {
   return value === "gate" ? "gate" : "binance";

@@ -136,3 +136,265 @@ export function calculateIndicators(candles: Candle[]): IndicatorSnapshot {
     },
   };
 }
+
+export type TechnicalSeriesPoint = {
+  time: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number;
+  volumeSma20: number | null;
+  sma20: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  bollingerUpper: number | null;
+  bollingerMiddle: number | null;
+  bollingerLower: number | null;
+  bollingerBandwidth: number | null;
+  rsi: number | null;
+  macd: number | null;
+  macdSignal: number | null;
+  macdHistogram: number | null;
+  atr: number | null;
+  ichimokuConversion: number | null;
+  ichimokuBase: number | null;
+  ichimokuSpanA: number | null;
+  ichimokuSpanB: number | null;
+  parabolicSar: number | null;
+};
+
+export type TechnicalSeries = {
+  points: TechnicalSeriesPoint[];
+  trend: {
+    direction: "YUKARI" | "ASAGI" | "YATAY";
+    score: number;
+    note: string;
+  };
+};
+
+function alignTail(values: number[], length: number) {
+  const empty = Array<number | null>(length).fill(null);
+  const start = length - values.length;
+
+  values.forEach((value, index) => {
+    empty[start + index] = value;
+  });
+
+  return empty;
+}
+
+function smaSeries(values: number[], period: number) {
+  return values.map((_, index) => {
+    if (index + 1 < period) {
+      return null;
+    }
+
+    return average(values.slice(index + 1 - period, index + 1));
+  });
+}
+
+function rsiSeries(values: number[], period = 14) {
+  return values.map((_, index) => calculateRsi(values.slice(0, index + 1), period));
+}
+
+function macdSeries(values: number[]) {
+  const ema12 = alignTail(ema(values, 12), values.length);
+  const ema26 = alignTail(ema(values, 26), values.length);
+  const macdLine = values.map((_, index) => {
+    const short = ema12[index];
+    const long = ema26[index];
+
+    return short !== null && long !== null ? short - long : null;
+  });
+  const compactMacd = macdLine.filter((value): value is number => value !== null);
+  const signalLine = alignTail(ema(compactMacd, 9), values.length);
+
+  return macdLine.map((value, index) => {
+    const signalValue = signalLine[index];
+
+    return {
+      macd: value,
+      signal: signalValue,
+      histogram: value !== null && signalValue !== null ? value - signalValue : null,
+    };
+  });
+}
+
+function bollingerSeries(values: number[], period = 20) {
+  return values.map((_, index) => {
+    if (index + 1 < period) {
+      return { upper: null, middle: null, lower: null, bandwidth: null };
+    }
+
+    return calculateBollinger(values.slice(0, index + 1), period);
+  });
+}
+
+function atrSeries(candles: Candle[], period = 14) {
+  return candles.map((_, index) => calculateAtr(candles.slice(0, index + 1), period));
+}
+
+function rangeMidpoint(candles: Candle[], endIndex: number, period: number) {
+  if (endIndex + 1 < period) {
+    return null;
+  }
+
+  const window = candles.slice(endIndex + 1 - period, endIndex + 1);
+  const high = Math.max(...window.map((candle) => candle.high));
+  const low = Math.min(...window.map((candle) => candle.low));
+
+  return (high + low) / 2;
+}
+
+function ichimokuSeries(candles: Candle[]) {
+  return candles.map((_, index) => {
+    const conversion = rangeMidpoint(candles, index, 9);
+    const base = rangeMidpoint(candles, index, 26);
+    const spanB = rangeMidpoint(candles, index, 52);
+
+    return {
+      conversion,
+      base,
+      spanA: conversion !== null && base !== null ? (conversion + base) / 2 : null,
+      spanB,
+    };
+  });
+}
+
+function parabolicSarSeries(candles: Candle[]) {
+  if (candles.length === 0) {
+    return [];
+  }
+
+  const results: Array<number | null> = [null];
+  let rising = true;
+  let acceleration = 0.02;
+  let extremePoint = candles[0].high;
+  let sar = candles[0].low;
+
+  for (let index = 1; index < candles.length; index += 1) {
+    const candle = candles[index];
+    sar += acceleration * (extremePoint - sar);
+
+    if (rising) {
+      if (candle.low < sar) {
+        rising = false;
+        sar = extremePoint;
+        extremePoint = candle.low;
+        acceleration = 0.02;
+      } else if (candle.high > extremePoint) {
+        extremePoint = candle.high;
+        acceleration = Math.min(acceleration + 0.02, 0.2);
+      }
+    } else if (candle.high > sar) {
+      rising = true;
+      sar = extremePoint;
+      extremePoint = candle.high;
+      acceleration = 0.02;
+    } else if (candle.low < extremePoint) {
+      extremePoint = candle.low;
+      acceleration = Math.min(acceleration + 0.02, 0.2);
+    }
+
+    results.push(sar);
+  }
+
+  return results;
+}
+
+function trendSummary(points: TechnicalSeriesPoint[]): TechnicalSeries["trend"] {
+  const latest = points[points.length - 1];
+
+  if (!latest || latest.ema20 === null || latest.ema50 === null || latest.rsi === null) {
+    return {
+      direction: "YATAY" as const,
+      score: 50,
+      note: "Trend icin yeterli veri birikimi bekleniyor.",
+    };
+  }
+
+  let score = 50;
+
+  if (latest.close > latest.ema20) {
+    score += 15;
+  } else {
+    score -= 15;
+  }
+
+  if (latest.ema20 > latest.ema50) {
+    score += 20;
+  } else {
+    score -= 20;
+  }
+
+  if (latest.macdHistogram !== null) {
+    score += latest.macdHistogram > 0 ? 10 : -10;
+  }
+
+  if (latest.rsi >= 45 && latest.rsi <= 65) {
+    score += 5;
+  } else if (latest.rsi > 72 || latest.rsi < 30) {
+    score -= 8;
+  }
+
+  const boundedScore = Math.max(0, Math.min(100, Math.round(score)));
+  const direction: TechnicalSeries["trend"]["direction"] = boundedScore >= 62 ? "YUKARI" : boundedScore <= 38 ? "ASAGI" : "YATAY";
+
+  return {
+    direction,
+    score: boundedScore,
+    note:
+      direction === "YUKARI"
+        ? "Kisa vadeli ortalamalar yukari egilimi destekliyor."
+        : direction === "ASAGI"
+          ? "Momentum ve ortalama yapisi zayif seyrediyor."
+          : "Trend belirgin bir yonde guc toplamiyor.",
+  };
+}
+
+export function calculateTechnicalSeries(candles: Candle[], limit = 100): TechnicalSeries {
+  const closes = candles.map((candle) => candle.close);
+  const volumes = candles.map((candle) => candle.volume);
+  const volumeSma20 = smaSeries(volumes, 20);
+  const sma20 = smaSeries(closes, 20);
+  const ema20 = alignTail(ema(closes, 20), candles.length);
+  const ema50 = alignTail(ema(closes, 50), candles.length);
+  const bollinger = bollingerSeries(closes);
+  const rsi = rsiSeries(closes);
+  const macd = macdSeries(closes);
+  const atr = atrSeries(candles);
+  const ichimoku = ichimokuSeries(candles);
+  const sar = parabolicSarSeries(candles);
+  const points = candles
+    .map((candle, index) => ({
+      time: candle.openTime,
+      close: candle.close,
+      high: candle.high,
+      low: candle.low,
+      volume: candle.volume,
+      volumeSma20: volumeSma20[index],
+      sma20: sma20[index],
+      ema20: ema20[index],
+      ema50: ema50[index],
+      bollingerUpper: bollinger[index]?.upper ?? null,
+      bollingerMiddle: bollinger[index]?.middle ?? null,
+      bollingerLower: bollinger[index]?.lower ?? null,
+      bollingerBandwidth: bollinger[index]?.bandwidth ?? null,
+      rsi: rsi[index],
+      macd: macd[index]?.macd ?? null,
+      macdSignal: macd[index]?.signal ?? null,
+      macdHistogram: macd[index]?.histogram ?? null,
+      atr: atr[index],
+      ichimokuConversion: ichimoku[index]?.conversion ?? null,
+      ichimokuBase: ichimoku[index]?.base ?? null,
+      ichimokuSpanA: ichimoku[index]?.spanA ?? null,
+      ichimokuSpanB: ichimoku[index]?.spanB ?? null,
+      parabolicSar: sar[index] ?? null,
+    }))
+    .slice(-limit);
+
+  return {
+    points,
+    trend: trendSummary(points),
+  };
+}

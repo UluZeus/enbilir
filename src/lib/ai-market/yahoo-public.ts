@@ -18,6 +18,8 @@ type YahooChartResponse = {
 };
 
 const intervalRanges: Record<string, string> = {
+  "1m": "1d",
+  "5m": "5d",
   "15m": "5d",
   "1h": "1mo",
   "4h": "6mo",
@@ -25,6 +27,8 @@ const intervalRanges: Record<string, string> = {
 };
 
 const yahooIntervals: Record<string, string> = {
+  "1m": "1m",
+  "5m": "5m",
   "15m": "15m",
   "1h": "1h",
   "4h": "1h",

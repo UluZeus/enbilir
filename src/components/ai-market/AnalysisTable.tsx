@@ -6,10 +6,13 @@ import {
   DEFAULT_AI_MARKET_FAVORITES,
   PREPARED_FAVORITE_ASSETS,
 } from "@/components/ai-market/FavoritesPanel";
+import { TechnicalIndicatorCharts } from "@/components/ai-market/TechnicalIndicatorCharts";
+import type { TechnicalSeries } from "@/lib/ai-market/indicators";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
 const FAVORITES_CHANGED_EVENT = "ai-market-favorites-changed";
 const MAX_FAVORITES = 30;
+const AUTO_REFRESH_MS = 10_000;
 const DEFAULT_EXCHANGE = "binance";
 const FALLBACK_INTERVAL = "1h";
 
@@ -20,7 +23,9 @@ type AnalysisTableProps = {
 type BatchSuccess = {
   symbol: string;
   ok: true;
-  analysis: MarketAnalysis;
+  analysis: MarketAnalysis & {
+    technicalSeries?: TechnicalSeries;
+  };
 };
 
 type BatchFailure = {
@@ -43,6 +48,7 @@ type TableState = {
   status: "idle" | "loading" | "success" | "error";
   response: BatchResponse | null;
   error: string | null;
+  updatedAt: string | null;
 };
 
 const signalLabels: Record<SignalType, string> = {
@@ -186,7 +192,16 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
     () => JSON.stringify(DEFAULT_AI_MARKET_FAVORITES),
   );
   const favorites = useMemo(() => normalizeFavorites(JSON.parse(favoritesSnapshot)), [favoritesSnapshot]);
-  const [state, setState] = useState<TableState>({ status: "idle", response: null, error: null });
+  const [state, setState] = useState<TableState>({ status: "idle", response: null, error: null, updatedAt: null });
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const refreshId = window.setInterval(() => {
+      setRefreshTick((current) => current + 1);
+    }, AUTO_REFRESH_MS);
+
+    return () => window.clearInterval(refreshId);
+  }, []);
 
   useEffect(() => {
     if (favorites.length === 0) {
@@ -219,24 +234,25 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
           throw new Error("error" in payload && payload.error ? payload.error : "Favori analizleri alinamadi.");
         }
 
-        setState({ status: "success", response: payload as BatchResponse, error: null });
+        setState({ status: "success", response: payload as BatchResponse, error: null, updatedAt: new Date().toISOString() });
       } catch (error) {
         if (controller.signal.aborted) {
           return;
         }
 
-        setState({
+        setState((current) => ({
           status: "error",
-          response: null,
+          response: current.response,
           error: error instanceof Error ? error.message : "Favori analizleri yuklenemedi.",
-        });
+          updatedAt: current.updatedAt,
+        }));
       }
     }
 
     loadBatchAnalysis();
 
     return () => controller.abort();
-  }, [favorites, interval]);
+  }, [favorites, interval, refreshTick]);
 
   const results = favorites.length === 0 ? [] : (state.response?.results ?? []);
 
@@ -249,12 +265,34 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
             {interval} periyot · {DEFAULT_EXCHANGE} varsayilan borsa · en fazla {MAX_FAVORITES} favori
           </p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-          {state.status === "loading" ? "Guncelleniyor" : `${results.length || favorites.length} varlik`}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
+            Otomatik yenileme: 10 sn
+          </span>
+          {state.updatedAt ? (
+            <span className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
+              Son guncelleme: {new Date(state.updatedAt).toLocaleTimeString("tr-TR")}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setRefreshTick((current) => current + 1)}
+            className="rounded-md border border-[#0f766e] bg-emerald-50 px-3 py-2 text-xs font-black text-[#0f766e] hover:bg-emerald-100"
+          >
+            Yenile
+          </button>
+          <div className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
+            {state.status === "loading" ? "Guncelleniyor" : `${results.length || favorites.length} varlik`}
+          </div>
         </div>
       </div>
 
       {favorites.length === 0 ? <EmptyState /> : null}
+      {favorites.length >= 20 ? (
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+          Çok sayıda favori seçildiğinde 10 saniyelik yenileme veri sağlayıcı limitlerine takılabilir.
+        </p>
+      ) : null}
       {favorites.length > 0 && state.status === "loading" && results.length === 0 ? <LoadingState /> : null}
       {favorites.length > 0 && state.status === "error" ? <ErrorState message={state.error ?? "Analiz tablosu yuklenemedi."} /> : null}
       {results.length > 0 ? (
@@ -270,23 +308,34 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
 function DesktopTable({ results }: { results: BatchResult[] }) {
   return (
     <div className="mt-4 hidden overflow-x-auto md:block">
-      <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
+      <table className="w-full min-w-[920px] table-fixed border-separate border-spacing-0 text-left text-sm">
+        <colgroup>
+          <col className="w-[13%]" />
+          <col className="w-[8%]" />
+          <col className="w-[5%]" />
+          <col className="w-[7%]" />
+          <col className="w-[7%]" />
+          <col className="w-[8%]" />
+          <col className="w-[6%]" />
+          <col className="w-[9%]" />
+          <col className="w-[37%]" />
+        </colgroup>
         <thead>
           <tr className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-            <th className="border-b border-slate-200 px-3 py-3">Varlık</th>
-            <th className="border-b border-slate-200 px-3 py-3">Fiyat</th>
-            <th className="border-b border-slate-200 px-3 py-3">RSI</th>
-            <th className="border-b border-slate-200 px-3 py-3">MACD</th>
-            <th className="border-b border-slate-200 px-3 py-3">Trend</th>
-            <th className="border-b border-slate-200 px-3 py-3">Risk</th>
-            <th className="border-b border-slate-200 px-3 py-3">Güven</th>
-            <th className="border-b border-slate-200 px-3 py-3">Sinyal</th>
-            <th className="border-b border-slate-200 px-3 py-3">Analist Yorumu</th>
+            <th className="border-b border-slate-200 px-2 py-3">Varlık</th>
+            <th className="border-b border-slate-200 px-2 py-3">Fiyat</th>
+            <th className="border-b border-slate-200 px-2 py-3">RSI</th>
+            <th className="border-b border-slate-200 px-2 py-3">MACD</th>
+            <th className="border-b border-slate-200 px-2 py-3">Trend</th>
+            <th className="border-b border-slate-200 px-2 py-3">Risk</th>
+            <th className="border-b border-slate-200 px-2 py-3">Güven</th>
+            <th className="border-b border-slate-200 px-2 py-3">Sinyal</th>
+            <th className="border-b border-slate-200 px-2 py-3">Analist Yorumu</th>
           </tr>
         </thead>
         <tbody>
           {results.map((result) => (
-            <DesktopRow key={result.symbol} result={result} />
+            <DesktopResultRows key={result.symbol} result={result} />
           ))}
         </tbody>
       </table>
@@ -294,17 +343,17 @@ function DesktopTable({ results }: { results: BatchResult[] }) {
   );
 }
 
-function DesktopRow({ result }: { result: BatchResult }) {
+function DesktopResultRows({ result }: { result: BatchResult }) {
   if (!result.ok) {
     const asset = getAssetLabel(result.symbol);
 
     return (
       <tr>
-        <td className="border-b border-slate-100 px-3 py-3 align-top">
+        <td className="border-b border-slate-100 px-2 py-3 align-top">
           <p className="font-black text-[#152033]">{asset.displayName}</p>
           <p className="mt-1 text-xs text-slate-500">{asset.name}</p>
         </td>
-        <td className="border-b border-slate-100 px-3 py-3 text-red-700" colSpan={8}>
+        <td className="border-b border-slate-100 px-2 py-3 text-red-700" colSpan={8}>
           {result.error}
         </td>
       </tr>
@@ -315,28 +364,39 @@ function DesktopRow({ result }: { result: BatchResult }) {
   const signal = analysis.signal.signal;
 
   return (
-    <tr className="hover:bg-white/50">
-      <td className="border-b border-slate-100 px-3 py-3 align-top">
+    <>
+      <tr className="hover:bg-white/50">
+      <td className="border-b border-slate-100 px-2 py-3 align-top">
         <p className="font-black text-[#152033]">{analysis.symbol}</p>
         <p className="mt-1 text-xs text-slate-500">{analysis.name}</p>
       </td>
-      <td className="border-b border-slate-100 px-3 py-3 font-bold text-slate-700">{formatPrice(analysis.lastPrice)}</td>
-      <td className="border-b border-slate-100 px-3 py-3 text-slate-700">{formatNumber(analysis.indicators.rsi, 1)}</td>
-      <td className="border-b border-slate-100 px-3 py-3 text-slate-700">{formatNumber(analysis.indicators.macd.histogram, 4)}</td>
-      <td className="border-b border-slate-100 px-3 py-3 font-bold text-slate-700">{getTrend(analysis)}</td>
-      <td className={`border-b border-slate-100 px-3 py-3 font-black ${getRiskClass(analysis.risk.level)}`}>
+      <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{formatPrice(analysis.lastPrice)}</td>
+      <td className="border-b border-slate-100 px-2 py-3 text-slate-700">{formatNumber(analysis.indicators.rsi, 1)}</td>
+      <td className="border-b border-slate-100 px-2 py-3 text-slate-700">{formatNumber(analysis.indicators.macd.histogram, 3)}</td>
+      <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{getTrend(analysis)}</td>
+      <td className={`border-b border-slate-100 px-2 py-3 font-black ${getRiskClass(analysis.risk.level)}`}>
         {analysis.risk.level} · {analysis.risk.score}
       </td>
-      <td className="border-b border-slate-100 px-3 py-3 font-bold text-slate-700">{analysis.signal.confidence}%</td>
-      <td className="border-b border-slate-100 px-3 py-3">
+      <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{analysis.signal.confidence}%</td>
+      <td className="border-b border-slate-100 px-2 py-3">
         <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-black ${getSignalClass(signal)}`}>
           {signalLabels[signal]}
         </span>
       </td>
-      <td className="max-w-[360px] border-b border-slate-100 px-3 py-3 text-xs leading-5 text-slate-600">
-        {analysis.explanation}
+      <td className="border-b border-slate-100 px-2 py-3 text-xs leading-5 text-slate-600">
+        <span className="block overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+          {analysis.explanation}
+        </span>
       </td>
-    </tr>
+      </tr>
+      {analysis.technicalSeries ? (
+        <tr>
+          <td className="border-b border-slate-200 px-2 py-3" colSpan={9}>
+            <TechnicalIndicatorCharts symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
 
@@ -387,6 +447,11 @@ function MobileCard({ result }: { result: BatchResult }) {
       </div>
 
       <p className="mt-3 text-xs leading-5 text-slate-600">{analysis.explanation}</p>
+      {analysis.technicalSeries ? (
+        <div className="mt-3">
+          <TechnicalIndicatorCharts symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
+        </div>
+      ) : null}
     </div>
   );
 }
