@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { getAssetUniverseItem } from "@/lib/ai-market/asset-universe";
 import { fetchBinanceCandles } from "@/lib/ai-market/binance-public";
 import { AI_MARKET_DISCLAIMER, buildExplanation } from "@/lib/ai-market/explanation-engine";
 import { fetchGateCandles } from "@/lib/ai-market/gate-public";
 import { calculateIndicators, calculateTechnicalSeries } from "@/lib/ai-market/indicators";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
-import type { Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
+import type { AssetClass, Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
 import { fetchYahooCandles } from "@/lib/ai-market/yahoo-public";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +16,10 @@ const MIN_CANDLE_COUNT = 30;
 const allowedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 const allowedExchanges = new Set(["binance", "gate"]);
 
-type BatchAssetClass = "CRYPTO" | "METAL" | "US_STOCK" | "INDEX" | "FX";
-
 type BatchSymbol = {
   symbol: string;
   name: string;
-  assetClass: BatchAssetClass;
+  assetClass: AssetClass;
   binanceSymbol?: string;
   gateSymbol?: string;
   yahooSymbol?: string;
@@ -45,31 +44,6 @@ type BatchAnalyzeFailure = {
   ok: false;
   error: string;
 };
-
-const yahooSymbols: BatchSymbol[] = [
-  { symbol: "XAUUSD", name: "Ons Altin", assetClass: "METAL", yahooSymbol: "GC=F" },
-  { symbol: "XAGUSD", name: "Ons Gumus", assetClass: "METAL", yahooSymbol: "SI=F" },
-  { symbol: "HG=F", name: "Bakir", assetClass: "METAL", yahooSymbol: "HG=F" },
-  { symbol: "PL=F", name: "Platin", assetClass: "METAL", yahooSymbol: "PL=F" },
-  { symbol: "PA=F", name: "Paladyum", assetClass: "METAL", yahooSymbol: "PA=F" },
-  { symbol: "USDTRY", name: "Dolar/TL", assetClass: "FX", yahooSymbol: "USDTRY=X" },
-  { symbol: "EURUSD=X", name: "EUR/USD", assetClass: "FX", yahooSymbol: "EURUSD=X" },
-  { symbol: "AAPL", name: "Apple", assetClass: "US_STOCK", yahooSymbol: "AAPL" },
-  { symbol: "MSFT", name: "Microsoft", assetClass: "US_STOCK", yahooSymbol: "MSFT" },
-  { symbol: "NVDA", name: "Nvidia", assetClass: "US_STOCK", yahooSymbol: "NVDA" },
-  { symbol: "AMZN", name: "Amazon", assetClass: "US_STOCK", yahooSymbol: "AMZN" },
-  { symbol: "META", name: "Meta", assetClass: "US_STOCK", yahooSymbol: "META" },
-  { symbol: "GOOGL", name: "Alphabet", assetClass: "US_STOCK", yahooSymbol: "GOOGL" },
-  { symbol: "TSLA", name: "Tesla", assetClass: "US_STOCK", yahooSymbol: "TSLA" },
-  { symbol: "AMD", name: "AMD", assetClass: "US_STOCK", yahooSymbol: "AMD" },
-  { symbol: "NFLX", name: "Netflix", assetClass: "US_STOCK", yahooSymbol: "NFLX" },
-  { symbol: "AVGO", name: "Broadcom", assetClass: "US_STOCK", yahooSymbol: "AVGO" },
-  { symbol: "^GSPC", name: "S&P 500", assetClass: "INDEX", yahooSymbol: "^GSPC" },
-  { symbol: "^IXIC", name: "Nasdaq Composite", assetClass: "INDEX", yahooSymbol: "^IXIC" },
-  { symbol: "^NDX", name: "Nasdaq 100", assetClass: "INDEX", yahooSymbol: "^NDX" },
-];
-
-const yahooSymbolMap = new Map(yahooSymbols.map((item) => [item.symbol, item]));
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -115,7 +89,22 @@ function getCryptoSymbol(symbol: string): BatchSymbol | null {
 }
 
 function getBatchSymbol(symbol: string) {
-  return yahooSymbolMap.get(symbol) ?? getCryptoSymbol(symbol);
+  const universeAsset = getAssetUniverseItem(symbol);
+
+  if (universeAsset) {
+    const baseAsset = universeAsset.symbol.endsWith("USDT") ? universeAsset.symbol.slice(0, -4) : universeAsset.symbol;
+
+    return {
+      symbol: universeAsset.symbol,
+      name: universeAsset.name,
+      assetClass: universeAsset.assetClass,
+      binanceSymbol: universeAsset.assetClass === "CRYPTO" ? universeAsset.providerSymbol : undefined,
+      gateSymbol: universeAsset.assetClass === "CRYPTO" ? `${baseAsset}_USDT` : undefined,
+      yahooSymbol: universeAsset.assetClass === "CRYPTO" ? undefined : universeAsset.providerSymbol,
+    };
+  }
+
+  return getCryptoSymbol(symbol);
 }
 
 function getChangePercent(candles: Candle[]) {

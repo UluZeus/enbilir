@@ -1,6 +1,6 @@
 export type MarketExchange = "binance" | "gate";
 
-export type AssetClass = "CRYPTO" | "COMMODITY" | "FX";
+export type AssetClass = "CRYPTO" | "COMMODITY" | "FX" | "EQUITY" | "INDEX";
 
 export type SignalType =
   | "STRONG_BUY"

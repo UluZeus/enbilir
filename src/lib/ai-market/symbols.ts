@@ -1,4 +1,5 @@
 import type { WatchSymbol } from "@/lib/ai-market/types";
+import { getAssetUniverseItem, toWatchSymbol } from "@/lib/ai-market/asset-universe";
 
 export const AI_MARKET_SYMBOLS: WatchSymbol[] = [
   {
@@ -99,5 +100,13 @@ export const AI_MARKET_SYMBOLS: WatchSymbol[] = [
 export function getWatchSymbol(symbolValue: string | null) {
   const normalized = (symbolValue ?? "").toUpperCase();
 
-  return AI_MARKET_SYMBOLS.find((item) => item.symbol === normalized) ?? AI_MARKET_SYMBOLS[0];
+  const watchSymbol = AI_MARKET_SYMBOLS.find((item) => item.symbol === normalized);
+
+  if (watchSymbol) {
+    return watchSymbol;
+  }
+
+  const universeAsset = getAssetUniverseItem(normalized);
+
+  return universeAsset ? toWatchSymbol(universeAsset) : AI_MARKET_SYMBOLS[0];
 }

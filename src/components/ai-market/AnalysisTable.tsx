@@ -7,6 +7,7 @@ import {
   PREPARED_FAVORITE_ASSETS,
 } from "@/components/ai-market/FavoritesPanel";
 import { TechnicalIndicatorCharts } from "@/components/ai-market/TechnicalIndicatorCharts";
+import { TopOpportunitiesPanel } from "@/components/ai-market/TopOpportunitiesPanel";
 import type { TechnicalSeries } from "@/lib/ai-market/indicators";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
@@ -255,9 +256,12 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
   }, [favorites, interval, refreshTick]);
 
   const results = favorites.length === 0 ? [] : (state.response?.results ?? []);
+  const successfulAnalyses = results.filter((result): result is BatchSuccess => result.ok).map((result) => result.analysis);
 
   return (
-    <section className="premium-card p-4 md:p-5">
+    <>
+      <TopOpportunitiesPanel analyses={successfulAnalyses} isLoading={state.status === "loading"} updatedAt={state.updatedAt} />
+      <section className="premium-card p-4 md:p-5">
       <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-lg font-black text-[#152033]">Favorilerim Analiz Tablosu</h2>
@@ -301,7 +305,8 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
           <MobileCards results={results} />
         </>
       ) : null}
-    </section>
+      </section>
+    </>
   );
 }
 
