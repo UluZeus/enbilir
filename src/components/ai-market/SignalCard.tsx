@@ -27,7 +27,7 @@ function formatPrice(value: number | null) {
     return "-";
   }
 
-  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: value < 1 ? 6 : 2 })} USDT`;
+  return value.toLocaleString("tr-TR", { maximumFractionDigits: value < 1 ? 6 : 2 });
 }
 
 function formatPercent(value: number | null) {
@@ -42,6 +42,7 @@ export function SignalCard({ analysis }: { analysis: MarketAnalysis }) {
   const providerLabel = ["XAUUSD", "XAGUSD", "USDTRY"].includes(analysis.symbol)
     ? "Yahoo public veri"
     : `${analysis.exchange === "binance" ? "Binance" : "Gate.io"} public veri`;
+  const priceUnit = analysis.symbol === "USDTRY" ? "TL" : ["XAUUSD", "XAGUSD"].includes(analysis.symbol) ? "USD" : "USDT";
 
   return (
     <section className="premium-card premium-card--dark p-5">
@@ -59,7 +60,7 @@ export function SignalCard({ analysis }: { analysis: MarketAnalysis }) {
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <Metric label="Son fiyat" value={formatPrice(analysis.lastPrice)} />
+        <Metric label="Son fiyat" value={`${formatPrice(analysis.lastPrice)} ${priceUnit}`} />
         <Metric label="Periyot değişimi" value={formatPercent(analysis.changePercent)} />
         <Metric label="Güven" value={`${analysis.signal.confidence}/100`} />
       </div>

@@ -125,17 +125,25 @@ export async function AppShell({ children, locale }: AppShellProps) {
               </span>
             </Link>
 
-            <nav className="flex flex-wrap items-center gap-1 text-sm font-semibold text-slate-700">
+            <nav className="flex flex-wrap items-center gap-0.5 text-sm font-semibold text-slate-700">
               {primaryNav.map((item) => (
                 <Link
                 key={item.href}
                 href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm"
                 >
                   {item.label === "community" ? <CommunityIcon /> : null}
                   {dictionary.nav[item.label]}
                 </Link>
               ))}
+              {locale === "tr" ? (
+                <Link
+                  href="/tr/ai-piyasa-asistani"
+                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm"
+                >
+                  AI Asistanı
+                </Link>
+              ) : null}
             </nav>
           </div>
 

@@ -12,8 +12,8 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
         <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">AI Piyasa Asistani</p>
         <h1 className="relative mt-3 text-3xl font-black tracking-normal sm:text-5xl">Public verilerle teknik sinyal paneli</h1>
         <p className="relative mt-4 max-w-3xl text-sm leading-7 text-slate-300">
-          Binance ve Gate.io public market data uzerinden RSI, MACD, EMA, Bollinger Bands, ATR ve hacim anomalisi izlenir.
-          Bu ekran borsa hesabina baglanmaz, API key kullanmaz ve emir gondermez.
+          Kripto icin Binance/Gate.io public veri; altin, gumus ve USD/TRY icin Yahoo public veri uzerinden RSI, MACD,
+          EMA, Bollinger Bands, ATR ve hacim anomalisi izlenir. Bu ekran borsa hesabina baglanmaz, API key kullanmaz ve emir gondermez.
         </p>
       </section>
 
