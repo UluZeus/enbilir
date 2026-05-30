@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { AnalysisTable } from "@/components/ai-market/AnalysisTable";
 import { AssetUniversePanel } from "@/components/ai-market/AssetUniversePanel";
 import { AssetWatchlist } from "@/components/ai-market/AssetWatchlist";
 import {
@@ -161,6 +162,7 @@ export function MarketAssistantDashboard({ symbols }: MarketAssistantDashboardPr
       </div>
 
       <div className="grid gap-5">
+        <AnalysisTable />
         {state.status === "loading" && !state.analysis ? <LoadingPanel /> : null}
         {state.status === "error" ? <ErrorPanel message={state.error ?? "Analiz alinamadi."} /> : null}
         {state.analysis ? (
