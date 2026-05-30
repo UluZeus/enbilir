@@ -1,5 +1,7 @@
 export type MarketExchange = "binance" | "gate";
 
+export type AssetClass = "CRYPTO" | "COMMODITY" | "FX";
+
 export type SignalType =
   | "STRONG_BUY"
   | "BUY"
@@ -15,8 +17,10 @@ export type WatchSymbol = {
   name: string;
   baseAsset: string;
   quoteAsset: string;
+  assetClass: AssetClass;
   binanceSymbol: string;
   gateSymbol: string;
+  yahooSymbol?: string;
 };
 
 export type Candle = {

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { fetchBinanceCandles } from "@/lib/ai-market/binance-public";
 import { fetchGateCandles } from "@/lib/ai-market/gate-public";
+import { fetchYahooCandles } from "@/lib/ai-market/yahoo-public";
 import { calculateIndicators } from "@/lib/ai-market/indicators";
 import { AI_MARKET_DISCLAIMER, buildExplanation } from "@/lib/ai-market/explanation-engine";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import { getWatchSymbol } from "@/lib/ai-market/symbols";
-import type { Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
+import type { Candle, MarketAnalysis, MarketExchange, WatchSymbol } from "@/lib/ai-market/types";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ function getChangePercent(candles: Candle[]) {
   return ((latest.close - first.open) / first.open) * 100;
 }
 
-async function loadCandles(exchange: MarketExchange, binanceSymbol: string, gateSymbol: string, interval: string) {
+async function loadCryptoCandles(exchange: MarketExchange, binanceSymbol: string, gateSymbol: string, interval: string) {
   if (exchange === "gate") {
     return fetchGateCandles(gateSymbol, interval);
   }
@@ -39,10 +40,26 @@ async function loadCandles(exchange: MarketExchange, binanceSymbol: string, gate
   return fetchBinanceCandles(binanceSymbol, interval);
 }
 
-async function loadCandlesWithFallback(exchange: MarketExchange, binanceSymbol: string, gateSymbol: string, interval: string) {
+async function loadCandlesWithFallback(symbol: WatchSymbol, exchange: MarketExchange, interval: string) {
+  if (symbol.assetClass !== "CRYPTO") {
+    try {
+      return {
+        candles: await fetchYahooCandles(symbol.yahooSymbol ?? symbol.symbol, interval),
+        exchange,
+        error: null,
+      };
+    } catch (error) {
+      return {
+        candles: [],
+        exchange,
+        error: error instanceof Error ? error.message : "Yahoo public piyasa verisi alinamadi.",
+      };
+    }
+  }
+
   try {
     return {
-      candles: await loadCandles(exchange, binanceSymbol, gateSymbol, interval),
+      candles: await loadCryptoCandles(exchange, symbol.binanceSymbol, symbol.gateSymbol, interval),
       exchange,
       error: null,
     };
@@ -51,7 +68,7 @@ async function loadCandlesWithFallback(exchange: MarketExchange, binanceSymbol: 
 
     try {
       return {
-        candles: await loadCandles(fallbackExchange, binanceSymbol, gateSymbol, interval),
+        candles: await loadCryptoCandles(fallbackExchange, symbol.binanceSymbol, symbol.gateSymbol, interval),
         exchange: fallbackExchange,
         error: error instanceof Error ? error.message : "Birincil veri saglayici yanit vermedi.",
       };
@@ -97,12 +114,7 @@ export async function GET(request: Request) {
   const symbol = getWatchSymbol(url.searchParams.get("symbol"));
   const requestedExchange = getExchange(url.searchParams.get("exchange"));
   const interval = getInterval(url.searchParams.get("interval"));
-  const { candles, exchange, error } = await loadCandlesWithFallback(
-    requestedExchange,
-    symbol.binanceSymbol,
-    symbol.gateSymbol,
-    interval,
-  );
+  const { candles, exchange, error } = await loadCandlesWithFallback(symbol, requestedExchange, interval);
 
   if (candles.length < 30) {
     return NextResponse.json(buildFallbackAnalysis(symbol, exchange, interval, error ?? "Yeterli public mum verisi bulunamadi."));

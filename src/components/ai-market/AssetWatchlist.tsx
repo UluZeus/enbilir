@@ -26,6 +26,11 @@ export function AssetWatchlist({
   onExchangeChange,
   onIntervalChange,
 }: AssetWatchlistProps) {
+  const cryptoSymbols = symbols.filter((item) => item.assetClass === "CRYPTO");
+  const macroSymbols = symbols.filter((item) => item.assetClass !== "CRYPTO");
+  const selectedAsset = symbols.find((item) => item.symbol === selectedSymbol);
+  const isCryptoSelected = selectedAsset?.assetClass === "CRYPTO";
+
   return (
     <aside className="premium-card p-4">
       <div className="flex items-center justify-between gap-3">
@@ -35,26 +40,32 @@ export function AssetWatchlist({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => onExchangeChange("binance")}
-          className={`rounded-md border px-3 py-2 text-sm font-black ${
-            exchange === "binance" ? "border-[#0f766e] bg-emerald-50 text-[#0f766e]" : "border-slate-200 bg-white/70 text-slate-600"
-          }`}
-        >
-          Binance
-        </button>
-        <button
-          type="button"
-          onClick={() => onExchangeChange("gate")}
-          className={`rounded-md border px-3 py-2 text-sm font-black ${
-            exchange === "gate" ? "border-[#0f766e] bg-emerald-50 text-[#0f766e]" : "border-slate-200 bg-white/70 text-slate-600"
-          }`}
-        >
-          Gate.io
-        </button>
-      </div>
+      {isCryptoSelected ? (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onExchangeChange("binance")}
+            className={`rounded-md border px-3 py-2 text-sm font-black ${
+              exchange === "binance" ? "border-[#0f766e] bg-emerald-50 text-[#0f766e]" : "border-slate-200 bg-white/70 text-slate-600"
+            }`}
+          >
+            Binance
+          </button>
+          <button
+            type="button"
+            onClick={() => onExchangeChange("gate")}
+            className={`rounded-md border px-3 py-2 text-sm font-black ${
+              exchange === "gate" ? "border-[#0f766e] bg-emerald-50 text-[#0f766e]" : "border-slate-200 bg-white/70 text-slate-600"
+            }`}
+          >
+            Gate.io
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-sm font-black text-slate-600">
+          Yahoo public veri
+        </div>
+      )}
 
       <label className="mt-4 block text-xs font-black uppercase tracking-[0.14em] text-slate-500" htmlFor="ai-market-interval">
         Periyot
@@ -72,7 +83,29 @@ export function AssetWatchlist({
         ))}
       </select>
 
-      <div className="mt-4 grid gap-2">
+      <div className="mt-4 grid gap-4">
+        <SymbolGroup title="Kripto Radar" symbols={cryptoSymbols} selectedSymbol={selectedSymbol} onSymbolChange={onSymbolChange} />
+        <SymbolGroup title="Emtia / Döviz Radar" symbols={macroSymbols} selectedSymbol={selectedSymbol} onSymbolChange={onSymbolChange} />
+      </div>
+    </aside>
+  );
+}
+
+function SymbolGroup({
+  title,
+  symbols,
+  selectedSymbol,
+  onSymbolChange,
+}: {
+  title: string;
+  symbols: WatchSymbol[];
+  selectedSymbol: string;
+  onSymbolChange: (symbol: string) => void;
+}) {
+  return (
+    <div>
+      <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{title}</h3>
+      <div className="mt-2 grid gap-2">
         {symbols.map((item) => (
           <button
             key={item.symbol}
@@ -84,11 +117,13 @@ export function AssetWatchlist({
                 : "border-white/70 bg-white/60 hover:border-[#0f766e]"
             }`}
           >
-            <span className="block text-sm font-black text-[#152033]">{item.baseAsset}/USDT</span>
+            <span className="block text-sm font-black text-[#152033]">
+              {item.baseAsset}/{item.quoteAsset}
+            </span>
             <span className="mt-1 block text-xs text-slate-500">{item.name}</span>
           </button>
         ))}
       </div>
-    </aside>
+    </div>
   );
 }

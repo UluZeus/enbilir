@@ -39,12 +39,16 @@ function formatPercent(value: number | null) {
 }
 
 export function SignalCard({ analysis }: { analysis: MarketAnalysis }) {
+  const providerLabel = ["XAUUSD", "XAGUSD", "USDTRY"].includes(analysis.symbol)
+    ? "Yahoo public veri"
+    : `${analysis.exchange === "binance" ? "Binance" : "Gate.io"} public veri`;
+
   return (
     <section className="premium-card premium-card--dark p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
-            {analysis.exchange === "binance" ? "Binance" : "Gate.io"} public veri
+            {providerLabel}
           </p>
           <h2 className="mt-2 text-3xl font-black tracking-normal text-white">{analysis.name}</h2>
           <p className="mt-1 text-sm text-slate-300">{analysis.symbol} - {analysis.interval}</p>
