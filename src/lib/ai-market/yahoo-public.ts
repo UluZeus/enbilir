@@ -1,4 +1,5 @@
 import type { Candle } from "@/lib/ai-market/types";
+import { getYahooProviderSymbolCandidates } from "@/lib/ai-market/yahoo-symbols";
 
 type YahooChartResponse = {
   chart?: {
@@ -68,7 +69,7 @@ function aggregateCandles(candles: Candle[], groupSize: number) {
   return aggregated;
 }
 
-export async function fetchYahooCandles(symbol: string, interval = "1h", timeoutMs = 5000): Promise<Candle[]> {
+async function fetchYahooCandlesForProviderSymbol(symbol: string, interval: string, timeoutMs: number): Promise<Candle[]> {
   const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
   url.searchParams.set("range", intervalRanges[interval] ?? "1mo");
   url.searchParams.set("interval", yahooIntervals[interval] ?? "1h");
@@ -114,4 +115,19 @@ export async function fetchYahooCandles(symbol: string, interval = "1h", timeout
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export async function fetchYahooCandles(symbol: string, interval = "1h", timeoutMs = 5000): Promise<Candle[]> {
+  const candidates = getYahooProviderSymbolCandidates(symbol);
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    try {
+      return await fetchYahooCandlesForProviderSymbol(candidate, interval, timeoutMs);
+    } catch (error) {
+      errors.push(`${candidate}: ${error instanceof Error ? error.message : "Yahoo public data unavailable"}`);
+    }
+  }
+
+  throw new Error(errors.length > 0 ? errors.join("; ") : "Yahoo public data unavailable");
 }

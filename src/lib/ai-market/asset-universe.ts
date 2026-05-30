@@ -1,4 +1,5 @@
 import type { AssetClass, WatchSymbol } from "@/lib/ai-market/types";
+import { resolveYahooProviderSymbol } from "@/lib/ai-market/yahoo-symbols";
 
 export type AssetUniverseCategory =
   | "CRYPTO_VOLUME_TOP_100"
@@ -425,7 +426,7 @@ function bistAsset(symbol: string): AssetUniverseItem {
 }
 
 function namedYahooAsset(seed: EquitySeed, category: AssetUniverseCategory, assetClass: AssetClass, exchangeLabel: string, currency: string): AssetUniverseItem {
-  const providerSymbol = seed.symbol === "USDTRY" ? "USDTRY=X" : seed.symbol === "EURTRY" ? "EURTRY=X" : seed.symbol;
+  const providerSymbol = resolveYahooProviderSymbol(seed.symbol);
 
   return {
     symbol: seed.symbol,

@@ -83,4 +83,5 @@ export type MarketAnalysis = {
   updatedAt: string;
   dataStatus: "live" | "fallback" | "error";
   error?: string;
+  technicalSeries?: import("@/lib/ai-market/indicators").TechnicalSeries;
 };

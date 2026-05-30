@@ -1,5 +1,6 @@
 import type { WatchSymbol } from "@/lib/ai-market/types";
 import { getAssetUniverseItem, toWatchSymbol } from "@/lib/ai-market/asset-universe";
+import { resolveYahooProviderSymbol } from "@/lib/ai-market/yahoo-symbols";
 
 export const AI_MARKET_SYMBOLS: WatchSymbol[] = [
   {
@@ -73,7 +74,7 @@ export const AI_MARKET_SYMBOLS: WatchSymbol[] = [
     assetClass: "COMMODITY",
     binanceSymbol: "",
     gateSymbol: "",
-    yahooSymbol: "GC=F",
+    yahooSymbol: resolveYahooProviderSymbol("XAUUSD"),
   },
   {
     symbol: "XAGUSD",
@@ -83,7 +84,7 @@ export const AI_MARKET_SYMBOLS: WatchSymbol[] = [
     assetClass: "COMMODITY",
     binanceSymbol: "",
     gateSymbol: "",
-    yahooSymbol: "SI=F",
+    yahooSymbol: resolveYahooProviderSymbol("XAGUSD"),
   },
   {
     symbol: "USDTRY",
@@ -93,7 +94,7 @@ export const AI_MARKET_SYMBOLS: WatchSymbol[] = [
     assetClass: "FX",
     binanceSymbol: "",
     gateSymbol: "",
-    yahooSymbol: "USDTRY=X",
+    yahooSymbol: resolveYahooProviderSymbol("USDTRY"),
   },
 ];
 

@@ -7,7 +7,6 @@ import { AI_MARKET_SOUND_ENABLED_KEY, playSignalAlertSound } from "@/lib/ai-mark
 import type { MarketExchange } from "@/lib/ai-market/types";
 
 const MARKET_SCAN_MS = 30_000;
-const ALERT_VISIBLE_MS = 10_000;
 const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 const ALERT_COOLDOWN_STORAGE_KEY = "ai-market-alert-cooldowns";
 const SCAN_INTERVALS = ["1m", "5m", "15m", "1h", "4h"];
@@ -113,10 +112,14 @@ function formatTime(value: string) {
 
 function getAlertClass(alertType: MarketScanAlert["alertType"]) {
   if (alertType === "STRONG_BUY" || alertType === "BULLISH_MOMENTUM" || alertType === "BUY_WATCH") {
-    return "border-emerald-400/40 bg-emerald-400/10 text-emerald-100";
+    return "text-emerald-300";
   }
 
-  return "border-rose-400/40 bg-rose-400/10 text-rose-100";
+  if (alertType === "STRONG_SELL" || alertType === "BEARISH_MOMENTUM" || alertType === "SELL_WATCH") {
+    return "text-rose-300";
+  }
+
+  return "text-amber-300";
 }
 
 function getExchangeLabel(exchange: MarketExchange) {
@@ -125,49 +128,28 @@ function getExchangeLabel(exchange: MarketExchange) {
 }
 
 export function SignalAlertOverlay() {
-  const [activeAlert, setActiveAlert] = useState<MarketScanAlert | null>(null);
-  const [extraAlertCount, setExtraAlertCount] = useState(0);
+  const [activeAlerts, setActiveAlerts] = useState<MarketScanAlert[]>([]);
   const [lastScanInterval, setLastScanInterval] = useState(SCAN_INTERVALS[0]);
   const [lastCandidateCount, setLastCandidateCount] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const scanIndexRef = useRef(0);
   const inProgressRef = useRef(false);
-  const dismissTimerRef = useRef<number | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
-
-  const dismissAlert = useCallback(() => {
-    setActiveAlert(null);
-    setExtraAlertCount(0);
-  }, []);
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
       controllerRef.current?.abort();
-
-      if (dismissTimerRef.current !== null) {
-        window.clearTimeout(dismissTimerRef.current);
-      }
     };
   }, []);
 
-  const showAlert = useCallback((alert: MarketScanAlert, extraCount: number) => {
-    setActiveAlert(alert);
-    setExtraAlertCount(extraCount);
-
-    if (dismissTimerRef.current !== null) {
-      window.clearTimeout(dismissTimerRef.current);
+  const playTopAlertSound = useCallback((alerts: MarketScanAlert[]) => {
+    const topAlert = alerts[0];
+    if (topAlert && window.localStorage.getItem(AI_MARKET_SOUND_ENABLED_KEY) === "true") {
+      void playSignalAlertSound(topAlert.soundLevel);
     }
-
-    dismissTimerRef.current = window.setTimeout(() => {
-      dismissAlert();
-    }, ALERT_VISIBLE_MS);
-
-    if (window.localStorage.getItem(AI_MARKET_SOUND_ENABLED_KEY) === "true") {
-      void playSignalAlertSound(alert.soundLevel);
-    }
-  }, [dismissAlert]);
+  }, []);
 
   const runScan = useCallback(async () => {
     if (inProgressRef.current) {
@@ -198,25 +180,29 @@ export function SignalAlertOverlay() {
       setLastCandidateCount(payload.candidateCount);
 
       if (payload.alerts.length === 0) {
+        setActiveAlerts([]);
         return;
       }
+
+      setActiveAlerts(payload.alerts.slice(0, 5));
 
       const now = Date.now();
       const cooldowns = pruneCooldowns(readCooldowns(), now);
       const availableAlerts = payload.alerts.filter((alert) => canShowAlert(alert, cooldowns, now));
-      const topAlert = availableAlerts[0];
 
-      if (!topAlert) {
+      if (availableAlerts.length === 0) {
         writeCooldowns(cooldowns);
         return;
       }
 
-      cooldowns[topAlert.key] = {
-        shownAt: now,
-        score: topAlert.recommendationScore,
-      };
+      availableAlerts.slice(0, 5).forEach((alert) => {
+        cooldowns[alert.key] = {
+          shownAt: now,
+          score: alert.recommendationScore,
+        };
+      });
       writeCooldowns(cooldowns);
-      showAlert(topAlert, Math.max(0, availableAlerts.length - 1));
+      playTopAlertSound(availableAlerts);
     } catch {
       return;
     } finally {
@@ -226,7 +212,7 @@ export function SignalAlertOverlay() {
         setIsScanning(false);
       }
     }
-  }, [showAlert]);
+  }, [playTopAlertSound]);
 
   useEffect(() => {
     void runScan();
@@ -237,65 +223,78 @@ export function SignalAlertOverlay() {
     return () => window.clearInterval(refreshId);
   }, [runScan]);
 
+  const tickerItems = activeAlerts.length > 0 ? activeAlerts : [];
+  const calmMessage = `Piyasa Radarı aktif: Binance piyasası 30 saniyede bir taranıyor. Son kontrol: ${lastScanInterval} periyodu, ${
+    lastCandidateCount || 30
+  } aday${isScanning ? ", kontrol sürüyor" : ""}.`;
+
   return (
-    <div className="fixed left-2 top-2 z-40 grid w-[min(300px,calc(100vw-16px))] gap-1.5 sm:left-3 sm:top-3">
-      <SoundAlertToggle compact />
-      {activeAlert ? (
-        <div className="overflow-hidden rounded-md border border-slate-700 bg-slate-950/95 text-slate-100 shadow-2xl backdrop-blur">
-          <div className="flex items-start justify-between gap-2 border-b border-slate-800 p-2.5">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Piyasa Radarı: Binance</p>
-              <h2 className="mt-0.5 truncate text-sm font-black text-white">{activeAlert.displayName}</h2>
-              <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-400">{getExchangeLabel(activeAlert.exchange)}</p>
-            </div>
-            <button
-              type="button"
-              onClick={dismissAlert}
-              className="rounded-md border border-slate-700 px-2 py-1 text-[10px] font-black text-slate-300 hover:border-slate-500"
-            >
-              Kapat
-            </button>
-          </div>
+    <section className="border-b border-slate-800 bg-[#050914] text-slate-100">
+      <style>{`
+        @keyframes ai-market-signal-ticker {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
 
-          <div className="grid gap-2 p-2.5">
-            <span className={`w-fit rounded-md border px-2 py-1 text-[10px] font-black ${getAlertClass(activeAlert.alertType)}`}>
-              {activeAlert.label}
-            </span>
-            <p className="text-xs font-bold leading-5 text-slate-100">{activeAlert.message}</p>
-            <p className="overflow-hidden text-[11px] leading-4 text-slate-400 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-              {activeAlert.reason}
-            </p>
+        .ai-market-signal-ticker-track {
+          animation: ai-market-signal-ticker 42s linear infinite;
+        }
 
-            <div className="grid grid-cols-3 gap-1.5 text-[10px]">
-              <Metric label="Borsa" value={getExchangeLabel(activeAlert.exchange)} />
-              <Metric label="Periyot" value={activeAlert.interval} />
-              <Metric label="Tavsiye" value={`%${activeAlert.recommendationScore}`} />
-              <Metric label="Risk" value={`%${activeAlert.riskScore}`} />
-              <Metric label="Güven" value={`%${activeAlert.confidence}`} />
-              <Metric label="Son Fiyat" value={formatPrice(activeAlert.price)} />
-            </div>
+        @media (prefers-reduced-motion: reduce) {
+          .ai-market-signal-ticker-track {
+            animation: none;
+            transform: none;
+          }
+        }
+      `}</style>
 
-            <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-bold text-slate-500">
-              <span>Güncelleme {formatTime(activeAlert.timestamp)}</span>
-              <span>{extraAlertCount > 0 ? `+${extraAlertCount} başka sinyal` : `Tarama: ${lastScanInterval}`}</span>
-            </div>
+      <div className="mx-auto flex max-w-[1920px] flex-col gap-2 px-3 py-2 md:flex-row md:items-center md:px-5">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-md border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200">
+            Piyasa Radarı
+          </span>
+          <span className="hidden text-[11px] font-bold text-slate-500 sm:inline">Binance / 30 sn</span>
+        </div>
+
+        <div className="min-w-0 flex-1 overflow-hidden rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1.5">
+          <div className="flex w-max min-w-full items-center gap-8 ai-market-signal-ticker-track">
+            <TickerContent alerts={tickerItems} fallback={calmMessage} />
+            <TickerContent alerts={tickerItems} fallback={calmMessage} ariaHidden />
           </div>
         </div>
-      ) : (
-        <p className="rounded-md border border-slate-700/70 bg-slate-950/85 px-2.5 py-1.5 text-[11px] font-bold text-slate-400 shadow-lg">
-          Piyasa radarı: Binance / 30 sn · son periyot {lastScanInterval} · {lastCandidateCount || 30} aday{" "}
-          {isScanning ? "· kontrol ediliyor" : ""}
-        </p>
-      )}
-    </div>
+
+        <div className="shrink-0">
+          <SoundAlertToggle compact />
+        </div>
+      </div>
+    </section>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function TickerContent({ alerts, fallback, ariaHidden = false }: { alerts: MarketScanAlert[]; fallback: string; ariaHidden?: boolean }) {
+  if (alerts.length === 0) {
+    return (
+      <span aria-hidden={ariaHidden} className={`text-xs font-bold text-slate-400 md:text-sm ${ariaHidden ? "motion-reduce:hidden" : ""}`}>
+        {fallback}
+      </span>
+    );
+  }
+
   return (
-    <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/90 p-1.5">
-      <p className="truncate font-black uppercase tracking-[0.08em] text-slate-500">{label}</p>
-      <p className="mt-0.5 truncate font-black text-slate-100">{value}</p>
-    </div>
+    <span aria-hidden={ariaHidden} className={`flex items-center gap-4 text-xs font-bold md:text-sm ${ariaHidden ? "motion-reduce:hidden" : ""}`}>
+      {alerts.map((alert) => (
+        <span key={`${alert.key}-${ariaHidden ? "clone" : "main"}`} className="inline-flex items-center gap-2">
+          <span className="font-black text-white">{alert.symbol}</span>
+          <span className="text-slate-500">{alert.interval}</span>
+          <span className={getAlertClass(alert.alertType)}>{alert.label}</span>
+          <span className="text-slate-500">Güven %{alert.confidence}</span>
+          <span className="text-slate-500">Risk %{alert.riskScore}</span>
+          <span className="text-slate-500">{formatPrice(alert.price)}</span>
+          <span className="text-slate-600">{formatTime(alert.timestamp)}</span>
+          <span className="text-slate-700">•</span>
+        </span>
+      ))}
+      <span className="text-slate-500">{getExchangeLabel(alerts[0].exchange)} radarı</span>
+    </span>
   );
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchBinanceCandles } from "@/lib/ai-market/binance-public";
 import { fetchGateCandles } from "@/lib/ai-market/gate-public";
 import { fetchYahooCandles } from "@/lib/ai-market/yahoo-public";
-import { calculateIndicators } from "@/lib/ai-market/indicators";
+import { calculateIndicators, calculateTechnicalSeries } from "@/lib/ai-market/indicators";
 import { AI_MARKET_DISCLAIMER, buildExplanation } from "@/lib/ai-market/explanation-engine";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
@@ -144,6 +144,7 @@ export async function GET(request: Request) {
     ...base,
     explanation: buildExplanation(base),
     disclaimer: AI_MARKET_DISCLAIMER,
+    technicalSeries: calculateTechnicalSeries(candles, 100),
   };
 
   return NextResponse.json(analysis);
