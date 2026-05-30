@@ -162,7 +162,7 @@ export function MarketAssistantDashboard({ symbols }: MarketAssistantDashboardPr
       </div>
 
       <div className="grid gap-5">
-        <AnalysisTable />
+        <AnalysisTable interval={interval} />
         {state.status === "loading" && !state.analysis ? <LoadingPanel /> : null}
         {state.status === "error" ? <ErrorPanel message={state.error ?? "Analiz alinamadi."} /> : null}
         {state.analysis ? (

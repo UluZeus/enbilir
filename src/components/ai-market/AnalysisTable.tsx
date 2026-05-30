@@ -11,7 +11,11 @@ import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 const FAVORITES_CHANGED_EVENT = "ai-market-favorites-changed";
 const MAX_FAVORITES = 30;
 const DEFAULT_EXCHANGE = "binance";
-const DEFAULT_INTERVAL = "1h";
+const FALLBACK_INTERVAL = "1h";
+
+type AnalysisTableProps = {
+  interval?: string;
+};
 
 type BatchSuccess = {
   symbol: string;
@@ -175,7 +179,7 @@ function getRiskClass(level: MarketAnalysis["risk"]["level"]) {
   return "text-amber-700";
 }
 
-export function AnalysisTable() {
+export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTableProps) {
   const favoritesSnapshot = useSyncExternalStore(
     subscribeToFavorites,
     getFavoritesSnapshot,
@@ -205,7 +209,7 @@ export function AnalysisTable() {
           body: JSON.stringify({
             symbols: favorites.slice(0, MAX_FAVORITES),
             exchange: DEFAULT_EXCHANGE,
-            interval: DEFAULT_INTERVAL,
+            interval,
           }),
         });
 
@@ -232,7 +236,7 @@ export function AnalysisTable() {
     loadBatchAnalysis();
 
     return () => controller.abort();
-  }, [favorites]);
+  }, [favorites, interval]);
 
   const results = favorites.length === 0 ? [] : (state.response?.results ?? []);
 
@@ -242,7 +246,7 @@ export function AnalysisTable() {
         <div>
           <h2 className="text-lg font-black text-[#152033]">Favorilerim Analiz Tablosu</h2>
           <p className="mt-1 text-xs text-slate-500">
-            {DEFAULT_INTERVAL} periyot · {DEFAULT_EXCHANGE} varsayilan borsa · en fazla {MAX_FAVORITES} favori
+            {interval} periyot · {DEFAULT_EXCHANGE} varsayilan borsa · en fazla {MAX_FAVORITES} favori
           </p>
         </div>
         <div className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
