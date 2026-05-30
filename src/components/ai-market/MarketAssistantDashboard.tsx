@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { AssetUniversePanel } from "@/components/ai-market/AssetUniversePanel";
 import { AssetWatchlist } from "@/components/ai-market/AssetWatchlist";
+import {
+  AI_MARKET_FAVORITES_STORAGE_KEY,
+  DEFAULT_AI_MARKET_FAVORITES,
+  FavoritesPanel,
+} from "@/components/ai-market/FavoritesPanel";
 import { IndicatorPanel } from "@/components/ai-market/IndicatorPanel";
 import { SignalCard } from "@/components/ai-market/SignalCard";
 import type { MarketAnalysis, MarketExchange, WatchSymbol } from "@/lib/ai-market/types";
@@ -16,11 +22,61 @@ type LoadState = {
   error: string | null;
 };
 
+const FAVORITES_CHANGED_EVENT = "ai-market-favorites-changed";
+
+function normalizeFavorites(value: unknown) {
+  if (!Array.isArray(value)) {
+    return DEFAULT_AI_MARKET_FAVORITES;
+  }
+
+  const favorites = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+
+  return Array.from(new Set(favorites.map((item) => item.trim().toUpperCase())));
+}
+
+function getStoredFavorites() {
+  if (typeof window === "undefined") {
+    return DEFAULT_AI_MARKET_FAVORITES;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(AI_MARKET_FAVORITES_STORAGE_KEY);
+    return storedValue ? normalizeFavorites(JSON.parse(storedValue)) : DEFAULT_AI_MARKET_FAVORITES;
+  } catch {
+    return DEFAULT_AI_MARKET_FAVORITES;
+  }
+}
+
+function getFavoritesSnapshot() {
+  return JSON.stringify(getStoredFavorites());
+}
+
+function subscribeToFavorites(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(FAVORITES_CHANGED_EVENT, callback);
+
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(FAVORITES_CHANGED_EVENT, callback);
+  };
+}
+
+function writeFavorites(favorites: string[]) {
+  window.localStorage.setItem(AI_MARKET_FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+  window.dispatchEvent(new Event(FAVORITES_CHANGED_EVENT));
+}
+
 export function MarketAssistantDashboard({ symbols }: MarketAssistantDashboardProps) {
   const [selectedSymbol, setSelectedSymbol] = useState(symbols[0]?.symbol ?? "BTCUSDT");
   const [exchange, setExchange] = useState<MarketExchange>("binance");
   const [interval, setInterval] = useState("1h");
   const [state, setState] = useState<LoadState>({ status: "idle", analysis: null, error: null });
+  const favoritesSnapshot = useSyncExternalStore(
+    subscribeToFavorites,
+    getFavoritesSnapshot,
+    () => JSON.stringify(DEFAULT_AI_MARKET_FAVORITES),
+  );
+  const favorites = useMemo(() => normalizeFavorites(JSON.parse(favoritesSnapshot)), [favoritesSnapshot]);
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({
@@ -68,17 +124,41 @@ export function MarketAssistantDashboard({ symbols }: MarketAssistantDashboardPr
     return () => controller.abort();
   }, [requestUrl]);
 
+  function addFavorite(symbol: string) {
+    const normalized = symbol.trim().toUpperCase();
+
+    if (!normalized) {
+      return;
+    }
+
+    writeFavorites(favorites.includes(normalized) ? favorites : [...favorites, normalized]);
+  }
+
+  function removeFavorite(symbol: string) {
+    writeFavorites(favorites.filter((item) => item !== symbol));
+  }
+
   return (
     <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-      <AssetWatchlist
-        symbols={symbols}
-        selectedSymbol={selectedSymbol}
-        exchange={exchange}
-        interval={interval}
-        onSymbolChange={setSelectedSymbol}
-        onExchangeChange={setExchange}
-        onIntervalChange={setInterval}
-      />
+      <div className="grid gap-5">
+        <AssetWatchlist
+          symbols={symbols}
+          selectedSymbol={selectedSymbol}
+          exchange={exchange}
+          interval={interval}
+          onSymbolChange={setSelectedSymbol}
+          onExchangeChange={setExchange}
+          onIntervalChange={setInterval}
+        />
+        <FavoritesPanel
+          favorites={favorites}
+          symbols={symbols}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={setSelectedSymbol}
+          onRemoveFavorite={removeFavorite}
+        />
+        <AssetUniversePanel favorites={favorites} onAddFavorite={addFavorite} />
+      </div>
 
       <div className="grid gap-5">
         {state.status === "loading" && !state.analysis ? <LoadingPanel /> : null}
