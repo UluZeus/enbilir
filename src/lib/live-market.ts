@@ -18,23 +18,7 @@ function formatPrice(value: number) {
   }).format(value);
 }
 
-function getQuotePriceUsd(fallback: MarketItem, quote: StooqQuote, usdTryClose?: number) {
-  if (fallback.symbol === "USD/TRY") {
-    return 1;
-  }
-
-  if (fallback.dataSymbol.endsWith(".tr") || fallback.dataSymbol.toLowerCase().endsWith("try")) {
-    return usdTryClose && usdTryClose > 0 ? quote.close / usdTryClose : fallback.priceUsd;
-  }
-
-  if (fallback.dataSymbol === "hg.f") {
-    return quote.close / 100;
-  }
-
-  return quote.close;
-}
-
-function normalizeQuote(fallback: MarketItem, quote?: StooqQuote, usdTryClose?: number): MarketItem {
+function normalizeQuote(fallback: MarketItem, quote?: StooqQuote): MarketItem {
   if (!quote || !Number.isFinite(quote.close) || quote.close <= 0) {
     return {
       ...fallback,
@@ -43,11 +27,13 @@ function normalizeQuote(fallback: MarketItem, quote?: StooqQuote, usdTryClose?: 
     };
   }
 
-  const changePercent = quote.open > 0 ? ((quote.close - quote.open) / quote.open) * 100 : fallback.changePercent;
-  const rawPriceUsd = getQuotePriceUsd(fallback, quote, usdTryClose);
-  const priceUsd = Number.isFinite(changePercent)
-    ? fallback.priceUsd * (1 + changePercent / 100)
-    : rawPriceUsd;
+  const providerMovementRatio = quote.open > 0 ? quote.close / quote.open : 1;
+  const hasReliableMovementRatio =
+    Number.isFinite(providerMovementRatio) &&
+    providerMovementRatio >= 0.7 &&
+    providerMovementRatio <= 1.3;
+  const changePercent = hasReliableMovementRatio ? (providerMovementRatio - 1) * 100 : 0;
+  const priceUsd = fallback.priceUsd * (1 + changePercent / 100);
 
   return {
     ...fallback,
@@ -256,7 +242,7 @@ async function loadQuotedItems(items: MarketItem[]): Promise<MarketItem[]> {
   }
 
   return items.map((fallback) =>
-    normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase()), yahooUsdTry),
+    normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase())),
   );
 }
 
