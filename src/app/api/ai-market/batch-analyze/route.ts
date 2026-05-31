@@ -6,6 +6,7 @@ import { fetchGateCandles } from "@/lib/ai-market/gate-public";
 import { calculateIndicators, calculateTechnicalSeries } from "@/lib/ai-market/indicators";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
+import { logMarketAnalysisSignal } from "@/lib/ai-market/signal-logger";
 import type { AssetClass, Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
 import { fetchYahooCandles } from "@/lib/ai-market/yahoo-public";
 
@@ -228,6 +229,16 @@ export async function POST(request: Request) {
   const exchange = normalizeExchange(body.exchange);
   const interval = normalizeInterval(body.interval);
   const results = await Promise.all(symbols.map((symbol) => analyzeOne(symbol, exchange, interval)));
+
+  await Promise.all(
+    results.map((result) => {
+      if (!result.ok) {
+        return Promise.resolve();
+      }
+
+      return logMarketAnalysisSignal(result.analysis, "batch-analyze");
+    }),
+  );
 
   return NextResponse.json({
     requested,

@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260508120000_add_google_oauth_accounts";
+const prismaSchemaVersion = "20260601010000_add_ai_signal_logs";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -38,6 +38,8 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     portfolioSnapshot?: unknown;
     siteVisualSetting?: unknown;
     oAuthAccount?: unknown;
+    aiSignalLog?: unknown;
+    aiSignalEvaluation?: unknown;
   };
 
   return Boolean(
@@ -55,7 +57,9 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.competitionPeriod &&
       candidate?.portfolioSnapshot &&
       candidate?.siteVisualSetting &&
-      candidate?.oAuthAccount,
+      candidate?.oAuthAccount &&
+      candidate?.aiSignalLog &&
+      candidate?.aiSignalEvaluation,
   );
 }
 

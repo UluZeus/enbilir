@@ -6,6 +6,7 @@ import { calculateIndicators, calculateTechnicalSeries } from "@/lib/ai-market/i
 import { AI_MARKET_DISCLAIMER, buildExplanation } from "@/lib/ai-market/explanation-engine";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
+import { logMarketAnalysisSignal } from "@/lib/ai-market/signal-logger";
 import { getWatchSymbol } from "@/lib/ai-market/symbols";
 import type { Candle, MarketAnalysis, MarketExchange, WatchSymbol } from "@/lib/ai-market/types";
 
@@ -146,6 +147,8 @@ export async function GET(request: Request) {
     disclaimer: AI_MARKET_DISCLAIMER,
     technicalSeries: calculateTechnicalSeries(candles, 100),
   };
+
+  void logMarketAnalysisSignal(analysis, "analyze");
 
   return NextResponse.json(analysis);
 }

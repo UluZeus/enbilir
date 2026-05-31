@@ -328,3 +328,46 @@ model PortfolioSnapshot {
   @@index([periodId, rank])
   @@index([userId])
 }
+
+model AiSignalLog {
+  id                  String               @id @default(cuid())
+  createdAt           DateTime             @default(now())
+  symbol              String
+  displayName         String?
+  exchange            String?
+  interval            String
+  signalType          String
+  recommendationText  String?
+  confidence          Float?
+  riskScore           Float?
+  opportunityScore    Float?
+  priceAtSignal       Float?
+  currency            String?
+  source              String?
+  reason              String?
+  indicatorsSnapshot  Json?
+  rawPayload          Json?
+  evaluations         AiSignalEvaluation[]
+
+  @@index([createdAt])
+  @@index([symbol, interval, signalType, createdAt])
+  @@index([source, createdAt])
+}
+
+model AiSignalEvaluation {
+  id                  String      @id @default(cuid())
+  signalLogId         String
+  signalLog           AiSignalLog @relation(fields: [signalLogId], references: [id], onDelete: Cascade)
+  horizon             String
+  evaluatedAt         DateTime    @default(now())
+  priceAtEvaluation   Float?
+  priceChangePercent  Float?
+  directionCorrect    Boolean?
+  score               Float?
+  resultLabel         String?
+  status              String?
+
+  @@unique([signalLogId, horizon])
+  @@index([horizon, evaluatedAt])
+  @@index([status])
+}
