@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getAssetClassLabel } from "@/components/ai-market/FavoritesPanel";
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import { ASSET_UNIVERSE_SECTIONS, type AssetUniverseCategory, type AssetUniverseItem } from "@/lib/ai-market/asset-universe";
 import type { AssetClass } from "@/lib/ai-market/types";
 
@@ -19,6 +21,7 @@ type BinanceUniverseAsset = {
 type UniverseResponse = BinanceUniverseAsset[] | { data?: unknown; error?: string };
 
 type AssetUniversePanelProps = {
+  locale?: Locale | string;
   favorites: string[];
   onAddFavorite: (symbol: string) => void;
   onRemoveFavorite?: (symbol: string) => void;
@@ -97,7 +100,23 @@ function matchesSearch(asset: { symbol: string; displayName: string; name?: stri
   );
 }
 
-export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite }: AssetUniversePanelProps) {
+export function AssetUniversePanel({ locale = "tr", favorites, onAddFavorite, onRemoveFavorite }: AssetUniversePanelProps) {
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale);
+  const filterLabels = safeLocale === "en"
+    ? {
+        ALL: "All",
+        CRYPTO_VOLUME_TOP_100: "Crypto Volume Top 100",
+        CRYPTO_MARKET_CAP_TOP_100: "Crypto Market Cap Top 100",
+        NASDAQ: "Nasdaq",
+        DOW_JONES: "Dow Jones",
+        SP500: "S&P 500",
+        BIST100: "BIST 100",
+        METALS: "Metals",
+        FX: "FX",
+        INDEXES: "Indexes",
+      }
+    : Object.fromEntries(filters.map((filter) => [filter.value, filter.label])) as Record<AssetFilter, string>;
   const [state, setState] = useState<LoadState>({ status: "idle", assets: [], error: null });
   const [search, setSearch] = useState("");
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("ALL");
@@ -168,17 +187,19 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
     <section className="premium-card p-4 md:p-5">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-lg font-black text-[#152033]">Varlık Evreni</h2>
+          <h2 className="text-lg font-black text-[#152033]">{safeLocale === "en" ? "Asset Universe" : "Varlık Evreni"}</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Kripto, ABD hisseleri, BIST 100, metaller, FX ve endeksler arasından favori seç.
+            {safeLocale === "en"
+              ? "Choose favorites from crypto, US stocks, BIST 100, metals, FX, and indexes."
+              : "Kripto, ABD hisseleri, BIST 100, metaller, FX ve endeksler arasından favori seç."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-            {favorites.length} seçili favori
+            {copy.ai.favoritesCount(favorites.length)}
           </span>
           <span className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-            {visibleCount} görünür varlık
+            {safeLocale === "en" ? `${visibleCount} visible assets` : `${visibleCount} görünür varlık`}
           </span>
         </div>
       </div>
@@ -186,19 +207,19 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)]">
         <div>
           <label className="block text-xs font-black uppercase tracking-[0.14em] text-slate-500" htmlFor="ai-market-asset-search">
-            Ara
+            {copy.common.search}
           </label>
           <input
             id="ai-market-asset-search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="BTC, NVDA, THYAO, altın..."
+            placeholder={safeLocale === "en" ? "BTC, NVDA, THYAO, gold..." : "BTC, NVDA, THYAO, altın..."}
             className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-[#0f766e]"
           />
         </div>
 
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Kategori</p>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{copy.trade.category}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {filters.map((filter) => (
               <button
@@ -211,7 +232,7 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
                     : "border-slate-200 bg-white/70 text-slate-600 hover:border-slate-300"
                 }`}
               >
-                {filter.label}
+                {filterLabels[filter.value]}
               </button>
             ))}
           </div>
@@ -220,8 +241,8 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
 
       <div className="mt-5 grid gap-6">
         {assetFilter === "ALL" || assetFilter === "CRYPTO_VOLUME_TOP_100" ? (
-          <AssetSection title="Kripto - Hacme Göre İlk 100" count={filteredVolumeAssets.length}>
-            {state.status === "loading" ? <p className="rounded-md bg-white/70 p-3 text-sm font-semibold text-slate-500">Yukleniyor...</p> : null}
+          <AssetSection title={safeLocale === "en" ? "Crypto - Top 100 by Volume" : "Kripto - Hacme Göre İlk 100"} countLabel={copy.ai.assets} count={filteredVolumeAssets.length}>
+            {state.status === "loading" ? <p className="rounded-md bg-white/70 p-3 text-sm font-semibold text-slate-500">{copy.common.loading}...</p> : null}
             {state.status === "error" ? (
               <p className="rounded-md border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">{state.error}</p>
             ) : null}
@@ -234,6 +255,7 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
                     isFavorite={favoriteSet.has(asset.symbol)}
                     onAddFavorite={onAddFavorite}
                     onRemoveFavorite={onRemoveFavorite}
+                    locale={safeLocale}
                   />
                 ))}
               </div>
@@ -242,7 +264,7 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
         ) : null}
 
         {filteredSections.map((section) => (
-          <AssetSection key={section.category} title={section.title} count={section.assets.length}>
+          <AssetSection key={section.category} title={safeLocale === "en" ? filterLabels[section.category] : section.title} countLabel={copy.ai.assets} count={section.assets.length}>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {section.assets.map((asset) => (
                 <SeedAssetCard
@@ -251,6 +273,7 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
                   isFavorite={favoriteSet.has(asset.symbol)}
                   onAddFavorite={onAddFavorite}
                   onRemoveFavorite={onRemoveFavorite}
+                  locale={safeLocale}
                 />
               ))}
             </div>
@@ -261,12 +284,12 @@ export function AssetUniversePanel({ favorites, onAddFavorite, onRemoveFavorite 
   );
 }
 
-function AssetSection({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+function AssetSection({ title, count, countLabel, children }: { title: string; count: number; countLabel: string; children: ReactNode }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{title}</h3>
-        <span className="text-xs font-bold text-slate-400">{count} varlık</span>
+        <span className="text-xs font-bold text-slate-400">{count} {countLabel}</span>
       </div>
       <div className="mt-2 max-h-[560px] overflow-y-auto pr-1">{children}</div>
     </div>
@@ -274,11 +297,13 @@ function AssetSection({ title, count, children }: { title: string; count: number
 }
 
 function VolumeAssetCard({
+  locale = "tr",
   asset,
   isFavorite,
   onAddFavorite,
   onRemoveFavorite,
 }: {
+  locale?: Locale | string;
   asset: BinanceUniverseAsset;
   isFavorite: boolean;
   onAddFavorite: (symbol: string) => void;
@@ -292,17 +317,19 @@ function VolumeAssetCard({
         assetClass="CRYPTO"
         exchangeLabel="Binance"
       />
-      <FavoriteToggle symbol={asset.symbol} isFavorite={isFavorite} onAddFavorite={onAddFavorite} onRemoveFavorite={onRemoveFavorite} />
+      <FavoriteToggle locale={locale} symbol={asset.symbol} isFavorite={isFavorite} onAddFavorite={onAddFavorite} onRemoveFavorite={onRemoveFavorite} />
     </AssetCardFrame>
   );
 }
 
 function SeedAssetCard({
+  locale = "tr",
   asset,
   isFavorite,
   onAddFavorite,
   onRemoveFavorite,
 }: {
+  locale?: Locale | string;
   asset: AssetUniverseItem;
   isFavorite: boolean;
   onAddFavorite: (symbol: string) => void;
@@ -316,7 +343,7 @@ function SeedAssetCard({
         assetClass={asset.assetClass}
         exchangeLabel={asset.exchangeLabel}
       />
-      <FavoriteToggle symbol={asset.symbol} isFavorite={isFavorite} onAddFavorite={onAddFavorite} onRemoveFavorite={onRemoveFavorite} />
+      <FavoriteToggle locale={locale} symbol={asset.symbol} isFavorite={isFavorite} onAddFavorite={onAddFavorite} onRemoveFavorite={onRemoveFavorite} />
     </AssetCardFrame>
   );
 }
@@ -357,16 +384,19 @@ function AssetCardBody({
 }
 
 function FavoriteToggle({
+  locale = "tr",
   symbol,
   isFavorite,
   onAddFavorite,
   onRemoveFavorite,
 }: {
+  locale?: Locale | string;
   symbol: string;
   isFavorite: boolean;
   onAddFavorite: (symbol: string) => void;
   onRemoveFavorite?: (symbol: string) => void;
 }) {
+  const safeLocale = getSafeLocale(locale);
   return (
     <button
       type="button"
@@ -380,7 +410,7 @@ function FavoriteToggle({
           : "border-[#0f766e] bg-emerald-50 text-[#0f766e] hover:bg-emerald-100"
       }`}
     >
-      {isFavorite ? "Seçili" : "Ekle"}
+      {isFavorite ? (safeLocale === "en" ? "Selected" : "Seçili") : (safeLocale === "en" ? "Add" : "Ekle")}
     </button>
   );
 }

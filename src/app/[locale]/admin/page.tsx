@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { FormMessage } from "@/components/FormMessage";
 import type { ReactNode } from "react";
 import { getSafeLocale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import {
   awardLeaderBadgesAction,
   createAdPlacementAction,
@@ -18,6 +19,149 @@ import { competitionPeriodLabels, competitionPeriodTypes } from "@/lib/competiti
 import { prisma } from "@/lib/prisma";
 import { defaultVisualSettings, getSiteVisualSettings } from "@/lib/site-visual-settings";
 
+function getAdminCopy(locale: "tr" | "en") {
+  return locale === "en"
+    ? {
+        loginRequired: "Login required",
+        loginBody: "Please sign in before accessing the admin panel.",
+        unauthorized: "Unauthorized access",
+        unauthorizedBody: "Only ADMIN and MASTER_ADMIN users can access this page.",
+        title: "Admin panel",
+        description: "Manage ad slots, information content, and editable page copy.",
+        visualManagement: "Visual management",
+        visualSettings: "Visual Settings",
+        visualBody: "Colors, background image URLs, and motion effects are managed here. If visual URL fields are empty, default CSS/SVG patterns are used.",
+        active: "Active",
+        inactive: "Inactive",
+        text: "Text",
+        imageBadge: "Image badge",
+        saveVisuals: "Save visual settings",
+        addAd: "Add ad / information area",
+        titlePlaceholder: "Title",
+        textPlaceholder: "Text",
+        linkUrl: "Link URL",
+        linkLabel: "Link label",
+        save: "Save",
+        managedContent: "Managed content",
+        pageCode: "Page code",
+        content: "Content",
+        saveContent: "Save content",
+        adSlots: "Ad slots",
+        contentPages: "Content pages",
+        deactivate: "Deactivate",
+        activate: "Activate",
+        competitionManagement: "Competition management",
+        competitionPeriods: "Competition Periods",
+        competitionBody: "Weekly, monthly, 3-month, 6-month, and yearly rankings are calculated using these periods.",
+        createPeriod: "Create new period",
+        type: "Type",
+        periodPlaceholder: "Example: May 2026 Weekly Competition",
+        startsAt: "Start",
+        endsAt: "End",
+        savePeriod: "Save period",
+        leaderBadges: "Weekly/Monthly leader badges",
+        leaderBadgesBody: "Awards the relevant leader badge to the first-ranked user in active weekly and monthly periods.",
+        awardLeaderBadges: "Award leader badges",
+        noPeriods: "No competition period has been created yet.",
+        achievementSystem: "Achievement system",
+        badgeList: "Badge list",
+        badges: "badges",
+      }
+    : {
+        loginRequired: "Giriş gerekli",
+        loginBody: "Admin paneline erişmek için giriş yapmalısın.",
+        unauthorized: "Yetkisiz erişim",
+        unauthorizedBody: "Bu sayfaya sadece ADMIN ve MASTER_ADMIN kullanıcılar erişebilir.",
+        title: "Admin paneli",
+        description: "Reklam alanları, bilgi içerikleri ve yönetilebilir sayfa metinleri.",
+        visualManagement: "Görsel yönetim",
+        visualSettings: "Görsel Ayarlar",
+        visualBody: "Renkler, arka plan görsel URL'leri ve hareket efektleri buradan yönetilir. Görsel URL alanları boşsa varsayılan CSS/SVG desenleri kullanılır.",
+        active: "Aktif",
+        inactive: "Pasif",
+        text: "Metin",
+        imageBadge: "Görsel rozet",
+        saveVisuals: "Görsel ayarları kaydet",
+        addAd: "Reklam / bilgi alanı ekle",
+        titlePlaceholder: "Başlık",
+        textPlaceholder: "Metin",
+        linkUrl: "Bağlantı adresi",
+        linkLabel: "Bağlantı etiketi",
+        save: "Kaydet",
+        managedContent: "Yönetilebilir içerik",
+        pageCode: "Sayfa kodu",
+        content: "İçerik",
+        saveContent: "İçeriği kaydet",
+        adSlots: "Reklam alanları",
+        contentPages: "İçerik sayfaları",
+        deactivate: "Pasifleştir",
+        activate: "Aktifleştir",
+        competitionManagement: "Yarışma yönetimi",
+        competitionPeriods: "Yarışma Dönemleri",
+        competitionBody: "Haftalık, aylık, 3 aylık, 6 aylık ve yıllık sıralamalar bu dönemlere göre hesaplanır.",
+        createPeriod: "Yeni dönem oluştur",
+        type: "Tür",
+        periodPlaceholder: "Örn. 2026 Mayıs Haftalık Yarışması",
+        startsAt: "Başlangıç",
+        endsAt: "Bitiş",
+        savePeriod: "Dönemi kaydet",
+        leaderBadges: "Haftalık/Aylık lider rozetleri",
+        leaderBadgesBody: "Aktif haftalık ve aylık dönemlerde 1. sıradaki kullanıcıya ilgili lider rozetini verir.",
+        awardLeaderBadges: "Lider rozetlerini ver",
+        noPeriods: "Henüz yarışma dönemi oluşturulmadı.",
+        achievementSystem: "Başarı sistemi",
+        badgeList: "Rozet listesi",
+        badges: "rozet",
+      };
+}
+
+function getVisualSettingCopy(key: string, locale: "tr" | "en", fallbackTitle: string, fallbackDescription: string) {
+  if (locale === "tr") {
+    return { title: fallbackTitle, description: fallbackDescription };
+  }
+
+  const values: Record<string, { title: string; description: string }> = {
+    gradientPrimary: {
+      title: "Primary gradient color",
+      description: "Dominant color used on the lower-left side of the global background gradient.",
+    },
+    gradientSecondary: {
+      title: "Secondary gradient color",
+      description: "Dominant color used on the upper-right side of the global background gradient.",
+    },
+    accentColor: {
+      title: "Accent color",
+      description: "Used for CTAs, glow effects, and premium gold accents.",
+    },
+    heroBackgroundImageUrl: {
+      title: "Hero background image URL",
+      description: "Used with light transparency over the CSS pattern in the home hero area.",
+    },
+    homeOverlayImageUrl: {
+      title: "Home transparent overlay image URL",
+      description: "Used as a transparent decorative image layer across the home page.",
+    },
+    adImageUrl: {
+      title: "Ad image URL",
+      description: "Optional background image used in ad/information cards.",
+    },
+    animationsEnabled: {
+      title: "Animations enabled",
+      description: "Turns global background motion and micro animations on or off.",
+    },
+    card3dEnabled: {
+      title: "3D card effects enabled",
+      description: "Turns desktop hover tilt/perspective effects on premium cards on or off.",
+    },
+    whatsappButtonVariant: {
+      title: "WhatsApp button preference",
+      description: "text or image. Image uses a compact visual badge style.",
+    },
+  };
+
+  return values[key] ?? { title: fallbackTitle, description: fallbackDescription };
+}
+
 export default async function AdminPage({
   params,
   searchParams,
@@ -28,14 +172,16 @@ export default async function AdminPage({
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
   const locale = getSafeLocale(rawLocale);
+  const copy = getAdminCopy(locale);
+  const ui = getUiCopy(locale);
   const user = await getSessionUser();
 
   if (!user) {
-    return <AdminNotice title="Giriş gerekli" body="Admin paneline erişmek için giriş yapmalısın." />;
+    return <AdminNotice title={copy.loginRequired} body={copy.loginBody} />;
   }
 
   if (!canAccessAdmin(user.role)) {
-    return <AdminNotice title="Yetkisiz erişim" body="Bu sayfaya sadece ADMIN ve MASTER_ADMIN kullanıcılar erişebilir." />;
+    return <AdminNotice title={copy.unauthorized} body={copy.unauthorizedBody} />;
   }
 
   await ensureDefaultBadges();
@@ -50,32 +196,35 @@ export default async function AdminPage({
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Admin paneli" description="Reklam alanları, bilgi içerikleri ve yönetilebilir sayfa metinleri." />
+      <PageHeader title={copy.title} description={copy.description} locale={locale} />
       <FormMessage message={query.error} />
       <section className="premium-card p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">Görsel yönetim</p>
-            <h2 className="mt-2 text-xl font-black text-[#152033]">Görsel Ayarlar</h2>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">{copy.visualManagement}</p>
+            <h2 className="mt-2 text-xl font-black text-[#152033]">{copy.visualSettings}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Renkler, arka plan görsel URL&apos;leri ve hareket efektleri buradan yönetilir. Görsel URL alanları boşsa varsayılan CSS/SVG desenleri kullanılır.
+              {copy.visualBody}
             </p>
           </div>
         </div>
         <form action={updateSiteVisualSettingsAction} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <input type="hidden" name="locale" value={locale} />
-          {defaultVisualSettings.map((setting) => (
+          {defaultVisualSettings.map((setting) => {
+            const settingCopy = getVisualSettingCopy(setting.key, locale, setting.title, setting.description);
+
+            return (
             <label key={setting.key} className="grid gap-2 rounded-lg border border-white/60 bg-white/55 p-4 text-sm font-bold text-slate-700 shadow-sm backdrop-blur">
-              <span>{setting.title}</span>
+              <span>{settingCopy.title}</span>
               {setting.type === "BOOLEAN" ? (
                 <span className="flex items-center gap-3 rounded-md border border-slate-200 bg-white/80 px-4 py-3 font-normal">
                   <input name={setting.key} type="checkbox" defaultChecked={visualSettings[setting.key] === "true"} />
-                  Aktif
+                  {copy.active}
                 </span>
               ) : setting.key === "whatsappButtonVariant" ? (
                 <select name={setting.key} defaultValue={visualSettings[setting.key]} className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]">
-                  <option value="text">Metin</option>
-                  <option value="image">Görsel rozet</option>
+                  <option value="text">{copy.text}</option>
+                  <option value="image">{copy.imageBadge}</option>
                 </select>
               ) : (
                 <input
@@ -86,11 +235,12 @@ export default async function AdminPage({
                   className="min-h-12 rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
                 />
               )}
-              <span className="text-xs font-normal leading-5 text-slate-500">{setting.description}</span>
+              <span className="text-xs font-normal leading-5 text-slate-500">{settingCopy.description}</span>
             </label>
-          ))}
+            );
+          })}
           <div className="md:col-span-2 xl:col-span-3">
-            <button className="premium-cta px-5 py-3 text-sm font-black">Görsel ayarları kaydet</button>
+            <button className="premium-cta px-5 py-3 text-sm font-black">{copy.saveVisuals}</button>
           </div>
         </form>
       </section>
@@ -98,35 +248,35 @@ export default async function AdminPage({
       <section className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <form action={createAdPlacementAction} className="glass-card rounded-lg p-6 shadow-sm">
           <input type="hidden" name="locale" value={locale} />
-          <h2 className="text-xl font-black text-[#152033]">Reklam / bilgi alanı ekle</h2>
+          <h2 className="text-xl font-black text-[#152033]">{copy.addAd}</h2>
           <div className="mt-4 grid gap-3">
             <input name="slot" placeholder="home_top, trade_top, trade_right, trade_bottom" className="rounded-md border border-slate-300 px-4 py-3" />
-            <input name="title" placeholder="Başlık" className="rounded-md border border-slate-300 px-4 py-3" />
-            <textarea name="body" rows={4} placeholder="Metin" className="rounded-md border border-slate-300 px-4 py-3" />
-            <input name="linkUrl" placeholder="Bağlantı adresi" className="rounded-md border border-slate-300 px-4 py-3" />
-            <input name="linkLabel" placeholder="Bağlantı etiketi" className="rounded-md border border-slate-300 px-4 py-3" />
+            <input name="title" placeholder={copy.titlePlaceholder} className="rounded-md border border-slate-300 px-4 py-3" />
+            <textarea name="body" rows={4} placeholder={copy.textPlaceholder} className="rounded-md border border-slate-300 px-4 py-3" />
+            <input name="linkUrl" placeholder={copy.linkUrl} className="rounded-md border border-slate-300 px-4 py-3" />
+            <input name="linkLabel" placeholder={copy.linkLabel} className="rounded-md border border-slate-300 px-4 py-3" />
             <input name="displaySeconds" type="number" defaultValue={8} className="rounded-md border border-slate-300 px-4 py-3" />
             <input name="priority" type="number" defaultValue={0} className="rounded-md border border-slate-300 px-4 py-3" />
-            <label className="flex gap-3 text-sm text-slate-700"><input name="isActive" type="checkbox" defaultChecked /> Aktif</label>
-            <button className="premium-action px-5 py-3 text-sm font-black">Kaydet</button>
+            <label className="flex gap-3 text-sm text-slate-700"><input name="isActive" type="checkbox" defaultChecked /> {copy.active}</label>
+            <button className="premium-action px-5 py-3 text-sm font-black">{copy.save}</button>
           </div>
         </form>
 
         <form action={upsertManagedContentAction} className="glass-card rounded-lg p-6 shadow-sm">
           <input type="hidden" name="locale" value={locale} />
-          <h2 className="text-xl font-black text-[#152033]">Yönetilebilir içerik</h2>
+          <h2 className="text-xl font-black text-[#152033]">{copy.managedContent}</h2>
           <div className="mt-4 grid gap-3">
-            <input name="code" placeholder="Sayfa kodu" className="rounded-md border border-slate-300 px-4 py-3" />
-            <input name="title" placeholder="Başlık" className="rounded-md border border-slate-300 px-4 py-3" />
-            <textarea name="body" rows={7} placeholder="İçerik" className="rounded-md border border-slate-300 px-4 py-3" />
-            <label className="flex gap-3 text-sm text-slate-700"><input name="isActive" type="checkbox" defaultChecked /> Aktif</label>
-            <button className="premium-action px-5 py-3 text-sm font-black">İçeriği kaydet</button>
+            <input name="code" placeholder={copy.pageCode} className="rounded-md border border-slate-300 px-4 py-3" />
+            <input name="title" placeholder={copy.titlePlaceholder} className="rounded-md border border-slate-300 px-4 py-3" />
+            <textarea name="body" rows={7} placeholder={copy.content} className="rounded-md border border-slate-300 px-4 py-3" />
+            <label className="flex gap-3 text-sm text-slate-700"><input name="isActive" type="checkbox" defaultChecked /> {copy.active}</label>
+            <button className="premium-action px-5 py-3 text-sm font-black">{copy.saveContent}</button>
           </div>
         </form>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <AdminList title="Reklam alanları">
+        <AdminList title={copy.adSlots}>
           {ads.map((ad) => (
             <div key={ad.id} className="rounded-md border border-slate-200 bg-white p-4">
               <p className="font-black text-[#152033]">{ad.slot} - {ad.title}</p>
@@ -135,12 +285,12 @@ export default async function AdminPage({
                 <input type="hidden" name="locale" value={locale} />
                 <input type="hidden" name="id" value={ad.id} />
                 <input type="hidden" name="nextActive" value={String(!ad.isActive)} />
-                <button className="rounded-md border border-slate-300 px-3 py-2 text-xs font-black">{ad.isActive ? "Pasifleştir" : "Aktifleştir"}</button>
+                <button className="rounded-md border border-slate-300 px-3 py-2 text-xs font-black">{ad.isActive ? copy.deactivate : copy.activate}</button>
               </form>
             </div>
           ))}
         </AdminList>
-        <AdminList title="İçerik sayfaları">
+        <AdminList title={copy.contentPages}>
           {managedPages.map((page) => (
             <div key={page.id} className="rounded-md border border-slate-200 bg-white p-4">
               <p className="font-black text-[#152033]">{page.code} - {page.title}</p>
@@ -152,58 +302,58 @@ export default async function AdminPage({
 
       <section className="premium-card premium-card--dark overflow-hidden text-white">
         <div className="border-b border-white/10 p-6">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">Yarışma yönetimi</p>
-          <h2 className="mt-2 text-xl font-black">Yarışma Dönemleri</h2>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.competitionManagement}</p>
+          <h2 className="mt-2 text-xl font-black">{copy.competitionPeriods}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Haftalık, aylık, 3 aylık, 6 aylık ve yıllık sıralamalar bu dönemlere göre hesaplanır.
+            {copy.competitionBody}
           </p>
         </div>
         <div className="grid gap-6 p-6 lg:grid-cols-[0.9fr_1.1fr]">
           <form action={createCompetitionPeriodAction} className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
             <input type="hidden" name="locale" value={locale} />
-            <h3 className="text-lg font-black">Yeni dönem oluştur</h3>
+            <h3 className="text-lg font-black">{copy.createPeriod}</h3>
             <div className="mt-4 grid gap-3">
               <label className="grid gap-2 text-sm font-bold text-slate-200">
-                Tür
+                {copy.type}
                 <select name="type" defaultValue="WEEKLY" className="rounded-md border border-white/10 bg-black/30 px-4 py-3 font-normal text-white">
                   {competitionPeriodTypes.map((type) => (
                     <option key={type} value={type}>
-                      {competitionPeriodLabels[type]}
+                      {locale === "en" ? ui.home.periodLabels[type] : competitionPeriodLabels[type]}
                     </option>
                   ))}
                 </select>
               </label>
-              <input name="name" placeholder="Örn. 2026 Mayıs Haftalık Yarışması" className="rounded-md border border-white/10 bg-black/30 px-4 py-3 text-white" />
+              <input name="name" placeholder={copy.periodPlaceholder} className="rounded-md border border-white/10 bg-black/30 px-4 py-3 text-white" />
               <label className="grid gap-2 text-sm font-bold text-slate-200">
-                Başlangıç
+                {copy.startsAt}
                 <input name="startsAt" type="datetime-local" className="rounded-md border border-white/10 bg-black/30 px-4 py-3 font-normal text-white" />
               </label>
               <label className="grid gap-2 text-sm font-bold text-slate-200">
-                Bitiş
+                {copy.endsAt}
                 <input name="endsAt" type="datetime-local" className="rounded-md border border-white/10 bg-black/30 px-4 py-3 font-normal text-white" />
               </label>
               <label className="flex gap-3 text-sm text-slate-200">
-                <input name="isActive" type="checkbox" defaultChecked /> Aktif
+                <input name="isActive" type="checkbox" defaultChecked /> {copy.active}
               </label>
-              <button className="premium-cta px-5 py-3 text-sm font-black">Dönemi kaydet</button>
+              <button className="premium-cta px-5 py-3 text-sm font-black">{copy.savePeriod}</button>
             </div>
           </form>
 
           <div className="grid content-start gap-4">
             <form action={awardLeaderBadgesAction} className="rounded-lg border border-[#f5a623]/40 bg-[#f5a623]/10 p-5">
               <input type="hidden" name="locale" value={locale} />
-              <h3 className="font-black">Haftalık/Aylık lider rozetleri</h3>
+              <h3 className="font-black">{copy.leaderBadges}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Aktif haftalık ve aylık dönemlerde 1. sıradaki kullanıcıya ilgili lider rozetini verir.
+                {copy.leaderBadgesBody}
               </p>
               <button className="mt-4 rounded-md border border-[#f5a623] px-4 py-2 text-xs font-black text-[#f5a623] hover:bg-[#f5a623] hover:text-[#101827]">
-                Lider rozetlerini ver
+                {copy.awardLeaderBadges}
               </button>
             </form>
 
             <div className="grid gap-3">
               {competitionPeriods.length === 0 ? (
-                <p className="rounded-md bg-black/25 p-4 text-sm text-slate-300">Henüz yarışma dönemi oluşturulmadı.</p>
+                <p className="rounded-md bg-black/25 p-4 text-sm text-slate-300">{copy.noPeriods}</p>
               ) : (
                 competitionPeriods.map((period) => (
                   <div key={period.id} className="rounded-md border border-white/10 bg-white/[0.04] p-4">
@@ -211,7 +361,7 @@ export default async function AdminPage({
                       <div>
                         <p className="font-black">{period.name}</p>
                         <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-[#f5a623]">
-                          {competitionPeriodLabels[period.type]}
+                          {locale === "en" ? ui.home.periodLabels[period.type] : competitionPeriodLabels[period.type]}
                         </p>
                         <p className="mt-2 text-xs leading-5 text-slate-300">
                           {period.startsAt.toLocaleString("tr-TR")} - {period.endsAt.toLocaleString("tr-TR")}
@@ -222,7 +372,7 @@ export default async function AdminPage({
                         <input type="hidden" name="id" value={period.id} />
                         <input type="hidden" name="nextActive" value={String(!period.isActive)} />
                         <button className="rounded-md border border-[#f5a623] px-3 py-2 text-xs font-black text-[#f5a623]">
-                          {period.isActive ? "Pasifleştir" : "Aktifleştir"}
+                          {period.isActive ? copy.deactivate : copy.activate}
                         </button>
                       </form>
                     </div>
@@ -237,10 +387,10 @@ export default async function AdminPage({
       <section className="premium-card premium-card--dark p-5 text-white">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">Başarı sistemi</p>
-            <h2 className="mt-2 text-xl font-black">Rozet listesi</h2>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.achievementSystem}</p>
+            <h2 className="mt-2 text-xl font-black">{copy.badgeList}</h2>
           </div>
-          <p className="text-sm text-slate-300">{badges.length} rozet</p>
+          <p className="text-sm text-slate-300">{badges.length} {copy.badges}</p>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {badges.map((badge) => (
@@ -248,20 +398,20 @@ export default async function AdminPage({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-2xl text-[#f5a623]">{badge.icon}</p>
-                  <h3 className="mt-2 font-black">{badge.nameTr}</h3>
+                  <h3 className="mt-2 font-black">{locale === "en" ? badge.nameEn : badge.nameTr}</h3>
                   <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{badge.code}</p>
                 </div>
                 <span className={badge.isActive ? "text-xs font-black text-[#f5a623]" : "text-xs font-black text-slate-500"}>
-                  {badge.isActive ? "Aktif" : "Pasif"}
+                  {badge.isActive ? copy.active : copy.inactive}
                 </span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-300">{badge.descriptionTr}</p>
+              <p className="mt-3 text-sm leading-6 text-slate-300">{locale === "en" ? badge.descriptionEn : badge.descriptionTr}</p>
               <form action={toggleBadgeAction} className="mt-4">
                 <input type="hidden" name="locale" value={locale} />
                 <input type="hidden" name="id" value={badge.id} />
                 <input type="hidden" name="nextActive" value={String(!badge.isActive)} />
                 <button className="rounded-md border border-[#f5a623] px-3 py-2 text-xs font-black text-[#f5a623] hover:bg-[#f5a623] hover:text-[#101827]">
-                  {badge.isActive ? "Pasifleştir" : "Aktifleştir"}
+                  {badge.isActive ? copy.deactivate : copy.activate}
                 </button>
               </form>
             </div>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import { getSafeLocale, type Locale } from "@/i18n/config";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
 
 type SelectedAssetMiniChartsProps = {
+  locale?: Locale | string;
   symbol: string;
   interval: string;
   series?: TechnicalSeries;
@@ -202,43 +204,44 @@ function MiniChartCard({
   );
 }
 
-function volatilityStatus(latest: TechnicalSeriesPoint) {
+function volatilityStatus(latest: TechnicalSeriesPoint, isEnglish: boolean) {
   if (!latest.atr || latest.close <= 0) {
-    return { label: "Bekleniyor", ratio: null };
+    return { label: isEnglish ? "Waiting" : "Bekleniyor", ratio: null };
   }
 
   const ratio = (latest.atr / latest.close) * 100;
 
   if (ratio >= 4) {
-    return { label: "Yüksek", ratio };
+    return { label: isEnglish ? "High" : "Yüksek", ratio };
   }
 
   if (ratio >= 1.8) {
-    return { label: "Orta", ratio };
+    return { label: isEnglish ? "Medium" : "Orta", ratio };
   }
 
-  return { label: "Düşük", ratio };
+  return { label: isEnglish ? "Low" : "Düşük", ratio };
 }
 
-function bollingerStatus(latest: TechnicalSeriesPoint) {
+function bollingerStatus(latest: TechnicalSeriesPoint, isEnglish: boolean) {
   const bandwidth = latest.bollingerBandwidth;
 
   if (bandwidth === null) {
-    return "Bekleniyor";
+    return isEnglish ? "Waiting" : "Bekleniyor";
   }
 
   if (bandwidth < 4) {
-    return "Sıkışma";
+    return isEnglish ? "Compression" : "Sıkışma";
   }
 
   if (bandwidth > 12) {
-    return "Genişleme";
+    return isEnglish ? "Expansion" : "Genişleme";
   }
 
   return "Normal";
 }
 
-export function SelectedAssetMiniCharts({ symbol, interval, series }: SelectedAssetMiniChartsProps) {
+export function SelectedAssetMiniCharts({ locale = "tr", symbol, interval, series }: SelectedAssetMiniChartsProps) {
+  const isEnglish = getSafeLocale(locale) === "en";
   const points = useMemo(() => series?.points ?? [], [series?.points]);
   const latest = latestPoint(points);
   const chartData = useMemo(
@@ -263,30 +266,30 @@ export function SelectedAssetMiniCharts({ symbol, interval, series }: SelectedAs
   if (points.length === 0 || !latest) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500">
-        Bu varlık için grafik verisi alınamadı.
+        {isEnglish ? "Chart data could not be loaded for this asset." : "Bu varlık için grafik verisi alınamadı."}
       </div>
     );
   }
 
   const macdLatest = lastValue(chartData.macd);
   const signalLatest = lastValue(chartData.macdSignal);
-  const volatility = volatilityStatus(latest);
+  const volatility = volatilityStatus(latest, isEnglish);
   const volumeRatio = latest.volumeSma20 && latest.volumeSma20 > 0 ? latest.volume / latest.volumeSma20 : null;
   const volumeAnomaly = volumeRatio !== null && volumeRatio >= 1.8;
 
   return (
     <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
       <MiniChartCard
-        title="Fiyat + MA/EMA"
+        title={isEnglish ? "Price + MA/EMA" : "Fiyat + MA/EMA"}
         meta={`${symbol} / ${interval}`}
         values={[
-          { label: "Son fiyat", value: formatNumber(latest.close, 4), tone: "text-red-700" },
+          { label: isEnglish ? "Last price" : "Son fiyat", value: formatNumber(latest.close, 4), tone: "text-red-700" },
           { label: "SMA20", value: formatNumber(latest.sma20, 4) },
           { label: "EMA20", value: formatNumber(latest.ema20, 4) },
           { label: "EMA50", value: formatNumber(latest.ema50, 4) },
         ]}
         lines={[
-          { label: "Fiyat", color: mainRed, values: chartData.close, width: 2.4 },
+          { label: isEnglish ? "Price" : "Fiyat", color: mainRed, values: chartData.close, width: 2.4 },
           { label: "SMA", color: softLine, values: chartData.sma20 },
           { label: "EMA", color: neutralLine, values: chartData.ema20 },
           { label: "EMA50", color: "#94a3b8", values: chartData.ema50, dashed: true },
@@ -295,12 +298,12 @@ export function SelectedAssetMiniCharts({ symbol, interval, series }: SelectedAs
 
       <MiniChartCard
         title="RSI"
-        meta={`Son RSI ${formatNumber(latest.rsi, 1)}`}
+        meta={`${isEnglish ? "Last RSI" : "Son RSI"} ${formatNumber(latest.rsi, 1)}`}
         values={[
           { label: "RSI", value: formatNumber(latest.rsi, 1), tone: "text-red-700" },
-          { label: "Aşırı alım", value: "70" },
-          { label: "Orta", value: "50" },
-          { label: "Aşırı satım", value: "30" },
+          { label: isEnglish ? "Overbought" : "Aşırı alım", value: "70" },
+          { label: isEnglish ? "Middle" : "Orta", value: "50" },
+          { label: isEnglish ? "Oversold" : "Aşırı satım", value: "30" },
         ]}
         lines={[{ label: "RSI", color: mainRed, values: chartData.rsi, width: 2.4 }]}
         references={[
@@ -318,8 +321,8 @@ export function SelectedAssetMiniCharts({ symbol, interval, series }: SelectedAs
         values={[
           { label: "MACD", value: formatNumber(macdLatest, 4), tone: "text-red-700" },
           { label: "Signal", value: formatNumber(signalLatest, 4) },
-          { label: "Fark", value: macdLatest !== null && signalLatest !== null ? formatNumber(macdLatest - signalLatest, 4) : "-" },
-          { label: "Referans", value: "0" },
+          { label: isEnglish ? "Spread" : "Fark", value: macdLatest !== null && signalLatest !== null ? formatNumber(macdLatest - signalLatest, 4) : "-" },
+          { label: isEnglish ? "Reference" : "Referans", value: "0" },
         ]}
         lines={[
           { label: "MACD", color: mainRed, values: chartData.macd, width: 2.4 },
@@ -329,47 +332,47 @@ export function SelectedAssetMiniCharts({ symbol, interval, series }: SelectedAs
       />
 
       <MiniChartCard
-        title="Bollinger Bandı"
-        meta={`Bant durumu: ${bollingerStatus(latest)}`}
+        title={isEnglish ? "Bollinger Band" : "Bollinger Bandı"}
+        meta={`${isEnglish ? "Band status" : "Bant durumu"}: ${bollingerStatus(latest, isEnglish)}`}
         values={[
-          { label: "Üst", value: formatNumber(latest.bollingerUpper, 4) },
-          { label: "Orta", value: formatNumber(latest.bollingerMiddle, 4) },
-          { label: "Alt", value: formatNumber(latest.bollingerLower, 4) },
-          { label: "Genişlik", value: latest.bollingerBandwidth === null ? "-" : `%${formatNumber(latest.bollingerBandwidth, 2)}`, tone: "text-red-700" },
+          { label: isEnglish ? "Upper" : "Üst", value: formatNumber(latest.bollingerUpper, 4) },
+          { label: isEnglish ? "Middle" : "Orta", value: formatNumber(latest.bollingerMiddle, 4) },
+          { label: isEnglish ? "Lower" : "Alt", value: formatNumber(latest.bollingerLower, 4) },
+          { label: isEnglish ? "Width" : "Genişlik", value: latest.bollingerBandwidth === null ? "-" : `%${formatNumber(latest.bollingerBandwidth, 2)}`, tone: "text-red-700" },
         ]}
         lines={[
-          { label: "Fiyat", color: mainRed, values: chartData.close, width: 2.4 },
-          { label: "Üst", color: softLine, values: chartData.bollingerUpper },
-          { label: "Orta", color: neutralLine, values: chartData.bollingerMiddle },
-          { label: "Alt", color: softLine, values: chartData.bollingerLower },
+          { label: isEnglish ? "Price" : "Fiyat", color: mainRed, values: chartData.close, width: 2.4 },
+          { label: isEnglish ? "Upper" : "Üst", color: softLine, values: chartData.bollingerUpper },
+          { label: isEnglish ? "Middle" : "Orta", color: neutralLine, values: chartData.bollingerMiddle },
+          { label: isEnglish ? "Lower" : "Alt", color: softLine, values: chartData.bollingerLower },
         ]}
-        footer="Sıkışma düşük oynaklık, genişleme artan oynaklık rejimini gösterir."
+        footer={isEnglish ? "Compression indicates low volatility; expansion indicates a rising volatility regime." : "Sıkışma düşük oynaklık, genişleme artan oynaklık rejimini gösterir."}
       />
 
       <MiniChartCard
-        title="ATR / Volatilite"
-        meta={`Volatilite ${volatility.label}`}
+        title={isEnglish ? "ATR / Volatility" : "ATR / Volatilite"}
+        meta={`${isEnglish ? "Volatility" : "Volatilite"} ${volatility.label}`}
         values={[
           { label: "ATR", value: formatNumber(latest.atr, 4), tone: "text-red-700" },
-          { label: "ATR/Fiyat", value: volatility.ratio === null ? "-" : `%${formatNumber(volatility.ratio, 2)}` },
-          { label: "Durum", value: volatility.label },
-          { label: "Fiyat", value: formatNumber(latest.close, 4) },
+          { label: isEnglish ? "ATR/Price" : "ATR/Fiyat", value: volatility.ratio === null ? "-" : `%${formatNumber(volatility.ratio, 2)}` },
+          { label: isEnglish ? "Status" : "Durum", value: volatility.label },
+          { label: isEnglish ? "Price" : "Fiyat", value: formatNumber(latest.close, 4) },
         ]}
         lines={[{ label: "ATR", color: mainRed, values: chartData.atr, width: 2.4 }]}
       />
 
       <MiniChartCard
-        title="Hacim"
-        meta={volumeAnomaly ? "Hacim anomalisi var" : "Hacim normal aralıkta"}
+        title={isEnglish ? "Volume" : "Hacim"}
+        meta={volumeAnomaly ? (isEnglish ? "Volume anomaly detected" : "Hacim anomalisi var") : (isEnglish ? "Volume is in normal range" : "Hacim normal aralıkta")}
         values={[
-          { label: "Son hacim", value: formatVolume(latest.volume), tone: "text-red-700" },
-          { label: "Ort. hacim", value: formatVolume(latest.volumeSma20) },
-          { label: "Oran", value: volumeRatio === null ? "-" : `${formatNumber(volumeRatio, 2)}x` },
-          { label: "Uyarı", value: volumeAnomaly ? "Anomali" : "Yok", tone: volumeAnomaly ? "text-red-700" : undefined },
+          { label: isEnglish ? "Last volume" : "Son hacim", value: formatVolume(latest.volume), tone: "text-red-700" },
+          { label: isEnglish ? "Avg. volume" : "Ort. hacim", value: formatVolume(latest.volumeSma20) },
+          { label: isEnglish ? "Ratio" : "Oran", value: volumeRatio === null ? "-" : `${formatNumber(volumeRatio, 2)}x` },
+          { label: isEnglish ? "Alert" : "Uyarı", value: volumeAnomaly ? (isEnglish ? "Anomaly" : "Anomali") : (isEnglish ? "None" : "Yok"), tone: volumeAnomaly ? "text-red-700" : undefined },
         ]}
         lines={[
-          { label: "Hacim", color: mainRed, values: chartData.volume, width: 2.4 },
-          { label: "Ortalama", color: neutralLine, values: chartData.volumeSma20 },
+          { label: isEnglish ? "Volume" : "Hacim", color: mainRed, values: chartData.volume, width: 2.4 },
+          { label: isEnglish ? "Average" : "Ortalama", color: neutralLine, values: chartData.volumeSma20 },
         ]}
       />
     </div>

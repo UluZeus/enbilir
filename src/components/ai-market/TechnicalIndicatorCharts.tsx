@@ -2,9 +2,11 @@
 
 import { memo, useMemo } from "react";
 import type { ReactNode } from "react";
+import { getSafeLocale, type Locale } from "@/i18n/config";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
 
 type TechnicalIndicatorChartsProps = {
+  locale?: Locale | string;
   symbol: string;
   interval: string;
   series: TechnicalSeries;
@@ -219,20 +221,20 @@ function ChartPanel({
   );
 }
 
-function trendLabel(direction: TechnicalSeries["trend"]["direction"]) {
+function trendLabel(direction: TechnicalSeries["trend"]["direction"], isEnglish: boolean) {
   if (direction === "YUKARI") {
-    return "Yükselen";
+    return isEnglish ? "Rising" : "Yükselen";
   }
 
   if (direction === "ASAGI") {
-    return "Düşen";
+    return isEnglish ? "Falling" : "Düşen";
   }
 
-  return "Yatay";
+  return isEnglish ? "Sideways" : "Yatay";
 }
 
-function TrendPanel({ series }: { series: TechnicalSeries }) {
-  const label = trendLabel(series.trend.direction);
+function TrendPanel({ isEnglish, series }: { isEnglish: boolean; series: TechnicalSeries }) {
+  const label = trendLabel(series.trend.direction, isEnglish);
   const tone =
     series.trend.direction === "YUKARI"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -255,67 +257,72 @@ function TrendPanel({ series }: { series: TechnicalSeries }) {
   );
 }
 
-function cloudStatus(latest: TechnicalSeriesPoint) {
+function cloudStatus(latest: TechnicalSeriesPoint, isEnglish: boolean) {
   const upper = Math.max(latest.ichimokuSpanA ?? Number.NEGATIVE_INFINITY, latest.ichimokuSpanB ?? Number.NEGATIVE_INFINITY);
   const lower = Math.min(latest.ichimokuSpanA ?? Number.POSITIVE_INFINITY, latest.ichimokuSpanB ?? Number.POSITIVE_INFINITY);
 
   if (!Number.isFinite(upper) || !Number.isFinite(lower)) {
-    return "Bulut verisi bekleniyor";
+    return isEnglish ? "Waiting for cloud data" : "Bulut verisi bekleniyor";
   }
 
   if (latest.close > upper) {
-    return "Bulut üstü";
+    return isEnglish ? "Above cloud" : "Bulut üstü";
   }
 
   if (latest.close < lower) {
-    return "Bulut altı";
+    return isEnglish ? "Below cloud" : "Bulut altı";
   }
 
-  return "Bulut içi";
+  return isEnglish ? "Inside cloud" : "Bulut içi";
 }
 
-function volatilityStatus(latest: TechnicalSeriesPoint) {
+function volatilityStatus(latest: TechnicalSeriesPoint, isEnglish: boolean) {
   if (!latest.atr || latest.close <= 0) {
-    return { label: "Bekleniyor", ratio: null };
+    return { label: isEnglish ? "Waiting" : "Bekleniyor", ratio: null };
   }
 
   const ratio = (latest.atr / latest.close) * 100;
 
   if (ratio >= 4) {
-    return { label: "Yüksek", ratio };
+    return { label: isEnglish ? "High" : "Yüksek", ratio };
   }
 
   if (ratio >= 1.8) {
-    return { label: "Orta", ratio };
+    return { label: isEnglish ? "Medium" : "Orta", ratio };
   }
 
-  return { label: "Düşük", ratio };
+  return { label: isEnglish ? "Low" : "Düşük", ratio };
 }
 
-function bollingerStatus(latest: TechnicalSeriesPoint) {
+function bollingerStatus(latest: TechnicalSeriesPoint, isEnglish: boolean) {
   const bandwidth = latest.bollingerBandwidth;
 
   if (bandwidth === null) {
-    return "Bekleniyor";
+    return isEnglish ? "Waiting" : "Bekleniyor";
   }
 
   if (bandwidth < 4) {
-    return "Sıkışma";
+    return isEnglish ? "Compression" : "Sıkışma";
   }
 
   if (bandwidth > 12) {
-    return "Genişleme";
+    return isEnglish ? "Expansion" : "Genişleme";
   }
 
   return "Normal";
 }
 
 export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
+  locale = "tr",
   symbol,
   interval,
   series,
 }: TechnicalIndicatorChartsProps) {
+  const safeLocale = getSafeLocale(locale);
+  const isEnglish = safeLocale === "en";
   const points = series.points;
+  const priceLabel = isEnglish ? "Price" : "Fiyat";
+  const lastPriceLabel = isEnglish ? "Last price" : "Son fiyat";
   const latest = latestPoint(points);
   const chartData = useMemo(
     () => ({
@@ -345,7 +352,7 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
   if (points.length === 0 || !latest) {
     return (
       <div className="rounded-md border border-slate-200 bg-white/70 p-3 text-xs font-semibold text-slate-500">
-        {symbol} için teknik grafik serisi henüz oluşmadı.
+        {isEnglish ? `${symbol} does not have a technical chart series yet.` : `${symbol} için teknik grafik serisi henüz oluşmadı.`}
       </div>
     );
   }
@@ -354,47 +361,51 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
   const signalLatest = lastValue(chartData.macdSignal);
   const histogramLatest = lastValue(chartData.macdHistogram);
   const sarStatus =
-    latest.parabolicSar === null ? "SAR verisi bekleniyor" : latest.close > latest.parabolicSar ? "Fiyat SAR üstünde" : "Fiyat SAR altında";
-  const volatility = volatilityStatus(latest);
+    latest.parabolicSar === null
+      ? isEnglish ? "Waiting for SAR data" : "SAR verisi bekleniyor"
+      : latest.close > latest.parabolicSar
+        ? isEnglish ? "Price is above SAR" : "Fiyat SAR üstünde"
+        : isEnglish ? "Price is below SAR" : "Fiyat SAR altında";
+  const volatility = volatilityStatus(latest, isEnglish);
   const volumeAnomaly = latest.volumeSma20 !== null && latest.volumeSma20 > 0 && latest.volume / latest.volumeSma20 >= 1.8;
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50/80 p-3">
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-        <h3 className="text-sm font-black text-[#152033]">{symbol} Teknik Grafik Panelleri</h3>
+        <h3 className="text-sm font-black text-[#152033]">{isEnglish ? `${symbol} Technical Chart Panels` : `${symbol} Teknik Grafik Panelleri`}</h3>
         <p className="text-xs font-semibold text-slate-500">
-          {interval} periyot · son {points.length} mum
+          {isEnglish ? `${interval} interval · last ${points.length} candles` : `${interval} periyot · son ${points.length} mum`}
         </p>
       </div>
 
       <div className="mt-3 grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
         <ChartPanel
-          title="Fiyat + MA/EMA"
-          meta={`Son fiyat ${compactNumber(latest.close, 4)}`}
+          title={isEnglish ? "Price + MA/EMA" : "Fiyat + MA/EMA"}
+          meta={`${lastPriceLabel} ${compactNumber(latest.close, 4)}`}
           values={[
-            { label: "Son fiyat", value: compactNumber(latest.close, 4), tone: "text-red-700" },
+            { label: lastPriceLabel, value: compactNumber(latest.close, 4), tone: "text-red-700" },
             { label: "SMA20", value: compactNumber(latest.sma20, 4) },
             { label: "EMA20", value: compactNumber(latest.ema20, 4) },
             { label: "EMA50", value: compactNumber(latest.ema50, 4) },
           ]}
           lines={[
-            { label: "Fiyat", color: mainRed, values: chartData.close, width: 2.6 },
+            { label: priceLabel, color: mainRed, values: chartData.close, width: 2.6 },
             { label: "SMA20", color: "#94a3b8", values: chartData.sma20 },
             { label: "EMA20", color: "#64748b", values: chartData.ema20 },
             { label: "EMA50", color: "#cbd5e1", values: chartData.ema50, dashed: true },
           ]}
         >
-          Fiyatın ortalamalara göre konumu trend kalitesini ve olası destek/direnç bölgelerini izlemek için kullanılır.
+          {isEnglish ? "The price position relative to averages is used to monitor trend quality and potential support/resistance areas." : "Fiyatın ortalamalara göre konumu trend kalitesini ve olası destek/direnç bölgelerini izlemek için kullanılır."}
         </ChartPanel>
 
         <ChartPanel
           title="RSI"
-          meta={`RSI son değer ${compactNumber(latest.rsi, 1)}`}
+          meta={`${isEnglish ? "Last RSI" : "RSI son değer"} ${compactNumber(latest.rsi, 1)}`}
           values={[
             { label: "RSI", value: compactNumber(latest.rsi, 1), tone: "text-red-700" },
-            { label: "Aşırı alım", value: "70" },
-            { label: "Orta bölge", value: "50" },
-            { label: "Aşırı satım", value: "30" },
+            { label: isEnglish ? "Overbought" : "Aşırı alım", value: "70" },
+            { label: isEnglish ? "Middle zone" : "Orta bölge", value: "50" },
+            { label: isEnglish ? "Oversold" : "Aşırı satım", value: "30" },
           ]}
           lines={[{ label: "RSI", color: mainRed, values: chartData.rsi, width: 2.5 }]}
           references={[
@@ -405,7 +416,7 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
           min={0}
           max={100}
         >
-          70 üstü aşırı alım riskini, 30 altı aşırı satım bölgesini gösterir; tek başına işlem sinyali değildir.
+          {isEnglish ? "Above 70 indicates overbought risk and below 30 indicates an oversold zone; it is not a trade signal by itself." : "70 üstü aşırı alım riskini, 30 altı aşırı satım bölgesini gösterir; tek başına işlem sinyali değildir."}
         </ChartPanel>
 
         <ChartPanel
@@ -415,7 +426,7 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
             { label: "MACD", value: compactNumber(macdLatest, 4), tone: "text-red-700" },
             { label: "Signal", value: compactNumber(signalLatest, 4) },
             { label: "Histogram", value: compactNumber(histogramLatest, 4) },
-            { label: "Referans", value: "0" },
+            { label: isEnglish ? "Reference" : "Referans", value: "0" },
           ]}
           lines={[
             { label: "MACD", color: mainRed, values: chartData.macd, width: 2.5 },
@@ -424,14 +435,14 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
           ]}
           references={[{ value: 0, label: "0", color: "#64748b" }]}
         >
-          MACD çizgisinin signal üstüne geçmesi momentumun güçlendiğini, histogramın sıfır altı zayıflamayı gösterir.
+          {isEnglish ? "MACD crossing above signal indicates stronger momentum; a histogram below zero indicates weakness." : "MACD çizgisinin signal üstüne geçmesi momentumun güçlendiğini, histogramın sıfır altı zayıflamayı gösterir."}
         </ChartPanel>
 
-        <TrendPanel series={series} />
+        <TrendPanel isEnglish={isEnglish} series={series} />
 
         <ChartPanel
-          title="Ichimoku Bulutu"
-          meta={cloudStatus(latest)}
+          title={isEnglish ? "Ichimoku Cloud" : "Ichimoku Bulutu"}
+          meta={cloudStatus(latest, isEnglish)}
           values={[
             { label: "Tenkan", value: compactNumber(latest.ichimokuConversion, 4), tone: "text-red-700" },
             { label: "Kijun", value: compactNumber(latest.ichimokuBase, 4) },
@@ -443,80 +454,80 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
             { label: "Kijun", color: neutralLine, values: chartData.ichimokuBase },
             { label: "Span A", color: "#86efac", values: chartData.ichimokuSpanA },
             { label: "Span B", color: "#fecaca", values: chartData.ichimokuSpanB },
-            { label: "Fiyat", color: "#334155", values: chartData.close, dashed: true },
+            { label: priceLabel, color: "#334155", values: chartData.close, dashed: true },
           ]}
         >
-          Fiyat bulut üstündeyse trend desteği artar; bulut içinde karar kalitesi zayıflar.
+          {isEnglish ? "When price is above the cloud, trend support improves; inside the cloud, decision quality weakens." : "Fiyat bulut üstündeyse trend desteği artar; bulut içinde karar kalitesi zayıflar."}
         </ChartPanel>
 
         <ChartPanel
           title="Parabolic SAR"
           meta={sarStatus}
           values={[
-            { label: "Fiyat", value: compactNumber(latest.close, 4), tone: "text-red-700" },
+            { label: priceLabel, value: compactNumber(latest.close, 4), tone: "text-red-700" },
             { label: "SAR", value: compactNumber(latest.parabolicSar, 4) },
-            { label: "Konum", value: latest.parabolicSar === null ? "-" : latest.close > latest.parabolicSar ? "Üstünde" : "Altında" },
-            { label: "Periyot", value: interval },
+            { label: isEnglish ? "Position" : "Konum", value: latest.parabolicSar === null ? "-" : latest.close > latest.parabolicSar ? (isEnglish ? "Above" : "Üstünde") : (isEnglish ? "Below" : "Altında") },
+            { label: isEnglish ? "Interval" : "Periyot", value: interval },
           ]}
           lines={[
-            { label: "Fiyat", color: mainRed, values: chartData.close, width: 2.5 },
+            { label: priceLabel, color: mainRed, values: chartData.close, width: 2.5 },
             { label: "SAR", color: "#94a3b8", values: chartData.parabolicSar, dashed: true },
           ]}
         >
-          Fiyat SAR üstündeyse yükseliş takibi, SAR altındaysa zayıflama riski ön plana çıkar.
+          {isEnglish ? "Price above SAR supports upside tracking; below SAR highlights weakening risk." : "Fiyat SAR üstündeyse yükseliş takibi, SAR altındaysa zayıflama riski ön plana çıkar."}
         </ChartPanel>
 
         <ChartPanel
-          title="ATR / Volatilite"
-          meta={`Volatilite ${volatility.label}`}
+          title={isEnglish ? "ATR / Volatility" : "ATR / Volatilite"}
+          meta={`${isEnglish ? "Volatility" : "Volatilite"} ${volatility.label}`}
           values={[
             { label: "ATR", value: compactNumber(latest.atr, 4), tone: "text-red-700" },
-            { label: "ATR/Fiyat", value: volatility.ratio === null ? "-" : `%${compactNumber(volatility.ratio, 2)}` },
-            { label: "Durum", value: volatility.label },
-            { label: "Fiyat", value: compactNumber(latest.close, 4) },
+            { label: isEnglish ? "ATR/Price" : "ATR/Fiyat", value: volatility.ratio === null ? "-" : `%${compactNumber(volatility.ratio, 2)}` },
+            { label: isEnglish ? "Status" : "Durum", value: volatility.label },
+            { label: priceLabel, value: compactNumber(latest.close, 4) },
           ]}
           lines={[{ label: "ATR", color: mainRed, values: chartData.atr, width: 2.5 }]}
         >
-          ATR yükseldikçe fiyat aralığı genişler; risk ve makul stop mesafesi de buna göre artar.
+          {isEnglish ? "As ATR rises, the price range widens; risk and reasonable stop distance increase accordingly." : "ATR yükseldikçe fiyat aralığı genişler; risk ve makul stop mesafesi de buna göre artar."}
         </ChartPanel>
 
         <ChartPanel
-          title="Bollinger Bandı"
-          meta={`Bant durumu: ${bollingerStatus(latest)}`}
+          title={isEnglish ? "Bollinger Band" : "Bollinger Bandı"}
+          meta={`${isEnglish ? "Band status" : "Bant durumu"}: ${bollingerStatus(latest, isEnglish)}`}
           values={[
-            { label: "Üst bant", value: compactNumber(latest.bollingerUpper, 4) },
-            { label: "Orta bant", value: compactNumber(latest.bollingerMiddle, 4) },
-            { label: "Alt bant", value: compactNumber(latest.bollingerLower, 4) },
-            { label: "Genişlik", value: latest.bollingerBandwidth === null ? "-" : `%${compactNumber(latest.bollingerBandwidth, 2)}`, tone: "text-red-700" },
+            { label: isEnglish ? "Upper band" : "Üst bant", value: compactNumber(latest.bollingerUpper, 4) },
+            { label: isEnglish ? "Middle band" : "Orta bant", value: compactNumber(latest.bollingerMiddle, 4) },
+            { label: isEnglish ? "Lower band" : "Alt bant", value: compactNumber(latest.bollingerLower, 4) },
+            { label: isEnglish ? "Width" : "Genişlik", value: latest.bollingerBandwidth === null ? "-" : `%${compactNumber(latest.bollingerBandwidth, 2)}`, tone: "text-red-700" },
           ]}
           lines={[
-            { label: "Fiyat", color: mainRed, values: chartData.close, width: 2.5 },
-            { label: "Üst", color: "#94a3b8", values: chartData.bollingerUpper },
-            { label: "Orta", color: neutralLine, values: chartData.bollingerMiddle },
-            { label: "Alt", color: "#94a3b8", values: chartData.bollingerLower },
+            { label: priceLabel, color: mainRed, values: chartData.close, width: 2.5 },
+            { label: isEnglish ? "Upper" : "Üst", color: "#94a3b8", values: chartData.bollingerUpper },
+            { label: isEnglish ? "Middle" : "Orta", color: neutralLine, values: chartData.bollingerMiddle },
+            { label: isEnglish ? "Lower" : "Alt", color: "#94a3b8", values: chartData.bollingerLower },
           ]}
         >
-          Bant genişliği düşükse sıkışma, yüksekse genişleme izlenir; bu oynaklık rejimini yorumlamak için kullanılır.
+          {isEnglish ? "Low band width indicates compression; high width indicates expansion and helps interpret the volatility regime." : "Bant genişliği düşükse sıkışma, yüksekse genişleme izlenir; bu oynaklık rejimini yorumlamak için kullanılır."}
         </ChartPanel>
 
         <ChartPanel
-          title="Hacim"
-          meta={volumeAnomaly ? "Hacim anomalisi var" : "Hacim normal aralıkta"}
+          title={isEnglish ? "Volume" : "Hacim"}
+          meta={volumeAnomaly ? (isEnglish ? "Volume anomaly detected" : "Hacim anomalisi var") : (isEnglish ? "Volume is in normal range" : "Hacim normal aralıkta")}
           values={[
-            { label: "Son hacim", value: compactVolume(latest.volume), tone: "text-red-700" },
-            { label: "Ort. hacim", value: compactVolume(latest.volumeSma20) },
+            { label: isEnglish ? "Last volume" : "Son hacim", value: compactVolume(latest.volume), tone: "text-red-700" },
+            { label: isEnglish ? "Avg. volume" : "Ort. hacim", value: compactVolume(latest.volumeSma20) },
             {
-              label: "Oran",
+              label: isEnglish ? "Ratio" : "Oran",
               value: latest.volumeSma20 && latest.volumeSma20 > 0 ? `${compactNumber(latest.volume / latest.volumeSma20, 2)}x` : "-",
             },
-            { label: "Uyarı", value: volumeAnomaly ? "Anomali" : "Yok", tone: volumeAnomaly ? "text-red-700" : undefined },
+            { label: isEnglish ? "Alert" : "Uyarı", value: volumeAnomaly ? (isEnglish ? "Anomaly" : "Anomali") : (isEnglish ? "None" : "Yok"), tone: volumeAnomaly ? "text-red-700" : undefined },
           ]}
           lines={[
-            { label: "Hacim", color: mainRed, values: chartData.volume, width: 2.5 },
-            { label: "Ortalama", color: neutralLine, values: chartData.volumeSma20 },
+            { label: isEnglish ? "Volume" : "Hacim", color: mainRed, values: chartData.volume, width: 2.5 },
+            { label: isEnglish ? "Average" : "Ortalama", color: neutralLine, values: chartData.volumeSma20 },
           ]}
         >
-          Son hacmin 20 mumluk ortalamanın belirgin üstüne çıkması karar riskini ve hareket gücünü artırabilir.
+          {isEnglish ? "A last volume reading significantly above the 20-candle average can increase decision risk and move strength." : "Son hacmin 20 mumluk ortalamanın belirgin üstüne çıkması karar riskini ve hareket gücünü artırabilir."}
         </ChartPanel>
       </div>
     </div>

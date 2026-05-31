@@ -1,3 +1,5 @@
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { IndicatorSnapshot, RiskAssessment } from "@/lib/ai-market/types";
 
 function formatNumber(value: number | null, digits = 2) {
@@ -8,30 +10,32 @@ function formatNumber(value: number | null, digits = 2) {
   return value.toLocaleString("tr-TR", { maximumFractionDigits: digits });
 }
 
-export function IndicatorPanel({ indicators, risk }: { indicators: IndicatorSnapshot; risk: RiskAssessment }) {
+export function IndicatorPanel({ locale, indicators, risk }: { locale: Locale | string; indicators: IndicatorSnapshot; risk: RiskAssessment }) {
+  const copy = getUiCopy(getSafeLocale(locale)).ai;
+  const isEnglish = getSafeLocale(locale) === "en";
   const rows = [
     { label: "RSI", value: formatNumber(indicators.rsi) },
     { label: "MACD", value: formatNumber(indicators.macd.macd, 4) },
-    { label: "MACD sinyal", value: formatNumber(indicators.macd.signal, 4) },
+    { label: isEnglish ? "MACD signal" : "MACD sinyal", value: formatNumber(indicators.macd.signal, 4) },
     { label: "EMA 20", value: formatNumber(indicators.ema20) },
     { label: "EMA 50", value: formatNumber(indicators.ema50) },
     { label: "EMA 200", value: formatNumber(indicators.ema200) },
-    { label: "Bollinger üst", value: formatNumber(indicators.bollinger.upper) },
-    { label: "Bollinger orta", value: formatNumber(indicators.bollinger.middle) },
-    { label: "Bollinger alt", value: formatNumber(indicators.bollinger.lower) },
+    { label: isEnglish ? "Bollinger upper" : "Bollinger üst", value: formatNumber(indicators.bollinger.upper) },
+    { label: isEnglish ? "Bollinger middle" : "Bollinger orta", value: formatNumber(indicators.bollinger.middle) },
+    { label: isEnglish ? "Bollinger lower" : "Bollinger alt", value: formatNumber(indicators.bollinger.lower) },
     { label: "ATR", value: formatNumber(indicators.atr, 4) },
-    { label: "Hacim oranı", value: indicators.volumeAnomaly.ratio === null ? "-" : `${formatNumber(indicators.volumeAnomaly.ratio)}x` },
+    { label: isEnglish ? "Volume ratio" : "Hacim oranı", value: indicators.volumeAnomaly.ratio === null ? "-" : `${formatNumber(indicators.volumeAnomaly.ratio)}x` },
   ];
 
   return (
     <section className="rounded-md border border-slate-800 bg-[#0b111d] p-5 shadow-xl">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-black text-white">Teknik göstergeler</h2>
-          <p className="mt-1 text-sm text-slate-500">RSI, MACD, EMA, Bollinger, ATR ve hacim kontrolü</p>
+          <h2 className="text-lg font-black text-white">{isEnglish ? "Technical indicators" : "Teknik göstergeler"}</h2>
+          <p className="mt-1 text-sm text-slate-500">{isEnglish ? "RSI, MACD, EMA, Bollinger, ATR, and volume checks" : "RSI, MACD, EMA, Bollinger, ATR ve hacim kontrolü"}</p>
         </div>
         <div className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm">
-          <span className="font-bold text-slate-500">Risk</span>{" "}
+          <span className="font-bold text-slate-500">{copy.risk}</span>{" "}
           <span className={risk.level === "YUKSEK" ? "font-black text-red-600" : risk.level === "ORTA" ? "font-black text-amber-700" : "font-black text-[#0f766e]"}>
             {risk.level} {risk.score}/100
           </span>

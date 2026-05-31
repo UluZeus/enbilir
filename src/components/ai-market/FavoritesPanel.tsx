@@ -1,5 +1,7 @@
 "use client";
 
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import { getAssetUniverseItem, STATIC_ASSET_UNIVERSE } from "@/lib/ai-market/asset-universe";
 import type { AssetClass, WatchSymbol } from "@/lib/ai-market/types";
 
@@ -27,6 +29,7 @@ export type FavoriteAsset = {
 };
 
 type FavoritesPanelProps = {
+  locale?: Locale | string;
   favorites: string[];
   symbols: WatchSymbol[];
   selectedSymbol?: string;
@@ -79,14 +82,24 @@ export function getKnownAsset(symbol: string, symbols: WatchSymbol[]): FavoriteA
 }
 
 export function FavoritesPanel({
+  locale = "tr",
   favorites,
   symbols,
   selectedSymbol,
   onSelectSymbol,
   onRemoveFavorite,
 }: FavoritesPanelProps) {
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale);
+  const assetClassLabelsLocalized: Record<FavoriteAsset["assetClass"], string> = safeLocale === "en"
+    ? { CRYPTO: "Crypto", COMMODITY: "Metals", FX: "FX", EQUITY: "Equities", INDEX: "Indexes" }
+    : assetClassLabels;
+  const favoriteGroupsLocalized = favoriteGroups.map((group) => ({
+    ...group,
+    title: safeLocale === "en" ? `${assetClassLabelsLocalized[group.key]} Favorites` : group.title,
+  }));
   const supportedSymbols = new Set(symbols.map((item) => item.symbol));
-  const groupedFavorites = favoriteGroups.map((group) => ({
+  const groupedFavorites = favoriteGroupsLocalized.map((group) => ({
     ...group,
     assets: favorites.map((symbol) => getKnownAsset(symbol, symbols)).filter((asset) => asset.assetClass === group.key),
   }));
@@ -95,24 +108,26 @@ export function FavoritesPanel({
     <section className="premium-card p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-base font-black text-[#152033]">Favorilerim</h2>
-          <p className="mt-1 text-xs text-slate-500">{favorites.length} varlik localStorage icinde saklaniyor</p>
+          <h2 className="text-base font-black text-[#152033]">{copy.ai.favorites}</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            {safeLocale === "en" ? `${favorites.length} assets are stored in localStorage` : `${favorites.length} varlık localStorage içinde saklanıyor`}
+          </p>
         </div>
         <span className="w-fit rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-          {favorites.length} favori
+          {copy.ai.favoritesCount(favorites.length)}
         </span>
       </div>
 
       {favorites.length > 30 ? (
         <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-          30’dan fazla favori seçmek otomatik analiz performansını yavaşlatabilir.
+          {safeLocale === "en" ? "Selecting more than 30 favorites can slow down automatic analysis." : "30’dan fazla favori seçmek otomatik analiz performansını yavaşlatabilir."}
         </p>
       ) : null}
 
       <div className="mt-4 grid gap-4">
         {favorites.length === 0 ? (
           <p className="rounded-md border border-slate-200 bg-white/70 p-3 text-sm font-semibold text-slate-500">
-            Favori listen bos.
+            {safeLocale === "en" ? "Your favorites list is empty." : "Favori listen boş."}
           </p>
         ) : (
           groupedFavorites.map((group) =>
@@ -130,7 +145,7 @@ export function FavoritesPanel({
                             <p className="truncate text-sm font-black text-[#152033]">{asset.displayName}</p>
                             <p className="mt-1 truncate text-xs text-slate-500">{asset.name}</p>
                             <p className="mt-2 w-fit rounded-md border border-slate-200 bg-white/70 px-2 py-1 text-[11px] font-black text-slate-500">
-                              {getAssetClassLabel(asset.assetClass)}
+                              {assetClassLabelsLocalized[asset.assetClass]}
                             </p>
                           </div>
                           <button
@@ -138,7 +153,7 @@ export function FavoritesPanel({
                             onClick={() => onRemoveFavorite(asset.symbol)}
                             className="rounded-md border border-red-100 bg-red-50 px-2 py-1 text-xs font-black text-red-700 hover:border-red-200"
                           >
-                            Cikar
+                            {safeLocale === "en" ? "Remove" : "Çıkar"}
                           </button>
                         </div>
 
@@ -155,7 +170,7 @@ export function FavoritesPanel({
                                   : "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
                             }`}
                           >
-                            {canAnalyze ? "Analiz et" : "Analiz daha sonra"}
+                            {canAnalyze ? (safeLocale === "en" ? "Analyze" : "Analiz et") : (safeLocale === "en" ? "Analyze later" : "Analiz daha sonra")}
                           </button>
                         ) : null}
                       </div>

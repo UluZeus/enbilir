@@ -1,9 +1,16 @@
+import { getSafeLocale, type Locale } from "@/i18n/config";
+
 type PageHeaderProps = {
   title: string;
   description: string;
+  locale?: Locale | string;
 };
 
-export function PageHeader({ title, description }: PageHeaderProps) {
+export function PageHeader({ title, description, locale = "tr" }: PageHeaderProps) {
+  const safeLocale = getSafeLocale(locale);
+  const platformLine = safeLocale === "tr" ? "Piyasa, eğitim ve skor yönetimi" : "Markets, education, and score tracking";
+  const labels = safeLocale === "tr" ? ["Eğitim", "Analiz", "Liderlik", "Panel"] : ["Education", "Analysis", "Leaderboard", "Dashboard"];
+
   return (
     <section className="glass-card overflow-hidden rounded-lg shadow-sm">
       <div className="grid gap-0 lg:grid-cols-[1fr_340px]">
@@ -16,13 +23,12 @@ export function PageHeader({ title, description }: PageHeaderProps) {
           <div className="grid h-full content-between gap-8">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f5a623]">Platform</p>
-              <p className="mt-3 text-2xl font-black">Piyasa, eğitim ve skor yönetimi</p>
+              <p className="mt-3 text-2xl font-black">{platformLine}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <span className="rounded-md bg-white/10 p-3">Eğitim</span>
-              <span className="rounded-md bg-white/10 p-3">Analiz</span>
-              <span className="rounded-md bg-white/10 p-3">Liderlik</span>
-              <span className="rounded-md bg-white/10 p-3">Panel</span>
+              {labels.map((label) => (
+                <span key={label} className="rounded-md bg-white/10 p-3">{label}</span>
+              ))}
             </div>
           </div>
         </div>

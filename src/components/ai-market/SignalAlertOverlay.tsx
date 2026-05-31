@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SoundAlertToggle } from "@/components/ai-market/SoundAlertToggle";
+import type { Locale } from "@/i18n/config";
 import type { SignalAlert, SignalAlertType } from "@/lib/ai-market/alert-engine";
 import { AI_MARKET_SOUND_ENABLED_KEY, playSignalAlertSound } from "@/lib/ai-market/sound-alerts";
 import type { MarketExchange } from "@/lib/ai-market/types";
@@ -127,7 +128,36 @@ function getExchangeLabel(exchange: MarketExchange) {
   return "Binance";
 }
 
+function getClientLocale(): Locale {
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/en")) {
+    return "en";
+  }
+
+  return "tr";
+}
+
+function translateAlertLabel(label: string, locale: Locale) {
+  if (locale === "tr") {
+    return label;
+  }
+
+  const labels: Record<string, string> = {
+    "Güçlü Al": "Strong Buy",
+    "Yükseliş İhtimali Yüksek": "High Upside Potential",
+    "Alış İçin Takip Et": "Watch to Buy",
+    "Güçlü Sat": "Strong Sell",
+    "Düşüş Eğiliminde": "Downside Opportunity",
+    "Satış İçin Takip Et": "Watch to Sell",
+    "Kâr Al": "Take Profit",
+    "Riskli / Uzak Dur": "Risky / Avoid",
+    "Bekle": "Hold",
+  };
+
+  return labels[label] ?? label;
+}
+
 export function SignalAlertOverlay() {
+  const locale = getClientLocale();
   const [activeAlerts, setActiveAlerts] = useState<MarketScanAlert[]>([]);
   const [lastScanInterval, setLastScanInterval] = useState(SCAN_INTERVALS[0]);
   const [lastCandidateCount, setLastCandidateCount] = useState(0);
@@ -224,7 +254,11 @@ export function SignalAlertOverlay() {
   }, [runScan]);
 
   const tickerItems = activeAlerts.length > 0 ? activeAlerts : [];
-  const calmMessage = `Piyasa Radarı aktif: Binance piyasası 30 saniyede bir taranıyor. Son kontrol: ${lastScanInterval} periyodu, ${
+  const calmMessage = locale === "en"
+    ? `Market Radar active: Binance market is scanned every 30 seconds. Last check: ${lastScanInterval} interval, ${
+        lastCandidateCount || 30
+      } candidates${isScanning ? ", scan in progress" : ""}.`
+    : `Piyasa Radarı aktif: Binance piyasası 30 saniyede bir taranıyor. Son kontrol: ${lastScanInterval} periyodu, ${
     lastCandidateCount || 30
   } aday${isScanning ? ", kontrol sürüyor" : ""}.`;
 
@@ -251,27 +285,27 @@ export function SignalAlertOverlay() {
       <div className="mx-auto flex max-w-[1920px] flex-col gap-2 px-3 py-2 md:flex-row md:items-center md:px-5">
         <div className="flex shrink-0 items-center gap-2">
           <span className="rounded-md border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200">
-            Piyasa Radarı
+            {locale === "en" ? "Market Radar" : "Piyasa Radarı"}
           </span>
-          <span className="hidden text-[11px] font-bold text-slate-500 sm:inline">Binance / 30 sn</span>
+          <span className="hidden text-[11px] font-bold text-slate-500 sm:inline">{locale === "en" ? "Binance / 30 sec" : "Binance / 30 sn"}</span>
         </div>
 
         <div className="min-w-0 flex-1 overflow-hidden rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1.5">
           <div className="flex w-max min-w-full items-center gap-8 ai-market-signal-ticker-track">
-            <TickerContent alerts={tickerItems} fallback={calmMessage} />
-            <TickerContent alerts={tickerItems} fallback={calmMessage} ariaHidden />
+            <TickerContent locale={locale} alerts={tickerItems} fallback={calmMessage} />
+            <TickerContent locale={locale} alerts={tickerItems} fallback={calmMessage} ariaHidden />
           </div>
         </div>
 
         <div className="shrink-0">
-          <SoundAlertToggle compact />
+          <SoundAlertToggle compact locale={locale} />
         </div>
       </div>
     </section>
   );
 }
 
-function TickerContent({ alerts, fallback, ariaHidden = false }: { alerts: MarketScanAlert[]; fallback: string; ariaHidden?: boolean }) {
+function TickerContent({ locale, alerts, fallback, ariaHidden = false }: { locale: Locale; alerts: MarketScanAlert[]; fallback: string; ariaHidden?: boolean }) {
   if (alerts.length === 0) {
     return (
       <span aria-hidden={ariaHidden} className={`text-xs font-bold text-slate-400 md:text-sm ${ariaHidden ? "motion-reduce:hidden" : ""}`}>
@@ -286,15 +320,15 @@ function TickerContent({ alerts, fallback, ariaHidden = false }: { alerts: Marke
         <span key={`${alert.key}-${ariaHidden ? "clone" : "main"}`} className="inline-flex items-center gap-2">
           <span className="font-black text-white">{alert.symbol}</span>
           <span className="text-slate-500">{alert.interval}</span>
-          <span className={getAlertClass(alert.alertType)}>{alert.label}</span>
-          <span className="text-slate-500">Güven %{alert.confidence}</span>
+          <span className={getAlertClass(alert.alertType)}>{translateAlertLabel(alert.label, locale)}</span>
+          <span className="text-slate-500">{locale === "en" ? "Confidence" : "Güven"} %{alert.confidence}</span>
           <span className="text-slate-500">Risk %{alert.riskScore}</span>
           <span className="text-slate-500">{formatPrice(alert.price)}</span>
           <span className="text-slate-600">{formatTime(alert.timestamp)}</span>
           <span className="text-slate-700">•</span>
         </span>
       ))}
-      <span className="text-slate-500">{getExchangeLabel(alerts[0].exchange)} radarı</span>
+      <span className="text-slate-500">{getExchangeLabel(alerts[0].exchange)} {locale === "en" ? "radar" : "radarı"}</span>
     </span>
   );
 }

@@ -7,6 +7,8 @@ import {
   DEFAULT_AI_MARKET_FAVORITES,
   FavoritesPanel,
 } from "@/components/ai-market/FavoritesPanel";
+import { getSafeLocale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { WatchSymbol } from "@/lib/ai-market/types";
 import { useMemo, useSyncExternalStore } from "react";
 
@@ -60,6 +62,8 @@ function writeFavorites(favorites: string[]) {
 }
 
 export function AssetManagementDashboard({ locale, symbols }: AssetManagementDashboardProps) {
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale).ai;
   const favoritesSnapshot = useSyncExternalStore(
     subscribeToFavorites,
     getFavoritesSnapshot,
@@ -82,7 +86,7 @@ export function AssetManagementDashboard({ locale, symbols }: AssetManagementDas
   }
 
   function clearFavorites() {
-    if (!window.confirm("Tüm favorileri temizlemek istediğine emin misin?")) {
+    if (!window.confirm(copy.clearFavoritesConfirm)) {
       return;
     }
 
@@ -90,7 +94,7 @@ export function AssetManagementDashboard({ locale, symbols }: AssetManagementDas
   }
 
   function resetFavorites() {
-    if (!window.confirm("Favorileri varsayılan listeye döndürmek istediğine emin misin?")) {
+    if (!window.confirm(copy.resetFavoritesConfirm)) {
       return;
     }
 
@@ -102,11 +106,10 @@ export function AssetManagementDashboard({ locale, symbols }: AssetManagementDas
       <section className="premium-card p-5 md:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">AI Asistanı &gt; Varlık Yönetimi</p>
-            <h1 className="mt-2 text-2xl font-black text-[#152033] md:text-3xl">AI Piyasa Asistanı - Varlık Yönetimi</h1>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.assetManagementBreadcrumb}</p>
+            <h1 className="mt-2 text-2xl font-black text-[#152033] md:text-3xl">{copy.assetManagementTitle}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Takip etmek istediğin varlıkları seç, favorilere ekle veya çıkar. Bu liste aynı localStorage anahtarını kullanır ve analiz
-              ekranındaki fırsat tablosunu besler.
+              {copy.assetManagementBody}
             </p>
           </div>
 
@@ -115,35 +118,35 @@ export function AssetManagementDashboard({ locale, symbols }: AssetManagementDas
               href={`/${locale}/ai-piyasa-asistani`}
               className="rounded-md border border-[#0f766e] bg-emerald-50 px-3 py-2 text-sm font-black text-[#0f766e] hover:bg-emerald-100"
             >
-              Analize Dön
+              {copy.backToAnalysis}
             </Link>
             <button
               type="button"
               onClick={resetFavorites}
               className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700 hover:border-slate-300"
             >
-              Varsayılan Favorilere Dön
+              {copy.resetFavorites}
             </button>
             <button
               type="button"
               onClick={clearFavorites}
               className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-black text-red-700 hover:border-red-300"
             >
-              Tümünü Temizle
+              {copy.clearFavorites}
             </button>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <Stat label="Seçili Favoriler" value={favorites.length.toString()} />
-          <Stat label="Kayıt Yeri" value="localStorage" />
-          <Stat label="Anahtar" value={AI_MARKET_FAVORITES_STORAGE_KEY} />
+          <Stat label={copy.selectedFavorites} value={favorites.length.toString()} />
+          <Stat label={copy.storageLocation} value="localStorage" />
+          <Stat label={copy.storageKey} value={AI_MARKET_FAVORITES_STORAGE_KEY} />
         </div>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(360px,0.8fr)_minmax(0,1.2fr)]">
-        <FavoritesPanel favorites={favorites} symbols={symbols} onRemoveFavorite={removeFavorite} />
-        <AssetUniversePanel favorites={favorites} onAddFavorite={addFavorite} onRemoveFavorite={removeFavorite} />
+        <FavoritesPanel locale={safeLocale} favorites={favorites} symbols={symbols} onRemoveFavorite={removeFavorite} />
+        <AssetUniversePanel locale={safeLocale} favorites={favorites} onAddFavorite={addFavorite} onRemoveFavorite={removeFavorite} />
       </div>
     </div>
   );

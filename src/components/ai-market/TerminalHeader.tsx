@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { AssetPerformance } from "@/lib/ai-market/asset-performance";
 import type { MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
 
 type TerminalHeaderProps = {
-  locale: string;
+  locale: Locale | string;
   selectedSymbol: string;
   focusSymbols: string[];
   interval: string;
@@ -20,14 +22,25 @@ type TerminalHeaderProps = {
   getAssetLabel: (symbol: string) => string;
 };
 
-const intervals = [
-  { value: "1m", label: "1 dk" },
-  { value: "5m", label: "5 dk" },
-  { value: "15m", label: "15 dk" },
-  { value: "1h", label: "1 saat" },
-  { value: "4h", label: "4 saat" },
-  { value: "1d", label: "1 gün" },
-];
+function getIntervals(locale: Locale) {
+  return locale === "en"
+    ? [
+        { value: "1m", label: "1 min" },
+        { value: "5m", label: "5 min" },
+        { value: "15m", label: "15 min" },
+        { value: "1h", label: "1 hour" },
+        { value: "4h", label: "4 hours" },
+        { value: "1d", label: "1 day" },
+      ]
+    : [
+        { value: "1m", label: "1 dk" },
+        { value: "5m", label: "5 dk" },
+        { value: "15m", label: "15 dk" },
+        { value: "1h", label: "1 saat" },
+        { value: "4h", label: "4 saat" },
+        { value: "1d", label: "1 gün" },
+      ];
+}
 
 function formatPrice(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
@@ -61,20 +74,20 @@ function formatVolume(value: number | null) {
   return Intl.NumberFormat("tr-TR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-function getTrendLabel(analysis: MarketAnalysis | null) {
+function getTrendLabel(analysis: MarketAnalysis | null, copy: ReturnType<typeof getUiCopy>["ai"]) {
   if (!analysis || analysis.lastPrice === null || analysis.indicators.ema20 === null || analysis.indicators.ema50 === null) {
-    return "Nötr";
+    return copy.neutral;
   }
 
   if (analysis.lastPrice > analysis.indicators.ema20 && analysis.indicators.ema20 >= analysis.indicators.ema50) {
-    return "Yukarı";
+    return copy.up;
   }
 
   if (analysis.lastPrice < analysis.indicators.ema20 && analysis.indicators.ema20 <= analysis.indicators.ema50) {
-    return "Aşağı";
+    return copy.down;
   }
 
-  return "Yatay";
+  return copy.sideways;
 }
 
 function getVolatility(analysis: MarketAnalysis | null) {
@@ -85,26 +98,26 @@ function getVolatility(analysis: MarketAnalysis | null) {
   return `%${((analysis.indicators.atr / analysis.lastPrice) * 100).toFixed(2)}`;
 }
 
-function getSignalLabel(analysis: MarketAnalysis | null) {
+function getSignalLabel(analysis: MarketAnalysis | null, copy: ReturnType<typeof getUiCopy>["ai"]) {
   if (!analysis) {
-    return "Bekleniyor";
+    return copy.waiting;
   }
 
   const signal = analysis.signal.signal.toUpperCase();
 
   if (signal.includes("BUY")) {
-    return analysis.signal.confidence >= 80 ? "Güçlü Al" : "Alış İçin Takip";
+    return analysis.signal.confidence >= 80 ? copy.strongBuy : copy.buyWatch;
   }
 
   if (signal.includes("SELL")) {
-    return analysis.signal.confidence >= 80 ? "Güçlü Sat" : "Satış İçin Takip";
+    return analysis.signal.confidence >= 80 ? copy.strongSell : copy.sellWatch;
   }
 
   if (signal.includes("HOLD") || signal.includes("NEUTRAL")) {
-    return "Bekle";
+    return copy.hold;
   }
 
-  return "Nötr";
+  return copy.neutral;
 }
 
 export function TerminalHeader({
@@ -122,14 +135,17 @@ export function TerminalHeader({
   onExchangeChange,
   getAssetLabel,
 }: TerminalHeaderProps) {
-  const signalText = getSignalLabel(analysis);
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale).ai;
+  const intervals = getIntervals(safeLocale);
+  const signalText = getSignalLabel(analysis, copy);
   const currentPrice = performance?.price ?? analysis?.lastPrice ?? null;
 
   return (
     <section className="rounded-md border border-slate-800 bg-[#0b111d] shadow-2xl">
       <div className="grid gap-3 border-b border-slate-800 p-4 xl:grid-cols-[minmax(320px,1fr)_minmax(520px,1.4fr)_auto] xl:items-end">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">AI Trading Terminal</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{copy.terminal}</p>
           <div className="mt-2 flex flex-wrap items-end gap-3">
             <h1 className="text-3xl font-black tracking-normal text-white md:text-4xl">{selectedSymbol}</h1>
           </div>
@@ -144,25 +160,25 @@ export function TerminalHeader({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-          <Metric label="Son fiyat" value={formatPrice(currentPrice)} strong />
-          <Metric label="24s hacim" value={formatVolume(analysis?.volume ?? null)} />
-          <Metric label="Volatilite" value={getVolatility(analysis)} />
-          <Metric label="Trend" value={getTrendLabel(analysis)} />
-          <Metric label="AI sinyali" value={signalText} />
-          <Metric label="Güven" value={analysis ? `%${analysis.signal.confidence}` : "-"} />
+          <Metric label={copy.lastPrice} value={formatPrice(currentPrice)} strong />
+          <Metric label={copy.volume24h} value={formatVolume(analysis?.volume ?? null)} />
+          <Metric label={copy.volatility} value={getVolatility(analysis)} />
+          <Metric label={copy.trend} value={getTrendLabel(analysis, copy)} />
+          <Metric label={copy.aiSignal} value={signalText} />
+          <Metric label={copy.confidence} value={analysis ? `%${analysis.signal.confidence}` : "-"} />
         </div>
 
         <Link
           href={`/${locale}/ai-piyasa-asistani/varlik-yonetimi`}
           className="rounded-md border border-amber-300/40 bg-amber-300/10 px-4 py-2 text-center text-sm font-black text-amber-100 hover:bg-amber-300/15"
         >
-          Varlıkları Yönet
+          {copy.manageAssets}
         </Link>
       </div>
 
       <div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_150px_minmax(200px,1fr)]">
         <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-          Odak Varlık
+          {copy.focusAsset}
           <select
             value={selectedSymbol}
             onChange={(event) => onSymbolChange(event.target.value)}
@@ -177,7 +193,7 @@ export function TerminalHeader({
         </label>
 
         <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-          Periyot
+          {copy.interval}
           <select
             value={interval}
             onChange={(event) => onIntervalChange(event.target.value)}
@@ -192,7 +208,7 @@ export function TerminalHeader({
         </label>
 
         <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-          Borsa
+          {copy.exchange}
           <select
             value={exchange}
             onChange={(event) => onExchangeChange(event.target.value as MarketExchange)}
@@ -205,8 +221,8 @@ export function TerminalHeader({
         </label>
 
         <div className="grid grid-cols-2 gap-2">
-          <Status label="Piyasa radarı" value="Binance / 30 sn" />
-          <Status label="Favoriler" value={`${favoritesCount} varlık`} />
+          <Status label={copy.marketRadar} value={copy.radarStatus} />
+          <Status label={copy.favorites} value={copy.favoritesCount(favoritesCount)} />
         </div>
       </div>
     </section>

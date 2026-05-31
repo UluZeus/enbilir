@@ -8,6 +8,8 @@ import {
 } from "@/components/ai-market/FavoritesPanel";
 import { TechnicalIndicatorCharts } from "@/components/ai-market/TechnicalIndicatorCharts";
 import { TopOpportunitiesPanel } from "@/components/ai-market/TopOpportunitiesPanel";
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { TechnicalSeries } from "@/lib/ai-market/indicators";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
@@ -18,6 +20,7 @@ const DEFAULT_EXCHANGE = "binance";
 const FALLBACK_INTERVAL = "1h";
 
 type AnalysisTableProps = {
+  locale: Locale | string;
   interval?: string;
 };
 
@@ -52,7 +55,7 @@ type TableState = {
   updatedAt: string | null;
 };
 
-const signalLabels: Record<SignalType, string> = {
+const signalLabelsTr: Record<SignalType, string> = {
   STRONG_BUY: "Güçlü Al",
   BUY: "Al",
   HOLD: "Tut",
@@ -61,6 +64,17 @@ const signalLabels: Record<SignalType, string> = {
   SELL: "Sat",
   AVOID: "Uzak Dur",
   NO_TRADE: "Bekle",
+};
+
+const signalLabelsEn: Record<SignalType, string> = {
+  STRONG_BUY: "Strong Buy",
+  BUY: "Buy",
+  HOLD: "Hold",
+  WATCH: "Watch",
+  TAKE_PROFIT: "Take Profit",
+  SELL: "Sell",
+  AVOID: "Avoid",
+  NO_TRADE: "No Trade",
 };
 
 function normalizeFavorites(value: unknown) {
@@ -140,22 +154,22 @@ function formatPrice(value: number | null) {
   return value.toLocaleString("tr-TR", { maximumSignificantDigits: 4 });
 }
 
-function getTrend(analysis: MarketAnalysis) {
+function getTrend(analysis: MarketAnalysis, copy: ReturnType<typeof getUiCopy>["ai"]) {
   const { lastPrice, indicators } = analysis;
 
   if (lastPrice === null || indicators.ema20 === null || indicators.ema50 === null) {
-    return "Nötr";
+    return copy.neutral;
   }
 
   if (lastPrice > indicators.ema20 && indicators.ema20 > indicators.ema50) {
-    return "Yukarı";
+    return copy.up;
   }
 
   if (lastPrice < indicators.ema20 && indicators.ema20 < indicators.ema50) {
-    return "Aşağı";
+    return copy.down;
   }
 
-  return "Yatay";
+  return copy.sideways;
 }
 
 function getSignalClass(signal: SignalType) {
@@ -186,7 +200,12 @@ function getRiskClass(level: MarketAnalysis["risk"]["level"]) {
   return "text-amber-700";
 }
 
-export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTableProps) {
+export function AnalysisTable({ locale, interval = FALLBACK_INTERVAL }: AnalysisTableProps) {
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale).ai;
+  const signalLabels = safeLocale === "en" ? signalLabelsEn : signalLabelsTr;
+  const favoriteAnalysisFetchError = copy.favoriteAnalysisFetchError;
+  const favoriteAnalysisLoadError = copy.favoriteAnalysisLoadError;
   const favoritesSnapshot = useSyncExternalStore(
     subscribeToFavorites,
     getFavoritesSnapshot,
@@ -232,7 +251,7 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
         const payload = (await response.json()) as BatchResponse | { error?: string };
 
         if (!response.ok) {
-          throw new Error("error" in payload && payload.error ? payload.error : "Favori analizleri alinamadi.");
+          throw new Error("error" in payload && payload.error ? payload.error : favoriteAnalysisFetchError);
         }
 
         setState({ status: "success", response: payload as BatchResponse, error: null, updatedAt: new Date().toISOString() });
@@ -244,7 +263,7 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
         setState((current) => ({
           status: "error",
           response: current.response,
-          error: error instanceof Error ? error.message : "Favori analizleri yuklenemedi.",
+          error: error instanceof Error ? error.message : favoriteAnalysisLoadError,
           updatedAt: current.updatedAt,
         }));
       }
@@ -253,29 +272,29 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
     loadBatchAnalysis();
 
     return () => controller.abort();
-  }, [favorites, interval, refreshTick]);
+  }, [favoriteAnalysisFetchError, favoriteAnalysisLoadError, favorites, interval, refreshTick]);
 
   const results = favorites.length === 0 ? [] : (state.response?.results ?? []);
   const successfulAnalyses = results.filter((result): result is BatchSuccess => result.ok).map((result) => result.analysis);
 
   return (
     <>
-      <TopOpportunitiesPanel analyses={successfulAnalyses} isLoading={state.status === "loading"} updatedAt={state.updatedAt} />
+      <TopOpportunitiesPanel locale={safeLocale} analyses={successfulAnalyses} isLoading={state.status === "loading"} updatedAt={state.updatedAt} />
       <section className="premium-card p-4 md:p-5">
       <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-lg font-black text-[#152033]">Favorilerim Analiz Tablosu</h2>
+          <h2 className="text-lg font-black text-[#152033]">{copy.favoritesTable}</h2>
           <p className="mt-1 text-xs text-slate-500">
-            {interval} periyot · {DEFAULT_EXCHANGE} varsayilan borsa · en fazla {MAX_FAVORITES} favori
+            {interval} {copy.interval.toLowerCase()} · {DEFAULT_EXCHANGE} {copy.defaultExchange} · {copy.maxFavorites} {MAX_FAVORITES} {copy.favorites.toLowerCase()}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-            Otomatik yenileme: 10 sn
+            {copy.autoRefresh}: 10 sn
           </span>
           {state.updatedAt ? (
             <span className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-              Son guncelleme: {new Date(state.updatedAt).toLocaleTimeString("tr-TR")}
+              {copy.updateLabel}: {new Date(state.updatedAt).toLocaleTimeString("tr-TR")}
             </span>
           ) : null}
           <button
@@ -283,26 +302,26 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
             onClick={() => setRefreshTick((current) => current + 1)}
             className="rounded-md border border-[#0f766e] bg-emerald-50 px-3 py-2 text-xs font-black text-[#0f766e] hover:bg-emerald-100"
           >
-            Yenile
+            {copy.refresh}
           </button>
           <div className="rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-            {state.status === "loading" ? "Guncelleniyor" : `${results.length || favorites.length} varlik`}
+            {state.status === "loading" ? copy.updating : `${results.length || favorites.length} ${copy.assets}`}
           </div>
         </div>
       </div>
 
-      {favorites.length === 0 ? <EmptyState /> : null}
+      {favorites.length === 0 ? <EmptyState message={copy.emptyFavoritesTable} /> : null}
       {favorites.length >= 20 ? (
         <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-          Çok sayıda favori seçildiğinde 10 saniyelik yenileme veri sağlayıcı limitlerine takılabilir.
+          {copy.tooManyFavorites}
         </p>
       ) : null}
       {favorites.length > 0 && state.status === "loading" && results.length === 0 ? <LoadingState /> : null}
-      {favorites.length > 0 && state.status === "error" ? <ErrorState message={state.error ?? "Analiz tablosu yuklenemedi."} /> : null}
+      {favorites.length > 0 && state.status === "error" ? <ErrorState title={copy.favoriteAnalysisLoadError} message={state.error ?? copy.favoriteAnalysisLoadError} /> : null}
       {results.length > 0 ? (
         <>
-          <DesktopTable results={results} />
-          <MobileCards results={results} />
+          <DesktopTable copy={copy} signalLabels={signalLabels} results={results} />
+          <MobileCards copy={copy} signalLabels={signalLabels} results={results} />
         </>
       ) : null}
       </section>
@@ -310,7 +329,15 @@ export function AnalysisTable({ interval = FALLBACK_INTERVAL }: AnalysisTablePro
   );
 }
 
-function DesktopTable({ results }: { results: BatchResult[] }) {
+function DesktopTable({
+  copy,
+  signalLabels,
+  results,
+}: {
+  copy: ReturnType<typeof getUiCopy>["ai"];
+  signalLabels: Record<SignalType, string>;
+  results: BatchResult[];
+}) {
   return (
     <div className="mt-4 hidden overflow-x-auto md:block">
       <table className="w-full min-w-[920px] table-fixed border-separate border-spacing-0 text-left text-sm">
@@ -327,20 +354,20 @@ function DesktopTable({ results }: { results: BatchResult[] }) {
         </colgroup>
         <thead>
           <tr className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-            <th className="border-b border-slate-200 px-2 py-3">Varlık</th>
-            <th className="border-b border-slate-200 px-2 py-3">Fiyat</th>
+            <th className="border-b border-slate-200 px-2 py-3">{copy.asset}</th>
+            <th className="border-b border-slate-200 px-2 py-3">{copy.price}</th>
             <th className="border-b border-slate-200 px-2 py-3">RSI</th>
             <th className="border-b border-slate-200 px-2 py-3">MACD</th>
             <th className="border-b border-slate-200 px-2 py-3">Trend</th>
-            <th className="border-b border-slate-200 px-2 py-3">Risk</th>
-            <th className="border-b border-slate-200 px-2 py-3">Güven</th>
-            <th className="border-b border-slate-200 px-2 py-3">Sinyal</th>
-            <th className="border-b border-slate-200 px-2 py-3">Analist Yorumu</th>
+            <th className="border-b border-slate-200 px-2 py-3">{copy.risk}</th>
+            <th className="border-b border-slate-200 px-2 py-3">{copy.confidence}</th>
+            <th className="border-b border-slate-200 px-2 py-3">{copy.aiSignal}</th>
+            <th className="border-b border-slate-200 px-2 py-3">{copy.analystComment}</th>
           </tr>
         </thead>
         <tbody>
           {results.map((result) => (
-            <DesktopResultRows key={result.symbol} result={result} />
+            <DesktopResultRows key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} />
           ))}
         </tbody>
       </table>
@@ -348,7 +375,15 @@ function DesktopTable({ results }: { results: BatchResult[] }) {
   );
 }
 
-function DesktopResultRows({ result }: { result: BatchResult }) {
+function DesktopResultRows({
+  copy,
+  signalLabels,
+  result,
+}: {
+  copy: ReturnType<typeof getUiCopy>["ai"];
+  signalLabels: Record<SignalType, string>;
+  result: BatchResult;
+}) {
   if (!result.ok) {
     const asset = getAssetLabel(result.symbol);
 
@@ -378,7 +413,7 @@ function DesktopResultRows({ result }: { result: BatchResult }) {
       <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{formatPrice(analysis.lastPrice)}</td>
       <td className="border-b border-slate-100 px-2 py-3 text-slate-700">{formatNumber(analysis.indicators.rsi, 1)}</td>
       <td className="border-b border-slate-100 px-2 py-3 text-slate-700">{formatNumber(analysis.indicators.macd.histogram, 3)}</td>
-      <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{getTrend(analysis)}</td>
+      <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{getTrend(analysis, copy)}</td>
       <td className={`border-b border-slate-100 px-2 py-3 font-black ${getRiskClass(analysis.risk.level)}`}>
         {analysis.risk.level} · {analysis.risk.score}
       </td>
@@ -397,7 +432,7 @@ function DesktopResultRows({ result }: { result: BatchResult }) {
       {analysis.technicalSeries ? (
         <tr>
           <td className="border-b border-slate-200 px-2 py-3" colSpan={9}>
-            <TechnicalIndicatorCharts symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
+            <TechnicalIndicatorCharts locale={copy.terminal === "AI Trading Terminal" ? "en" : "tr"} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
           </td>
         </tr>
       ) : null}
@@ -405,17 +440,33 @@ function DesktopResultRows({ result }: { result: BatchResult }) {
   );
 }
 
-function MobileCards({ results }: { results: BatchResult[] }) {
+function MobileCards({
+  copy,
+  signalLabels,
+  results,
+}: {
+  copy: ReturnType<typeof getUiCopy>["ai"];
+  signalLabels: Record<SignalType, string>;
+  results: BatchResult[];
+}) {
   return (
     <div className="mt-4 grid gap-3 md:hidden">
       {results.map((result) => (
-        <MobileCard key={result.symbol} result={result} />
+        <MobileCard key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} />
       ))}
     </div>
   );
 }
 
-function MobileCard({ result }: { result: BatchResult }) {
+function MobileCard({
+  copy,
+  signalLabels,
+  result,
+}: {
+  copy: ReturnType<typeof getUiCopy>["ai"];
+  signalLabels: Record<SignalType, string>;
+  result: BatchResult;
+}) {
   if (!result.ok) {
     const asset = getAssetLabel(result.symbol);
 
@@ -443,18 +494,18 @@ function MobileCard({ result }: { result: BatchResult }) {
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <Metric label="Fiyat" value={formatPrice(analysis.lastPrice)} />
+        <Metric label={copy.price} value={formatPrice(analysis.lastPrice)} />
         <Metric label="RSI" value={formatNumber(analysis.indicators.rsi, 1)} />
         <Metric label="MACD" value={formatNumber(analysis.indicators.macd.histogram, 4)} />
-        <Metric label="Trend" value={getTrend(analysis)} />
-        <Metric label="Risk" value={`${analysis.risk.level} · ${analysis.risk.score}`} />
-        <Metric label="Güven" value={`${analysis.signal.confidence}%`} />
+        <Metric label="Trend" value={getTrend(analysis, copy)} />
+        <Metric label={copy.risk} value={`${analysis.risk.level} · ${analysis.risk.score}`} />
+        <Metric label={copy.confidence} value={`${analysis.signal.confidence}%`} />
       </div>
 
       <p className="mt-3 text-xs leading-5 text-slate-600">{analysis.explanation}</p>
       {analysis.technicalSeries ? (
         <div className="mt-3">
-          <TechnicalIndicatorCharts symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
+          <TechnicalIndicatorCharts locale={copy.terminal === "AI Trading Terminal" ? "en" : "tr"} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
         </div>
       ) : null}
     </div>
@@ -470,10 +521,10 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ message }: { message: string }) {
   return (
     <p className="mt-4 rounded-md border border-slate-200 bg-white/70 p-4 text-sm font-semibold text-slate-500">
-      Favori listen bos. Varlik Ekle bolumunden favori eklediginde tablo otomatik guncellenir.
+      {message}
     </p>
   );
 }
@@ -488,10 +539,10 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ message }: { message: string }) {
+function ErrorState({ title, message }: { title: string; message: string }) {
   return (
     <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
-      <p className="font-black text-red-700">Favori analizleri yuklenemedi</p>
+      <p className="font-black text-red-700">{title}</p>
       <p className="mt-1 text-sm text-red-600">{message}</p>
     </div>
   );

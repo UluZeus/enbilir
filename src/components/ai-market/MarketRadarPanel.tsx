@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { SignalAlertType } from "@/lib/ai-market/alert-engine";
 
 const MARKET_SCAN_MS = 30_000;
@@ -8,7 +10,6 @@ const SHORT_TERM_INTERVALS = ["1m", "5m", "15m"] as const;
 const HOURLY_INTERVALS = ["1h"] as const;
 const MEDIUM_TERM_INTERVALS = ["4h", "1d"] as const;
 const SCAN_INTERVALS = [...SHORT_TERM_INTERVALS, ...HOURLY_INTERVALS, ...MEDIUM_TERM_INTERVALS];
-const EMPTY_MESSAGE = "Bu vadede güçlü fırsat yok. Piyasa izleniyor.";
 
 type RadarGroupKey = "shortTerm" | "hourly" | "mediumTerm";
 
@@ -46,12 +47,14 @@ const directionBoost: Record<SignalAlertType, number> = {
   SELL_WATCH: 14,
 };
 
-function getDirectionLabel(alertType: SignalAlertType) {
+function getDirectionLabel(alertType: SignalAlertType, locale: Locale) {
+  const copy = getUiCopy(locale).ai;
+
   if (alertType === "STRONG_BUY" || alertType === "BULLISH_MOMENTUM" || alertType === "BUY_WATCH") {
-    return "AL önerisi";
+    return copy.buySignal;
   }
 
-  return "SAT önerisi";
+  return copy.sellSignal;
 }
 
 function getDirectionTone(alertType: SignalAlertType) {
@@ -101,7 +104,8 @@ async function fetchIntervalAlerts(interval: string, signal: AbortSignal) {
   return Array.isArray(payload.alerts) ? payload.alerts : [];
 }
 
-export function MarketRadarPanel() {
+export function MarketRadarPanel({ locale }: { locale: Locale }) {
+  const copy = getUiCopy(locale).ai;
   const [groups, setGroups] = useState<RadarGroups>(initialGroups);
   const [isLoading, setIsLoading] = useState(true);
   const controllerRef = useRef<AbortController | null>(null);
@@ -159,17 +163,29 @@ export function MarketRadarPanel() {
           to { transform: translateX(-50%); }
         }
       `}</style>
-      <h2 className="text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">Piyasa Radarı</h2>
+      <h2 className="text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
       <div className="mt-3 grid gap-2.5">
-        <RadarTickerRow title="Kısa Vade" subtitle="1m / 5m / 15m" alerts={groups.shortTerm} isLoading={isLoading} />
-        <RadarTickerRow title="1 Saatlik" subtitle="1h" alerts={groups.hourly} isLoading={isLoading} />
-        <RadarTickerRow title="4 Saat / Günlük" subtitle="4h / 1d" alerts={groups.mediumTerm} isLoading={isLoading} />
+        <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" alerts={groups.shortTerm} isLoading={isLoading} />
+        <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" alerts={groups.hourly} isLoading={isLoading} />
+        <RadarTickerRow locale={locale} title={copy.mediumTerm} subtitle="4h / 1d" alerts={groups.mediumTerm} isLoading={isLoading} />
       </div>
     </section>
   );
 }
 
-function RadarTickerRow({ title, subtitle, alerts, isLoading }: { title: string; subtitle: string; alerts: MarketScanAlert[]; isLoading: boolean }) {
+function RadarTickerRow({
+  locale,
+  title,
+  subtitle,
+  alerts,
+  isLoading,
+}: {
+  locale: Locale;
+  title: string;
+  subtitle: string;
+  alerts: MarketScanAlert[];
+  isLoading: boolean;
+}) {
   return (
     <div className="grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/65 p-2 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
       <div className="shrink-0 px-1">
@@ -179,10 +195,10 @@ function RadarTickerRow({ title, subtitle, alerts, isLoading }: { title: string;
       <div className="min-w-0 overflow-hidden rounded-md border border-slate-800 bg-[#070b13] px-3 py-2">
         <div className="flex w-max min-w-full items-center gap-8 motion-safe:animate-[ai-market-radar-ticker_64s_linear_infinite] hover:[animation-play-state:paused]">
           <div className="flex items-center gap-4 text-sm md:text-base">
-            {alerts.length > 0 ? <OpportunityItems alerts={alerts} /> : <FallbackText isLoading={isLoading} />}
+            {alerts.length > 0 ? <OpportunityItems locale={locale} alerts={alerts} /> : <FallbackText locale={locale} isLoading={isLoading} />}
           </div>
           <div aria-hidden="true" className="flex items-center gap-4 text-sm md:text-base">
-            {alerts.length > 0 ? <OpportunityItems alerts={alerts} /> : <FallbackText isLoading={isLoading} />}
+            {alerts.length > 0 ? <OpportunityItems locale={locale} alerts={alerts} /> : <FallbackText locale={locale} isLoading={isLoading} />}
           </div>
         </div>
       </div>
@@ -190,7 +206,9 @@ function RadarTickerRow({ title, subtitle, alerts, isLoading }: { title: string;
   );
 }
 
-function OpportunityItems({ alerts }: { alerts: MarketScanAlert[] }) {
+function OpportunityItems({ locale, alerts }: { locale: Locale; alerts: MarketScanAlert[] }) {
+  const copy = getUiCopy(locale).ai;
+
   return (
     <>
       {alerts.map((alert) => (
@@ -200,15 +218,15 @@ function OpportunityItems({ alerts }: { alerts: MarketScanAlert[] }) {
           <span className="font-semibold text-slate-200">{alert.interval}</span>
           <span className="text-slate-500">·</span>
           <span className={`rounded-md border px-2 py-0.5 text-xs font-black md:text-sm ${getDirectionTone(alert.alertType)}`}>
-            {getDirectionLabel(alert.alertType)}
+            {getDirectionLabel(alert.alertType, locale)}
           </span>
           <span className="text-slate-500">·</span>
           <span className="rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-0.5 font-semibold text-cyan-100">
-            Güven {formatPercent(alert.confidence)}
+            {copy.confidence} {formatPercent(alert.confidence)}
           </span>
           <span className="text-slate-500">·</span>
           <span className="rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-0.5 font-semibold text-amber-100">
-            Risk {Math.round(alert.riskScore)}/100
+            {copy.risk} {Math.round(alert.riskScore)}/100
           </span>
           <span className="text-slate-600">•</span>
         </span>
@@ -217,6 +235,8 @@ function OpportunityItems({ alerts }: { alerts: MarketScanAlert[] }) {
   );
 }
 
-function FallbackText({ isLoading }: { isLoading: boolean }) {
-  return <span className="whitespace-nowrap font-semibold text-slate-300">{isLoading ? "Piyasa fırsatları taranıyor." : EMPTY_MESSAGE}</span>;
+function FallbackText({ locale, isLoading }: { locale: Locale; isLoading: boolean }) {
+  const copy = getUiCopy(locale).ai;
+
+  return <span className="whitespace-nowrap font-semibold text-slate-300">{isLoading ? copy.radarLoading : copy.emptyRadar}</span>;
 }

@@ -1,10 +1,14 @@
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { MarketAnalysis } from "@/lib/ai-market/types";
 
 type AiInsightPanelProps = {
+  locale: Locale | string;
   analysis: MarketAnalysis | null;
 };
 
-export function AiInsightPanel({ analysis }: AiInsightPanelProps) {
+export function AiInsightPanel({ locale, analysis }: AiInsightPanelProps) {
+  const copy = getUiCopy(getSafeLocale(locale)).ai;
   const reasons = analysis?.signal.reasons ?? [];
   const riskReasons = analysis?.risk.reasons ?? [];
 
@@ -12,8 +16,8 @@ export function AiInsightPanel({ analysis }: AiInsightPanelProps) {
     <section className="rounded-md border border-slate-800 bg-[#0b111d] p-4 shadow-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300/80">AI Analist Yorumu</p>
-          <h2 className="mt-1 text-lg font-black text-white">Karar Destek Özeti</h2>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300/80">{copy.analystComment}</p>
+          <h2 className="mt-1 text-lg font-black text-white">{copy.decisionSummary}</h2>
         </div>
         <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs font-black text-slate-300">
           {analysis ? `%${analysis.signal.confidence}` : "-"}
@@ -21,12 +25,12 @@ export function AiInsightPanel({ analysis }: AiInsightPanelProps) {
       </div>
 
       <p className="mt-4 text-sm leading-6 text-slate-300">
-        {analysis?.explanation ?? "Seçili varlık için public piyasa verisi alındığında AI analist yorumu burada gösterilir."}
+        {analysis?.explanation ?? copy.decisionPlaceholder}
       </p>
 
       <div className="mt-4 grid gap-2 lg:grid-cols-2">
-        <InsightList title="Sinyal Gerekçeleri" items={reasons} empty="Sinyal gerekçesi bekleniyor." />
-        <InsightList title="Risk Notları" items={riskReasons} empty="Risk notu bekleniyor." />
+        <InsightList title={copy.signalReasons} items={reasons} empty={copy.signalReasonEmpty} />
+        <InsightList title={copy.riskNotes} items={riskReasons} empty={copy.riskNoteEmpty} />
       </div>
     </section>
   );

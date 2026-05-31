@@ -1,6 +1,7 @@
+import { getSafeLocale, type Locale } from "@/i18n/config";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
-const signalLabels: Record<SignalType, string> = {
+const signalLabelsTr: Record<SignalType, string> = {
   STRONG_BUY: "Güçlü Al İzlemesi",
   BUY: "Al İzlemesi",
   WATCH: "Yakından İzle",
@@ -9,6 +10,17 @@ const signalLabels: Record<SignalType, string> = {
   SELL: "Satış Baskısı",
   AVOID: "Uzak Dur",
   NO_TRADE: "İşlem Yok",
+};
+
+const signalLabelsEn: Record<SignalType, string> = {
+  STRONG_BUY: "Strong Buy Watch",
+  BUY: "Buy Watch",
+  WATCH: "Watch Closely",
+  HOLD: "Hold",
+  TAKE_PROFIT: "Watch Take Profit",
+  SELL: "Selling Pressure",
+  AVOID: "Avoid",
+  NO_TRADE: "No Trade",
 };
 
 const signalStyles: Record<SignalType, string> = {
@@ -38,10 +50,12 @@ function formatPercent(value: number | null) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-export function SignalCard({ analysis }: { analysis: MarketAnalysis }) {
+export function SignalCard({ locale = "tr", analysis }: { locale?: Locale | string; analysis: MarketAnalysis }) {
+  const safeLocale = getSafeLocale(locale);
+  const signalLabels = safeLocale === "en" ? signalLabelsEn : signalLabelsTr;
   const providerLabel = ["XAUUSD", "XAGUSD", "USDTRY"].includes(analysis.symbol)
-    ? "Yahoo public veri"
-    : `${analysis.exchange === "binance" ? "Binance" : "Gate.io"} public veri`;
+    ? safeLocale === "en" ? "Yahoo public data" : "Yahoo public veri"
+    : `${analysis.exchange === "binance" ? "Binance" : "Gate.io"} ${safeLocale === "en" ? "public data" : "public veri"}`;
   const priceUnit = analysis.symbol === "USDTRY" ? "TL" : ["XAUUSD", "XAGUSD"].includes(analysis.symbol) ? "USD" : "USDT";
 
   return (
@@ -60,9 +74,9 @@ export function SignalCard({ analysis }: { analysis: MarketAnalysis }) {
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <Metric label="Son fiyat" value={`${formatPrice(analysis.lastPrice)} ${priceUnit}`} />
-        <Metric label="Periyot değişimi" value={formatPercent(analysis.changePercent)} />
-        <Metric label="Güven" value={`${analysis.signal.confidence}/100`} />
+        <Metric label={safeLocale === "en" ? "Last price" : "Son fiyat"} value={`${formatPrice(analysis.lastPrice)} ${priceUnit}`} />
+        <Metric label={safeLocale === "en" ? "Interval change" : "Periyot değişimi"} value={formatPercent(analysis.changePercent)} />
+        <Metric label={safeLocale === "en" ? "Confidence" : "Güven"} value={`${analysis.signal.confidence}/100`} />
       </div>
 
       <div className="mt-5 rounded-md border border-white/10 bg-white/5 p-4">

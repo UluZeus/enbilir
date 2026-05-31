@@ -6,6 +6,7 @@ import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
 import { TradeTicketForm } from "@/components/TradeTicketForm";
 import { getSafeLocale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import { getAds } from "@/lib/ads";
 import { tradeAction, updateCashModeAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
@@ -40,14 +41,15 @@ export default async function TradePage({
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
   const locale = getSafeLocale(rawLocale);
+  const copy = getUiCopy(locale);
   const user = await getSessionUser();
 
   if (!user) {
     return (
       <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-900">
-        <h1 className="text-2xl font-black">Giriş gerekli</h1>
-        <p className="mt-2 text-sm">Sanal işlem yapabilmek için giriş yapmalısın.</p>
-        <Link href={`/${locale}/giris`} className="premium-cta mt-5 inline-flex px-4 py-2 text-sm font-bold">Giriş yap</Link>
+        <h1 className="text-2xl font-black">{copy.common.loginRequiredTitle}</h1>
+        <p className="mt-2 text-sm">{copy.trade.loginBody}</p>
+        <Link href={`/${locale}/giris`} className="premium-cta mt-5 inline-flex px-4 py-2 text-sm font-bold">{copy.common.signIn}</Link>
       </section>
     );
   }
@@ -67,7 +69,7 @@ export default async function TradePage({
   const snapshot = settledValue<PortfolioSnapshot | null>(snapshotResult, null);
   const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
   const dataError = snapshotResult.status === "rejected"
-    ? "Portföy bilgileri geçici olarak yüklenemedi. İşlem formunu kullanmadan önce sayfayı yenilemeyi dene."
+    ? copy.trade.dataError
     : undefined;
 
   return (
@@ -79,13 +81,13 @@ export default async function TradePage({
       <section className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="grid gap-5">
           <div className="glass-card rounded-lg p-6 shadow-sm">
-            <h1 className="text-2xl font-black text-[#152033]">Sanal işlem yap</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Gerçek emir gönderilmez; işlemler eğitim amaçlı sanal portföye yazılır.</p>
+            <h1 className="text-2xl font-black text-[#152033]">{copy.trade.title}</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{copy.trade.description}</p>
             <TradeTicketForm locale={locale} userId={user.id} marketItems={marketItems} idempotencyKey={randomUUID()} action={tradeAction} />
           </div>
 
           <div className="glass-card rounded-lg p-6 shadow-sm">
-            <h2 className="text-xl font-black text-[#152033]">Nakit tercihi</h2>
+            <h2 className="text-xl font-black text-[#152033]">{copy.trade.cashPreference}</h2>
             <form action={updateCashModeAction} className="mt-4 flex flex-wrap gap-3">
               <input type="hidden" name="locale" value={locale} />
               <input type="hidden" name="userId" value={user.id} />
@@ -99,7 +101,7 @@ export default async function TradePage({
 
         <aside className="grid content-start gap-5">
           <div className="premium-card premium-card--interactive p-5 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Toplam portföy</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.trade.totalPortfolio}</p>
             {snapshot ? (
               <>
                 <p className="mt-2 text-2xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
@@ -107,18 +109,18 @@ export default async function TradePage({
                   total={snapshot.totalValueUsd}
                   animated
                   items={[
-                    { label: "Nakit", value: snapshot.cashValueUsd },
+                    { label: copy.trade.cash, value: snapshot.cashValueUsd },
                     ...snapshot.positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
                   ]}
                 />
-                <p className="mt-3 text-sm text-slate-600">Kalan nakit: {formatMoney(snapshot.cashValueUsd)}</p>
+                <p className="mt-3 text-sm text-slate-600">{copy.trade.remainingCash}: {formatMoney(snapshot.cashValueUsd)}</p>
                 <div className="mt-4">
                   <PortfolioBreakdown items={breakdownItems} />
                 </div>
               </>
             ) : (
               <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                Portföy bilgileri şu anda yüklenemedi. Veriler korunuyor; biraz sonra sayfayı yenileyebilirsin.
+                {copy.trade.portfolioUnavailable}
               </div>
             )}
           </div>

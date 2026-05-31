@@ -5,6 +5,7 @@ import { removeCommunityFriendAction, sendCommunityFriendRequestAction } from "@
 import { getDisplayName, getSessionUser } from "@/lib/auth";
 import { getFriendPairKey } from "@/lib/friends";
 import { getSafeLocale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import { prisma } from "@/lib/prisma";
 import type { FriendRequestStatus, LeagueType } from "@/generated/prisma/enums";
 
@@ -57,6 +58,7 @@ export default async function CommunityPage({
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
   const locale = getSafeLocale(rawLocale);
+  const copy = getUiCopy(locale);
   const search = String(query.q ?? "").trim().toLowerCase();
   const sessionUser = await getSessionUser();
   const [users, friendships] = await Promise.all([
@@ -108,7 +110,7 @@ export default async function CommunityPage({
         user,
         displayName,
         realName: user.name,
-        primaryLeagueName: primaryMembership?.league.name ?? "Lig yok",
+        primaryLeagueName: primaryMembership?.league.name ?? copy.community.noLeague,
         primaryLeagueId: primaryMembership?.league.id ?? "",
         leagueNames,
         category,
@@ -128,58 +130,59 @@ export default async function CommunityPage({
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Topluluk" description="Kullanıcıları, arkadaşlık durumunu ve lig üyeliklerini tek ekranda yönet." />
+      <PageHeader title={copy.community.title} description={copy.community.description} locale={locale} />
       <FormMessage message={query.error} />
 
       <section className="glass-card rounded-lg p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <form className="grid gap-2 sm:min-w-[360px]">
             <label className="text-sm font-black text-[#152033]" htmlFor="community-search">
-              Kullanıcı veya lig ara
+              {copy.community.searchLabel}
             </label>
             <div className="flex gap-2">
               <input
                 id="community-search"
                 name="q"
                 defaultValue={query.q ?? ""}
-                placeholder="Ad, rumuz, lig veya kategori"
+                placeholder={copy.community.searchPlaceholder}
                 className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white/80 px-4 py-3 text-sm outline-none focus:border-[#0f766e]"
               />
-              <button className="premium-action px-4 py-3 text-sm font-black">Ara</button>
+              <button className="premium-action px-4 py-3 text-sm font-black">{copy.common.search}</button>
             </div>
           </form>
           <div className="grid gap-1 text-sm text-slate-600">
-            <p className="font-bold text-[#152033]">{rows.length} kullanıcı listeleniyor</p>
-            <p>Arkadaşlık ve lig değişimi işlemleri oturum gerektirir.</p>
+            <p className="font-bold text-[#152033]">{copy.community.listedUsers(rows.length)}</p>
+            <p>{copy.community.authNote}</p>
           </div>
         </div>
       </section>
 
       {!sessionUser ? (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-900">
-          <p className="font-black">Topluluk işlemleri için giriş gerekli.</p>
+          <p className="font-black">{copy.community.loginRequired}</p>
           <Link href={`/${locale}/giris`} className="premium-cta mt-4 inline-flex px-4 py-2 text-sm font-bold">
-            Giriş yap
+            {copy.common.signIn}
           </Link>
         </section>
       ) : null}
 
       <section className="overflow-hidden rounded-lg border border-white/70 bg-white/82 shadow-sm backdrop-blur-xl">
         <div className="hidden grid-cols-[1.25fr_1fr_150px_170px_260px] gap-4 border-b border-slate-200 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-500 xl:grid">
-          <span>Kullanıcı</span>
-          <span>Lig</span>
-          <span>Kategori</span>
-          <span>Arkadaşlık</span>
-          <span>İşlemler</span>
+          <span>{copy.community.user}</span>
+          <span>{copy.community.league}</span>
+          <span>{copy.community.category}</span>
+          <span>{copy.community.friendship}</span>
+          <span>{copy.community.actions}</span>
         </div>
         <div className="divide-y divide-slate-100">
           {rows.length === 0 ? (
-            <p className="p-6 text-sm text-slate-600">Aramaya uygun kullanıcı bulunamadı.</p>
+            <p className="p-6 text-sm text-slate-600">{copy.community.noUsers}</p>
           ) : (
             rows.map((row) => (
               <CommunityRow
                 key={row.user.id}
                 locale={locale}
+                copy={copy.community}
                 row={row}
                 sessionUserId={sessionUser?.id ?? null}
               />
@@ -193,10 +196,12 @@ export default async function CommunityPage({
 
 function CommunityRow({
   locale,
+  copy,
   row,
   sessionUserId,
 }: {
   locale: string;
+  copy: ReturnType<typeof getUiCopy>["community"];
   row: {
     user: {
       id: string;
@@ -225,47 +230,49 @@ function CommunityRow({
         <div className="min-w-0">
           <p className="truncate font-black text-[#152033]">{row.displayName}</p>
           <p className="mt-1 text-xs text-slate-500">
-            {row.displayName === row.realName ? "Gerçek ad kayıtlı" : row.realName}
-            {isSelf ? " · Sen" : ""}
+            {row.displayName === row.realName ? copy.realNameSaved : row.realName}
+            {isSelf ? ` · ${getUiCopy(getSafeLocale(locale)).common.you}` : ""}
           </p>
         </div>
       </div>
       <div>
         <p className="font-bold text-slate-700">{row.primaryLeagueName}</p>
         {row.leagueNames.length > 1 ? (
-          <p className="mt-1 text-xs text-slate-500">+{row.leagueNames.length - 1} lig üyeliği</p>
+          <p className="mt-1 text-xs text-slate-500">{copy.extraLeagues(row.leagueNames.length - 1)}</p>
         ) : null}
       </div>
       <div>
         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ring-1 ring-inset ${categoryStyles[row.category]}`}>
-          {row.category}
+          {row.category === "Diğer" ? copy.other : row.category}
         </span>
       </div>
-      <FriendshipControl locale={locale} userId={row.user.id} isSelf={isSelf} friendship={row.friendship} disabled={!sessionUserId} />
-      <LeagueControl isSelf={isSelf} disabled={!sessionUserId} />
+      <FriendshipControl locale={locale} copy={copy} userId={row.user.id} isSelf={isSelf} friendship={row.friendship} disabled={!sessionUserId} />
+      <LeagueControl copy={copy} isSelf={isSelf} disabled={!sessionUserId} />
     </div>
   );
 }
 
 function FriendshipControl({
   locale,
+  copy,
   userId,
   isSelf,
   friendship,
   disabled,
 }: {
   locale: string;
+  copy: ReturnType<typeof getUiCopy>["community"];
   userId: string;
   isSelf: boolean;
   friendship: FriendshipState;
   disabled: boolean;
 }) {
   if (isSelf) {
-    return <span className="text-sm font-bold text-slate-500">Kendi hesabın</span>;
+    return <span className="text-sm font-bold text-slate-500">{copy.selfAccount}</span>;
   }
 
   if (disabled) {
-    return <span className="text-sm font-bold text-slate-500">Giriş gerekli</span>;
+    return <span className="text-sm font-bold text-slate-500">{copy.loginRequiredShort}</span>;
   }
 
   if (friendship?.status === "ACCEPTED") {
@@ -274,7 +281,7 @@ function FriendshipControl({
         <input type="hidden" name="locale" value={locale} />
         <input type="hidden" name="targetUserId" value={userId} />
         <button className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-black text-red-700 hover:bg-red-100">
-          Arkadaştan çıkar
+          {copy.removeFriend}
         </button>
       </form>
     );
@@ -286,26 +293,28 @@ function FriendshipControl({
       <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="targetUserId" value={userId} />
       <button className="rounded-md bg-[#0f766e] px-3 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0b5f59]">
-        Arkadaş ekle
+        {copy.addFriend}
       </button>
     </form>
   );
 }
 
 function LeagueControl({
+  copy,
   isSelf,
   disabled,
 }: {
+  copy: ReturnType<typeof getUiCopy>["community"];
   isSelf: boolean;
   disabled: boolean;
 }) {
   if (!isSelf) {
-    return <span className="text-sm font-bold text-slate-500">Sadece kendi ligin</span>;
+    return <span className="text-sm font-bold text-slate-500">{copy.ownLeagueOnly}</span>;
   }
 
   if (disabled) {
-    return <span className="text-sm font-bold text-slate-500">Giriş gerekli</span>;
+    return <span className="text-sm font-bold text-slate-500">{copy.loginRequiredShort}</span>;
   }
 
-  return <span className="text-sm font-bold text-slate-500">Lig değişikliği yakında aktif olacak.</span>;
+  return <span className="text-sm font-bold text-slate-500">{copy.leagueChangeSoon}</span>;
 }

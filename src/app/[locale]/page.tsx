@@ -5,11 +5,11 @@ import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
 import { PremiumCard } from "@/components/PremiumCard";
 import { getSafeLocale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import { getAds } from "@/lib/ads";
 import { getSessionUser } from "@/lib/auth";
 import { getLiveMarketItems, getTopFallersFrom, getTopRisersFrom } from "@/lib/live-market";
 import { getUserRankingPeriods } from "@/lib/leaderboard";
-import { marketNews, rotaryNews } from "@/lib/market-data";
 import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
@@ -34,6 +34,7 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, fallback: T) 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
+  const copy = getUiCopy(locale);
   const user = await getSessionUser();
   const [adsResult, liveItemsResult, snapshotResult] = await Promise.allSettled([
     getAds("home_top"),
@@ -55,23 +56,23 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     <div className="grid gap-6">
       <AdBanner ads={ads} />
       <section className="hero-visual p-6 text-white sm:p-8">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">Sanal portföy yarışması</p>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.home.eyebrow}</p>
         <h1 className="relative mt-3 text-4xl font-black tracking-normal sm:text-6xl">enbilir.com</h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
-          Gerçek para ile işlem yaptırmayan, eğitim ve finansal okuryazarlık amaçlı yarışma platformu.
+          {copy.home.description}
         </p>
         <div className="relative mt-6 flex flex-wrap gap-3">
-          <Link href={`/${locale}/islem-yap`} className="premium-cta px-5 py-3 text-sm font-black">İşlem yap</Link>
-          <Link href={`/${locale}/ligler`} className="premium-link rounded-md px-5 py-3 text-sm font-black">Ligleri gör</Link>
+          <Link href={`/${locale}/islem-yap`} className="premium-cta px-5 py-3 text-sm font-black">{copy.home.trade}</Link>
+          <Link href={`/${locale}/ligler`} className="premium-link rounded-md px-5 py-3 text-sm font-black">{copy.home.leagues}</Link>
         </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[260px_1fr_1fr_1fr]">
         <div className="grid gap-4">
           <PremiumCard interactive className="p-4">
-            <h2 className="text-lg font-black text-[#152033]">Portföyüm</h2>
+            <h2 className="text-lg font-black text-[#152033]">{copy.home.portfolio}</h2>
             <p className="mt-3 text-2xl font-black text-[#0f766e]">{snapshot ? formatMoney(snapshot.totalValueUsd) : "-"}</p>
-            <p className="mt-1 text-sm text-slate-500">Giriş yapan kullanıcı için anlık sanal değer.</p>
+            <p className="mt-1 text-sm text-slate-500">{copy.home.portfolioBody}</p>
             {snapshot ? (
               <>
                 <div className="mt-4">
@@ -80,7 +81,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                     size="sm"
                     animated
                     items={[
-                      { label: "Nakit", value: snapshot.cashValueUsd },
+                      { label: copy.trade.cash, value: snapshot.cashValueUsd },
                       ...snapshot.positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
                     ]}
                   />
@@ -88,28 +89,28 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 <div className="mt-4">
                   <PortfolioBreakdown items={breakdownItems} compact />
                 </div>
-                <PerformanceBadges periods={chartPeriods} />
+                <PerformanceBadges periods={chartPeriods} copy={copy.home} />
               </>
             ) : (
-              <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">Kar/zarar yüzdeleri için giriş yapmalısın.</p>
+              <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">{copy.home.profitLogin}</p>
             )}
           </PremiumCard>
-          <MarketList title="En hızlı yükselen 10" items={getTopRisersFrom(liveItems)} />
-          <MarketList title="En hızlı düşen 10" items={getTopFallersFrom(liveItems)} />
+          <MarketList title={copy.home.topRisers} items={getTopRisersFrom(liveItems)} />
+          <MarketList title={copy.home.topFallers} items={getTopFallersFrom(liveItems)} />
         </div>
 
         <PremiumCard interactive className="p-5">
-          <h2 className="text-lg font-black text-[#152033]">Portföy değişimi</h2>
+          <h2 className="text-lg font-black text-[#152033]">{copy.home.portfolioChange}</h2>
           <div className="mt-4 grid gap-4">
-            {chartPeriods.length === 0 ? <p className="text-sm text-slate-500">Grafikler için giriş yapmalısın.</p> : chartPeriods.map((period) => (
+            {chartPeriods.length === 0 ? <p className="text-sm text-slate-500">{copy.home.chartLogin}</p> : chartPeriods.map((period) => (
               <div key={period.label} className="rounded-md bg-[#f8fafc] p-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="font-black text-[#152033]">{period.label}</p>
+                  <p className="font-black text-[#152033]">{copy.home.periodLabels[period.key]}</p>
                   <div className="text-right">
                     <p className={period.change === null ? "font-black text-slate-500" : period.change >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>
                       {period.change === null ? "-" : formatPercent(period.change)}
                     </p>
-                    {period.source === "modeled" ? <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">geçici model</p> : null}
+                    {period.source === "modeled" ? <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{copy.home.modeled}</p> : null}
                   </div>
                 </div>
                 <MiniLineChart points={period.points} />
@@ -119,14 +120,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </PremiumCard>
 
         <PremiumCard interactive className="p-5">
-          <h2 className="text-lg font-black text-[#152033]">Sıralamalar</h2>
+          <h2 className="text-lg font-black text-[#152033]">{copy.home.rankings}</h2>
           <div className="mt-4 grid gap-3">
-            {rankingPeriods.length === 0 ? <p className="text-sm text-slate-500">Sıralama için giriş yapmalısın.</p> : rankingPeriods.map((period) => (
+            {rankingPeriods.length === 0 ? <p className="text-sm text-slate-500">{copy.home.rankingLogin}</p> : rankingPeriods.map((period) => (
               <div key={period.label} className="rounded-md bg-[#f8fafc] p-4">
-                <p className="font-black text-[#152033]">{period.label}</p>
-                <p className="mt-1 text-sm text-slate-600">Genel: {period.overall}/{period.totalUsers}</p>
+                <p className="font-black text-[#152033]">{translateRankingPeriod(period.label, copy.home.periodLabels)}</p>
+                <p className="mt-1 text-sm text-slate-600">{copy.home.overall}: {period.overall}/{period.totalUsers}</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Arkadaşlar: {period.hasFriends && period.friends ? `${period.friends}/${period.totalFriendsScope}` : "Henüz arkadaş eklemediniz"}
+                  {copy.home.friends}: {period.hasFriends && period.friends ? `${period.friends}/${period.totalFriendsScope}` : copy.home.noFriends}
                 </p>
               </div>
             ))}
@@ -134,17 +135,17 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </PremiumCard>
 
         <div className="grid gap-5">
-          <NewsList title="Güncel haberler" items={marketNews} />
-          <NewsList title="Rotary haberleri" items={rotaryNews} />
+          <NewsList title={copy.home.marketNewsTitle} items={copy.home.marketNews} />
+          <NewsList title={copy.home.rotaryNewsTitle} items={copy.home.rotaryNews} />
         </div>
       </section>
     </div>
   );
 }
 
-function PerformanceBadges({ periods }: { periods: PortfolioPerformancePeriod[] }) {
+function PerformanceBadges({ periods, copy }: { periods: PortfolioPerformancePeriod[]; copy: ReturnType<typeof getUiCopy>["home"] }) {
   if (periods.length === 0) {
-    return <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">Henüz yeterli veri yok.</p>;
+    return <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">{copy.noEnoughData}</p>;
   }
 
   return (
@@ -159,13 +160,39 @@ function PerformanceBadges({ periods }: { periods: PortfolioPerformancePeriod[] 
 
         return (
           <div key={period.key} className={`rounded-md px-2.5 py-2 text-xs font-black ring-1 ring-inset ${tone}`}>
-            <span className="block text-[10px] uppercase tracking-[0.12em] opacity-70">{period.label}</span>
-            <span>{period.change === null ? "Yeterli veri yok" : formatPercent(period.change, true)}</span>
+            <span className="block text-[10px] uppercase tracking-[0.12em] opacity-70">{copy.periodLabels[period.key]}</span>
+            <span>{period.change === null ? copy.noEnoughDataShort : formatPercent(period.change, true)}</span>
           </div>
         );
       })}
     </div>
   );
+}
+
+function translateRankingPeriod(label: string, periodLabels: ReturnType<typeof getUiCopy>["home"]["periodLabels"]) {
+  const normalized = label.toLowerCase();
+
+  if (normalized.includes("haft") || normalized.includes("week")) {
+    return periodLabels.WEEKLY;
+  }
+
+  if (normalized.includes("3")) {
+    return periodLabels.QUARTERLY;
+  }
+
+  if (normalized.includes("6")) {
+    return periodLabels.SEMI_ANNUAL;
+  }
+
+  if (normalized.includes("yıl") || normalized.includes("year")) {
+    return periodLabels.YEARLY;
+  }
+
+  if (normalized.includes("ay") || normalized.includes("month")) {
+    return periodLabels.MONTHLY;
+  }
+
+  return label;
 }
 
 function formatPercent(value: number, signed = false) {
@@ -192,7 +219,7 @@ function MarketList({ title, items }: { title: string; items: { symbol: string; 
   );
 }
 
-function NewsList({ title, items }: { title: string; items: string[] }) {
+function NewsList({ title, items }: { title: string; items: readonly string[] }) {
   return (
     <PremiumCard interactive className="p-5">
       <h2 className="text-lg font-black text-[#152033]">{title}</h2>

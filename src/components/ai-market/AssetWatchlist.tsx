@@ -1,6 +1,8 @@
+import { getSafeLocale, type Locale } from "@/i18n/config";
 import type { MarketExchange, WatchSymbol } from "@/lib/ai-market/types";
 
 type AssetWatchlistProps = {
+  locale?: Locale | string;
   symbols: WatchSymbol[];
   selectedSymbol: string;
   exchange: MarketExchange;
@@ -10,16 +12,28 @@ type AssetWatchlistProps = {
   onIntervalChange: (interval: string) => void;
 };
 
-const intervals = [
-  { value: "1m", label: "1 dk" },
-  { value: "5m", label: "5 dk" },
-  { value: "15m", label: "15 dk" },
-  { value: "1h", label: "1 saat" },
-  { value: "4h", label: "4 saat" },
-  { value: "1d", label: "1 gün" },
-];
+function getIntervals(locale: Locale) {
+  return locale === "en"
+    ? [
+        { value: "1m", label: "1 min" },
+        { value: "5m", label: "5 min" },
+        { value: "15m", label: "15 min" },
+        { value: "1h", label: "1 hour" },
+        { value: "4h", label: "4 hours" },
+        { value: "1d", label: "1 day" },
+      ]
+    : [
+        { value: "1m", label: "1 dk" },
+        { value: "5m", label: "5 dk" },
+        { value: "15m", label: "15 dk" },
+        { value: "1h", label: "1 saat" },
+        { value: "4h", label: "4 saat" },
+        { value: "1d", label: "1 gün" },
+      ];
+}
 
 export function AssetWatchlist({
+  locale = "tr",
   symbols,
   selectedSymbol,
   exchange,
@@ -28,6 +42,8 @@ export function AssetWatchlist({
   onExchangeChange,
   onIntervalChange,
 }: AssetWatchlistProps) {
+  const safeLocale = getSafeLocale(locale);
+  const intervals = getIntervals(safeLocale);
   const cryptoSymbols = symbols.filter((item) => item.assetClass === "CRYPTO");
   const macroSymbols = symbols.filter((item) => item.assetClass !== "CRYPTO");
   const selectedAsset = symbols.find((item) => item.symbol === selectedSymbol);
@@ -37,8 +53,8 @@ export function AssetWatchlist({
     <aside className="premium-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-black text-[#152033]">Takip listesi</h2>
-          <p className="mt-1 text-xs text-slate-500">Public Binance ve Gate.io verileri</p>
+          <h2 className="text-base font-black text-[#152033]">{safeLocale === "en" ? "Watchlist" : "Takip listesi"}</h2>
+          <p className="mt-1 text-xs text-slate-500">{safeLocale === "en" ? "Public Binance and Gate.io data" : "Public Binance ve Gate.io verileri"}</p>
         </div>
       </div>
 
@@ -65,12 +81,12 @@ export function AssetWatchlist({
         </div>
       ) : (
         <div className="mt-4 rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-sm font-black text-slate-600">
-          Yahoo public veri
+          {safeLocale === "en" ? "Yahoo public data" : "Yahoo public veri"}
         </div>
       )}
 
       <label className="mt-4 block text-xs font-black uppercase tracking-[0.14em] text-slate-500" htmlFor="ai-market-interval">
-        Periyot
+        {safeLocale === "en" ? "Interval" : "Periyot"}
       </label>
       <select
         id="ai-market-interval"
@@ -86,8 +102,8 @@ export function AssetWatchlist({
       </select>
 
       <div className="mt-4 grid gap-4">
-        <SymbolGroup title="Kripto Radar" symbols={cryptoSymbols} selectedSymbol={selectedSymbol} onSymbolChange={onSymbolChange} />
-        <SymbolGroup title="Emtia / Döviz Radar" symbols={macroSymbols} selectedSymbol={selectedSymbol} onSymbolChange={onSymbolChange} />
+        <SymbolGroup title={safeLocale === "en" ? "Crypto Radar" : "Kripto Radar"} symbols={cryptoSymbols} selectedSymbol={selectedSymbol} onSymbolChange={onSymbolChange} />
+        <SymbolGroup title={safeLocale === "en" ? "Commodity / FX Radar" : "Emtia / Döviz Radar"} symbols={macroSymbols} selectedSymbol={selectedSymbol} onSymbolChange={onSymbolChange} />
       </div>
     </aside>
   );

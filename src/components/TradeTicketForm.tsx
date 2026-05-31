@@ -3,6 +3,8 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
+import { getSafeLocale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { MarketItem } from "@/lib/market-data";
 import type { TradeActionState, tradeAction } from "@/lib/actions";
 
@@ -14,37 +16,21 @@ type TradeTicketFormProps = {
   action: typeof tradeAction;
 };
 
-const categoryLabels: Record<MarketItem["category"], string> = {
-  BIST: "BIST / İMKB",
-  NASDAQ: "NASDAQ",
-  DOW: "Dow Jones",
-  FX: "Majör döviz",
-  CRYPTO: "Kripto",
-  COMMODITY: "Emtia",
-  TR_BOND: "Türkiye tahvil/bono",
-  US_BOND: "ABD tahvil",
-  EUROBOND: "Eurobond",
-  INDEX: "Endeks",
-};
-
-const statusLabels: Record<MarketItem["dataStatus"], string> = {
-  live: "canlı",
-  delayed: "gecikmeli",
-  close: "son kapanış",
-  representative: "temsili",
-};
-
-function SubmitButton() {
+function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
 
   return (
     <button disabled={pending} className="premium-cta px-5 py-3 text-sm font-black disabled:cursor-wait disabled:opacity-70">
-      {pending ? "İşlem uygulanıyor..." : "İşlemi uygula"}
+      {pending ? pendingLabel : label}
     </button>
   );
 }
 
 export function TradeTicketForm({ locale, userId, marketItems = [], idempotencyKey, action }: TradeTicketFormProps) {
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale).trade;
+  const categoryLabels = copy.categoryLabels;
+  const statusLabels = copy.statusLabels;
   const router = useRouter();
   const [state, formAction] = useActionState<TradeActionState, FormData>(action, { ok: false, message: "" });
   const [query, setQuery] = useState("");
@@ -94,22 +80,22 @@ export function TradeTicketForm({ locale, userId, marketItems = [], idempotencyK
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="grid gap-3 md:grid-cols-[1fr_260px]">
         <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Ürün ara
+          {copy.productSearch}
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Sembol, ürün adı veya piyasa"
+            placeholder={copy.productSearchPlaceholder}
             className="rounded-md border border-slate-300 px-4 py-3 font-normal"
           />
         </label>
         <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Kategori
+          {copy.category}
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value as MarketItem["category"] | "ALL")}
             className="rounded-md border border-slate-300 px-4 py-3 font-normal"
           >
-            <option value="ALL">Tüm ürünler</option>
+            <option value="ALL">{copy.allProducts}</option>
             {Object.entries(categoryLabels).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
@@ -120,7 +106,7 @@ export function TradeTicketForm({ locale, userId, marketItems = [], idempotencyK
       </div>
       <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr_0.8fr_auto] md:items-end">
         <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Ürün
+          {copy.product}
           <select name="symbol" disabled={!hasProducts} className="rounded-md border border-slate-300 px-4 py-3 font-normal disabled:opacity-60">
             {filteredItems.map((item) => (
               <option key={item.symbol} value={item.symbol}>
@@ -130,28 +116,28 @@ export function TradeTicketForm({ locale, userId, marketItems = [], idempotencyK
           </select>
         </label>
         <label className="grid gap-2 text-sm font-bold text-slate-700">
-          İşlem
+          {copy.action}
           <select name="side" className="rounded-md border border-slate-300 px-4 py-3 font-normal">
-            <option value="BUY">Al</option>
-            <option value="SELL">Sat</option>
+            <option value="BUY">{copy.buy}</option>
+            <option value="SELL">{copy.sell}</option>
           </select>
         </label>
         <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Tutar USD
+          {copy.amountUsd}
           <input name="amountUsd" type="number" min="1" step="1" required className="rounded-md border border-slate-300 px-4 py-3 font-normal" />
         </label>
         {hasProducts ? (
-          <SubmitButton />
+          <SubmitButton label={copy.submit} pendingLabel={copy.submitting} />
         ) : (
           <button disabled className="rounded-md border border-slate-300 bg-slate-100 px-5 py-3 text-sm font-black text-slate-500">
-            Ürün verisi yok
+            {copy.noProductData}
           </button>
         )}
       </div>
       <p className="text-xs leading-5 text-slate-500">
         {hasProducts
-          ? `${filteredItems.length} ürün listeleniyor. Etiketler veri kaynağını gösterir: gecikmeli, son kapanış veya temsili.`
-          : "Piyasa verileri şu anda yüklenemedi. Lütfen biraz sonra tekrar deneyin."}
+          ? copy.productsListed(filteredItems.length)
+          : copy.marketDataUnavailable}
       </p>
     </form>
   );

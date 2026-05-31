@@ -5,6 +5,7 @@ import { AnimatedBackground } from "@/components/AnimatedBackground";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
+import { getUiCopy } from "@/i18n/ui-copy";
 import { logoutAction } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
 import { getSiteVisualSettings, isVisualEnabled } from "@/lib/site-visual-settings";
@@ -31,11 +32,11 @@ const flags = {
 } as const;
 
 const legalLinks = [
-  { href: "kvkk", label: "KVKK Aydınlatma Metni" },
-  { href: "acik-riza", label: "Açık Rıza Metni" },
-  { href: "cerez-politikasi", label: "Çerez Politikası" },
-  { href: "kullanim-sartlari", label: "Kullanım Şartları" },
-  { href: "yatirim-tavsiyesi-degildir", label: "Yatırım Tavsiyesi Değildir" },
+  { href: "kvkk", label: "kvkk" },
+  { href: "acik-riza", label: "consent" },
+  { href: "cerez-politikasi", label: "cookies" },
+  { href: "kullanim-sartlari", label: "terms" },
+  { href: "yatirim-tavsiyesi-degildir", label: "disclaimer" },
 ] as const;
 
 type AppShellProps = {
@@ -60,6 +61,7 @@ function CommunityIcon() {
 
 export async function AppShell({ children, locale }: AppShellProps) {
   const dictionary = getDictionary(locale);
+  const ui = getUiCopy(locale);
   const sessionUser = await getSessionUser();
   const visualSettings = await getSiteVisualSettings();
   const animationsEnabled = isVisualEnabled(visualSettings, "animationsEnabled");
@@ -84,8 +86,8 @@ export async function AppShell({ children, locale }: AppShellProps) {
         <div className="border-b border-slate-100 bg-[#101827] text-white">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-slate-200">
-              <span>Destek: 0850 000 00 00</span>
-              <span>Piyasa takibi ve eğitim tek platformda</span>
+              <span>{ui.appShell.support}</span>
+              <span>{ui.appShell.tagline}</span>
             </div>
             <div className="flex items-center justify-end gap-2">
               {locales.map((language) => (
@@ -94,9 +96,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
                   href={`/${language}`}
                   aria-label={dictionary.language[language]}
                   className={`flex h-8 w-10 items-center justify-center rounded-md border ${
-                    language === locale
-                      ? "border-[#f5a623] bg-white"
-                      : "border-white/20 bg-white/10 hover:bg-white/20"
+                    language === locale ? "border-[#f5a623] bg-white" : "border-white/20 bg-white/10 hover:bg-white/20"
                   }`}
                 >
                   <span className={`flag ${flags[language]}`} />
@@ -109,41 +109,30 @@ export async function AppShell({ children, locale }: AppShellProps) {
         <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3 xl:px-5">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center xl:flex-1 xl:gap-3">
             <Link href={`/${locale}`} className="flex shrink-0 items-center gap-2.5">
-              <Image
-                src="/logo.svg"
-                alt="Enbilir logo"
-                width={56}
-                height={56}
-                priority
-                className="h-12 w-12 rounded-md xl:h-11 xl:w-11"
-              />
+              <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="h-12 w-12 rounded-md xl:h-11 xl:w-11" />
               <span>
                 <span className="block text-xl font-black tracking-normal text-[#152033] xl:text-lg 2xl:text-xl">enbilir.com</span>
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0f766e] 2xl:text-xs">
-                  Piyasa Akademisi
-                </span>
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0f766e] 2xl:text-xs">{ui.appShell.academy}</span>
               </span>
             </Link>
 
             <nav className="flex flex-wrap items-center gap-0.5 overflow-visible text-sm font-semibold text-slate-700 xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
               {primaryNav.map((item) => (
                 <Link
-                key={item.href}
-                href={`/${locale}${item.href ? `/${item.href}` : ""}`}
+                  key={item.href}
+                  href={`/${locale}${item.href ? `/${item.href}` : ""}`}
                   className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
                 >
                   {item.label === "community" ? <CommunityIcon /> : null}
                   {dictionary.nav[item.label]}
                 </Link>
               ))}
-              {locale === "tr" ? (
-                <Link
-                  href="/tr/ai-piyasa-asistani"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
-                >
-                  AI Asistanı
-                </Link>
-              ) : null}
+              <Link
+                href={`/${locale}/ai-piyasa-asistani`}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
+              >
+                {ui.appShell.aiAssistant}
+              </Link>
             </nav>
           </div>
 
@@ -154,12 +143,12 @@ export async function AppShell({ children, locale }: AppShellProps) {
                   href={`/${locale}/panel`}
                   className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e] 2xl:px-3 2xl:py-2"
                 >
-                  Merhaba, {getDisplayName(sessionUser)}
+                  {locale === "tr" ? "Merhaba" : "Hello"}, {getDisplayName(sessionUser)}
                 </Link>
                 <form action={logoutAction}>
                   <input type="hidden" name="locale" value={locale} />
                   <button className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-3 2xl:py-2">
-                    Çıkış yap
+                    {ui.appShell.logout}
                   </button>
                 </form>
               </div>
@@ -196,16 +185,13 @@ export async function AppShell({ children, locale }: AppShellProps) {
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {legalLinks.map((item) => (
               <Link key={item.href} href={`/${locale}/${item.href}`} className="hover:text-[#0f766e]">
-                {item.label}
+                {ui.appShell.legalLinks[item.label]}
               </Link>
             ))}
           </div>
         </div>
         <div className="border-t border-slate-100">
-          <div className="mx-auto max-w-7xl px-5 py-4 text-xs leading-6 text-slate-500">
-            Enbilir gerçek para ile işlem yaptırmaz. Platform sanal portföy yarışması, eğitim ve finansal okuryazarlık
-            amacı taşır; içerikler yatırım danışmanlığı kapsamında değildir.
-          </div>
+          <div className="mx-auto max-w-7xl px-5 py-4 text-xs leading-6 text-slate-500">{ui.appShell.footer}</div>
         </div>
       </footer>
     </div>

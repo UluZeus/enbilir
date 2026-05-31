@@ -1,6 +1,11 @@
 import { LegalPage } from "@/components/LegalPage";
-import { kvkkSections, legalUpdatedAt } from "@/lib/legal-content";
+import { getSafeLocale } from "@/i18n/config";
+import { getLegalPageContent } from "@/lib/legal-content";
 
-export default function KvkkPage() {
-  return <LegalPage title="KVKK Aydınlatma Metni" updatedAt={legalUpdatedAt} sections={kvkkSections} />;
+export default async function KvkkPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  const content = getLegalPageContent(locale, "kvkk");
+
+  return <LegalPage locale={locale} title={content.title} updatedAt={content.updatedAt} sections={content.sections} />;
 }

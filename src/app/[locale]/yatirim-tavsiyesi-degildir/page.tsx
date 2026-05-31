@@ -1,6 +1,11 @@
 import { LegalPage } from "@/components/LegalPage";
-import { investmentDisclaimerSections, legalUpdatedAt } from "@/lib/legal-content";
+import { getSafeLocale } from "@/i18n/config";
+import { getLegalPageContent } from "@/lib/legal-content";
 
-export default function InvestmentDisclaimerPage() {
-  return <LegalPage title="Yatırım Tavsiyesi Değildir" updatedAt={legalUpdatedAt} sections={investmentDisclaimerSections} />;
+export default async function InvestmentDisclaimerPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  const content = getLegalPageContent(locale, "investmentDisclaimer");
+
+  return <LegalPage locale={locale} title={content.title} updatedAt={content.updatedAt} sections={content.sections} />;
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { getSafeLocale, type Locale } from "@/i18n/config";
 import { AI_MARKET_SOUND_ENABLED_KEY, playTestAlertSound } from "@/lib/ai-market/sound-alerts";
 
 type SoundAlertToggleProps = {
   compact?: boolean;
+  locale?: Locale | string;
 };
 
 function getStoredSoundEnabled() {
@@ -15,7 +17,20 @@ function getStoredSoundEnabled() {
   return window.localStorage.getItem(AI_MARKET_SOUND_ENABLED_KEY) === "true";
 }
 
-export function SoundAlertToggle({ compact = false }: SoundAlertToggleProps) {
+function getClientLocale(locale?: Locale | string) {
+  if (locale) {
+    return getSafeLocale(locale);
+  }
+
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/en")) {
+    return "en";
+  }
+
+  return "tr";
+}
+
+export function SoundAlertToggle({ compact = false, locale }: SoundAlertToggleProps) {
+  const safeLocale = getClientLocale(locale);
   const [enabled, setEnabled] = useState(getStoredSoundEnabled);
 
   function updateEnabled(nextEnabled: boolean) {
@@ -38,7 +53,7 @@ export function SoundAlertToggle({ compact = false }: SoundAlertToggleProps) {
             : "border-slate-600 bg-slate-900 text-slate-200 hover:border-slate-500"
         }`}
       >
-        {enabled ? "Sesli Uyarı Açık" : "Sesli Uyarı Aç"}
+        {enabled ? (safeLocale === "en" ? "Sound Alert On" : "Sesli Uyarı Açık") : (safeLocale === "en" ? "Enable Sound Alert" : "Sesli Uyarı Aç")}
       </button>
       <button
         type="button"
@@ -48,7 +63,7 @@ export function SoundAlertToggle({ compact = false }: SoundAlertToggleProps) {
           compact ? "px-2 py-1.5 text-[10px]" : "px-3 py-2 text-xs"
         }`}
       >
-        Test Sesi
+        {safeLocale === "en" ? "Test Sound" : "Test Sesi"}
       </button>
     </div>
   );

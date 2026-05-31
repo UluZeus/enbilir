@@ -1,9 +1,12 @@
 "use client";
 
 import { SelectedAssetMiniCharts } from "@/components/ai-market/SelectedAssetMiniCharts";
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import type { MarketAnalysis } from "@/lib/ai-market/types";
 
 type TerminalChartAreaProps = {
+  locale: Locale | string;
   analysis: MarketAnalysis | null;
   status: "idle" | "loading" | "success" | "error";
 };
@@ -22,28 +25,28 @@ function formatTime(value: string | undefined) {
   return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function signalLabel(analysis: MarketAnalysis | null) {
+function signalLabel(analysis: MarketAnalysis | null, copy: ReturnType<typeof getUiCopy>["ai"]) {
   if (!analysis) {
-    return "Bekleniyor";
+    return copy.waiting;
   }
 
   if (analysis.signal.signal === "STRONG_BUY" || analysis.signal.signal === "BUY") {
-    return analysis.signal.confidence >= 80 ? "Güçlü Al" : "Alış İçin Takip";
+    return analysis.signal.confidence >= 80 ? copy.strongBuy : copy.buyWatch;
   }
 
   if (analysis.signal.signal === "SELL") {
-    return analysis.signal.confidence >= 80 ? "Güçlü Sat" : "Satış İçin Takip";
+    return analysis.signal.confidence >= 80 ? copy.strongSell : copy.sellWatch;
   }
 
   if (analysis.signal.signal === "AVOID" || analysis.signal.signal === "NO_TRADE") {
-    return "Riskli / Uzak Dur";
+    return copy.sellWatch;
   }
 
   if (analysis.signal.signal === "TAKE_PROFIT") {
-    return "Kâr Al";
+    return copy.hold;
   }
 
-  return "Bekle";
+  return copy.hold;
 }
 
 function Metric({ label, value, tone = "text-slate-700" }: { label: string; value: string; tone?: string }) {
@@ -55,7 +58,8 @@ function Metric({ label, value, tone = "text-slate-700" }: { label: string; valu
   );
 }
 
-export function TerminalChartArea({ analysis, status }: TerminalChartAreaProps) {
+export function TerminalChartArea({ locale, analysis, status }: TerminalChartAreaProps) {
+  const copy = getUiCopy(getSafeLocale(locale)).ai;
   const signalTone =
     analysis?.signal.signal === "STRONG_BUY" || analysis?.signal.signal === "BUY"
       ? "text-emerald-700"
@@ -69,25 +73,25 @@ export function TerminalChartArea({ analysis, status }: TerminalChartAreaProps) 
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">AI Trading Terminal</p>
           <h2 className="mt-1 text-lg font-black text-[#152033]">
-            {analysis ? `${analysis.symbol} teknik sağlık ekranı` : "Seçili varlık teknik ekranı"}
+            {analysis ? `${analysis.symbol} ${copy.technicalHealth}` : copy.selectedAssetTechnical}
           </h2>
           <p className="mt-1 text-xs font-semibold text-slate-500">
-            Büyük dekoratif grafik yerine seçili varlığın gerçek mum serisinden hesaplanan 6 teknik panel gösterilir.
+            {copy.technicalPanelDescription}
           </p>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[520px]">
-          <Metric label="Periyot" value={analysis?.interval ?? "-"} />
-          <Metric label="Sinyal" value={signalLabel(analysis)} tone={signalTone} />
-          <Metric label="Son güncelleme" value={formatTime(analysis?.updatedAt)} />
-          <Metric label="Güven" value={analysis ? `%${analysis.signal.confidence}` : "-"} />
-          <Metric label="Risk" value={analysis ? `%${analysis.risk.score}` : "-"} tone={analysis && analysis.risk.score >= 70 ? "text-red-700" : "text-slate-700"} />
-          <Metric label="Durum" value={status === "loading" ? "Güncelleniyor" : analysis?.dataStatus === "live" ? "Canlı veri" : "Kontrollü"} />
+          <Metric label={copy.interval} value={analysis?.interval ?? "-"} />
+          <Metric label={copy.aiSignal} value={signalLabel(analysis, copy)} tone={signalTone} />
+          <Metric label={copy.updateLabel} value={formatTime(analysis?.updatedAt)} />
+          <Metric label={copy.confidence} value={analysis ? `%${analysis.signal.confidence}` : "-"} />
+          <Metric label={copy.risk} value={analysis ? `%${analysis.risk.score}` : "-"} tone={analysis && analysis.risk.score >= 70 ? "text-red-700" : "text-slate-700"} />
+          <Metric label={copy.status} value={status === "loading" ? copy.updating : analysis?.dataStatus === "live" ? copy.liveData : copy.controlled} />
         </div>
       </div>
 
       <div className="mt-3">
-        <SelectedAssetMiniCharts symbol={analysis?.symbol ?? "-"} interval={analysis?.interval ?? "-"} series={analysis?.technicalSeries} />
+        <SelectedAssetMiniCharts locale={locale} symbol={analysis?.symbol ?? "-"} interval={analysis?.interval ?? "-"} series={analysis?.technicalSeries} />
       </div>
     </section>
   );
