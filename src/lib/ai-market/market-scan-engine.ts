@@ -97,7 +97,7 @@ const excludedBaseAssets = new Set([
 ]);
 
 const excludedBaseSuffixes = ["UP", "DOWN", "BULL", "BEAR", "3L", "3S", "5L", "5S"];
-const allowedIntervals = new Set(["1m", "5m", "15m", "1h", "4h"]);
+const allowedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 
 function toFiniteNumber(value: string | undefined) {
   const parsed = Number(value);

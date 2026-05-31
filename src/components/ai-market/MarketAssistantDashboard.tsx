@@ -9,6 +9,7 @@ import { MarketRadarPanel } from "@/components/ai-market/MarketRadarPanel";
 import { QuickWatchlistPanel } from "@/components/ai-market/QuickWatchlistPanel";
 import { TerminalChartArea } from "@/components/ai-market/TerminalChartArea";
 import { TerminalHeader } from "@/components/ai-market/TerminalHeader";
+import type { AssetPerformance } from "@/lib/ai-market/asset-performance";
 import type { MarketAnalysis, MarketExchange, WatchSymbol } from "@/lib/ai-market/types";
 
 type MarketAssistantDashboardProps = {
@@ -66,6 +67,7 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
   const [exchange, setExchange] = useState<MarketExchange>("binance");
   const [interval, setInterval] = useState("1h");
   const [state, setState] = useState<LoadState>({ status: "idle", analysis: null, error: null });
+  const [performance, setPerformance] = useState<AssetPerformance | null>(null);
   const favoritesSnapshot = useSyncExternalStore(
     subscribeToFavorites,
     getFavoritesSnapshot,
@@ -85,6 +87,15 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
 
     return `/api/ai-market/analyze?${params.toString()}`;
   }, [effectiveSelectedSymbol, exchange, interval]);
+
+  const performanceRequestUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      symbol: effectiveSelectedSymbol,
+      exchange,
+    });
+
+    return `/api/ai-market/performance?${params.toString()}`;
+  }, [effectiveSelectedSymbol, exchange]);
 
   function getAssetLabel(symbol: string) {
     const asset = getKnownAsset(symbol, symbols);
@@ -127,9 +138,52 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
     return () => controller.abort();
   }, [requestUrl]);
 
+  useEffect(() => {
+    let isActive = true;
+    let controller: AbortController | null = null;
+
+    async function loadPerformance() {
+      controller?.abort();
+      const requestController = new AbortController();
+      controller = requestController;
+
+      try {
+        const response = await fetch(performanceRequestUrl, {
+          signal: requestController.signal,
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error("Performans servisi su anda yanit vermiyor.");
+        }
+
+        const nextPerformance = (await response.json()) as AssetPerformance;
+
+        if (isActive) {
+          setPerformance(nextPerformance);
+        }
+      } catch {
+        if (isActive && !requestController.signal.aborted) {
+          setPerformance(null);
+        }
+      }
+    }
+
+    loadPerformance();
+    const refreshId = window.setInterval(loadPerformance, 10000);
+
+    return () => {
+      isActive = false;
+      controller?.abort();
+      window.clearInterval(refreshId);
+    };
+  }, [performanceRequestUrl]);
+
   return (
     <div className="rounded-md border border-slate-900 bg-[#050812] p-3 text-slate-100 shadow-2xl md:p-4">
       <div className="grid min-w-0 gap-4">
+        <MarketRadarPanel />
+
         <TerminalHeader
           locale={locale}
           selectedSymbol={effectiveSelectedSymbol}
@@ -139,6 +193,7 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
           isCryptoSelected={isCryptoSelected}
           favoritesCount={favorites.length}
           analysis={state.analysis}
+          performance={performance}
           onSymbolChange={setSelectedSymbol}
           onIntervalChange={setInterval}
           onExchangeChange={setExchange}
@@ -159,7 +214,6 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
           </div>
 
           <aside className="grid min-w-0 content-start gap-4">
-            <MarketRadarPanel analysis={state.analysis} />
             <QuickWatchlistPanel
               favorites={focusSymbols}
               selectedSymbol={effectiveSelectedSymbol}

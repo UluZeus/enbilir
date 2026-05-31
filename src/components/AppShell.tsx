@@ -106,31 +106,31 @@ export async function AppShell({ children, locale }: AppShellProps) {
           </div>
         </div>
 
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-            <Link href={`/${locale}`} className="flex items-center gap-3">
+        <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3 xl:px-5">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center xl:flex-1 xl:gap-3">
+            <Link href={`/${locale}`} className="flex shrink-0 items-center gap-2.5">
               <Image
                 src="/logo.svg"
                 alt="Enbilir logo"
                 width={56}
                 height={56}
                 priority
-                className="h-14 w-14 rounded-md"
+                className="h-12 w-12 rounded-md xl:h-11 xl:w-11"
               />
               <span>
-                <span className="block text-2xl font-black tracking-normal text-[#152033]">enbilir.com</span>
-                <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#0f766e]">
+                <span className="block text-xl font-black tracking-normal text-[#152033] xl:text-lg 2xl:text-xl">enbilir.com</span>
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0f766e] 2xl:text-xs">
                   Piyasa Akademisi
                 </span>
               </span>
             </Link>
 
-            <nav className="flex flex-wrap items-center gap-0.5 text-sm font-semibold text-slate-700">
+            <nav className="flex flex-wrap items-center gap-0.5 overflow-visible text-sm font-semibold text-slate-700 xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
               {primaryNav.map((item) => (
                 <Link
                 key={item.href}
                 href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
                 >
                   {item.label === "community" ? <CommunityIcon /> : null}
                   {dictionary.nav[item.label]}
@@ -139,7 +139,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
               {locale === "tr" ? (
                 <Link
                   href="/tr/ai-piyasa-asistani"
-                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
                 >
                   AI Asistanı
                 </Link>
@@ -147,18 +147,18 @@ export async function AppShell({ children, locale }: AppShellProps) {
             </nav>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-1.5 text-sm xl:shrink-0 xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
             {sessionUser ? (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap">
                 <Link
                   href={`/${locale}/panel`}
-                  className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e]"
+                  className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e] 2xl:px-3 2xl:py-2"
                 >
                   Merhaba, {getDisplayName(sessionUser)}
                 </Link>
                 <form action={logoutAction}>
                   <input type="hidden" name="locale" value={locale} />
-                  <button className="rounded-md border border-white/60 bg-white/70 px-3 py-2 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e]">
+                  <button className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-3 2xl:py-2">
                     Çıkış yap
                   </button>
                 </form>
@@ -168,7 +168,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
                 <Link
                   key={item.href}
                   href={`/${locale}/${item.href}`}
-                  className="rounded-md border border-white/60 bg-white/70 px-3 py-2 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e]"
+                  className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-3 2xl:py-2"
                 >
                   {dictionary.nav[item.label]}
                 </Link>
@@ -178,8 +178,8 @@ export async function AppShell({ children, locale }: AppShellProps) {
               href={whatsappUrl}
               target="_blank"
               rel="noreferrer"
-              className={`rounded-md bg-[#25d366] px-3 py-2 font-bold text-white shadow-sm hover:bg-[#1fb65a] ${
-                visualSettings.whatsappButtonVariant === "image" ? "inline-flex h-10 w-10 items-center justify-center px-0" : ""
+              className={`shrink-0 rounded-md bg-[#25d366] px-2.5 py-1.5 font-bold text-white shadow-sm hover:bg-[#1fb65a] 2xl:px-3 2xl:py-2 ${
+                visualSettings.whatsappButtonVariant === "image" ? "inline-flex h-9 w-9 items-center justify-center px-0 2xl:h-10 2xl:w-10" : ""
               }`}
             >
               {visualSettings.whatsappButtonVariant === "image" ? <span className="text-xs font-black">WA</span> : dictionary.whatsapp}

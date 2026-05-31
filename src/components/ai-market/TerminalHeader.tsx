@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { AssetPerformance } from "@/lib/ai-market/asset-performance";
 import type { MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
 
 type TerminalHeaderProps = {
@@ -12,6 +13,7 @@ type TerminalHeaderProps = {
   isCryptoSelected: boolean;
   favoritesCount: number;
   analysis: MarketAnalysis | null;
+  performance: AssetPerformance | null;
   onSymbolChange: (symbol: string) => void;
   onIntervalChange: (interval: string) => void;
   onExchangeChange: (exchange: MarketExchange) => void;
@@ -43,12 +45,12 @@ function formatPrice(value: number | null) {
   return value.toLocaleString("tr-TR", { maximumSignificantDigits: 5 });
 }
 
-function formatPercent(value: number | null) {
+function formatPerformancePercent(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
-    return "-";
+    return "—";
   }
 
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
 function formatVolume(value: number | null) {
@@ -114,13 +116,14 @@ export function TerminalHeader({
   isCryptoSelected,
   favoritesCount,
   analysis,
+  performance,
   onSymbolChange,
   onIntervalChange,
   onExchangeChange,
   getAssetLabel,
 }: TerminalHeaderProps) {
-  const changeTone = (analysis?.changePercent ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300";
   const signalText = getSignalLabel(analysis);
+  const currentPrice = performance?.price ?? analysis?.lastPrice ?? null;
 
   return (
     <section className="rounded-md border border-slate-800 bg-[#0b111d] shadow-2xl">
@@ -129,13 +132,19 @@ export function TerminalHeader({
           <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">AI Trading Terminal</p>
           <div className="mt-2 flex flex-wrap items-end gap-3">
             <h1 className="text-3xl font-black tracking-normal text-white md:text-4xl">{selectedSymbol}</h1>
-            <span className={`pb-1 text-sm font-black ${changeTone}`}>{formatPercent(analysis?.changePercent ?? null)}</span>
           </div>
-          <p className="mt-1 truncate text-sm font-semibold text-slate-400">{analysis?.name ?? getAssetLabel(selectedSymbol)}</p>
+          <p className="mt-1 text-2xl font-black tabular-nums text-white">{currentPrice === null ? "—" : `$${formatPrice(currentPrice)}`}</p>
+          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+            <PerformanceChip label="1s" value={performance?.changes["1h"] ?? null} />
+            <PerformanceChip label="1g" value={performance?.changes["1d"] ?? null} />
+            <PerformanceChip label="1a" value={performance?.changes["1m"] ?? null} />
+            <PerformanceChip label="1y" value={performance?.changes["1y"] ?? null} />
+          </div>
+          <p className="mt-2 truncate text-sm font-semibold text-slate-400">{analysis?.name ?? getAssetLabel(selectedSymbol)}</p>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-          <Metric label="Son fiyat" value={formatPrice(analysis?.lastPrice ?? null)} strong />
+          <Metric label="Son fiyat" value={formatPrice(currentPrice)} strong />
           <Metric label="24s hacim" value={formatVolume(analysis?.volume ?? null)} />
           <Metric label="Volatilite" value={getVolatility(analysis)} />
           <Metric label="Trend" value={getTrendLabel(analysis)} />
@@ -201,6 +210,21 @@ export function TerminalHeader({
         </div>
       </div>
     </section>
+  );
+}
+
+function PerformanceChip({ label, value }: { label: string; value: number | null }) {
+  const tone =
+    value === null || !Number.isFinite(value)
+      ? "border-slate-700 bg-slate-950 text-slate-400"
+      : value >= 0
+        ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+        : "border-rose-400/30 bg-rose-400/10 text-rose-200";
+
+  return (
+    <span className={`rounded-md border px-2 py-1 text-xs font-black tabular-nums ${tone}`}>
+      {label} {formatPerformancePercent(value)}
+    </span>
   );
 }
 
