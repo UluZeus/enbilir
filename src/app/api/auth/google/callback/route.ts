@@ -3,6 +3,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { createSession, masterAdminEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureVirtualAccount } from "@/lib/portfolio";
+import { getRequestOrigin } from "@/lib/site-url";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
@@ -28,12 +29,12 @@ type GoogleUserInfo = {
 };
 
 function getRedirectUri(request: NextRequest) {
-  return new URL("/api/auth/google/callback", request.nextUrl.origin).toString();
+  return new URL("/api/auth/google/callback", getRequestOrigin(request)).toString();
 }
 
 function getRedirect(request: NextRequest, localeValue: string | null, path: string, error?: string) {
   const locale = getSafeLocale(localeValue ?? "tr");
-  const url = new URL(`/${locale}/${path}`, request.nextUrl.origin);
+  const url = new URL(`/${locale}/${path}`, getRequestOrigin(request));
 
   if (error) {
     url.searchParams.set("error", error);
@@ -193,7 +194,7 @@ export async function GET(request: NextRequest) {
     await ensureVirtualAccount(user.id);
     await createSession(user);
 
-    const response = NextResponse.redirect(new URL(cookieState.returnTo || `/${locale}/panel`, request.nextUrl.origin));
+    const response = NextResponse.redirect(new URL(cookieState.returnTo || `/${locale}/panel`, getRequestOrigin(request)));
     response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
     return response;
   } catch (error) {

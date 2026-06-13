@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { getSiteUrl } from "@/lib/site-url";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://enbilir.com"),
+  metadataBase: new URL(getSiteUrl()),
   title: "Enbilir",
   description: "Finansal okuryazarlık ve eğitim platformu.",
   alternates: {
@@ -49,7 +50,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#f5f7fb] text-[#152033] selection:bg-[#f5a623]/30 selection:text-[#101827]">
+        {children}
+      </body>
     </html>
   );
 }

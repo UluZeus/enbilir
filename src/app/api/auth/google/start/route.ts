@@ -1,12 +1,13 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
+import { getRequestOrigin } from "@/lib/site-url";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_OAUTH_STATE_COOKIE = "enbilir_google_oauth_state";
 
 function getRedirectUri(request: NextRequest) {
-  return new URL("/api/auth/google/callback", request.nextUrl.origin).toString();
+  return new URL("/api/auth/google/callback", getRequestOrigin(request)).toString();
 }
 
 function getSafeReturnPath(value: string | null) {
@@ -21,9 +22,10 @@ export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const locale = getSafeLocale(request.nextUrl.searchParams.get("locale") ?? "tr");
   const returnTo = getSafeReturnPath(request.nextUrl.searchParams.get("returnTo"));
+  const origin = getRequestOrigin(request);
 
   if (!clientId) {
-    return NextResponse.redirect(new URL(`/${locale}/giris?error=${encodeURIComponent("Google giriş ayarları eksik.")}`, request.url));
+    return NextResponse.redirect(new URL(`/${locale}/giris?error=${encodeURIComponent("Google giriş ayarları eksik.")}`, origin));
   }
 
   const state = randomUUID();

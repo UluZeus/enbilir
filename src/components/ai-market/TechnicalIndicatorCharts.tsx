@@ -119,8 +119,8 @@ function MiniLineChart({
   const minLabel = compactNumber(bounds.min, 2);
 
   return (
-    <div className="mt-3 grid grid-cols-[1fr_44px] gap-2">
-      <svg className="h-32 w-full overflow-visible" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
+    <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2">
+      <svg className="h-32 w-full max-w-full overflow-hidden" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
         <line x1="0" x2={chartWidth} y1="0" y2="0" stroke="#e2e8f0" strokeWidth="1" />
         <line x1="0" x2={chartWidth} y1={chartHeight / 2} y2={chartHeight / 2} stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
         <line x1="0" x2={chartWidth} y1={chartHeight} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
@@ -199,9 +199,9 @@ function ChartPanel({
   max?: number;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white/80 p-4 shadow-sm">
+    <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white/80 p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h4 className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{title}</h4>
           <p className="mt-1 text-xs font-semibold text-slate-700">{meta}</p>
         </div>
@@ -243,7 +243,7 @@ function TrendPanel({ isEnglish, series }: { isEnglish: boolean; series: Technic
         : "border-slate-200 bg-slate-50 text-slate-700";
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white/80 p-4 shadow-sm">
+    <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white/80 p-4 shadow-sm">
       <h4 className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Trend</h4>
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className={`rounded-md border px-2 py-1 text-xs font-black ${tone}`}>{label}</span>

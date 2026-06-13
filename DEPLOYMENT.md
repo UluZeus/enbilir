@@ -129,6 +129,8 @@ NEXT_PUBLIC_SITE_URL="https://enbilir.com"
 DATABASE_URL="file:/srv/enbilir/data/production.db"
 AUTH_SECRET="buraya-en-az-32-karakterlik-guvenli-rastgele-bir-deger-yazin"
 MASTER_ADMIN_EMAIL="hakan@ultraakil.com"
+GOOGLE_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="your-google-oauth-client-secret"
 ```
 
 Degisken aciklamalari:
@@ -137,6 +139,7 @@ Degisken aciklamalari:
 - `DATABASE_URL`: SQLite dosyasinin konumudur. Production icin proje klasoru disinda kalici bir konum onerilir.
 - `AUTH_SECRET`: Oturum ve token imzalama islemleri icin kullanilir. En az 32 karakterlik, tahmin edilemez bir deger olmalidir.
 - `MASTER_ADMIN_EMAIL`: Master admin kabul edilecek e-posta adresidir. Gercek admin e-postasi ile degistirilmelidir.
+- `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET`: Google ile giris icin gerekli OAuth kimlik bilgileri.
 
 Guvenli secret uretmek icin:
 
@@ -519,6 +522,28 @@ openssl rand -base64 48
 ```
 
 Ardindan:
+
+```bash
+pm2 restart enbilir --update-env
+```
+
+### Google ile giris calismiyor
+
+Kontrol edilecekler:
+
+```bash
+echo $GOOGLE_CLIENT_ID
+echo $GOOGLE_CLIENT_SECRET
+echo $NEXT_PUBLIC_SITE_URL
+```
+
+Google Cloud Console tarafinda OAuth istemcisinin yetkili yeniden yonlendirme URL'si su adrese birebir uymali:
+
+```text
+https://enbilir.com/api/auth/google/callback
+```
+
+Eger uygulama farkli bir domain, preview URL veya reverse proxy arkasinda calisiyorsa `NEXT_PUBLIC_SITE_URL` degerini o public adrese gore ayarlayin ve uygulamayi yeniden baslatin:
 
 ```bash
 pm2 restart enbilir --update-env

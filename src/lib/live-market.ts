@@ -1,72 +1,40 @@
-import { mixedMarketItems, type MarketItem } from "@/lib/market-data";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { formatMarketItemValue, mixedMarketItems, type MarketItem } from "@/lib/market-data";
 
-type StooqQuote = {
+const execFileAsync = promisify(execFile);
+
+type LiveQuote = {
   symbol: string;
   open: number;
   close: number;
+  provider: "binance" | "yahoo";
 };
 
-type YahooChartQuote = {
-  currency?: string;
-  price: number;
-  previousClose?: number;
+type BinanceTicker = {
+  symbol: string;
+  openPrice: string;
+  lastPrice: string;
 };
 
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: value < 10 ? 4 : 2,
-  }).format(value);
-}
-
-function normalizeQuote(fallback: MarketItem, quote?: StooqQuote): MarketItem {
-  if (!quote || !Number.isFinite(quote.close) || quote.close <= 0) {
-    return {
-      ...fallback,
-      dataStatus: fallback.dataStatus === "representative" ? "representative" : "close",
-      source: fallback.source === "representative" ? "representative" : "fallback",
-    };
-  }
-
-  const providerMovementRatio = quote.open > 0 ? quote.close / quote.open : 1;
-  const hasReliableMovementRatio =
-    Number.isFinite(providerMovementRatio) &&
-    providerMovementRatio >= 0.7 &&
-    providerMovementRatio <= 1.3;
-  const changePercent = hasReliableMovementRatio ? (providerMovementRatio - 1) * 100 : 0;
-  const priceUsd = fallback.priceUsd * (1 + changePercent / 100);
-
-  return {
-    ...fallback,
-    price: formatPrice(priceUsd),
-    priceUsd,
-    changePercent,
-    dataStatus: "delayed",
-    source: "stooq",
+type YahooSparkResponse = {
+  spark?: {
+    result?: Array<{
+      symbol?: string;
+      response?: Array<{
+        meta?: {
+          currency?: string;
+          regularMarketPrice?: number;
+          chartPreviousClose?: number;
+          previousClose?: number;
+        };
+      }>;
+    }>;
   };
-}
+};
 
-export function getFallbackMarketItems(): MarketItem[] {
-  return mixedMarketItems.map((fallback) => normalizeQuote(fallback));
-}
-
-function parseStooqCsv(csv: string): StooqQuote | null {
-  const [, row] = csv.trim().split(/\r?\n/);
-
-  if (!row) {
-    return null;
-  }
-
-  const [symbol, , , open, , , close] = row.split(",");
-
-  if (!symbol || open === "N/D" || close === "N/D") {
-    return null;
-  }
-
-  return {
-    symbol: symbol.toLowerCase(),
-    open: Number(open),
-    close: Number(close),
-  };
+function liveFetchEnabled() {
+  return process.env.ENABLE_LIVE_MARKET_FETCH !== "false";
 }
 
 function timeout<T>(milliseconds: number, fallback: T): Promise<T> {
@@ -75,175 +43,334 @@ function timeout<T>(milliseconds: number, fallback: T): Promise<T> {
   });
 }
 
-function liveFetchEnabled() {
-  return process.env.ENABLE_LIVE_MARKET_FETCH !== "false";
+function escapePowerShellSingleQuotedString(value: string) {
+  return value.replace(/'/g, "''");
 }
 
-async function fetchStooqQuote(symbol: string): Promise<StooqQuote | null> {
-  try {
-    const response = await fetch(
-      `https://stooq.com/q/l/?s=${encodeURIComponent(symbol)}&f=sd2t2ohlcv&h&e=csv`,
-      {
-        headers: {
-          Accept: "text/csv",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(2200),
-      },
-    );
+async function fetchJsonViaPowerShell<T>(url: string, timeoutMs = 12_000): Promise<T | null> {
+  const safeUrl = escapePowerShellSingleQuotedString(url);
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    "$ProgressPreference = 'SilentlyContinue'",
+    `$response = Invoke-WebRequest -UseBasicParsing -Headers @{ 'User-Agent'='Mozilla/5.0'; 'Accept'='application/json' } -Uri '${safeUrl}' -TimeoutSec ${Math.max(1, Math.ceil(timeoutMs / 1000))}`,
+    "Write-Output $response.Content",
+  ].join("; ");
 
-    if (!response.ok) {
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      maxBuffer: 20 * 1024 * 1024,
+      timeout: timeoutMs + 3_000,
+    });
+
+    const raw = stdout.trim();
+
+    if (!raw) {
       return null;
     }
 
-    return parseStooqCsv(await response.text());
+    return JSON.parse(raw) as T;
   } catch {
     return null;
   }
 }
 
-function getYahooSymbol(item: MarketItem) {
+async function fetchJsonLinesViaPowerShell<T>(urls: string[], timeoutMs = 12_000): Promise<Array<T | null>> {
+  if (urls.length === 0) {
+    return [];
+  }
+
+  const quotedUrls = urls.map((url) => `'${escapePowerShellSingleQuotedString(url)}'`).join(", ");
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    "$ProgressPreference = 'SilentlyContinue'",
+    `$headers = @{ 'User-Agent'='Mozilla/5.0'; 'Accept'='application/json' }`,
+    `foreach ($url in @(${quotedUrls})) {`,
+    "  try {",
+    `    $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $url -TimeoutSec ${Math.max(1, Math.ceil(timeoutMs / 1000))}`,
+    "    $json = $response.Content | ConvertFrom-Json",
+    "    Write-Output ($json | ConvertTo-Json -Compress -Depth 20)",
+    "  } catch {",
+    "    Write-Output 'null'",
+    "  }",
+    "}",
+  ].join("; ");
+
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      maxBuffer: 20 * 1024 * 1024,
+      timeout: timeoutMs + 3_000,
+    });
+
+    return stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as T;
+        } catch {
+          return null;
+        }
+      });
+  } catch {
+    return urls.map(() => null);
+  }
+}
+
+function isBinanceTicker(value: unknown): value is BinanceTicker {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const ticker = value as Record<string, unknown>;
+
+  return (
+    typeof ticker.symbol === "string" &&
+    typeof ticker.openPrice === "string" &&
+    typeof ticker.lastPrice === "string"
+  );
+}
+
+function toFiniteNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getCryptoQuoteSymbol(item: MarketItem) {
+  return `${item.symbol.trim().toUpperCase()}USDT`;
+}
+
+function getYahooQuoteSymbol(item: MarketItem) {
   if (item.category === "BIST") {
-    return `${item.symbol}.IS`;
+    const normalized = item.symbol.trim().toUpperCase();
+    return normalized.endsWith(".IS") ? normalized : `${normalized}.IS`;
+  }
+
+  if (item.category === "NASDAQ" || item.category === "DOW") {
+    return item.symbol.trim().toUpperCase();
+  }
+
+  if (item.category === "INDEX") {
+    const indexSymbols: Record<string, string> = {
+      "s&p 500": "^GSPC",
+      nasdaq: "^IXIC",
+      djia: "^DJI",
+    };
+
+    return indexSymbols[item.symbol.trim().toLowerCase()];
+  }
+
+  const commoditySymbols: Record<string, string> = {
+    "XAU/USD": "GC=F",
+    "XAG/USD": "SI=F",
+    GRAM_GOLD_USD: "GC=F",
+    GRAM_SILVER_USD: "SI=F",
+    COPPER: "HG=F",
+    PALLADIUM: "PA=F",
+    PLATIN: "PL=F",
+    WTI: "CL=F",
+    BRENT: "BZ=F",
+    NATGAS: "NG=F",
+  };
+
+  const fxSymbols: Record<string, string> = {
+    "USD/TRY": "USDTRY=X",
+    "EUR/TRY": "EURTRY=X",
+    "GBP/TRY": "GBPTRY=X",
+    "CHF/TRY": "CHFTRY=X",
+    "EUR/USD": "EURUSD=X",
+    "GBP/USD": "GBPUSD=X",
+    "USD/JPY": "USDJPY=X",
+    "USD/CHF": "USDCHF=X",
+    "AUD/USD": "AUDUSD=X",
+    "USD/CAD": "USDCAD=X",
+  };
+
+  return commoditySymbols[item.symbol.trim().toUpperCase()] ?? fxSymbols[item.symbol.trim().toUpperCase()];
+}
+
+function getYahooBatchSymbols(items: MarketItem[]) {
+  return Array.from(
+    new Set(
+      items
+        .filter((item) => item.source !== "representative" && item.category !== "CRYPTO")
+        .map((item) => getYahooQuoteSymbol(item))
+        .filter((symbol): symbol is string => Boolean(symbol)),
+    ),
+  );
+}
+
+function getQuoteKey(item: MarketItem) {
+  if (item.symbol === "GRAM_GOLD_USD") {
+    return "GRAM_GOLD_USD";
+  }
+
+  if (item.symbol === "GRAM_SILVER_USD") {
+    return "GRAM_SILVER_USD";
   }
 
   if (item.category === "CRYPTO") {
-    return `${item.symbol}-USD`;
+    return getCryptoQuoteSymbol(item);
   }
 
-  const symbols: Record<string, string> = {
-    "xauusd": "GC=F",
-    "xagusd": "SI=F",
-    "hg.f": "HG=F",
-    "pl.f": "PL=F",
-    "pa.f": "PA=F",
-    "cl.f": "CL=F",
-    "brn.f": "BZ=F",
-    "ng.f": "NG=F",
-  };
-
-  return symbols[item.dataSymbol.toLowerCase()];
+  const yahooSymbol = getYahooQuoteSymbol(item);
+  return yahooSymbol ? yahooSymbol.toUpperCase() : item.dataSymbol.toUpperCase();
 }
 
-async function fetchYahooChartQuote(symbol: string): Promise<YahooChartQuote | null> {
-  try {
-    const response = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
-      {
-        headers: {
-          Accept: "application/json",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(2200),
-      },
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json() as {
-      chart?: {
-        result?: Array<{
-          meta?: {
-            currency?: string;
-            regularMarketPrice?: number;
-            chartPreviousClose?: number;
-            previousClose?: number;
-          };
-        }>;
-      };
-    };
-    const meta = data.chart?.result?.[0]?.meta;
-    const price = meta?.regularMarketPrice;
-
-    if (!Number.isFinite(price) || !price || price <= 0) {
-      return null;
-    }
-
+function normalizeLiveQuote(fallback: MarketItem, quote?: LiveQuote): MarketItem {
+  if (!quote || !Number.isFinite(quote.close) || quote.close <= 0) {
     return {
-      currency: meta?.currency,
-      price,
-      previousClose: meta?.chartPreviousClose ?? meta?.previousClose,
+      ...fallback,
+      dataStatus: fallback.dataStatus === "representative" ? "representative" : "close",
+      source: fallback.source === "representative" ? "representative" : "fallback",
     };
-  } catch {
-    return null;
-  }
-}
-
-async function fetchYahooPriceUsd(item: MarketItem, usdTryClose?: number): Promise<StooqQuote | null> {
-  const yahooSymbol = getYahooSymbol(item);
-
-  if (!yahooSymbol) {
-    return null;
   }
 
-  const quote = await fetchYahooChartQuote(yahooSymbol);
-
-  if (!quote) {
-    return null;
-  }
-
-  const priceUsd = quote.currency === "TRY" ? usdTryClose && usdTryClose > 0 ? quote.price / usdTryClose : null : quote.price;
-  const previousCloseUsd = quote.previousClose && quote.previousClose > 0
-    ? quote.currency === "TRY" && usdTryClose && usdTryClose > 0
-      ? quote.previousClose / usdTryClose
-      : quote.previousClose
-    : priceUsd;
-
-  if (!Number.isFinite(priceUsd) || !priceUsd || priceUsd <= 0) {
-    return null;
-  }
+  const changePercent = quote.open > 0 ? ((quote.close - quote.open) / quote.open) * 100 : 0;
 
   return {
-    symbol: item.dataSymbol.toLowerCase(),
-    open: previousCloseUsd ?? priceUsd,
-    close: priceUsd,
+    ...fallback,
+    price: formatMarketItemValue(quote.close, fallback.category),
+    priceUsd: quote.close,
+    changePercent,
+    dataStatus: "live",
+    source: quote.provider,
   };
 }
 
-function needsUsdTryQuote(item: MarketItem) {
-  const dataSymbol = item.dataSymbol.toLowerCase();
+export function getFallbackMarketItems(): MarketItem[] {
+  return mixedMarketItems.map((fallback) => normalizeLiveQuote(fallback));
+}
 
-  return item.symbol !== "USD/TRY" && (dataSymbol.endsWith(".tr") || dataSymbol.endsWith("try"));
+async function fetchBinanceQuotes(items: MarketItem[]) {
+  const targetSymbols = new Set(
+    items
+      .filter((item) => item.category === "CRYPTO" && item.source !== "representative")
+      .map((item) => getCryptoQuoteSymbol(item)),
+  );
+
+  if (targetSymbols.size === 0) {
+    return new Map<string, LiveQuote>();
+  }
+
+  const payload = await fetchJsonViaPowerShell<unknown[]>("https://api.binance.com/api/v3/ticker/24hr", 12_000);
+
+  if (!Array.isArray(payload)) {
+    return new Map<string, LiveQuote>();
+  }
+
+  const quoteMap = new Map<string, LiveQuote>();
+
+  for (const entry of payload) {
+    if (!isBinanceTicker(entry)) {
+      continue;
+    }
+
+    const symbol = entry.symbol.toUpperCase();
+
+    if (!targetSymbols.has(symbol)) {
+      continue;
+    }
+
+    const open = toFiniteNumber(entry.openPrice);
+    const close = toFiniteNumber(entry.lastPrice);
+
+    if (!Number.isFinite(close) || close === null || close <= 0) {
+      continue;
+    }
+
+    quoteMap.set(symbol, {
+      symbol,
+      open: open && open > 0 ? open : close,
+      close,
+      provider: "binance",
+    });
+  }
+
+  return quoteMap;
+}
+
+async function fetchYahooSparkQuotes(symbols: string[]) {
+  const batches: string[][] = [];
+  const batchSize = 10;
+
+  for (let index = 0; index < symbols.length; index += batchSize) {
+    batches.push(symbols.slice(index, index + batchSize));
+  }
+
+  const payloads = await fetchJsonLinesViaPowerShell<YahooSparkResponse>(
+    batches.map((batch) => `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(batch.join(","))}&range=1d&interval=1d`),
+    12_000,
+  );
+
+  const merged = new Map<string, LiveQuote>();
+  for (const payload of payloads) {
+    for (const entry of payload?.spark?.result ?? []) {
+      const meta = entry.response?.[0]?.meta;
+      const symbol = entry.symbol?.toUpperCase();
+      const price = toFiniteNumber(meta?.regularMarketPrice);
+      const previousClose = toFiniteNumber(meta?.chartPreviousClose ?? meta?.previousClose);
+
+      if (!symbol || price === null || price <= 0) {
+        continue;
+      }
+
+      merged.set(symbol, {
+        symbol,
+        open: previousClose && previousClose > 0 ? previousClose : price,
+        close: price,
+        provider: "yahoo",
+      });
+    }
+  }
+
+  return merged;
+}
+
+function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
+  const gold = quoteMap.get("GC=F");
+  const silver = quoteMap.get("SI=F");
+
+  if (gold && Number.isFinite(gold.close) && gold.close > 0) {
+    quoteMap.set("GRAM_GOLD_USD", {
+      symbol: "GRAM_GOLD_USD",
+      open: gold.open / 31.1035,
+      close: gold.close / 31.1035,
+      provider: "yahoo",
+    });
+  }
+
+  if (silver && Number.isFinite(silver.close) && silver.close > 0) {
+    quoteMap.set("GRAM_SILVER_USD", {
+      symbol: "GRAM_SILVER_USD",
+      open: silver.open / 31.1035,
+      close: silver.close / 31.1035,
+      provider: "yahoo",
+    });
+  }
 }
 
 async function loadQuotedItems(items: MarketItem[]): Promise<MarketItem[]> {
-  const quoteableItems = items.filter((item) => item.source !== "representative");
-  const dataSymbols = new Set(quoteableItems.map((item) => item.dataSymbol));
+  const quoteMap = new Map<string, LiveQuote>();
+  const [binanceQuotes, yahooQuotes] = await Promise.all([
+    fetchBinanceQuotes(items),
+    fetchYahooSparkQuotes(getYahooBatchSymbols(items)),
+  ]);
 
-  if (quoteableItems.some(needsUsdTryQuote)) {
-    dataSymbols.add("usdtry");
+  for (const [symbol, quote] of binanceQuotes) {
+    quoteMap.set(symbol, quote);
   }
 
-  const quoteResults = await Promise.allSettled([...dataSymbols].map((symbol) => fetchStooqQuote(symbol)));
-  const quoteMap = new Map(
-    quoteResults
-      .map((result) => (result.status === "fulfilled" ? result.value : null))
-      .filter((quote): quote is StooqQuote => Boolean(quote))
-      .map((quote) => [quote.symbol, quote]),
-  );
-  const usdTryClose = quoteMap.get("usdtry")?.close;
-  const yahooUsdTry = usdTryClose ?? (await fetchYahooChartQuote("USDTRY=X"))?.price;
-  const yahooResults = await Promise.allSettled(
-    items
-      .filter((item) => !quoteMap.has(item.dataSymbol.toLowerCase()))
-      .map((item) => fetchYahooPriceUsd(item, yahooUsdTry)),
-  );
-
-  for (const quote of yahooResults
-    .map((result) => (result.status === "fulfilled" ? result.value : null))
-    .filter((result): result is StooqQuote => Boolean(result))) {
-    quoteMap.set(quote.symbol, quote);
+  for (const [symbol, quote] of yahooQuotes) {
+    quoteMap.set(symbol, quote);
   }
 
-  return items.map((fallback) =>
-    normalizeQuote(fallback, quoteMap.get(fallback.dataSymbol.toLowerCase())),
-  );
+  deriveGramMetalQuotes(quoteMap);
+
+  return items.map((fallback) => {
+    const key = getQuoteKey(fallback).toUpperCase();
+    return normalizeLiveQuote(fallback, quoteMap.get(key));
+  });
 }
 
 export async function getLiveMarketItems(): Promise<MarketItem[]> {
@@ -258,7 +385,7 @@ export async function getLiveMarketItems(): Promise<MarketItem[]> {
   }
 
   try {
-    return await Promise.race([loadItems(), timeout(3600, fallbackItems)]);
+    return await Promise.race([loadItems(), timeout(7500, fallbackItems)]);
   } catch {
     return fallbackItems;
   }

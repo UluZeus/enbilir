@@ -11,10 +11,6 @@ const prismaSchemaVersion = "20260601010000_add_ai_signal_logs";
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
 
-  if (process.env.NODE_ENV === "production" && !databaseUrl) {
-    throw new Error("Production için DATABASE_URL tanımlanmalıdır.");
-  }
-
   return databaseUrl ?? "file:./dev.db";
 }
 

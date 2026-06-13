@@ -1,0 +1,173 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { formatMarketItemPrice, type MarketItem } from "@/lib/market-data";
+
+type MarketOverviewPayload = {
+  updatedAt: string;
+  items: MarketItem[];
+  topRisers: MarketItem[];
+  topFallers: MarketItem[];
+  error?: string;
+};
+
+type LiveMarketOverviewProps = {
+  locale: string;
+  initialItems: MarketItem[];
+  title: string;
+};
+
+function formatUpdatedAt(value: string | undefined, locale: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function buildOverviewSignature(payload: MarketOverviewPayload) {
+  return [
+    ...payload.items.map((item) => `${item.symbol}:${item.priceUsd}:${item.changePercent}:${item.dataStatus}`),
+    `r:${payload.topRisers.map((item) => `${item.symbol}:${item.priceUsd}:${item.changePercent}`).join(",")}`,
+    `f:${payload.topFallers.map((item) => `${item.symbol}:${item.priceUsd}:${item.changePercent}`).join(",")}`,
+  ].join("|");
+}
+
+function TrendList({ title, items }: { title: string; items: MarketItem[] }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+      <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{title}</h3>
+      <div className="mt-3 grid gap-2">
+        {items.map((item) => (
+          <div key={item.symbol} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-[#152033]">{item.symbol}</p>
+              <p className="truncate text-[11px] font-semibold text-slate-500">{item.name}</p>
+              <p className="mt-0.5 text-[11px] font-bold text-slate-500">{formatMarketItemPrice(item)}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <span className={`block text-sm font-black ${item.changePercent >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                {item.changePercent >= 0 ? "+" : ""}
+                {item.changePercent.toFixed(2)}%
+              </span>
+              <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                {formatMarketItemPrice(item)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function LiveMarketOverview({ locale, initialItems, title }: LiveMarketOverviewProps) {
+  const isEnglish = locale === "en";
+  const initialSignature = buildOverviewSignature({
+    updatedAt: new Date().toISOString(),
+    items: initialItems,
+    topRisers: [...initialItems].sort((a, b) => b.changePercent - a.changePercent).slice(0, 10),
+    topFallers: [...initialItems].sort((a, b) => a.changePercent - b.changePercent).slice(0, 10),
+  });
+  const [state, setState] = useState<MarketOverviewPayload>({
+    updatedAt: new Date().toISOString(),
+    items: initialItems,
+    topRisers: [...initialItems].sort((a, b) => b.changePercent - a.changePercent).slice(0, 10),
+    topFallers: [...initialItems].sort((a, b) => a.changePercent - b.changePercent).slice(0, 10),
+  });
+  const lastSignatureRef = useRef(initialSignature);
+
+  useEffect(() => {
+    let active = true;
+    let controller: AbortController | null = null;
+
+    async function loadOverview() {
+      controller?.abort();
+      const requestController = new AbortController();
+      controller = requestController;
+
+      try {
+        const response = await fetch("/api/market/overview", {
+          signal: requestController.signal,
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error("Piyasa özeti alınamadı.");
+        }
+
+        const nextState = (await response.json()) as MarketOverviewPayload;
+        const nextSignature = buildOverviewSignature(nextState);
+
+        if (active && nextSignature !== lastSignatureRef.current) {
+          lastSignatureRef.current = nextSignature;
+          setState(nextState);
+        }
+      } catch {
+        if (active && !requestController.signal.aborted) {
+          setState((current) => current);
+        }
+      }
+    }
+
+    loadOverview();
+    const refreshId = window.setInterval(loadOverview, 30_000);
+
+    return () => {
+      active = false;
+      controller?.abort();
+      window.clearInterval(refreshId);
+    };
+  }, []);
+
+  const stats = useMemo(() => {
+    const positive = state.items.filter((item) => item.changePercent >= 0).length;
+    const negative = state.items.length - positive;
+    return { positive, negative };
+  }, [state.items]);
+
+  return (
+    <section className="dashboard-shell grid gap-4 p-4 lg:grid-cols-[1.1fr_1fr_1fr]">
+      <div className="rounded-xl bg-[#101827] p-5 text-white shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">{title}</p>
+        <h2 className="mt-2 text-2xl font-black">{isEnglish ? "Live market overview" : "Canlı piyasa özeti"}</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-300">
+          {isEnglish
+            ? "Data refreshes every 30 seconds. The biggest gainers and losers are calculated directly from the latest live stream."
+            : "Veriler 30 saniyede bir yenilenir. En çok yükselen ve düşen ürünler doğrudan güncel akıştan hesaplanır."}
+        </p>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg bg-white/10 px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">{isEnglish ? "Products" : "Ürün"}</p>
+            <p className="mt-1 text-lg font-black">{state.items.length}</p>
+          </div>
+          <div className="rounded-lg bg-white/10 px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">{isEnglish ? "Gainers" : "Yükselen"}</p>
+            <p className="mt-1 text-lg font-black text-emerald-300">{stats.positive}</p>
+          </div>
+          <div className="rounded-lg bg-white/10 px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">{isEnglish ? "Losers" : "Düşen"}</p>
+            <p className="mt-1 text-lg font-black text-red-300">{stats.negative}</p>
+          </div>
+        </div>
+        <p className="mt-4 text-xs font-semibold text-slate-400">
+          {isEnglish ? "Last update" : "Son güncelleme"}: {formatUpdatedAt(state.updatedAt, locale)}
+        </p>
+        {state.error ? <p className="mt-2 text-xs font-bold text-amber-300">{state.error}</p> : null}
+      </div>
+
+      <TrendList title={isEnglish ? "Top 10 gainers" : "En çok yükselen 10"} items={state.topRisers} />
+      <TrendList title={isEnglish ? "Top 10 losers" : "En çok düşen 10"} items={state.topFallers} />
+    </section>
+  );
+}

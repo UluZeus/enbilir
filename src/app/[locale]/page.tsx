@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AdBanner } from "@/components/AdBanner";
 import { MiniLineChart } from "@/components/MiniLineChart";
+import { LiveMarketOverview } from "@/components/market/LiveMarketOverview";
+import { MarketPulse } from "@/components/market/MarketPulse";
 import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
 import { PremiumCard } from "@/components/PremiumCard";
@@ -8,7 +10,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getAds } from "@/lib/ads";
 import { getSessionUser } from "@/lib/auth";
-import { getLiveMarketItems, getTopFallersFrom, getTopRisersFrom } from "@/lib/live-market";
+import { getFallbackMarketItems, getLiveMarketItems } from "@/lib/live-market";
 import { getUserRankingPeriods } from "@/lib/leaderboard";
 import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
@@ -22,35 +24,30 @@ function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
   return result.status === "fulfilled" ? result.value : fallback;
 }
 
-function withTimeout<T>(promise: Promise<T>, milliseconds: number, fallback: T) {
-  return Promise.race([
-    promise,
-    new Promise<T>((resolve) => {
-      setTimeout(() => resolve(fallback), milliseconds);
-    }),
-  ]);
-}
-
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const copy = getUiCopy(locale);
   const user = await getSessionUser();
+  const fallbackMarketItems = getFallbackMarketItems();
   const [adsResult, liveItemsResult, snapshotResult] = await Promise.allSettled([
     getAds("home_top"),
-    withTimeout(getLiveMarketItems(), 2200, []),
-    user ? withTimeout(getPortfolioSnapshot(user.id), 2600, null) : Promise.resolve(null),
+    getLiveMarketItems(),
+    user ? getPortfolioSnapshot(user.id, fallbackMarketItems) : Promise.resolve(null),
   ]);
   const ads = settledValue<DisplayAd[]>(adsResult, []);
-  const liveItems = settledValue<MarketItem[]>(liveItemsResult, []);
+  const liveItems = settledValue<MarketItem[]>(liveItemsResult, fallbackMarketItems);
   const snapshot = settledValue<Awaited<ReturnType<typeof getPortfolioSnapshot>> | null>(snapshotResult, null);
   const [chartPeriodsResult, rankingPeriodsResult] = await Promise.allSettled([
-    user && snapshot ? withTimeout(getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd), 2600, []) : Promise.resolve([]),
-    user ? withTimeout(getUserRankingPeriods(user.id), 2600, []) : Promise.resolve([]),
+    user && snapshot ? getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd) : Promise.resolve([]),
+    user ? getUserRankingPeriods(user.id) : Promise.resolve([]),
   ]);
   const chartPeriods = settledValue<PortfolioPerformancePeriod[]>(chartPeriodsResult, []);
   const rankingPeriods = settledValue<UserRankingPeriod[]>(rankingPeriodsResult, []);
   const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
+  const marketSubtitle = locale === "en"
+    ? "A wider universe is scanned in the background every 30 seconds, while the pages remain fixed and responsive."
+    : "Daha geniş bir piyasa evreni 30 saniyede bir arka planda taranır, sayfalar sabit ve akıcı kalır.";
 
   return (
     <div className="grid gap-6">
@@ -66,6 +63,16 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           <Link href={`/${locale}/ligler`} className="premium-link rounded-md px-5 py-3 text-sm font-black">{copy.home.leagues}</Link>
         </div>
       </section>
+
+      <MarketPulse
+        locale={locale}
+        items={liveItems}
+        title={locale === "en" ? "Market cockpit" : "Piyasa kokpiti"}
+        subtitle={marketSubtitle}
+        accentLabel={copy.home.eyebrow}
+      />
+
+      <LiveMarketOverview locale={locale} initialItems={liveItems} title={copy.home.topRisers} />
 
       <section className="grid gap-5 xl:grid-cols-[260px_1fr_1fr_1fr]">
         <div className="grid gap-4">
@@ -92,17 +99,19 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 <PerformanceBadges periods={chartPeriods} copy={copy.home} />
               </>
             ) : (
-              <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">{copy.home.profitLogin}</p>
+              <p className="mt-4 rounded-md bg-[#f8fafc] p-3 text-xs leading-5 text-slate-500">
+                {user ? copy.home.noEnoughData : copy.home.profitLogin}
+              </p>
             )}
           </PremiumCard>
-          <MarketList title={copy.home.topRisers} items={getTopRisersFrom(liveItems)} />
-          <MarketList title={copy.home.topFallers} items={getTopFallersFrom(liveItems)} />
         </div>
 
         <PremiumCard interactive className="p-5">
           <h2 className="text-lg font-black text-[#152033]">{copy.home.portfolioChange}</h2>
           <div className="mt-4 grid gap-4">
-            {chartPeriods.length === 0 ? <p className="text-sm text-slate-500">{copy.home.chartLogin}</p> : chartPeriods.map((period) => (
+            {chartPeriods.length === 0 ? (
+              <p className="text-sm text-slate-500">{user ? copy.home.noEnoughData : copy.home.chartLogin}</p>
+            ) : chartPeriods.map((period) => (
               <div key={period.label} className="rounded-md bg-[#f8fafc] p-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="font-black text-[#152033]">{copy.home.periodLabels[period.key]}</p>
@@ -122,7 +131,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <PremiumCard interactive className="p-5">
           <h2 className="text-lg font-black text-[#152033]">{copy.home.rankings}</h2>
           <div className="mt-4 grid gap-3">
-            {rankingPeriods.length === 0 ? <p className="text-sm text-slate-500">{copy.home.rankingLogin}</p> : rankingPeriods.map((period) => (
+            {rankingPeriods.length === 0 ? (
+              <p className="text-sm text-slate-500">{user ? copy.home.noEnoughData : copy.home.rankingLogin}</p>
+            ) : rankingPeriods.map((period) => (
               <div key={period.label} className="rounded-md bg-[#f8fafc] p-4">
                 <p className="font-black text-[#152033]">{translateRankingPeriod(period.label, copy.home.periodLabels)}</p>
                 <p className="mt-1 text-sm text-slate-600">{copy.home.overall}: {period.overall}/{period.totalUsers}</p>
@@ -201,22 +212,6 @@ function formatPercent(value: number, signed = false) {
   const prefix = signed && value > 0 ? "+" : "";
 
   return `${prefix}${value.toFixed(decimals)}%`;
-}
-
-function MarketList({ title, items }: { title: string; items: { symbol: string; name: string; changePercent: number }[] }) {
-  return (
-    <PremiumCard interactive className="p-4">
-      <h2 className="text-sm font-black uppercase tracking-[0.14em] text-[#152033]">{title}</h2>
-      <div className="mt-3 grid gap-2">
-        {items.map((item) => (
-          <div key={item.symbol} className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-bold text-slate-700">{item.symbol}</span>
-            <span className={item.changePercent >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>{item.changePercent.toFixed(2)}%</span>
-          </div>
-        ))}
-      </div>
-    </PremiumCard>
-  );
 }
 
 function NewsList({ title, items }: { title: string; items: readonly string[] }) {
