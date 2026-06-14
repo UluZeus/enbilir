@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import type { Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import type { SignalAlertType } from "@/lib/ai-market/alert-engine";
@@ -31,12 +31,23 @@ type MarketScanResponse = {
 };
 
 type RadarGroups = Record<RadarGroupKey, MarketScanAlert[]>;
+type RadarTickerSegment = {
+  id: string;
+  alerts: MarketScanAlert[];
+};
+type RadarTickerGroups = Record<RadarGroupKey, RadarTickerSegment[]>;
 
 const initialGroups: RadarGroups = {
   shortTerm: [],
   hourly: [],
   mediumTerm: [],
 };
+const initialTickerGroups: RadarTickerGroups = {
+  shortTerm: [],
+  hourly: [],
+  mediumTerm: [],
+};
+const MAX_TICKER_SEGMENTS = 6;
 
 const directionBoost: Record<SignalAlertType, number> = {
   STRONG_BUY: 34,
@@ -86,6 +97,18 @@ function groupAlerts(alerts: MarketScanAlert[]): RadarGroups {
   };
 }
 
+function appendTickerGroups(current: RadarTickerGroups, nextGroups: RadarGroups, scanId: number): RadarTickerGroups {
+  return {
+    shortTerm: [...current.shortTerm, { id: `${scanId}-short-term`, alerts: nextGroups.shortTerm }].slice(-MAX_TICKER_SEGMENTS),
+    hourly: [...current.hourly, { id: `${scanId}-hourly`, alerts: nextGroups.hourly }].slice(-MAX_TICKER_SEGMENTS),
+    mediumTerm: [...current.mediumTerm, { id: `${scanId}-medium-term`, alerts: nextGroups.mediumTerm }].slice(-MAX_TICKER_SEGMENTS),
+  };
+}
+
+function hasTickerSegments(groups: RadarTickerGroups) {
+  return Object.values(groups).some((segments) => segments.length > 0);
+}
+
 function formatPercent(value: number) {
   return Number.isFinite(value) ? `%${Math.round(value)}` : "%-";
 }
@@ -106,10 +129,11 @@ async function fetchIntervalAlerts(interval: string, signal: AbortSignal) {
 
 export function MarketRadarPanel({ locale }: { locale: Locale }) {
   const copy = getUiCopy(locale).ai;
-  const [groups, setGroups] = useState<RadarGroups>(initialGroups);
+  const [tickerGroups, setTickerGroups] = useState<RadarTickerGroups>(initialTickerGroups);
   const [isLoading, setIsLoading] = useState(true);
   const controllerRef = useRef<AbortController | null>(null);
   const inProgressRef = useRef(false);
+  const scanSequenceRef = useRef(0);
 
   const loadOpportunities = useCallback(async () => {
     if (inProgressRef.current) {
@@ -126,11 +150,22 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
       const alerts = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
 
       if (!controller.signal.aborted) {
-        setGroups(groupAlerts(alerts));
+        const scanId = scanSequenceRef.current + 1;
+        scanSequenceRef.current = scanId;
+        const nextGroups = groupAlerts(alerts);
+
+        startTransition(() => {
+          setTickerGroups((current) => appendTickerGroups(current, nextGroups, scanId));
+        });
       }
     } catch {
       if (!controller.signal.aborted) {
-        setGroups(initialGroups);
+        const scanId = scanSequenceRef.current + 1;
+        scanSequenceRef.current = scanId;
+
+        startTransition(() => {
+          setTickerGroups((current) => hasTickerSegments(current) ? current : appendTickerGroups(current, initialGroups, scanId));
+        });
       }
     } finally {
       if (!controller.signal.aborted) {
@@ -165,9 +200,9 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
       `}</style>
       <h2 className="text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
       <div className="mt-3 grid gap-2.5">
-        <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" alerts={groups.shortTerm} isLoading={isLoading} />
-        <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" alerts={groups.hourly} isLoading={isLoading} />
-        <RadarTickerRow locale={locale} title={copy.mediumTerm} subtitle="4h / 1d" alerts={groups.mediumTerm} isLoading={isLoading} />
+        <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" segments={tickerGroups.shortTerm} isLoading={isLoading} />
+        <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" segments={tickerGroups.hourly} isLoading={isLoading} />
+        <RadarTickerRow locale={locale} title={copy.mediumTerm} subtitle="4h / 1d" segments={tickerGroups.mediumTerm} isLoading={isLoading} />
       </div>
     </section>
   );
@@ -177,15 +212,17 @@ function RadarTickerRow({
   locale,
   title,
   subtitle,
-  alerts,
+  segments,
   isLoading,
 }: {
   locale: Locale;
   title: string;
   subtitle: string;
-  alerts: MarketScanAlert[];
+  segments: RadarTickerSegment[];
   isLoading: boolean;
 }) {
+  const tickerSegments = segments.length > 0 ? segments : [{ id: "radar-fallback", alerts: [] }];
+
   return (
     <div className="grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/65 p-2 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
       <div className="shrink-0 px-1">
@@ -193,26 +230,51 @@ function RadarTickerRow({
         <p className="mt-0.5 text-[11px] font-bold text-slate-500">{subtitle}</p>
       </div>
       <div className="min-w-0 overflow-hidden rounded-md border border-slate-800 bg-[#070b13] px-3 py-2">
-        <div className="flex w-max min-w-full items-center gap-8 motion-safe:animate-[ai-market-radar-ticker_64s_linear_infinite] hover:[animation-play-state:paused]">
-          <div className="flex items-center gap-4 text-sm md:text-base">
-            {alerts.length > 0 ? <OpportunityItems locale={locale} alerts={alerts} /> : <FallbackText locale={locale} isLoading={isLoading} />}
-          </div>
-          <div aria-hidden="true" className="flex items-center gap-4 text-sm md:text-base">
-            {alerts.length > 0 ? <OpportunityItems locale={locale} alerts={alerts} /> : <FallbackText locale={locale} isLoading={isLoading} />}
-          </div>
+        <div className="flex w-max min-w-full items-center gap-8 motion-safe:animate-[ai-market-radar-ticker_64s_linear_infinite] [will-change:transform] hover:[animation-play-state:paused]">
+          <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="primary" />
+          <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="mirror" ariaHidden />
         </div>
       </div>
     </div>
   );
 }
 
-function OpportunityItems({ locale, alerts }: { locale: Locale; alerts: MarketScanAlert[] }) {
+function RadarTickerPass({
+  locale,
+  segments,
+  isLoading,
+  passId,
+  ariaHidden = false,
+}: {
+  locale: Locale;
+  segments: RadarTickerSegment[];
+  isLoading: boolean;
+  passId: string;
+  ariaHidden?: boolean;
+}) {
+  return (
+    <div aria-hidden={ariaHidden} className="flex items-center gap-6 text-sm md:text-base">
+      {segments.map((segment) => (
+        <span key={`${passId}-${segment.id}`} className="inline-flex items-center gap-4 whitespace-nowrap">
+          {segment.alerts.length > 0 ? (
+            <OpportunityItems locale={locale} alerts={segment.alerts} keyPrefix={`${passId}-${segment.id}`} />
+          ) : (
+            <FallbackText locale={locale} isLoading={isLoading} />
+          )}
+          <span className="text-slate-700">•</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function OpportunityItems({ locale, alerts, keyPrefix }: { locale: Locale; alerts: MarketScanAlert[]; keyPrefix: string }) {
   const copy = getUiCopy(locale).ai;
 
   return (
     <>
       {alerts.map((alert) => (
-        <span key={alert.key} className="inline-flex items-center gap-2 whitespace-nowrap">
+        <span key={`${keyPrefix}-${alert.key}`} className="inline-flex items-center gap-2 whitespace-nowrap">
           <span className="font-black text-white">{alert.symbol}</span>
           <span className="text-slate-500">·</span>
           <span className="font-semibold text-slate-200">{alert.interval}</span>
