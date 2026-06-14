@@ -1,3 +1,4 @@
+import { fetchJsonWithFallback } from "@/lib/http-json";
 import type { Candle } from "@/lib/ai-market/types";
 import { getYahooProviderSymbolCandidates } from "@/lib/ai-market/yahoo-symbols";
 
@@ -73,48 +74,36 @@ async function fetchYahooCandlesForProviderSymbol(symbol: string, interval: stri
   const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
   url.searchParams.set("range", intervalRanges[interval] ?? "1mo");
   url.searchParams.set("interval", yahooIntervals[interval] ?? "1h");
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      },
-      next: { revalidate: 60 },
-      signal: controller.signal,
-    });
+  const data = await fetchJsonWithFallback<YahooChartResponse>(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    },
+    next: { revalidate: 60 },
+    timeoutMs,
+  });
+  const result = data.chart?.result?.[0];
+  const timestamps = result?.timestamp ?? [];
+  const quote = result?.indicators?.quote?.[0];
 
-    if (!response.ok) {
-      throw new Error(`Yahoo public data unavailable (${response.status})`);
-    }
-
-    const data = (await response.json()) as YahooChartResponse;
-    const result = data.chart?.result?.[0];
-    const timestamps = result?.timestamp ?? [];
-    const quote = result?.indicators?.quote?.[0];
-
-    if (!quote || timestamps.length === 0) {
-      return [];
-    }
-
-    const candles = timestamps
-      .map((timestamp, index) => ({
-        openTime: timestamp * 1000,
-        open: toNumber(quote.open?.[index]),
-        high: toNumber(quote.high?.[index]),
-        low: toNumber(quote.low?.[index]),
-        close: toNumber(quote.close?.[index]),
-        volume: toNumber(quote.volume?.[index]),
-      }))
-      .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
-      .sort((a, b) => a.openTime - b.openTime);
-
-    return aggregateCandles(candles, interval === "4h" ? 4 : 1);
-  } finally {
-    clearTimeout(timeoutId);
+  if (!quote || timestamps.length === 0) {
+    return [];
   }
+
+  const candles = timestamps
+    .map((timestamp, index) => ({
+      openTime: timestamp * 1000,
+      open: toNumber(quote.open?.[index]),
+      high: toNumber(quote.high?.[index]),
+      low: toNumber(quote.low?.[index]),
+      close: toNumber(quote.close?.[index]),
+      volume: toNumber(quote.volume?.[index]),
+    }))
+    .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
+    .sort((a, b) => a.openTime - b.openTime);
+
+  return aggregateCandles(candles, interval === "4h" ? 4 : 1);
 }
 
 export async function fetchYahooCandles(symbol: string, interval = "1h", timeoutMs = 5000): Promise<Candle[]> {

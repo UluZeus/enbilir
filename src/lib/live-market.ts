@@ -1,8 +1,5 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { fetchJsonWithFallback } from "@/lib/http-json";
 import { formatMarketItemValue, mixedMarketItems, type MarketItem } from "@/lib/market-data";
-
-const execFileAsync = promisify(execFile);
 
 type LiveQuote = {
   symbol: string;
@@ -44,67 +41,14 @@ function timeout<T>(milliseconds: number, fallback: T): Promise<T> {
 }
 
 async function fetchJson<T>(url: string, timeoutMs = 12_000): Promise<T | null> {
-  return (await fetchJsonWithNativeFetch<T>(url, timeoutMs)) ?? (await fetchJsonWithCurl<T>(url, timeoutMs));
-}
-
-async function fetchJsonWithNativeFetch<T>(url: string, timeoutMs: number): Promise<T | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
+    return await fetchJsonWithFallback<T>(url, {
       headers: {
         Accept: "application/json",
         "User-Agent": "Mozilla/5.0",
       },
-      signal: controller.signal,
+      timeoutMs,
     });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function fetchJsonWithCurl<T>(url: string, timeoutMs: number): Promise<T | null> {
-  const args = [
-    "--location",
-    "--silent",
-    "--show-error",
-    "--fail",
-    "--max-time",
-    String(Math.max(1, Math.ceil(timeoutMs / 1000))),
-    "--header",
-    "Accept: application/json",
-    "--user-agent",
-    "Mozilla/5.0",
-  ];
-
-  if (process.platform === "win32") {
-    args.push("--ssl-no-revoke");
-  }
-
-  args.push(url);
-
-  try {
-    const { stdout } = await execFileAsync(process.platform === "win32" ? "curl.exe" : "curl", args, {
-      maxBuffer: 20 * 1024 * 1024,
-      timeout: timeoutMs + 3_000,
-    });
-    const raw = stdout.trim();
-
-    if (!raw) {
-      return null;
-    }
-
-    return JSON.parse(raw) as T;
   } catch {
     return null;
   }
