@@ -4,6 +4,7 @@ import { calculateIndicators } from "@/lib/ai-market/indicators";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import type { Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
+import { fetchJsonWithFallback } from "@/lib/http-json";
 
 export type MarketScanExchange = "binance";
 
@@ -120,27 +121,6 @@ function candidateScore(quoteVolume: number, changePercent: number, volatilityPe
   return Math.log10(Math.max(quoteVolume, 1)) * 12 + Math.abs(changePercent) * 2.2 + volatilityPercent * 1.6;
 }
 
-async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number): Promise<T> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Public ticker data unavailable (${response.status})`);
-    }
-
-    return (await response.json()) as T;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
 function isBinanceTicker(value: unknown): value is BinanceTicker {
   if (!value || typeof value !== "object") {
     return false;
@@ -193,7 +173,10 @@ function toBinanceCandidate(ticker: BinanceTicker): ScanCandidate | null {
 async function loadCandidates() {
   const errors: string[] = [];
   const candidateResult = await Promise.allSettled([
-    fetchJsonWithTimeout<unknown[]>(BINANCE_TICKER_URL, TICKER_TIMEOUT_MS).then((payload) =>
+    fetchJsonWithFallback<unknown[]>(BINANCE_TICKER_URL, {
+      headers: { Accept: "application/json" },
+      timeoutMs: TICKER_TIMEOUT_MS,
+    }).then((payload) =>
       payload.filter(isBinanceTicker).map(toBinanceCandidate).filter((candidate): candidate is ScanCandidate => candidate !== null),
     ),
   ]);

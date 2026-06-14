@@ -197,6 +197,13 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
           from { transform: translateX(0); }
           to { transform: translateX(-50%); }
         }
+        .ai-market-radar-track {
+          animation: ai-market-radar-ticker 64s linear infinite;
+          will-change: transform;
+        }
+        .ai-market-radar-track:hover {
+          animation-play-state: paused;
+        }
       `}</style>
       <h2 className="text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
       <div className="mt-3 grid gap-2.5">
@@ -230,7 +237,7 @@ function RadarTickerRow({
         <p className="mt-0.5 text-[11px] font-bold text-slate-500">{subtitle}</p>
       </div>
       <div className="min-w-0 overflow-hidden rounded-md border border-slate-800 bg-[#070b13] px-3 py-2">
-        <div className="flex w-max min-w-full items-center gap-8 motion-safe:animate-[ai-market-radar-ticker_64s_linear_infinite] [will-change:transform] hover:[animation-play-state:paused]">
+        <div className="ai-market-radar-track flex w-max min-w-full items-center gap-8">
           <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="primary" />
           <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="mirror" ariaHidden />
         </div>
