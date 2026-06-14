@@ -43,25 +43,61 @@ function timeout<T>(milliseconds: number, fallback: T): Promise<T> {
   });
 }
 
-function escapePowerShellSingleQuotedString(value: string) {
-  return value.replace(/'/g, "''");
+async function fetchJson<T>(url: string, timeoutMs = 12_000): Promise<T | null> {
+  return (await fetchJsonWithNativeFetch<T>(url, timeoutMs)) ?? (await fetchJsonWithCurl<T>(url, timeoutMs));
 }
 
-async function fetchJsonViaPowerShell<T>(url: string, timeoutMs = 12_000): Promise<T | null> {
-  const safeUrl = escapePowerShellSingleQuotedString(url);
-  const script = [
-    "$ErrorActionPreference = 'Stop'",
-    "$ProgressPreference = 'SilentlyContinue'",
-    `$response = Invoke-WebRequest -UseBasicParsing -Headers @{ 'User-Agent'='Mozilla/5.0'; 'Accept'='application/json' } -Uri '${safeUrl}' -TimeoutSec ${Math.max(1, Math.ceil(timeoutMs / 1000))}`,
-    "Write-Output $response.Content",
-  ].join("; ");
+async function fetchJsonWithNativeFetch<T>(url: string, timeoutMs: number): Promise<T | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchJsonWithCurl<T>(url: string, timeoutMs: number): Promise<T | null> {
+  const args = [
+    "--location",
+    "--silent",
+    "--show-error",
+    "--fail",
+    "--max-time",
+    String(Math.max(1, Math.ceil(timeoutMs / 1000))),
+    "--header",
+    "Accept: application/json",
+    "--user-agent",
+    "Mozilla/5.0",
+  ];
+
+  if (process.platform === "win32") {
+    args.push("--ssl-no-revoke");
+  }
+
+  args.push(url);
+
+  try {
+    const { stdout } = await execFileAsync(process.platform === "win32" ? "curl.exe" : "curl", args, {
       maxBuffer: 20 * 1024 * 1024,
       timeout: timeoutMs + 3_000,
     });
-
     const raw = stdout.trim();
 
     if (!raw) {
@@ -74,47 +110,8 @@ async function fetchJsonViaPowerShell<T>(url: string, timeoutMs = 12_000): Promi
   }
 }
 
-async function fetchJsonLinesViaPowerShell<T>(urls: string[], timeoutMs = 12_000): Promise<Array<T | null>> {
-  if (urls.length === 0) {
-    return [];
-  }
-
-  const quotedUrls = urls.map((url) => `'${escapePowerShellSingleQuotedString(url)}'`).join(", ");
-  const script = [
-    "$ErrorActionPreference = 'Stop'",
-    "$ProgressPreference = 'SilentlyContinue'",
-    `$headers = @{ 'User-Agent'='Mozilla/5.0'; 'Accept'='application/json' }`,
-    `foreach ($url in @(${quotedUrls})) {`,
-    "  try {",
-    `    $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $url -TimeoutSec ${Math.max(1, Math.ceil(timeoutMs / 1000))}`,
-    "    $json = $response.Content | ConvertFrom-Json",
-    "    Write-Output ($json | ConvertTo-Json -Compress -Depth 20)",
-    "  } catch {",
-    "    Write-Output 'null'",
-    "  }",
-    "}",
-  ].join("; ");
-
-  try {
-    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-      maxBuffer: 20 * 1024 * 1024,
-      timeout: timeoutMs + 3_000,
-    });
-
-    return stdout
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => {
-        try {
-          return JSON.parse(line) as T;
-        } catch {
-          return null;
-        }
-      });
-  } catch {
-    return urls.map(() => null);
-  }
+async function fetchJsonBatch<T>(urls: string[], timeoutMs = 12_000): Promise<Array<T | null>> {
+  return Promise.all(urls.map((url) => fetchJson<T>(url, timeoutMs)));
 }
 
 function isBinanceTicker(value: unknown): value is BinanceTicker {
@@ -253,7 +250,7 @@ async function fetchBinanceQuotes(items: MarketItem[]) {
     return new Map<string, LiveQuote>();
   }
 
-  const payload = await fetchJsonViaPowerShell<unknown[]>("https://api.binance.com/api/v3/ticker/24hr", 12_000);
+  const payload = await fetchJson<unknown[]>("https://api.binance.com/api/v3/ticker/24hr", 12_000);
 
   if (!Array.isArray(payload)) {
     return new Map<string, LiveQuote>();
@@ -298,7 +295,7 @@ async function fetchYahooSparkQuotes(symbols: string[]) {
     batches.push(symbols.slice(index, index + batchSize));
   }
 
-  const payloads = await fetchJsonLinesViaPowerShell<YahooSparkResponse>(
+  const payloads = await fetchJsonBatch<YahooSparkResponse>(
     batches.map((batch) => `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(batch.join(","))}&range=1d&interval=1d`),
     12_000,
   );
