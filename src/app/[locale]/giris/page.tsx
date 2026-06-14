@@ -10,7 +10,7 @@ export default async function LoginPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ error?: string; message?: string }>;
 }) {
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
@@ -24,7 +24,7 @@ export default async function LoginPage({
     <div className="grid gap-6">
       <PageHeader title={dictionary.pages.login.title} description={dictionary.pages.login.description} locale={locale} />
       <form action={loginAction} className="mx-auto grid w-full max-w-xl gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <FormMessage message={query.error} />
+        <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
         <a
           href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/panel`)}`}
           className="rounded-md border border-slate-300 bg-white px-5 py-3 text-center text-sm font-black text-[#152033] shadow-sm hover:border-[#0f766e] hover:text-[#0f766e]"

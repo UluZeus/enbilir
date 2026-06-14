@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260601010000_add_ai_signal_logs";
+const prismaSchemaVersion = "20260614132405_add_email_verification";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;

@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
         displayNameMode: "NICKNAME",
         email: DEV_LOGIN_EMAIL,
         passwordHash: null,
+        isActive: true,
+        emailVerifiedAt: new Date(),
         role: "USER",
         virtualAccount: {
           create: {
@@ -59,6 +61,8 @@ export async function GET(request: NextRequest) {
         nickname: DEV_LOGIN_NICKNAME,
         displayNameMode: "NICKNAME",
         passwordHash: null,
+        isActive: true,
+        emailVerifiedAt: new Date(),
         role: "USER",
       },
       select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },

@@ -113,7 +113,7 @@ function toUniverseAsset(ticker: BinanceTicker): UniverseAsset | null {
   };
 }
 
-function buildErrorResponse(message: string, status = 502) {
+function buildErrorResponse(message: string, status = 200) {
   return NextResponse.json(
     {
       data: [],
@@ -136,7 +136,7 @@ export async function GET() {
     });
 
     if (!response.ok) {
-      return buildErrorResponse(`Binance ticker verisi alinamadi. HTTP ${response.status}.`, response.status);
+      return buildErrorResponse(`Binance ticker verisi alinamadi. HTTP ${response.status}.`);
     }
 
     const payload: unknown = await response.json();
@@ -156,7 +156,7 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      return buildErrorResponse("Binance ticker istegi zaman asimina ugradi.", 504);
+      return buildErrorResponse("Binance ticker istegi zaman asimina ugradi.");
     }
 
     return buildErrorResponse(error instanceof Error ? error.message : "Binance ticker verisi alinirken hata olustu.");

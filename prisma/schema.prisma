@@ -77,6 +77,11 @@ model User {
   displayNameMode                     DisplayNameMode @default(REAL_NAME)
   email                               String    @unique
   passwordHash                        String?
+  isActive                            Boolean   @default(false)
+  emailVerifiedAt                     DateTime?
+  emailVerificationTokenHash          String?
+  emailVerificationExpiresAt          DateTime?
+  emailVerificationSentAt             DateTime?
   role                                Role      @default(USER)
   score                               Int       @default(0)
   kvkkDisclosureAccepted              Boolean   @default(false)

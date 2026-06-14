@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       const existingUser = await prisma.user.findUnique({
         where: { email: googleUser.email },
-        select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
+        select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true, isActive: true },
       });
 
       if (existingUser) {
@@ -162,7 +162,23 @@ export async function GET(request: NextRequest) {
           },
           update: { userId: existingUser.id },
         });
-        user = existingUser;
+        if (!existingUser.isActive) {
+          const activatedUser = await prisma.user.update({
+            where: { id: existingUser.id },
+            data: {
+              isActive: true,
+              emailVerifiedAt: new Date(),
+              emailVerificationTokenHash: null,
+              emailVerificationExpiresAt: null,
+              emailVerificationSentAt: null,
+            },
+            select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
+          });
+
+          user = activatedUser;
+        } else {
+          user = existingUser;
+        }
       } else {
         user = await prisma.user.create({
           data: {
@@ -171,6 +187,8 @@ export async function GET(request: NextRequest) {
             displayNameMode: nickname ? "NICKNAME" : "REAL_NAME",
             email: googleUser.email,
             passwordHash: null,
+            isActive: true,
+            emailVerifiedAt: new Date(),
             role,
             oauthAccounts: {
               create: {

@@ -5,6 +5,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { canAccessAdmin, createSession, destroySession, getSessionUser, masterAdminEmail } from "@/lib/auth";
+import { buildEmailVerificationUrl, createEmailVerificationToken, getEmailVerificationExpiryMessage } from "@/lib/email-verification";
+import { sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { getSafeLocale } from "@/i18n/config";
 import { getLiveMarketItem } from "@/lib/live-market";
@@ -59,9 +61,19 @@ function normalizeVisualSettingValue(value: string, type: "TEXT" | "COLOR" | "IM
   return value;
 }
 
-function getRedirect(localeValue: FormDataEntryValue | null, path: string, error?: string) {
+function getRedirect(localeValue: FormDataEntryValue | null, path: string, error?: string, message?: string) {
   const locale = getSafeLocale(String(localeValue ?? "tr"));
-  const query = error ? `?error=${encodeURIComponent(error)}` : "";
+  const params = new URLSearchParams();
+
+  if (error) {
+    params.set("error", error);
+  }
+
+  if (message) {
+    params.set("message", message);
+  }
+
+  const query = params.toString() ? `?${params.toString()}` : "";
 
   return `/${locale}/${path}${query}`;
 }
@@ -143,6 +155,7 @@ export async function registerAction(formData: FormData) {
   const role = email === masterAdminEmail ? "MASTER_ADMIN" : "USER";
   const nickname = email === masterAdminEmail ? "UluZeus" : requestedNickname || null;
   const safeDisplayNameMode = displayNameMode === "NICKNAME" && nickname ? "NICKNAME" : "REAL_NAME";
+  const { token, tokenHash, expiresAt } = createEmailVerificationToken();
 
   const user = await prisma.user.create({
     data: {
@@ -151,6 +164,11 @@ export async function registerAction(formData: FormData) {
       displayNameMode: safeDisplayNameMode,
       email,
       passwordHash,
+      isActive: false,
+      emailVerifiedAt: null,
+      emailVerificationTokenHash: tokenHash,
+      emailVerificationExpiresAt: expiresAt,
+      emailVerificationSentAt: now,
       role,
       kvkkDisclosureAccepted: true,
       kvkkDisclosureAcceptedAt: now,
@@ -171,8 +189,46 @@ export async function registerAction(formData: FormData) {
     select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
   });
 
-  await createSession(user);
-  redirect(getRedirect(locale, "panel"));
+  try {
+    const verificationUrl = buildEmailVerificationUrl(token, getSafeLocale(String(locale ?? "tr")));
+    const subject = "Hesabını doğrula | Enbilir";
+    const text = [
+      `Merhaba ${name},`,
+      "",
+      "Enbilir hesabını aktif etmek için aşağıdaki bağlantıya tıkla:",
+      verificationUrl,
+      "",
+      getEmailVerificationExpiryMessage(),
+    ].join("\n");
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <p>Merhaba ${name},</p>
+        <p>Enbilir hesabını aktif etmek için aşağıdaki bağlantıya tıkla:</p>
+        <p><a href="${verificationUrl}" style="display:inline-block;background:#101827;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">Hesabımı Aktifleştir</a></p>
+        <p style="word-break:break-all;"><a href="${verificationUrl}">${verificationUrl}</a></p>
+        <p>${getEmailVerificationExpiryMessage()}</p>
+      </div>
+    `;
+
+    await sendEmail({
+      to: email,
+      subject,
+      text,
+      html,
+    });
+  } catch (error) {
+    await prisma.user.delete({ where: { id: user.id } });
+    redirect(getRedirect(locale, "kayit", error instanceof Error ? error.message : "Doğrulama e-postası gönderilemedi."));
+  }
+
+  redirect(
+    getRedirect(
+      locale,
+      "giris",
+      undefined,
+      "Hesabın oluşturuldu. E-posta kutundaki doğrulama bağlantısına tıklayarak hesabını aktif edebilirsin.",
+    ),
+  );
 }
 
 export async function loginAction(formData: FormData) {
@@ -186,7 +242,16 @@ export async function loginAction(formData: FormData) {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, passwordHash: true, role: true },
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      displayNameMode: true,
+      email: true,
+      passwordHash: true,
+      role: true,
+      isActive: true,
+    },
   });
 
   if (!user) {
@@ -195,6 +260,17 @@ export async function loginAction(formData: FormData) {
 
   if (!user.passwordHash) {
     redirect(getRedirect(locale, "giris", "Bu hesap Google ile giriş için oluşturulmuş. Lütfen Google ile giriş yapın."));
+  }
+
+  if (!user.isActive) {
+    redirect(
+      getRedirect(
+        locale,
+        "giris",
+        undefined,
+        "Hesabın henüz aktif değil. E-posta kutundaki doğrulama bağlantısına tıklayarak hesabını aktif et.",
+      ),
+    );
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
