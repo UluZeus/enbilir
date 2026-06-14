@@ -6,6 +6,11 @@ const scriptSrc =
     : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "100mb",
+    },
+  },
   async headers() {
     return [
       {
@@ -18,7 +23,7 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://stooq.com wss: ws:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
+              `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; frame-src 'self' https://www.youtube.com https://player.vimeo.com; font-src 'self' data:; connect-src 'self' https://stooq.com wss: ws:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
           },
         ],
       },

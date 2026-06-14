@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260614132405_add_email_verification";
+const prismaSchemaVersion = "20260614195000_expand_admin_content";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -24,6 +24,7 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     portfolioPosition?: unknown;
     virtualTrade?: unknown;
     managedContentPage?: unknown;
+    managedContentItem?: unknown;
     friendRequest?: unknown;
     league?: unknown;
     leagueMembership?: unknown;
@@ -44,6 +45,7 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.portfolioPosition &&
       candidate?.virtualTrade &&
       candidate?.managedContentPage &&
+      candidate?.managedContentItem &&
       candidate?.friendRequest &&
       candidate?.league &&
       candidate?.leagueMembership &&

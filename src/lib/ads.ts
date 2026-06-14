@@ -6,9 +6,13 @@ export type AdSlot =
   | "trade_right"
   | "trade_bottom";
 
+export const adSlots: AdSlot[] = ["home_top", "trade_top", "trade_right", "trade_bottom"];
+
 export type DisplayAd = {
   title: string;
   body: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
   linkUrl?: string | null;
   linkLabel?: string | null;
   displaySeconds: number;
@@ -61,6 +65,8 @@ export async function getAds(slot: AdSlot): Promise<DisplayAd[]> {
       select: {
         title: true,
         body: true,
+        imageUrl: true,
+        videoUrl: true,
         linkUrl: true,
         linkLabel: true,
         displaySeconds: true,

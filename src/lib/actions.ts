@@ -1,9 +1,12 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
+import { mkdir, writeFile } from "fs/promises";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import path from "path";
 import { canAccessAdmin, createSession, destroySession, getSessionUser, masterAdminEmail } from "@/lib/auth";
 import { buildEmailVerificationUrl, createEmailVerificationToken, getEmailVerificationExpiryMessage } from "@/lib/email-verification";
 import { sendEmail } from "@/lib/email";
@@ -17,6 +20,8 @@ import { getUniqueInviteCode, getUniqueLeagueSlug, leagueTypes } from "@/lib/lea
 import { awardBadge, evaluateTradeBadges } from "@/lib/badges";
 import { awardLeaderBadgesForActivePeriods, competitionPeriodTypes } from "@/lib/competition-periods";
 import { defaultVisualSettings, getSettingDefinition } from "@/lib/site-visual-settings";
+import { adSlots } from "@/lib/ads";
+import { isManagedContentType } from "@/lib/managed-content";
 
 export type TradeActionState = {
   ok: boolean;
@@ -32,12 +37,109 @@ type TradePricePosition = {
   averagePriceUsd: number;
 } | null;
 
+type AdminUploadKind = "image" | "video";
+
+const maxAdminUploadBytes = 100 * 1024 * 1024;
+const adminUploadRoot = path.join(process.cwd(), "public", "uploads", "admin");
+const allowedAdminUploadTypes: Record<AdminUploadKind, Record<string, string>> = {
+  image: {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/svg+xml": "svg",
+  },
+  video: {
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/ogg": "ogv",
+    "video/quicktime": "mov",
+  },
+};
+
 function normalizeEmail(email: FormDataEntryValue | null) {
   return String(email ?? "").trim().toLowerCase();
 }
 
 function normalizeText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
+}
+
+function normalizeOptionalUrl(value: FormDataEntryValue | null) {
+  const text = normalizeText(value);
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.startsWith("/")) {
+    return text;
+  }
+
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" || url.protocol === "http:" ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeOptionalDateTime(value: FormDataEntryValue | null) {
+  const text = normalizeText(value);
+
+  if (!text) {
+    return null;
+  }
+
+  const date = new Date(text);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeOptionalNumber(value: FormDataEntryValue | null, fallback = 0) {
+  const text = normalizeText(value);
+
+  if (!text) {
+    return fallback;
+  }
+
+  const number = Number(text);
+
+  return Number.isFinite(number) ? number : fallback;
+}
+
+async function saveAdminUpload(locale: FormDataEntryValue | null, value: FormDataEntryValue | null, kind: AdminUploadKind) {
+  if (!value || typeof value === "string" || value.size === 0) {
+    return null;
+  }
+
+  const extension = allowedAdminUploadTypes[kind][value.type];
+
+  if (!extension) {
+    const message = kind === "image"
+      ? "Yalnızca JPG, PNG, WebP, GIF veya SVG görsel yükleyebilirsin."
+      : "Yalnızca MP4, WebM, OGG veya MOV video yükleyebilirsin.";
+
+    redirect(getRedirect(locale, "admin", message));
+  }
+
+  if (value.size > maxAdminUploadBytes) {
+    redirect(getRedirect(locale, "admin", "Yüklenen dosya 100 MB sınırını aşamaz."));
+  }
+
+  const uploadedAt = new Date();
+  const folder = path.join(
+    adminUploadRoot,
+    String(uploadedAt.getFullYear()),
+    String(uploadedAt.getMonth() + 1).padStart(2, "0"),
+  );
+  const filename = `${uploadedAt.getTime()}-${randomUUID()}.${extension}`;
+  const bytes = Buffer.from(await value.arrayBuffer());
+
+  await mkdir(folder, { recursive: true });
+  await writeFile(path.join(folder, filename), bytes);
+
+  return `/uploads/admin/${uploadedAt.getFullYear()}/${String(uploadedAt.getMonth() + 1).padStart(2, "0")}/${filename}`;
 }
 
 function normalizeVisualSettingValue(value: string, type: "TEXT" | "COLOR" | "IMAGE_URL" | "BOOLEAN") {
@@ -48,6 +150,10 @@ function normalizeVisualSettingValue(value: string, type: "TEXT" | "COLOR" | "IM
   if (type === "IMAGE_URL") {
     if (!value) {
       return "";
+    }
+
+    if (value.startsWith("/")) {
+      return value;
     }
 
     try {
@@ -94,6 +200,21 @@ function revalidateSocialViews(localeValue: FormDataEntryValue | null) {
   revalidatePath(`/${locale}/panel`);
   revalidatePath(`/${locale}/ligler`);
   revalidatePath(`/${locale}/liderlik-tablosu`);
+}
+
+function revalidateAdminManagedViews(localeValue: FormDataEntryValue | null, contentLocaleValue?: FormDataEntryValue | null) {
+  const locale = getSafeLocale(String(localeValue ?? "tr"));
+  const contentLocale = getSafeLocale(String(contentLocaleValue ?? locale));
+  const locales = new Set([locale, contentLocale]);
+
+  for (const currentLocale of locales) {
+    revalidatePath(`/${currentLocale}`);
+    revalidatePath(`/${currentLocale}/admin`);
+    revalidatePath(`/${currentLocale}/blog`);
+    revalidatePath(`/${currentLocale}/egitim`);
+    revalidatePath(`/${currentLocale}/iletisim`);
+    revalidatePath(`/${currentLocale}/islem-yap`);
+  }
 }
 
 function getSafeTradePriceUsd(marketItem: { priceUsd: number; source: string }, position: TradePricePosition) {
@@ -542,14 +663,28 @@ export async function createAdPlacementAction(formData: FormData) {
   const slot = normalizeText(formData.get("slot"));
   const title = normalizeText(formData.get("title"));
   const body = normalizeText(formData.get("body"));
-  const linkUrl = normalizeText(formData.get("linkUrl")) || null;
+  const uploadedImageUrl = await saveAdminUpload(locale, formData.get("imageFile"), "image");
+  const uploadedVideoUrl = await saveAdminUpload(locale, formData.get("videoFile"), "video");
+  const imageUrl = uploadedImageUrl ?? normalizeOptionalUrl(formData.get("imageUrl"));
+  const videoUrl = uploadedVideoUrl ?? normalizeOptionalUrl(formData.get("videoUrl"));
+  const linkUrl = normalizeOptionalUrl(formData.get("linkUrl"));
   const linkLabel = normalizeText(formData.get("linkLabel")) || null;
   const displaySeconds = Math.max(Number(formData.get("displaySeconds") ?? 8), 1);
-  const priority = Number(formData.get("priority") ?? 0);
+  const priority = normalizeOptionalNumber(formData.get("priority"));
+  const startsAt = normalizeOptionalDateTime(formData.get("startsAt"));
+  const endsAt = normalizeOptionalDateTime(formData.get("endsAt"));
   const isActive = formData.get("isActive") === "on";
 
-  if (!slot || !title || !body) {
+  if (!adSlots.includes(slot as (typeof adSlots)[number]) || !title || !body) {
     redirect(getRedirect(locale, "admin", "Reklam alanı, başlık ve metin zorunludur."));
+  }
+
+  if ((normalizeText(formData.get("imageUrl")) && !imageUrl) || (normalizeText(formData.get("videoUrl")) && !videoUrl) || (normalizeText(formData.get("linkUrl")) && !linkUrl)) {
+    redirect(getRedirect(locale, "admin", "Görsel, video veya bağlantı adresi geçerli bir http/https URL ya da site içi / yol olmalıdır."));
+  }
+
+  if (startsAt && endsAt && startsAt >= endsAt) {
+    redirect(getRedirect(locale, "admin", "Reklam başlangıç tarihi bitiş tarihinden önce olmalıdır."));
   }
 
   await prisma.adPlacement.create({
@@ -557,14 +692,72 @@ export async function createAdPlacementAction(formData: FormData) {
       slot,
       title,
       body,
+      imageUrl,
+      videoUrl,
       linkUrl,
       linkLabel,
       displaySeconds,
       priority: Number.isFinite(priority) ? priority : 0,
+      startsAt,
+      endsAt,
       isActive,
     },
   });
 
+  revalidateAdminManagedViews(locale);
+  redirect(getRedirect(locale, "admin"));
+}
+
+export async function updateAdPlacementAction(formData: FormData) {
+  const locale = formData.get("locale");
+  await requireAdminSession(locale);
+  const id = String(formData.get("id") ?? "");
+  const slot = normalizeText(formData.get("slot"));
+  const title = normalizeText(formData.get("title"));
+  const body = normalizeText(formData.get("body"));
+  const uploadedImageUrl = await saveAdminUpload(locale, formData.get("imageFile"), "image");
+  const uploadedVideoUrl = await saveAdminUpload(locale, formData.get("videoFile"), "video");
+  const imageUrl = uploadedImageUrl ?? normalizeOptionalUrl(formData.get("imageUrl"));
+  const videoUrl = uploadedVideoUrl ?? normalizeOptionalUrl(formData.get("videoUrl"));
+  const linkUrl = normalizeOptionalUrl(formData.get("linkUrl"));
+  const linkLabel = normalizeText(formData.get("linkLabel")) || null;
+  const displaySeconds = Math.max(Number(formData.get("displaySeconds") ?? 8), 1);
+  const priority = normalizeOptionalNumber(formData.get("priority"));
+  const startsAt = normalizeOptionalDateTime(formData.get("startsAt"));
+  const endsAt = normalizeOptionalDateTime(formData.get("endsAt"));
+  const isActive = formData.get("isActive") === "on";
+
+  if (!id || !adSlots.includes(slot as (typeof adSlots)[number]) || !title || !body) {
+    redirect(getRedirect(locale, "admin", "Reklam kaydı, alanı, başlık ve metin zorunludur."));
+  }
+
+  if ((normalizeText(formData.get("imageUrl")) && !imageUrl) || (normalizeText(formData.get("videoUrl")) && !videoUrl) || (normalizeText(formData.get("linkUrl")) && !linkUrl)) {
+    redirect(getRedirect(locale, "admin", "Görsel, video veya bağlantı adresi geçerli bir http/https URL ya da site içi / yol olmalıdır."));
+  }
+
+  if (startsAt && endsAt && startsAt >= endsAt) {
+    redirect(getRedirect(locale, "admin", "Reklam başlangıç tarihi bitiş tarihinden önce olmalıdır."));
+  }
+
+  await prisma.adPlacement.update({
+    where: { id },
+    data: {
+      slot,
+      title,
+      body,
+      imageUrl,
+      videoUrl,
+      linkUrl,
+      linkLabel,
+      displaySeconds,
+      priority: Number.isFinite(priority) ? priority : 0,
+      startsAt,
+      endsAt,
+      isActive,
+    },
+  });
+
+  revalidateAdminManagedViews(locale);
   redirect(getRedirect(locale, "admin"));
 }
 
@@ -583,6 +776,7 @@ export async function toggleAdPlacementAction(formData: FormData) {
     data: { isActive: nextActive },
   });
 
+  revalidateAdminManagedViews(locale);
   redirect(getRedirect(locale, "admin"));
 }
 
@@ -604,6 +798,84 @@ export async function upsertManagedContentAction(formData: FormData) {
     update: { title, body, isActive },
   });
 
+  revalidateAdminManagedViews(locale);
+  redirect(getRedirect(locale, "admin"));
+}
+
+export async function upsertManagedContentItemAction(formData: FormData) {
+  const locale = formData.get("locale");
+  await requireAdminSession(locale);
+  const id = normalizeText(formData.get("id"));
+  const type = normalizeText(formData.get("type"));
+  const contentLocale = getSafeLocale(String(formData.get("contentLocale") ?? locale ?? "tr"));
+  const title = normalizeText(formData.get("title"));
+  const excerpt = normalizeText(formData.get("excerpt")) || null;
+  const body = normalizeText(formData.get("body"));
+  const uploadedImageUrl = await saveAdminUpload(locale, formData.get("imageFile"), "image");
+  const uploadedVideoUrl = await saveAdminUpload(locale, formData.get("videoFile"), "video");
+  const imageUrl = uploadedImageUrl ?? normalizeOptionalUrl(formData.get("imageUrl"));
+  const videoUrl = uploadedVideoUrl ?? normalizeOptionalUrl(formData.get("videoUrl"));
+  const linkUrl = normalizeOptionalUrl(formData.get("linkUrl"));
+  const linkLabel = normalizeText(formData.get("linkLabel")) || null;
+  const sortOrder = normalizeOptionalNumber(formData.get("sortOrder"));
+  const publishedAt = normalizeOptionalDateTime(formData.get("publishedAt"));
+  const isFeatured = formData.get("isFeatured") === "on";
+  const isActive = formData.get("isActive") === "on";
+
+  if (!isManagedContentType(type) || !title || !body) {
+    redirect(getRedirect(locale, "admin", "İçerik türü, başlık ve metin zorunludur."));
+  }
+
+  if ((normalizeText(formData.get("imageUrl")) && !imageUrl) || (normalizeText(formData.get("videoUrl")) && !videoUrl) || (normalizeText(formData.get("linkUrl")) && !linkUrl)) {
+    redirect(getRedirect(locale, "admin", "Görsel, video veya bağlantı adresi geçerli bir http/https URL ya da site içi / yol olmalıdır."));
+  }
+
+  const data = {
+    type,
+    locale: contentLocale,
+    title,
+    excerpt,
+    body,
+    imageUrl,
+    videoUrl,
+    linkUrl,
+    linkLabel,
+    sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+    publishedAt,
+    isFeatured,
+    isActive,
+  };
+
+  if (id) {
+    await prisma.managedContentItem.update({
+      where: { id },
+      data,
+    });
+  } else {
+    await prisma.managedContentItem.create({ data });
+  }
+
+  revalidateAdminManagedViews(locale, contentLocale);
+  redirect(getRedirect(locale, "admin"));
+}
+
+export async function toggleManagedContentItemAction(formData: FormData) {
+  const locale = formData.get("locale");
+  await requireAdminSession(locale);
+  const id = String(formData.get("id") ?? "");
+  const nextActive = formData.get("nextActive") === "true";
+  const contentLocale = formData.get("contentLocale");
+
+  if (!id) {
+    redirect(getRedirect(locale, "admin", "İçerik kaydı bulunamadı."));
+  }
+
+  await prisma.managedContentItem.update({
+    where: { id },
+    data: { isActive: nextActive },
+  });
+
+  revalidateAdminManagedViews(locale, contentLocale);
   redirect(getRedirect(locale, "admin"));
 }
 
@@ -626,6 +898,14 @@ export async function updateSiteVisualSettingsAction(formData: FormData) {
 
     if (!definition) {
       continue;
+    }
+
+    if (setting.type === "IMAGE_URL") {
+      const uploadedImageUrl = await saveAdminUpload(locale, formData.get(`${setting.key}File`), "image");
+
+      if (uploadedImageUrl) {
+        value = uploadedImageUrl;
+      }
     }
 
     value = normalizeVisualSettingValue(value, definition.type);

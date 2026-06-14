@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { AdBanner } from "@/components/AdBanner";
+import { ManagedContentList } from "@/components/ManagedContentList";
 import { MiniLineChart } from "@/components/MiniLineChart";
 import { LiveMarketOverview } from "@/components/market/LiveMarketOverview";
-import { MarketPulse } from "@/components/market/MarketPulse";
 import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
 import { PremiumCard } from "@/components/PremiumCard";
@@ -12,6 +12,7 @@ import { getAds } from "@/lib/ads";
 import { getSessionUser } from "@/lib/auth";
 import { getFallbackMarketItems, getLiveMarketItems } from "@/lib/live-market";
 import { getUserRankingPeriods } from "@/lib/leaderboard";
+import { getManagedContentItems, type PublicManagedContentItem } from "@/lib/managed-content";
 import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
@@ -30,14 +31,16 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const copy = getUiCopy(locale);
   const user = await getSessionUser();
   const fallbackMarketItems = getFallbackMarketItems();
-  const [adsResult, liveItemsResult, snapshotResult] = await Promise.allSettled([
+  const [adsResult, liveItemsResult, snapshotResult, announcementsResult] = await Promise.allSettled([
     getAds("home_top"),
     getLiveMarketItems(),
     user ? getPortfolioSnapshot(user.id, fallbackMarketItems) : Promise.resolve(null),
+    getManagedContentItems({ type: "ANNOUNCEMENT", locale, limit: 3 }),
   ]);
   const ads = settledValue<DisplayAd[]>(adsResult, []);
   const liveItems = settledValue<MarketItem[]>(liveItemsResult, fallbackMarketItems);
   const snapshot = settledValue<Awaited<ReturnType<typeof getPortfolioSnapshot>> | null>(snapshotResult, null);
+  const announcements = settledValue<PublicManagedContentItem[]>(announcementsResult, []);
   const [chartPeriodsResult, rankingPeriodsResult] = await Promise.allSettled([
     user && snapshot ? getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd) : Promise.resolve([]),
     user ? getUserRankingPeriods(user.id) : Promise.resolve([]),
@@ -45,9 +48,6 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const chartPeriods = settledValue<PortfolioPerformancePeriod[]>(chartPeriodsResult, []);
   const rankingPeriods = settledValue<UserRankingPeriod[]>(rankingPeriodsResult, []);
   const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
-  const marketSubtitle = locale === "en"
-    ? "A wider universe is scanned in the background every 30 seconds, while the pages remain fixed and responsive."
-    : "Daha geniş bir piyasa evreni 30 saniyede bir arka planda taranır, sayfalar sabit ve akıcı kalır.";
 
   return (
     <div className="grid gap-6">
@@ -64,12 +64,10 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
       </section>
 
-      <MarketPulse
-        locale={locale}
-        items={liveItems}
-        title={locale === "en" ? "Market cockpit" : "Piyasa kokpiti"}
-        subtitle={marketSubtitle}
-        accentLabel={copy.home.eyebrow}
+      <ManagedContentList
+        items={announcements}
+        featuredLabel={locale === "en" ? "Featured" : "Öne çıkan"}
+        variant="compact"
       />
 
       <LiveMarketOverview locale={locale} initialItems={liveItems} title={copy.home.topRisers} />

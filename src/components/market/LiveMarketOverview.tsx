@@ -15,6 +15,7 @@ type LiveMarketOverviewProps = {
   locale: string;
   initialItems: MarketItem[];
   title: string;
+  variant?: "wide" | "sidebar";
 };
 
 function formatUpdatedAt(value: string | undefined, locale: string) {
@@ -71,16 +72,17 @@ function TrendList({ title, items }: { title: string; items: MarketItem[] }) {
   );
 }
 
-export function LiveMarketOverview({ locale, initialItems, title }: LiveMarketOverviewProps) {
+export function LiveMarketOverview({ locale, initialItems, title, variant = "wide" }: LiveMarketOverviewProps) {
   const isEnglish = locale === "en";
+  const isSidebar = variant === "sidebar";
   const initialSignature = buildOverviewSignature({
-    updatedAt: new Date().toISOString(),
+    updatedAt: "",
     items: initialItems,
     topRisers: [...initialItems].sort((a, b) => b.changePercent - a.changePercent).slice(0, 10),
     topFallers: [...initialItems].sort((a, b) => a.changePercent - b.changePercent).slice(0, 10),
   });
   const [state, setState] = useState<MarketOverviewPayload>({
-    updatedAt: new Date().toISOString(),
+    updatedAt: "",
     items: initialItems,
     topRisers: [...initialItems].sort((a, b) => b.changePercent - a.changePercent).slice(0, 10),
     topFallers: [...initialItems].sort((a, b) => a.changePercent - b.changePercent).slice(0, 10),
@@ -137,10 +139,10 @@ export function LiveMarketOverview({ locale, initialItems, title }: LiveMarketOv
   }, [state.items]);
 
   return (
-    <section className="dashboard-shell grid gap-4 p-4 lg:grid-cols-[1.1fr_1fr_1fr]">
-      <div className="rounded-xl bg-[#101827] p-5 text-white shadow-sm">
+    <section className={`dashboard-shell grid gap-4 p-4 ${isSidebar ? "" : "lg:grid-cols-[1.1fr_1fr_1fr]"}`}>
+      <div className={`rounded-xl bg-[#101827] text-white shadow-sm ${isSidebar ? "p-4" : "p-5"}`}>
         <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">{title}</p>
-        <h2 className="mt-2 text-2xl font-black">{isEnglish ? "Live market overview" : "Canlı piyasa özeti"}</h2>
+        <h2 className={`mt-2 font-black ${isSidebar ? "text-xl" : "text-2xl"}`}>{isEnglish ? "Live market overview" : "Canlı piyasa özeti"}</h2>
         <p className="mt-3 text-sm leading-6 text-slate-300">
           {isEnglish
             ? "Data refreshes every 30 seconds. The biggest gainers and losers are calculated directly from the latest live stream."

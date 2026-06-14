@@ -4,7 +4,6 @@ import { AdBanner } from "@/components/AdBanner";
 import { FormMessage } from "@/components/FormMessage";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
 import { LiveMarketOverview } from "@/components/market/LiveMarketOverview";
-import { MarketPulse } from "@/components/market/MarketPulse";
 import { TradeTicketForm } from "@/components/TradeTicketForm";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -83,9 +82,6 @@ export default async function TradePage({
   const dataError = snapshotResult.status === "rejected"
     ? copy.trade.dataError
     : undefined;
-  const marketSubtitle = locale === "en"
-    ? "Trade without page reloads. The scanner keeps updating the universe in the background."
-    : "Sayfa yenilenmeden işlem yapın. Tarayıcı, evreni arka planda güncel tutar.";
 
   return (
     <div className="grid gap-6 overflow-x-hidden">
@@ -93,9 +89,10 @@ export default async function TradePage({
       <FormMessage message={query.success} tone="success" />
       <FormMessage message={dataError} tone="info" />
       <AdBanner ads={topAds} />
-      <section className="grid min-w-0 gap-6 xl:grid-cols-[minmax(300px,0.82fr)_minmax(0,1.18fr)]">
-        <aside className="grid min-w-0 content-start gap-5 xl:sticky xl:top-32">
+      <section className="grid min-w-0 gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
+        <aside className="grid min-w-0 content-start gap-5 self-start">
           <TradePortfolioPanel snapshot={snapshot} copy={copy.trade} />
+          <LiveMarketOverview locale={locale} initialItems={marketItems} title={copy.trade.title} variant="sidebar" />
           <AdBanner ads={sideAds} variant="side" />
         </aside>
 
@@ -130,14 +127,6 @@ export default async function TradePage({
         </div>
       </section>
 
-      <MarketPulse
-        locale={locale}
-        items={marketItems}
-        title={locale === "en" ? "Market cockpit" : "Piyasa kokpiti"}
-        subtitle={marketSubtitle}
-        accentLabel={locale === "en" ? "Live scan" : "Canlı tarama"}
-      />
-      <LiveMarketOverview locale={locale} initialItems={marketItems} title={copy.trade.title} />
     </div>
   );
 }

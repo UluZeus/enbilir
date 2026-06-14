@@ -26,8 +26,8 @@ type ReferenceLine = {
   color?: string;
 };
 
-const chartHeight = 128;
-const chartWidth = 360;
+const chartHeight = 220;
+const chartWidth = 720;
 const mainRed = "#dc2626";
 const neutralLine = "#64748b";
 
@@ -119,8 +119,8 @@ function MiniLineChart({
   const minLabel = compactNumber(bounds.min, 2);
 
   return (
-    <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2">
-      <svg className="h-32 w-full max-w-full overflow-hidden" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
+    <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)_64px] gap-4">
+      <svg className="h-56 w-full max-w-full overflow-hidden" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
         <line x1="0" x2={chartWidth} y1="0" y2="0" stroke="#e2e8f0" strokeWidth="1" />
         <line x1="0" x2={chartWidth} y1={chartHeight / 2} y2={chartHeight / 2} stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
         <line x1="0" x2={chartWidth} y1={chartHeight} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
@@ -138,7 +138,7 @@ function MiniLineChart({
                 strokeDasharray="4 4"
                 strokeWidth="1"
               />
-              <text x={chartWidth - 2} y={Math.max(10, y - 3)} textAnchor="end" fill={reference.color ?? "#64748b"} fontSize="10" fontWeight="700">
+              <text x={chartWidth - 4} y={Math.max(14, y - 6)} textAnchor="end" fill={reference.color ?? "#64748b"} fontSize="13" fontWeight="700">
                 {reference.label}
               </text>
             </g>
@@ -157,7 +157,7 @@ function MiniLineChart({
           />
         ))}
       </svg>
-      <div className="flex flex-col justify-between py-1 text-right text-[11px] font-bold text-slate-500">
+      <div className="flex flex-col justify-between py-1 text-right text-xs font-bold text-slate-500">
         <span>{maxLabel}</span>
         <span>{compactNumber((bounds.max + bounds.min) / 2, 2)}</span>
         <span>{minLabel}</span>
@@ -168,11 +168,11 @@ function MiniLineChart({
 
 function ValueGrid({ values }: { values: Array<{ label: string; value: string; tone?: string }> }) {
   return (
-    <div className="mt-3 grid grid-cols-2 gap-2">
+    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
       {values.map((item) => (
-        <div key={item.label} className="rounded-md border border-slate-100 bg-slate-50 px-2 py-1.5">
+        <div key={item.label} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
           <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{item.label}</p>
-          <p className={`mt-0.5 text-xs font-black ${item.tone ?? "text-slate-700"}`}>{item.value}</p>
+          <p className={`mt-1 break-words text-sm font-black ${item.tone ?? "text-slate-700"}`}>{item.value}</p>
         </div>
       ))}
     </div>
@@ -199,15 +199,15 @@ function ChartPanel({
   max?: number;
 }) {
   return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white/80 p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white/90 p-5 shadow-sm lg:p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <h4 className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{title}</h4>
-          <p className="mt-1 text-xs font-semibold text-slate-700">{meta}</p>
+          <h4 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500">{title}</h4>
+          <p className="mt-1 text-sm font-semibold text-slate-700">{meta}</p>
         </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 lg:justify-end">
           {lines.map((line) => (
-            <span key={line.label} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500">
+            <span key={line.label} className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: line.color }} />
               {line.label}
             </span>
@@ -216,7 +216,7 @@ function ChartPanel({
       </div>
       <ValueGrid values={values} />
       <MiniLineChart lines={lines} references={references} min={min} max={max} />
-      {children ? <div className="mt-3 text-xs leading-5 text-slate-600">{children}</div> : null}
+      {children ? <div className="mt-4 text-sm leading-6 text-slate-600">{children}</div> : null}
     </div>
   );
 }
@@ -243,16 +243,16 @@ function TrendPanel({ isEnglish, series }: { isEnglish: boolean; series: Technic
         : "border-slate-200 bg-slate-50 text-slate-700";
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white/80 p-4 shadow-sm">
-      <h4 className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Trend</h4>
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <span className={`rounded-md border px-2 py-1 text-xs font-black ${tone}`}>{label}</span>
-        <span className="text-sm font-black text-red-700">{series.trend.score}/100</span>
+    <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white/90 p-5 shadow-sm lg:p-6">
+      <h4 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500">Trend</h4>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <span className={`rounded-lg border px-3 py-1.5 text-sm font-black ${tone}`}>{label}</span>
+        <span className="text-base font-black text-red-700">{series.trend.score}/100</span>
       </div>
-      <div className="mt-4 h-3 rounded-full bg-slate-100">
-        <div className="h-3 rounded-full bg-red-600" style={{ width: `${series.trend.score}%` }} />
+      <div className="mt-5 h-4 rounded-full bg-slate-100">
+        <div className="h-4 rounded-full bg-red-600" style={{ width: `${series.trend.score}%` }} />
       </div>
-      <p className="mt-3 text-xs leading-5 text-slate-600">{series.trend.note}</p>
+      <p className="mt-4 text-sm leading-6 text-slate-600">{series.trend.note}</p>
     </div>
   );
 }
@@ -370,7 +370,7 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
   const volumeAnomaly = latest.volumeSma20 !== null && latest.volumeSma20 > 0 && latest.volume / latest.volumeSma20 >= 1.8;
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50/80 p-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 lg:p-5">
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <h3 className="text-sm font-black text-[#152033]">{isEnglish ? `${symbol} Technical Chart Panels` : `${symbol} Teknik Grafik Panelleri`}</h3>
         <p className="text-xs font-semibold text-slate-500">
@@ -378,7 +378,7 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
         </p>
       </div>
 
-      <div className="mt-3 grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+      <div className="mt-4 grid gap-5">
         <ChartPanel
           title={isEnglish ? "Price + MA/EMA" : "Fiyat + MA/EMA"}
           meta={`${lastPriceLabel} ${compactNumber(latest.close, 4)}`}
