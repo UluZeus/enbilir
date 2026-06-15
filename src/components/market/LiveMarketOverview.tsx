@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { EconomyHeadline } from "@/lib/economy-news";
 import { formatMarketItemPrice, type MarketItem } from "@/lib/market-data";
 
 type MarketOverviewPayload = {
@@ -15,6 +16,8 @@ type LiveMarketOverviewProps = {
   locale: string;
   initialItems: MarketItem[];
   title: string;
+  panelTitle?: string;
+  headlines?: EconomyHeadline[];
   variant?: "wide" | "sidebar";
 };
 
@@ -72,7 +75,7 @@ function TrendList({ title, items }: { title: string; items: MarketItem[] }) {
   );
 }
 
-export function LiveMarketOverview({ locale, initialItems, title, variant = "wide" }: LiveMarketOverviewProps) {
+export function LiveMarketOverview({ locale, initialItems, title, panelTitle, headlines = [], variant = "wide" }: LiveMarketOverviewProps) {
   const isEnglish = locale === "en";
   const isSidebar = variant === "sidebar";
   const initialSignature = buildOverviewSignature({
@@ -141,13 +144,7 @@ export function LiveMarketOverview({ locale, initialItems, title, variant = "wid
   return (
     <section className={`dashboard-shell grid gap-4 p-4 ${isSidebar ? "" : "lg:grid-cols-[1.1fr_1fr_1fr]"}`}>
       <div className={`rounded-xl bg-[#101827] text-white shadow-sm ${isSidebar ? "p-4" : "p-5"}`}>
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">{title}</p>
-        <h2 className={`mt-2 font-black ${isSidebar ? "text-xl" : "text-2xl"}`}>{isEnglish ? "Live market overview" : "Canlı piyasa özeti"}</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-300">
-          {isEnglish
-            ? "Data refreshes every 30 seconds. The biggest gainers and losers are calculated directly from the latest live stream."
-            : "Veriler 30 saniyede bir yenilenir. En çok yükselen ve düşen ürünler doğrudan güncel akıştan hesaplanır."}
-        </p>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">{panelTitle ?? title}</p>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-white/10 px-3 py-2">
             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">{isEnglish ? "Products" : "Ürün"}</p>
@@ -166,6 +163,33 @@ export function LiveMarketOverview({ locale, initialItems, title, variant = "wid
           {isEnglish ? "Last update" : "Son güncelleme"}: {formatUpdatedAt(state.updatedAt, locale)}
         </p>
         {state.error ? <p className="mt-2 text-xs font-bold text-amber-300">{state.error}</p> : null}
+        <div className="mt-5 border-t border-white/10 pt-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#f5a623]">
+            {isEnglish ? "Important economy headlines" : "Öne çıkan ekonomi başlıkları"}
+          </p>
+          <div className="mt-3 grid gap-3">
+            {headlines.length > 0 ? (
+              headlines.map((headline) => (
+                <a
+                  key={`${headline.title}-${headline.source}`}
+                  href={headline.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg border border-white/10 bg-white/6 p-3 hover:bg-white/10"
+                >
+                  <p className="text-sm font-black leading-6 text-white">{headline.title}</p>
+                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    {headline.source}
+                  </p>
+                </a>
+              ))
+            ) : (
+              <p className="text-sm leading-6 text-slate-300">
+                {isEnglish ? "Daily economy headlines could not be loaded right now." : "Günlük ekonomi başlıkları şu anda yüklenemedi."}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       <TrendList title={isEnglish ? "Top 10 gainers" : "En çok yükselen 10"} items={state.topRisers} />

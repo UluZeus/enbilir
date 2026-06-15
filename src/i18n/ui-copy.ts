@@ -20,8 +20,8 @@ export const uiCopy = {
     },
     appShell: {
       support: "Destek: 0850 000 00 00",
-      tagline: "Piyasa takibi ve eğitim tek platformda",
-      academy: "Piyasa Akademisi",
+      tagline: "Rotary toplulukları için piyasa okuryazarlığı platformu",
+      academy: "Rotary Piyasa Akademisi",
       aiAssistant: "AI Asistanı",
       logout: "Çıkış yap",
       footer:
@@ -37,13 +37,13 @@ export const uiCopy = {
     simplePages: {
       education: {
         title: "Eğitim",
-        description: "Finansal okuryazarlık ve sanal portföy yönetimi eğitim merkezi.",
+        description: "Rotary toplulukları için finansal okuryazarlık ve sanal portföy yönetimi eğitim merkezi.",
         modules: ["Temel kavramlar", "Risk ve getiri", "Portföy disiplini"],
         moduleBody: "Bu modül için ders içerikleri sonraki geliştirme adımlarında detaylandırılacak.",
       },
       blog: {
         title: "Blog",
-        description: "Finansal okuryazarlık yazıları ve platform duyuruları.",
+        description: "Rotary odaklı finansal okuryazarlık yazıları ve platform duyuruları.",
         emptyTitle: "İlk içerikler hazırlanıyor",
         emptyBody: "Blog alanı eğitim notları, yarışma duyuruları ve piyasa okuryazarlığı içerikleri için ayrıldı.",
       },
@@ -56,8 +56,8 @@ export const uiCopy = {
       },
     },
     home: {
-      eyebrow: "Sanal portföy yarışması",
-      description: "Gerçek para ile işlem yaptırmayan, eğitim ve finansal okuryazarlık amaçlı yarışma platformu.",
+      eyebrow: "Rotary toplulukları için sanal portföy yarışması",
+      description: "Gerçek para işlemi olmadan, Rotary topluluklarına özel eğitim, yarışma ve piyasa okuryazarlığı deneyimi sunan dijital platform.",
       trade: "İşlem yap",
       leagues: "Ligleri gör",
       portfolio: "Portföyüm",
@@ -320,8 +320,8 @@ export const uiCopy = {
     },
     appShell: {
       support: "Support: 0850 000 00 00",
-      tagline: "Market tracking and education in one platform",
-      academy: "Market Academy",
+      tagline: "Market literacy platform for Rotary communities",
+      academy: "Rotary Market Academy",
       aiAssistant: "AI Assistant",
       logout: "Sign out",
       footer:
@@ -337,13 +337,13 @@ export const uiCopy = {
     simplePages: {
       education: {
         title: "Education",
-        description: "The education hub for financial literacy and virtual portfolio management.",
+        description: "The education hub for Rotary communities focused on financial literacy and virtual portfolio management.",
         modules: ["Core concepts", "Risk and return", "Portfolio discipline"],
         moduleBody: "Lesson content for this module will be expanded in upcoming development phases.",
       },
       blog: {
         title: "Blog",
-        description: "Financial literacy articles and platform updates.",
+        description: "Rotary-focused financial literacy articles and platform updates.",
         emptyTitle: "First articles are being prepared",
         emptyBody: "The blog area is reserved for education notes, competition updates, and market literacy content.",
       },
@@ -356,8 +356,8 @@ export const uiCopy = {
       },
     },
     home: {
-      eyebrow: "Virtual portfolio competition",
-      description: "A competition platform for education and financial literacy, with no real-money trading.",
+      eyebrow: "Virtual portfolio competition for Rotary communities",
+      description: "A digital platform for Rotary communities that combines education, competition, and market literacy without real-money trading.",
       trade: "Trade",
       leagues: "View leagues",
       portfolio: "My Portfolio",

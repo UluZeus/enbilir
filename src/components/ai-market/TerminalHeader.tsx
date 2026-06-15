@@ -165,7 +165,11 @@ export function TerminalHeader({
           <Metric label={copy.volatility} value={getVolatility(analysis)} />
           <Metric label={copy.trend} value={getTrendLabel(analysis, copy)} />
           <Metric label={copy.aiSignal} value={signalText} />
-          <Metric label={copy.confidence} value={analysis ? `%${analysis.signal.confidence}` : "-"} />
+          <Metric
+            label={copy.confidence}
+            value={analysis ? `%${analysis.signal.confidence}` : "-"}
+            tooltip={safeLocale === "tr" ? "Güven metriği, sinyalin teknik verilerle ne kadar uyumlu göründüğünü gösterir." : "Confidence shows how strongly the technical inputs support the current signal."}
+          />
         </div>
 
         <Link
@@ -220,9 +224,14 @@ export function TerminalHeader({
           </select>
         </label>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Status label={copy.marketRadar} value={copy.radarStatus} />
           <Status label={copy.favorites} value={copy.favoritesCount(favoritesCount)} />
+          <Status
+            label={copy.risk}
+            value={analysis ? `${Math.round(analysis.risk.score)}/100` : "-"}
+            tooltip={safeLocale === "tr" ? "Risk metriği, oynaklık ve teknik dengesizlik arttıkça yükselir. Yüksek değer daha temkinli yorum gerektirir." : "Risk rises as volatility and technical imbalance increase. A higher value calls for more caution."}
+          />
         </div>
       </div>
     </section>
@@ -244,20 +253,43 @@ function PerformanceChip({ label, value }: { label: string; value: number | null
   );
 }
 
-function Metric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+function Metric({ label, value, strong = false, tooltip }: { label: string; value: string; strong?: boolean; tooltip?: string }) {
   return (
     <div className="min-w-0 rounded-md border border-slate-800 bg-slate-950/70 p-2">
-      <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        {tooltip ? <InfoTooltip text={tooltip} /> : null}
+      </div>
       <p className={`mt-1 truncate font-black ${strong ? "text-lg text-white" : "text-sm text-slate-200"}`}>{value}</p>
     </div>
   );
 }
 
-function Status({ label, value }: { label: string; value: string }) {
+function Status({ label, value, tooltip }: { label: string; value: string; tooltip?: string }) {
   return (
     <div className="rounded-md border border-slate-800 bg-slate-950/70 p-2">
-      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        {tooltip ? <InfoTooltip text={tooltip} /> : null}
+      </div>
       <p className="mt-1 text-xs font-black text-slate-200">{value}</p>
     </div>
+  );
+}
+
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label="Info"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 text-[10px] font-black text-slate-400 hover:border-cyan-300/40 hover:text-cyan-200"
+      >
+        i
+      </button>
+      <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-52 -translate-x-1/2 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-[11px] font-semibold normal-case tracking-normal text-slate-200 shadow-2xl group-hover:block group-focus-within:block">
+        {text}
+      </span>
+    </span>
   );
 }

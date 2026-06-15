@@ -177,7 +177,30 @@ export async function AppShell({ children, locale }: AppShellProps) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-5 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-7xl px-5 py-8 pb-24 md:pb-8">{children}</main>
+
+      <div className="fixed inset-x-3 bottom-3 z-30 md:hidden">
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/60 bg-white/88 p-2 shadow-2xl backdrop-blur-xl">
+          <Link
+            href={`/${locale}/${sessionUser ? "panel" : "kayit"}`}
+            className="premium-cta flex items-center justify-center px-3 py-3 text-center text-xs font-black"
+          >
+            {sessionUser ? (locale === "tr" ? "Panel" : "Dashboard") : dictionary.nav.register}
+          </Link>
+          <Link
+            href={`/${locale}/islem-yap`}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-xs font-black text-[#152033]"
+          >
+            {dictionary.nav.trade}
+          </Link>
+          <Link
+            href={`/${locale}/ai-piyasa-asistani`}
+            className="rounded-xl border border-slate-200 bg-[#101827] px-3 py-3 text-center text-xs font-black text-white"
+          >
+            {ui.appShell.aiAssistant}
+          </Link>
+        </div>
+      </div>
 
       <footer className="mt-8 border-t border-white/60 bg-white/78 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-6 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between">

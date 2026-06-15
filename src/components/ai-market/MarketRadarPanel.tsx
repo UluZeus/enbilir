@@ -205,7 +205,19 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
           animation-play-state: paused;
         }
       `}</style>
-      <h2 className="text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            {locale === "tr"
+              ? "Bu bölüm 30 saniyede bir fırsatları tarar; eğitim amaçlıdır, yatırım tavsiyesi değildir."
+              : "This section scans opportunities every 30 seconds; it is educational and not investment advice."}
+          </p>
+        </div>
+        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
+          {copy.radarStatus}
+        </span>
+      </div>
       <div className="mt-3 grid gap-2.5">
         <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" segments={tickerGroups.shortTerm} isLoading={isLoading} />
         <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" segments={tickerGroups.hourly} isLoading={isLoading} />
@@ -307,5 +319,15 @@ function OpportunityItems({ locale, alerts, keyPrefix }: { locale: Locale; alert
 function FallbackText({ locale, isLoading }: { locale: Locale; isLoading: boolean }) {
   const copy = getUiCopy(locale).ai;
 
-  return <span className="whitespace-nowrap font-semibold text-slate-300">{isLoading ? copy.radarLoading : copy.emptyRadar}</span>;
+  if (isLoading) {
+    return (
+      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+        <span className="h-3 w-16 animate-pulse rounded-full bg-slate-700" />
+        <span className="h-3 w-24 animate-pulse rounded-full bg-slate-800" />
+        <span className="h-3 w-20 animate-pulse rounded-full bg-slate-700" />
+      </span>
+    );
+  }
+
+  return <span className="whitespace-nowrap font-semibold text-slate-300">{copy.emptyRadar}</span>;
 }
