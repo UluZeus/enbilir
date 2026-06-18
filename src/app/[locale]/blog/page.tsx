@@ -9,7 +9,7 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
   const locale = getSafeLocale(rawLocale);
   const copy = getUiCopy(locale).simplePages.blog;
   const posts = await getManagedContentItems({ type: "BLOG", locale });
-  const editorialPillars = getEditorialPillars(locale);
+  const editorialPillars = posts.length > 0 ? getManagedPostHighlights(posts) : getEditorialPillars(locale);
   const starterPosts = getStarterPosts(locale);
   const contentCalendar = getContentCalendar(locale);
   const evergreenNotes = getEvergreenNotes(locale);
@@ -76,6 +76,18 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
   );
 }
 
+function firstParagraph(body: string) {
+  return body.split(/\n{2,}/).map((paragraph) => paragraph.trim()).find(Boolean) ?? body;
+}
+
+function getManagedPostHighlights(posts: Awaited<ReturnType<typeof getManagedContentItems>>) {
+  return posts.slice(0, 3).map((post) => ({
+    eyebrow: post.isFeatured ? "Öne çıkan yazı" : "Enbilir yazısı",
+    title: post.title,
+    body: post.excerpt ?? firstParagraph(post.body),
+  }));
+}
+
 function getEvergreenNotes(locale: string) {
   if (locale === "en") {
     return [
@@ -101,18 +113,31 @@ function getEvergreenNotes(locale: string) {
   return [
     {
       eyebrow: "Kalıcı İçerik",
-      title: "Finansal okuryazarlık neden tekrar ister?",
+      title: "Finansal okuryazarlık neden tekrar ister, neden tek yazıyla olmaz?",
       paragraphs: [
-        "Finansal okuryazarlık tek bir yazıyı bir kez okuyarak kurulmaz. Aynı kavramlar farklı biçimlerde görüldükçe güçlenir: makale, görsel kart, portföy aksiyonu, lig içi tartışma ve AI özeti.",
-        "Bu yüzden Enbilir’de içerik birbirinden kopuk durmamalıdır. Blog yazısı eğitim kartını beslemeli, eğitim kartı lig içi konuşmayı desteklemeli, o konuşma da kullanıcıyı yeniden portföy ekranına getirmelidir.",
+        "Finansal okuryazarlık bir defalık bilgi aktarımıyla oluşmaz. Bunu özellikle vurgulamak gerekir. Çünkü piyasayı izleyen birçok kişi ilk heyecanla birkaç kavram öğrenir, birkaç göstergeye bakar ve kendisini karar vermeye hazır hisseder. Oysa gerçek mesele yalnızca kavramı bilmek değil, o kavramı doğru zamanda, doğru bağlamda ve sakin bir zihinle kullanabilmektir.",
+        "OECD'nin finansal okuryazarlık çalışmalarında bilgi, davranış ve tutum birlikte ele alınır. Bu ayrım çok önemlidir. Kişi faizin ne olduğunu bilebilir, enflasyonun alım gücünü düşürdüğünü anlayabilir, riskin ne demek olduğunu tarif edebilir. Fakat karar anında bütün parasını tek varlığa yönlendiriyorsa, zarar ihtimalini yazmadan işlem yapıyorsa veya sadece kalabalığın heyecanıyla hareket ediyorsa bilgi davranışa dönüşmemiş demektir.",
+        "Benim burada önemsediğim nokta tam olarak budur: finansal eğitim, sadece anlatıldığı için değil, tekrar tekrar kullanıldığı için kalıcı hale gelir. Bir kavram önce yazıda okunur, sonra grafikte görülür, ardından sanal portföyde denenir, lig içinde konuşulur ve raporda yeniden bağlama oturur. Aynı kavram farklı yerlerde tekrarlandığında artık ezber olmaktan çıkar; kişinin kendi karar diline yerleşmeye başlar.",
+        "Tekrarın değeri basit tekrar değildir. Aynı cümleyi sürekli söylemek kimseyi daha bilinçli yapmaz. Değerli olan tekrar, her seferinde küçük bir uygulama ile birlikte gelen tekrardır. Kullanıcı bir gün altını incelerken riskten korunmayı düşünür, başka bir gün Nasdaq tarafında büyüme beklentisini tartar, sonraki gün dövizde merkez bankası etkisini görür. Böylece konu teoriden çıkar ve günlük piyasa okumasına dönüşür.",
+        "Finansal kararlarda insanın kendi davranışını görmesi de en az piyasa verisi kadar önemlidir. Bir kullanıcı hep yükselen varlığa geç kalmış gibi koşuyorsa bunu fark etmelidir. Düşen varlıkta sadece ucuzladı diye acele ediyorsa bunu da görmelidir. Sanal portföy burada güvenli bir ayna görevi görür. Gerçek para baskısı olmadan yapılan kararlar, kişinin reflekslerini daha rahat gösterir.",
+        "Bu nedenle Enbilir'de içeriklerin birbirinden kopuk durmaması gerekir. Blog yazısı kavramı açmalı, eğitim kartı bunu sadeleştirmeli, makro rapor güncel piyasaya bağlamalı, portföy ekranı uygulamayı göstermeli, lig ise bu süreci topluluk içinde görünür kılmalıdır. Bu zincir çalıştığında kullanıcı sadece okumuş olmaz; denemiş, karşılaştırmış ve kendi davranışını ölçmüş olur.",
+        "Piyasada herkes zaman zaman yanılır. Önemli olan yanılmamak değildir. Önemli olan, aynı yanılgıyı fark etmeden tekrar etmemektir. Finansal okuryazarlık da burada başlar. Kişi kendi kararını yazabiliyor, gerekçesini anlatabiliyor, ters senaryosunu düşünebiliyor ve sonrasında sonucu soğukkanlı biçimde değerlendirebiliyorsa artık bilgi davranışa yaklaşmış demektir.",
+        "Bu yüzden finansal okuryazarlık tekrar ister. Çünkü piyasa her gün değişir ama iyi kararın temel soruları değişmez: Neye bakıyorum? Hangi vadede düşünüyorum? Riskim ne? Yanılırsam ne yapacağım? Bu sorular her yazıda, her raporda ve her portföy denemesinde yeniden sorulmalıdır. Kalıcı öğrenme biraz da bu sade disiplinin adıdır.",
       ],
     },
     {
       eyebrow: "Kalıcı İçerik",
-      title: "Topluluk temelli öğrenme neden tek başına öğrenmeden güçlü olabilir?",
+      title: "Topluluk temelli öğrenme neden tek başına öğrenmeden daha güçlü olabilir?",
       paragraphs: [
-        "İnsanlar çevrelerinde görünür bir grup ritmi olduğunda daha istikrarlı kalır. Topluluk temelli öğrenme; gerçek para baskısına ihtiyaç duymadan sorumluluk hissi, değerlendirme ve motivasyon üretir.",
-        "Rotary odaklı gruplar için bu etki daha da güçlüdür; çünkü platform sadece kişisel araç değil, aynı zamanda düzenli buluşma konusu ve ortak öğrenme zemini haline gelir.",
+        "Piyasayı takip etmek dışarıdan bakınca bireysel bir uğraş gibi görünür. İnsan ekranın başına geçer, fiyatlara bakar, haberleri okur ve kendi kararını verir. Bu taraf doğrudur; son karar her zaman kişiye aittir. Fakat öğrenmenin kendisi tek başına kalmak zorunda değildir. Hatta birçok durumda doğru topluluk, öğrenmeyi daha düzenli ve daha kalıcı hale getirir.",
+        "Topluluk temelli öğrenme yaklaşımında bilgi yalnızca anlatılmaz; birlikte tartışılır, gerçek hayatla ilişkilendirilir ve düzenli geri bildirimle güçlenir. Eğitim literatüründe bu yaklaşımın öne çıkan tarafı, öğreneni pasif dinleyici olmaktan çıkarıp sürecin aktif parçası haline getirmesidir. Piyasa okuryazarlığı için bu yaklaşım çok değerlidir; çünkü piyasa bilgisi ancak soru sorulduğunda ve farklı senaryolarla sınandığında derinleşir.",
+        "Tek başına öğrenen kişi çoğu zaman kendi kör noktasını fark etmekte zorlanır. Bir varlığa fazla bağlanabilir, sevdiği görüşü destekleyen haberleri seçebilir veya kısa vadeli sonucu doğru yöntem zannedebilir. Topluluk içinde ise başka bir üyenin sorusu bu ezberi bozabilir. “Bu kararı hangi gerekçeyle aldın?” sorusu bazen en iyi eğitim aracıdır.",
+        "Rotary gibi güven ilişkisi olan yapılarda bu etki daha da güçlüdür. Çünkü insanlar sadece sonuçlarını değil, düşünme biçimlerini de paylaşabilir. Bir üye altını neden güvenli liman olarak gördüğünü anlatır, başka biri teknoloji hisselerinde neden temkinli olduğunu söyler, bir diğeri döviz tarafındaki beklentisini makro veriyle ilişkilendirir. Bu konuşmalar doğru zeminde yapıldığında kimseye emir vermez; herkesin düşüncesini keskinleştirir.",
+        "Burada dikkat edilmesi gereken önemli bir sınır vardır. Topluluk, yatırım tavsiyesi verilen bir yer haline gelmemelidir. Amaç birine ne alacağını söylemek değildir. Amaç, kişinin kendi kararını daha iyi kurmasına yardımcı olmaktır. Bu nedenle Enbilir'in dili eğitim, değerlendirme ve kişisel görüş sınırında kalmalıdır. Her kullanıcı kendi riskinden, vadesinden ve kararından sorumludur.",
+        "Topluluk öğrenmesinin bir başka faydası ritim oluşturmasıdır. İnsan tek başına başladığı birçok çalışmayı yarıda bırakabilir. Fakat haftalık lig, düzenli rapor, portföy karşılaştırması ve ortak değerlendirme olduğunda takip alışkanlığı güçlenir. Bu ritim, finansal okuryazarlığın en çok ihtiyaç duyduğu şeyi sağlar: süreklilik.",
+        "Ayrıca topluluk başarıyı daha sağlıklı okumayı öğretir. Bir kişinin portföyü kısa vadede yükselmiş olabilir ama bu mutlaka iyi yöntem kullandığı anlamına gelmez. Başka bir kullanıcı kısa vadede geride kalmış olabilir ama riski daha doğru yönetmiş olabilir. Topluluk içinde bu ayrımı konuşmak, sadece kazananı alkışlamaktan daha öğreticidir.",
+        "Enbilir'in lig, rozet, rapor ve sanal portföy yapısı bu nedenle yalnızca oyunlaştırma değildir. Doğru kullanıldığında bunlar öğrenmeyi görünür hale getiren araçlardır. Kullanıcı kendi gelişimini görür, başkasının yaklaşımından faydalanır ve aynı zamanda karar sorumluluğunu kendisinde tutar. Bana göre iyi topluluk tam olarak bunu yapar: kişiyi yönlendirmez, düşünmesini güçlendirir.",
+        "Sonuç olarak topluluk temelli öğrenme tek başına öğrenmenin yerine geçmez; onu tamamlar. Piyasa kararları bireysel kalır, fakat öğrenme ortak bir zeminde daha hızlı olgunlaşır. İnsan bazen bir grafikten, bazen bir rapordan, bazen de yan masadaki sakin bir sorudan çok şey öğrenir. Bu yüzden Enbilir'de topluluk tarafını sadece rekabet olarak değil, düzenli ve güvenli bir öğrenme çevresi olarak görmek gerekir.",
       ],
     },
   ] as const;
@@ -217,19 +242,19 @@ function getEditorialPillars(locale: string) {
 
   return [
     {
-      eyebrow: "Editoryal 1",
-      title: "Piyasa okuryazarlığı notları",
-      body: "Kavramları, göstergeleri ve karar alışkanlıklarını yalnızca anlatan değil kullandıran bir dille sunar.",
+      eyebrow: "Piyasa okuması",
+      title: "Önce sakin kalmak, sonra karar vermek",
+      body: "Kavramları, göstergeleri ve karar alışkanlıklarını yalnızca anlatan değil, günlük kullanıma indiren bir dille ele alır.",
     },
     {
-      eyebrow: "Editoryal 2",
-      title: "Topluluk hikayeleri",
-      body: "Rotary liglerinin platformu nasıl kullandığını, neler öğrendiğini ve katılımın nasıl büyüdüğünü görünür kılar.",
+      eyebrow: "Topluluk ritmi",
+      title: "Birlikte öğrenmenin piyasadaki karşılığı",
+      body: "Rotary liglerinde oluşan öğrenme düzenini, kullanıcıların birbirinden nasıl beslendiğini ve katılımın neden büyüdüğünü görünür kılar.",
     },
     {
-      eyebrow: "Editoryal 3",
-      title: "Platform güncellemeleri",
-      body: "Yeni özellikleri, eğitim serilerini ve yarışma dönemlerini net bir çağrıyla blog üzerinden duyurur.",
+      eyebrow: "Platform notları",
+      title: "Yeni özellikler ne işe yarıyor?",
+      body: "Eğitim serilerini, yarışma dönemlerini ve platform yeniliklerini sade bir çağrıyla duyurur; kullanıcının nereden başlayacağını netleştirir.",
     },
   ] as const;
 }

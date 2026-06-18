@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:reset-virtual-portfolios": "node scripts/reset-virtual-portfolios.mjs",
+    "db:upsert-managed-blog-content": "node scripts/upsert-managed-blog-content.mjs",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
