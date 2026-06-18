@@ -7,7 +7,7 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_OAUTH_STATE_COOKIE = "enbilir_google_oauth_state";
 
 function isConfiguredGoogleValue(value: string | undefined) {
-  return Boolean(value && !value.startsWith("your-") && !value.startsWith("change-"));
+  return Boolean(value && value !== "..." && !value.startsWith("your-") && !value.startsWith("change-"));
 }
 
 function getRedirectUri(request: NextRequest) {

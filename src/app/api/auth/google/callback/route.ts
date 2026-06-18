@@ -11,7 +11,7 @@ const GOOGLE_OAUTH_STATE_COOKIE = "enbilir_google_oauth_state";
 const GOOGLE_PROVIDER = "google";
 
 function isConfiguredGoogleValue(value: string | undefined) {
-  return Boolean(value && !value.startsWith("your-") && !value.startsWith("change-"));
+  return Boolean(value && value !== "..." && !value.startsWith("your-") && !value.startsWith("change-"));
 }
 
 type GoogleState = {
