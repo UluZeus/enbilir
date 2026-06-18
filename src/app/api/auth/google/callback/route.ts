@@ -10,6 +10,10 @@ const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_OAUTH_STATE_COOKIE = "enbilir_google_oauth_state";
 const GOOGLE_PROVIDER = "google";
 
+function isConfiguredGoogleValue(value: string | undefined) {
+  return Boolean(value && !value.startsWith("your-") && !value.startsWith("change-"));
+}
+
 type GoogleState = {
   state: string;
   locale: string;
@@ -69,17 +73,20 @@ async function getGoogleUser(request: NextRequest, code: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
-  if (!clientId || !clientSecret) {
+  if (!isConfiguredGoogleValue(clientId) || !isConfiguredGoogleValue(clientSecret)) {
     throw new Error("Google giriş ayarları eksik.");
   }
+
+  const configuredClientId = clientId as string;
+  const configuredClientSecret = clientSecret as string;
 
   const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: configuredClientId,
+      client_secret: configuredClientSecret,
       redirect_uri: getRedirectUri(request),
       grant_type: "authorization_code",
     }),

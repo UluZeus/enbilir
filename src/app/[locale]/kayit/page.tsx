@@ -73,7 +73,7 @@ export default async function RegisterPage({
             href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/panel`)}`}
             className="rounded-md border border-slate-300 bg-white px-5 py-3 text-center text-sm font-black text-[#152033] shadow-sm hover:border-[#0f766e] hover:text-[#0f766e]"
           >
-            {copy.google}
+            {copy.googleRegister}
           </a>
           {isDevelopment ? (
             <a

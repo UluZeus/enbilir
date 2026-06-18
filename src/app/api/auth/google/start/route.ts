@@ -6,6 +6,10 @@ import { getRequestOrigin } from "@/lib/site-url";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_OAUTH_STATE_COOKIE = "enbilir_google_oauth_state";
 
+function isConfiguredGoogleValue(value: string | undefined) {
+  return Boolean(value && !value.startsWith("your-") && !value.startsWith("change-"));
+}
+
 function getRedirectUri(request: NextRequest) {
   return new URL("/api/auth/google/callback", getRequestOrigin(request)).toString();
 }
@@ -24,13 +28,14 @@ export async function GET(request: NextRequest) {
   const returnTo = getSafeReturnPath(request.nextUrl.searchParams.get("returnTo"));
   const origin = getRequestOrigin(request);
 
-  if (!clientId) {
+  if (!isConfiguredGoogleValue(clientId)) {
     return NextResponse.redirect(new URL(`/${locale}/giris?error=${encodeURIComponent("Google giriş ayarları eksik.")}`, origin));
   }
 
+  const configuredClientId = clientId as string;
   const state = randomUUID();
   const authUrl = new URL(GOOGLE_AUTH_URL);
-  authUrl.searchParams.set("client_id", clientId);
+  authUrl.searchParams.set("client_id", configuredClientId);
   authUrl.searchParams.set("redirect_uri", getRedirectUri(request));
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", "openid email profile");

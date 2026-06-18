@@ -97,6 +97,7 @@ export const uiCopy = {
     },
     auth: {
       google: "Google ile giriş yap",
+      googleRegister: "Google ile üye ol",
       or: "veya",
       email: "E-posta",
       password: "Şifre",
@@ -397,6 +398,7 @@ export const uiCopy = {
     },
     auth: {
       google: "Continue with Google",
+      googleRegister: "Sign up with Google",
       or: "or",
       email: "Email",
       password: "Password",
