@@ -8,6 +8,7 @@ import { getDictionary } from "@/i18n/dictionaries";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { logoutAction } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getSiteVisualSettings, isVisualEnabled } from "@/lib/site-visual-settings";
 
 const primaryNav = [
@@ -63,6 +64,11 @@ export async function AppShell({ children, locale }: AppShellProps) {
   const dictionary = getDictionary(locale);
   const ui = getUiCopy(locale);
   const sessionUser = await getSessionUser();
+  const latestMacroReport = await prisma.aiMarketReport.findFirst({
+    where: { scope: "GLOBAL" },
+    orderBy: { generatedAt: "desc" },
+    select: { id: true },
+  });
   const visualSettings = await getSiteVisualSettings();
   const animationsEnabled = isVisualEnabled(visualSettings, "animationsEnabled");
   const card3dEnabled = isVisualEnabled(visualSettings, "card3dEnabled");
@@ -132,6 +138,16 @@ export async function AppShell({ children, locale }: AppShellProps) {
                 className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
               >
                 {ui.appShell.aiAssistant}
+              </Link>
+              <Link
+                href={
+                  latestMacroReport
+                    ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
+                    : `/${locale}/ai-piyasa-asistani/raporlar`
+                }
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-red-600 px-2.5 py-1.5 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:bg-red-700 hover:text-white 2xl:px-3 2xl:py-2"
+              >
+                MAKRO RAPOR
               </Link>
             </nav>
           </div>

@@ -1,13 +1,22 @@
+import Link from "next/link";
 import { MarketAssistantDashboard } from "@/components/ai-market/MarketAssistantDashboard";
+import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { AI_MARKET_SYMBOLS } from "@/lib/ai-market/symbols";
+import { prisma } from "@/lib/prisma";
 
 export default async function AiMarketAssistantPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const copy = getUiCopy(locale).ai;
   const guidance = getAiGuidance(locale);
+  const user = await getSessionUser();
+  const latestReport = await prisma.aiMarketReport.findFirst({
+    where: user ? { OR: [{ userId: user.id }, { scope: "GLOBAL" }] } : { scope: "GLOBAL" },
+    orderBy: { generatedAt: "desc" },
+    select: { id: true, generatedAt: true, marketRegime: true, riskAppetite: true, fallbackUsed: true },
+  });
 
   return (
     <div className="min-h-screen bg-[#030711] px-3 py-4 md:px-5">
@@ -48,6 +57,38 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
               <p className="text-sm font-black">{locale === "tr" ? "3. Lig içinde tartış" : "3. Discuss it inside the league"}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Bu ekranın gerçek gücü topluluk içi yorum ve karşılaştırmalı öğrenmedir." : "The real power of this screen is shared interpretation and comparative learning inside the community."}</p>
             </div>
+          </div>
+        </div>
+      </section>
+      <section className="mx-auto mb-4 max-w-[1600px] rounded-md border border-cyan-300/20 bg-cyan-300/8 p-4 text-white shadow-2xl">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">1 saatlik AI ajan raporu</p>
+            {latestReport ? (
+              <>
+                <h2 className="mt-1 text-lg font-black">{latestReport.marketRegime ?? "Son piyasa raporu hazir"}</h2>
+                <p className="mt-1 text-sm text-slate-300">
+                  {new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(latestReport.generatedAt)}
+                  {latestReport.riskAppetite ? ` · ${latestReport.riskAppetite}` : ""}
+                  {latestReport.fallbackUsed ? " · fallback" : ""}
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-1 text-lg font-black">Ilk rapor cron calistiginda olusacak</h2>
+                <p className="mt-1 text-sm text-slate-300">Makro sepet, haberler ve favori varliklar saatlik olarak yorumlanacak.</p>
+              </>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {latestReport ? (
+              <Link href={`/${locale}/ai-piyasa-asistani/raporlar/${latestReport.id}`} className="rounded-md border border-cyan-200 bg-cyan-100 px-3 py-2 text-sm font-black text-slate-950">
+                Son raporu ac
+              </Link>
+            ) : null}
+            <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="rounded-md border border-white/15 bg-white/8 px-3 py-2 text-sm font-black text-white">
+              Tum raporlar
+            </Link>
           </div>
         </div>
       </section>

@@ -260,6 +260,22 @@ textarea::placeholder {
   box-shadow: 0 0 26px color-mix(in srgb, var(--visual-accent) 18%, transparent);
 }
 
+.macro-report-ticker__track {
+  display: inline-flex;
+  width: max-content;
+  white-space: nowrap;
+  animation: macro-report-ticker-scroll 42s linear infinite;
+  will-change: transform;
+}
+
+.macro-report-ticker__item {
+  flex: 0 0 auto;
+}
+
+.macro-report-ticker:hover .macro-report-ticker__track {
+  animation-play-state: paused;
+}
+
 .portfolio-donut {
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 36%),
@@ -409,6 +425,16 @@ textarea::placeholder {
 
   50% {
     transform: scale(1.025);
+  }
+}
+
+@keyframes macro-report-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
   }
 }
 

@@ -10,7 +10,7 @@ import {
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import type { WatchSymbol } from "@/lib/ai-market/types";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 type AssetManagementDashboardProps = {
   locale: string;
@@ -59,6 +59,19 @@ function subscribeToFavorites(callback: () => void) {
 function writeFavorites(favorites: string[]) {
   window.localStorage.setItem(AI_MARKET_FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
   window.dispatchEvent(new Event(FAVORITES_CHANGED_EVENT));
+  void syncFavoritesToServer(favorites);
+}
+
+async function syncFavoritesToServer(favorites: string[]) {
+  try {
+    await fetch("/api/ai-market/favorites", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ symbols: favorites }),
+    });
+  } catch {
+    // Local storage remains the offline source if the user is not signed in or the network is unavailable.
+  }
 }
 
 export function AssetManagementDashboard({ locale, symbols }: AssetManagementDashboardProps) {
@@ -70,6 +83,10 @@ export function AssetManagementDashboard({ locale, symbols }: AssetManagementDas
     () => JSON.stringify(DEFAULT_AI_MARKET_FAVORITES),
   );
   const favorites = useMemo(() => normalizeFavorites(JSON.parse(favoritesSnapshot)), [favoritesSnapshot]);
+
+  useEffect(() => {
+    void syncFavoritesToServer(favorites);
+  }, [favorites]);
 
   function addFavorite(symbol: string) {
     const normalized = symbol.trim().toUpperCase();
@@ -139,7 +156,7 @@ export function AssetManagementDashboard({ locale, symbols }: AssetManagementDas
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <Stat label={copy.selectedFavorites} value={favorites.length.toString()} />
-          <Stat label={copy.storageLocation} value="localStorage" />
+          <Stat label={copy.storageLocation} value="localStorage + server" />
           <Stat label={copy.storageKey} value={AI_MARKET_FAVORITES_STORAGE_KEY} />
         </div>
       </section>

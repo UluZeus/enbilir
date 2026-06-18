@@ -3,22 +3,10 @@
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getAssetUniverseItem, STATIC_ASSET_UNIVERSE } from "@/lib/ai-market/asset-universe";
+import { AI_MARKET_FAVORITES_STORAGE_KEY, DEFAULT_AI_MARKET_FAVORITES } from "@/lib/ai-market/favorite-defaults";
 import type { AssetClass, WatchSymbol } from "@/lib/ai-market/types";
 
-export const AI_MARKET_FAVORITES_STORAGE_KEY = "ai-market-favorites";
-
-export const DEFAULT_AI_MARKET_FAVORITES = [
-  "BTCUSDT",
-  "ETHUSDT",
-  "SOLUSDT",
-  "XAUUSD",
-  "XAGUSD",
-  "USDTRY",
-  "AAPL",
-  "NVDA",
-  "^GSPC",
-  "^IXIC",
-];
+export { AI_MARKET_FAVORITES_STORAGE_KEY, DEFAULT_AI_MARKET_FAVORITES };
 
 export type FavoriteAsset = {
   symbol: string;
@@ -110,7 +98,7 @@ export function FavoritesPanel({
         <div>
           <h2 className="text-base font-black text-[#152033]">{copy.ai.favorites}</h2>
           <p className="mt-1 text-xs text-slate-500">
-            {safeLocale === "en" ? `${favorites.length} assets are stored in localStorage` : `${favorites.length} varlık localStorage içinde saklanıyor`}
+            {safeLocale === "en" ? `${favorites.length} assets are synced for the AI agent` : `${favorites.length} varlık AI ajanı için senkronize ediliyor`}
           </p>
         </div>
         <span className="w-fit rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs font-black text-slate-600">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdBanner } from "@/components/AdBanner";
 import { ManagedContentList } from "@/components/ManagedContentList";
+import { MacroReportTicker } from "@/components/ai-market/MacroReportTicker";
 import { MiniLineChart } from "@/components/MiniLineChart";
 import { LiveMarketOverview } from "@/components/market/LiveMarketOverview";
 import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
@@ -70,6 +71,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <div className="grid gap-6">
+      <MacroReportTicker />
       <AdBanner ads={ads} />
       <section className="hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.1fr)_360px]">
         <div>
