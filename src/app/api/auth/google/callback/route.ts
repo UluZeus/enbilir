@@ -4,6 +4,7 @@ import { masterAdminEmail, setSessionCookie } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureVirtualAccount } from "@/lib/portfolio";
 import { getRequestOrigin } from "@/lib/site-url";
+import { sendGoogleWelcomeEmail } from "@/lib/welcome-email";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
@@ -212,6 +213,9 @@ export async function GET(request: NextRequest) {
             },
           },
           select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
+        });
+        sendGoogleWelcomeEmail({ to: googleUser.email, name: googleUser.name }).catch((error: unknown) => {
+          console.error("[google-welcome-email]", error instanceof Error ? error.message : error);
         });
       }
     }

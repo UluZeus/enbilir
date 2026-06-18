@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import path from "path";
 import { canAccessAdmin, createSession, destroySession, getSessionUser, masterAdminEmail } from "@/lib/auth";
-import { buildEmailVerificationUrl, createEmailVerificationToken, getEmailVerificationExpiryMessage } from "@/lib/email-verification";
+import { buildEmailVerificationUrl, buildWelcomeVerificationEmail, createEmailVerificationToken } from "@/lib/email-verification";
 import { sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { getSafeLocale } from "@/i18n/config";
@@ -312,24 +312,7 @@ export async function registerAction(formData: FormData) {
 
   try {
     const verificationUrl = buildEmailVerificationUrl(token, getSafeLocale(String(locale ?? "tr")));
-    const subject = "Hesabını doğrula | Enbilir";
-    const text = [
-      `Merhaba ${name},`,
-      "",
-      "Enbilir hesabını aktif etmek için aşağıdaki bağlantıya tıkla:",
-      verificationUrl,
-      "",
-      getEmailVerificationExpiryMessage(),
-    ].join("\n");
-    const html = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-        <p>Merhaba ${name},</p>
-        <p>Enbilir hesabını aktif etmek için aşağıdaki bağlantıya tıkla:</p>
-        <p><a href="${verificationUrl}" style="display:inline-block;background:#101827;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">Hesabımı Aktifleştir</a></p>
-        <p style="word-break:break-all;"><a href="${verificationUrl}">${verificationUrl}</a></p>
-        <p>${getEmailVerificationExpiryMessage()}</p>
-      </div>
-    `;
+    const { subject, text, html } = buildWelcomeVerificationEmail({ name, verificationUrl });
 
     await sendEmail({
       to: email,
