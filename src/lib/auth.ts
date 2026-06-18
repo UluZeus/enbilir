@@ -32,7 +32,7 @@ function getSecret() {
 function getSessionCookieOptions() {
   return {
     httpOnly: true,
-    sameSite: "strict" as const,
+    sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
