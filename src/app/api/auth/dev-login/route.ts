@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
-import { createSession } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/auth";
 import { ensureVirtualAccount } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { getRequestOrigin } from "@/lib/site-url";
@@ -69,9 +69,10 @@ export async function GET(request: NextRequest) {
     });
 
     await ensureVirtualAccount(user.id);
-    await createSession(user);
 
-    return NextResponse.redirect(new URL(returnTo || `/${locale}/panel`, getRequestOrigin(request)));
+    const response = NextResponse.redirect(new URL(returnTo || `/${locale}/panel`, getRequestOrigin(request)));
+    await setSessionCookie(response, user);
+    return response;
   } catch (error) {
     return NextResponse.redirect(
       getRedirect(request, locale, "giris", error instanceof Error ? error.message : "Geliştirme girişi tamamlanamadı."),

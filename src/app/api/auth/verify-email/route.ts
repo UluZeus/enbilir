@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSession } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/auth";
 import { hashEmailVerificationToken } from "@/lib/email-verification";
 import { getSafeLocale } from "@/i18n/config";
 import { prisma } from "@/lib/prisma";
@@ -52,14 +52,9 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  await createSession(user);
-
-  return NextResponse.redirect(
-    getRedirect(
-      request,
-      locale,
-      "panel",
-      "Hesabın doğrulandı ve aktif edildi. Hoş geldin!",
-    ),
+  const response = NextResponse.redirect(
+    getRedirect(request, locale, "panel", "Hesabın doğrulandı ve aktif edildi. Hoş geldin!"),
   );
+  await setSessionCookie(response, user);
+  return response;
 }

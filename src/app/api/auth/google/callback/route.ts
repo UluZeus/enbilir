@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
-import { createSession, masterAdminEmail } from "@/lib/auth";
+import { masterAdminEmail, setSessionCookie } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureVirtualAccount } from "@/lib/portfolio";
 import { getRequestOrigin } from "@/lib/site-url";
@@ -217,9 +217,9 @@ export async function GET(request: NextRequest) {
     }
 
     await ensureVirtualAccount(user.id);
-    await createSession(user);
 
     const response = NextResponse.redirect(new URL(cookieState.returnTo || `/${locale}/panel`, getRequestOrigin(request)));
+    await setSessionCookie(response, user);
     response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
     return response;
   } catch (error) {

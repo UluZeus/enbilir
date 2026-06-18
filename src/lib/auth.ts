@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 import type { DisplayNameMode, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +17,7 @@ export type SessionUser = {
 };
 
 const encoder = new TextEncoder();
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function getSecret() {
   const secret = process.env.AUTH_SECRET;
@@ -27,21 +29,33 @@ function getSecret() {
   return encoder.encode(secret ?? "enbilir-local-development-secret-change-before-production");
 }
 
-export async function createSession(user: SessionUser) {
-  const token = await new SignJWT(user)
+function getSessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "strict" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  };
+}
+
+export async function createSessionToken(user: SessionUser) {
+  return new SignJWT(user)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(getSecret());
+}
 
+export async function createSession(user: SessionUser) {
+  const token = await createSessionToken(user);
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  cookieStore.set(SESSION_COOKIE, token, getSessionCookieOptions());
+}
+
+export async function setSessionCookie(response: NextResponse, user: SessionUser) {
+  const token = await createSessionToken(user);
+  response.cookies.set(SESSION_COOKIE, token, getSessionCookieOptions());
 }
 
 export async function destroySession() {
