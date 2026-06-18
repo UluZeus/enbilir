@@ -112,6 +112,8 @@ model User {
   achievementEvents                   AchievementEvent[]
   portfolioSnapshots                  PortfolioSnapshot[]
   oauthAccounts                       OAuthAccount[]
+  aiMarketFavorites                   AiMarketFavorite[]
+  aiMarketReports                     AiMarketReport[]
 }
 
 model OAuthAccount {
@@ -406,4 +408,89 @@ model AiSignalEvaluation {
   @@unique([signalLogId, horizon])
   @@index([horizon, evaluatedAt])
   @@index([status])
+}
+
+model AiMarketFavorite {
+  id         String   @id @default(cuid())
+  userId     String
+  symbol     String
+  displayName String?
+  assetClass String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
+  @@index([userId, createdAt])
+}
+
+model AiMarketReport {
+  id                 String               @id @default(cuid())
+  userId             String?
+  periodKey          String
+  scope              String               @default("GLOBAL")
+  status             String               @default("COMPLETED")
+  model              String?
+  generatedAt        DateTime             @default(now())
+  macroSummary       String
+  marketRegime       String?
+  riskAppetite       String?
+  keyTakeaways       Json
+  requiredCoverage   Json
+  newsSummary        String?
+  dataSnapshot       Json?
+  rawAiPayload       Json?
+  fallbackUsed       Boolean              @default(false)
+  disclaimer         String
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  user               User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assets             AiMarketReportAsset[]
+  newsItems          AiMarketReportNewsItem[]
+
+  @@unique([userId, periodKey, scope])
+  @@index([generatedAt])
+  @@index([userId, generatedAt])
+}
+
+model AiMarketReportAsset {
+  id                  String         @id @default(cuid())
+  reportId            String
+  symbol              String
+  displayName         String
+  assetClass          String
+  category            String?
+  lastPrice           Float?
+  changePercent       Float?
+  signalType          String?
+  confidence          Float?
+  riskScore           Float?
+  opportunityScore    Float?
+  technicalCommentary String
+  macroCommentary     String?
+  newsCommentary      String?
+  watchLevels         Json?
+  scenarios           Json?
+  sourcePayload       Json?
+  createdAt           DateTime       @default(now())
+  report              AiMarketReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, symbol])
+  @@index([symbol, createdAt])
+}
+
+model AiMarketReportNewsItem {
+  id          String         @id @default(cuid())
+  reportId    String
+  title       String
+  link        String
+  source      String
+  publishedAt DateTime?
+  category    String?
+  relevance   Float?
+  createdAt   DateTime       @default(now())
+  report      AiMarketReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, relevance])
+  @@index([category, createdAt])
 }

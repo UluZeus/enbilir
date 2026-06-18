@@ -64,6 +64,18 @@ function subscribeToFavorites(callback: () => void) {
   };
 }
 
+async function syncFavoritesToServer(favorites: string[]) {
+  try {
+    await fetch("/api/ai-market/favorites", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ symbols: favorites }),
+    });
+  } catch {
+    // The terminal remains usable with local favorites when a session is not available.
+  }
+}
+
 export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDashboardProps) {
   const safeLocale = getSafeLocale(locale);
   const copy = getUiCopy(safeLocale).ai;
@@ -84,6 +96,10 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
   const focusSymbols = useMemo(() => (favorites.length > 0 ? favorites : symbols.map((item) => item.symbol)), [favorites, symbols]);
   const effectiveSelectedSymbol = focusSymbols.includes(selectedSymbol) ? selectedSymbol : (focusSymbols[0] ?? symbols[0]?.symbol ?? "BTCUSDT");
   const isCryptoSelected = effectiveSelectedSymbol.endsWith("USDT");
+
+  useEffect(() => {
+    void syncFavoritesToServer(favorites);
+  }, [favorites]);
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({
