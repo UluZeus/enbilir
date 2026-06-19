@@ -39,7 +39,7 @@ export function AiInsightPanel({ locale, analysis }: AiInsightPanelProps) {
 function InsightList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return (
     <div className="rounded-md border border-slate-800 bg-slate-950/70 p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-stone-300">{title}</p>
       <div className="mt-2 grid gap-2">
         {(items.length > 0 ? items : [empty]).slice(0, 4).map((item) => (
           <p key={item} className="text-xs leading-5 text-slate-300">

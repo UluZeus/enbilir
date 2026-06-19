@@ -885,6 +885,73 @@ textarea::placeholder {
   color: #54705e !important;
 }
 
+/* AI Market terminal readability and radar emphasis. These rules sit after the older panel theme so live utility colors are not flattened. */
+.ai-market-radar-panel .ai-market-radar-symbol {
+  color: #7dd3fc !important;
+  text-shadow: 0 0 14px rgb(56 189 248 / 28%);
+}
+
+.ai-market-radar-panel .ai-market-radar-signal[class*="emerald"] {
+  border-color: rgb(110 231 183 / 62%) !important;
+  background: rgb(16 185 129 / 24%) !important;
+  color: #dcfce7 !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    0 0 20px rgb(16 185 129 / 22%);
+}
+
+.ai-market-radar-panel .ai-market-radar-signal[class*="red"],
+.ai-market-radar-panel .ai-market-radar-signal[class*="rose"] {
+  border-color: rgb(252 165 165 / 66%) !important;
+  background: rgb(239 68 68 / 25%) !important;
+  color: #fee2e2 !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    0 0 20px rgb(239 68 68 / 24%);
+}
+
+.terminal-header-panel :where(
+  .text-slate-300,
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600,
+  .terminal-control-label,
+  .terminal-header-metric-label,
+  .terminal-header-metric-value,
+  .quick-watchlist-name
+),
+.quick-watchlist-panel :where(
+  .text-slate-300,
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600,
+  .quick-watchlist-kicker,
+  .quick-watchlist-name
+),
+.ai-market-radar-panel :where(
+  .ai-market-radar-description,
+  .ai-market-radar-row-subtitle,
+  .ai-market-radar-meta,
+  .ai-market-radar-empty
+) {
+  color: rgb(255 250 246 / 86%) !important;
+}
+
+.terminal-header-panel :where(h1, h2, h3, .font-black, .text-white),
+.quick-watchlist-panel :where(h1, h2, h3, .font-black, .text-white) {
+  color: #fffaf6 !important;
+}
+
+.ai-guide-card,
+.ai-guide-card :where(p, span, h1, h2, h3, div) {
+  color: #fffaf6 !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 28%);
+}
+
+.ai-guide-card-body {
+  color: rgb(255 250 246 / 88%) !important;
+}
+
 .visual-motion-off *,
 .visual-shell.visual-motion-off * {
   animation: none !important;

@@ -70,10 +70,10 @@ function getDirectionLabel(alertType: SignalAlertType, locale: Locale) {
 
 function getDirectionTone(alertType: SignalAlertType) {
   if (alertType === "STRONG_BUY" || alertType === "BULLISH_MOMENTUM" || alertType === "BUY_WATCH") {
-    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200";
+    return "border-emerald-300/50 bg-emerald-400/18 text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.18)]";
   }
 
-  return "border-rose-400/30 bg-rose-400/10 text-rose-200";
+  return "border-red-300/50 bg-red-400/18 text-red-100 shadow-[0_0_20px_rgba(248,113,113,0.18)]";
 }
 
 function getOpportunityScore(alert: MarketScanAlert) {
@@ -294,7 +294,7 @@ function OpportunityItems({ locale, alerts, keyPrefix }: { locale: Locale; alert
     <>
       {alerts.map((alert) => (
         <span key={`${keyPrefix}-${alert.key}`} className="inline-flex items-center gap-2 whitespace-nowrap">
-          <span className="ai-market-radar-symbol font-black text-white">{alert.symbol}</span>
+          <span className="ai-market-radar-symbol font-black text-sky-300">{alert.symbol}</span>
           <span className="ai-market-radar-separator text-slate-500">·</span>
           <span className="ai-market-radar-meta font-semibold text-slate-200">{alert.interval}</span>
           <span className="ai-market-radar-separator text-slate-500">·</span>

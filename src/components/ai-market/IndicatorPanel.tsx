@@ -32,10 +32,10 @@ export function IndicatorPanel({ locale, indicators, risk }: { locale: Locale | 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-black text-white">{isEnglish ? "Technical indicators" : "Teknik göstergeler"}</h2>
-          <p className="mt-1 text-sm text-slate-500">{isEnglish ? "RSI, MACD, EMA, Bollinger, ATR, and volume checks" : "RSI, MACD, EMA, Bollinger, ATR ve hacim kontrolü"}</p>
+          <p className="mt-1 text-sm text-stone-300">{isEnglish ? "RSI, MACD, EMA, Bollinger, ATR, and volume checks" : "RSI, MACD, EMA, Bollinger, ATR ve hacim kontrolü"}</p>
         </div>
         <div className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm">
-          <span className="font-bold text-slate-500">{copy.risk}</span>{" "}
+          <span className="font-bold text-stone-300">{copy.risk}</span>{" "}
           <span className={risk.level === "YUKSEK" ? "font-black text-red-600" : risk.level === "ORTA" ? "font-black text-amber-700" : "font-black text-[#0f766e]"}>
             {risk.level} {risk.score}/100
           </span>
@@ -45,7 +45,7 @@ export function IndicatorPanel({ locale, indicators, risk }: { locale: Locale | 
       <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((row) => (
           <div key={row.label} className="rounded-md border border-slate-800 bg-slate-950/70 p-3">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{row.label}</p>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-stone-300">{row.label}</p>
             <p className="mt-1 text-base font-black text-slate-100">{row.value}</p>
           </div>
         ))}
@@ -53,7 +53,7 @@ export function IndicatorPanel({ locale, indicators, risk }: { locale: Locale | 
 
       <div className="mt-4 grid gap-2">
         {risk.reasons.map((reason) => (
-          <p key={reason} className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-400">
+          <p key={reason} className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-stone-200">
             {reason}
           </p>
         ))}

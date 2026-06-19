@@ -20,7 +20,7 @@ export const uiCopy = {
     },
     appShell: {
       support: "Destek: 0850 220 50 92",
-      tagline: "Rotary, Rotaract ve ilgi duyan tüm meraklı, araştırmayı seven kişilere açık web sayfası",
+      tagline: "Rotaryen, Rotaract ve ilgi duyan tüm meraklı, araştırmayı seven kişilere açık web sayfası",
       academy: "Rotary Piyasa Akademisi",
       aiAssistant: "AI Asistanı",
       logout: "Çıkış yap",
@@ -39,7 +39,7 @@ export const uiCopy = {
         title: "Eğitim",
         description: "Rotary toplulukları için finansal okuryazarlık ve sanal portföy yönetimi eğitim merkezi.",
         modules: ["Temel kavramlar", "Risk ve getiri", "Portföy disiplini"],
-        moduleBody: "Bu modül için ders içerikleri sonraki geliştirme adımlarında detaylandırılacak.",
+        moduleBody: "Bu modüller eğitim sayfasındaki akış içinde ayrıntılı olarak işlenir.",
       },
       blog: {
         title: "Blog",

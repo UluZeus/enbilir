@@ -93,8 +93,14 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
                   <h3 className="mt-2 text-xl font-black text-[#152033]">{league.name}</h3>
                 </div>
                 {userLeagueIds.has(league.id) ? (
-                  <span className="rounded-md bg-[#101827] px-2 py-1 text-xs font-black text-[#f5a623]">{copy.member}</span>
-                ) : null}
+                  <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-black uppercase text-emerald-700">
+                    {copy.member}
+                  </span>
+                ) : (
+                  <span className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs font-black uppercase text-red-700">
+                    {copy.notMember}
+                  </span>
+                )}
               </div>
               {league.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{league.description}</p> : null}
               <p className="mt-4 text-sm font-black text-slate-700">{copy.members(league._count.memberships)}</p>

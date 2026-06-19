@@ -253,8 +253,8 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
           <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <IndicatorPanel locale={safeLocale} indicators={state.analysis.indicators} risk={state.analysis.risk} />
             <div className="rounded-md border border-slate-800 bg-[#0b111d] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.responsibleUse}</p>
-              <p className="mt-2 text-xs leading-5 text-slate-400">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-stone-300">{copy.responsibleUse}</p>
+              <p className="mt-2 text-xs leading-5 text-stone-200">
                 {state.analysis.disclaimer} {copy.disclaimerSuffix}
               </p>
             </div>
@@ -264,10 +264,10 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
         <section className="rounded-md border border-slate-800 bg-[#080d16] p-2 md:p-3">
           <div className="mb-3 flex flex-col gap-1 px-1 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.lowerTerminal}</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-stone-300">{copy.lowerTerminal}</p>
               <h2 className="text-lg font-black text-white">{copy.favoriteAnalyses}</h2>
             </div>
-            <p className="text-xs font-bold text-slate-500">{copy.favoriteRefresh}</p>
+            <p className="text-xs font-bold text-stone-300">{copy.favoriteRefresh}</p>
           </div>
           <AnalysisTable locale={safeLocale} interval={interval} />
         </section>

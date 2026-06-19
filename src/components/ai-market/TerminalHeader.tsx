@@ -156,7 +156,7 @@ export function TerminalHeader({
             <PerformanceChip label="1a" value={performance?.changes["1m"] ?? null} />
             <PerformanceChip label="1y" value={performance?.changes["1y"] ?? null} />
           </div>
-          <p className="mt-2 truncate text-sm font-semibold text-slate-400">{analysis?.name ?? getAssetLabel(selectedSymbol)}</p>
+          <p className="mt-2 truncate text-sm font-semibold text-stone-200">{analysis?.name ?? getAssetLabel(selectedSymbol)}</p>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
@@ -181,7 +181,7 @@ export function TerminalHeader({
       </div>
 
       <div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_150px_minmax(200px,1fr)]">
-        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-stone-300">
           {copy.focusAsset}
           <select
             value={selectedSymbol}
@@ -196,7 +196,7 @@ export function TerminalHeader({
           </select>
         </label>
 
-        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-stone-300">
           {copy.interval}
           <select
             value={interval}
@@ -211,7 +211,7 @@ export function TerminalHeader({
           </select>
         </label>
 
-        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-stone-300">
           {copy.exchange}
           <select
             value={exchange}
@@ -241,7 +241,7 @@ export function TerminalHeader({
 function PerformanceChip({ label, value }: { label: string; value: number | null }) {
   const tone =
     value === null || !Number.isFinite(value)
-      ? "border-slate-700 bg-slate-950 text-slate-400"
+      ? "border-slate-700 bg-slate-950 text-stone-300"
       : value >= 0
         ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
         : "border-rose-400/30 bg-rose-400/10 text-rose-200";
@@ -257,7 +257,7 @@ function Metric({ label, value, strong = false, tooltip }: { label: string; valu
   return (
     <div className="terminal-header-metric min-w-0 rounded-md border border-slate-800 bg-slate-950/70 p-2">
       <div className="flex items-center gap-1">
-        <p className="terminal-header-metric-label truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        <p className="terminal-header-metric-label truncate text-[10px] font-black uppercase tracking-[0.12em] text-stone-300">{label}</p>
         {tooltip ? <InfoTooltip text={tooltip} /> : null}
       </div>
       <p className={`terminal-header-metric-value mt-1 truncate font-black ${strong ? "text-lg text-white" : "text-sm text-slate-200"}`}>{value}</p>
@@ -269,7 +269,7 @@ function Status({ label, value, tooltip }: { label: string; value: string; toolt
   return (
     <div className="terminal-header-status rounded-md border border-slate-800 bg-slate-950/70 p-2">
       <div className="flex items-center gap-1">
-        <p className="terminal-header-metric-label text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        <p className="terminal-header-metric-label text-[10px] font-black uppercase tracking-[0.12em] text-stone-300">{label}</p>
         {tooltip ? <InfoTooltip text={tooltip} /> : null}
       </div>
       <p className="terminal-header-metric-value mt-1 text-xs font-black text-slate-200">{value}</p>
@@ -283,7 +283,7 @@ function InfoTooltip({ text }: { text: string }) {
       <button
         type="button"
         aria-label="Info"
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 text-[10px] font-black text-slate-400 hover:border-cyan-300/40 hover:text-cyan-200"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-black text-stone-300 hover:border-cyan-300/40 hover:text-cyan-100"
       >
         i
       </button>

@@ -19,7 +19,7 @@ export function QuickWatchlistPanel({ locale, favorites, selectedSymbol, onSelec
     <section className="quick-watchlist-panel rounded-md border border-slate-800 bg-[#0b111d] p-3 shadow-xl">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="quick-watchlist-kicker text-xs font-black uppercase tracking-[0.14em] text-slate-500">Watchlist</p>
+          <p className="quick-watchlist-kicker text-xs font-black uppercase tracking-[0.14em] text-stone-300">Watchlist</p>
           <h2 className="quick-watchlist-title mt-1 text-sm font-black text-white">{copy.ai.focusAsset}</h2>
         </div>
         <span className="quick-watchlist-count rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] font-black text-slate-300">
@@ -45,7 +45,7 @@ export function QuickWatchlistPanel({ locale, favorites, selectedSymbol, onSelec
               }`}
             >
               <span className="quick-watchlist-symbol block truncate text-xs font-black text-slate-100">{symbol}</span>
-              <span className="quick-watchlist-name mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{getAssetLabel(symbol)}</span>
+              <span className="quick-watchlist-name mt-0.5 block truncate text-[11px] font-semibold text-stone-300">{getAssetLabel(symbol)}</span>
             </button>
           ))
         )}
