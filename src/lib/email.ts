@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { randomUUID } from "node:crypto";
 
 type SendEmailInput = {
   to: string;
@@ -25,7 +26,19 @@ function getSmtpConfig() {
     secure,
     auth: user && password ? { user, pass: password } : undefined,
     from,
+    envelopeFrom: process.env.SMTP_ENVELOPE_FROM ?? user ?? from,
+    replyTo: process.env.SMTP_REPLY_TO ?? from,
+    messageDomain: process.env.SMTP_MESSAGE_DOMAIN ?? getEmailDomain(from) ?? getEmailDomain(user ?? ""),
+    unsubscribeEmail: process.env.SMTP_UNSUBSCRIBE_EMAIL ?? user,
   };
+}
+
+function getEmailDomain(value: string) {
+  const match = value.match(/<([^>]+)>/)?.[1] ?? value;
+  const email = match.trim();
+  const atIndex = email.lastIndexOf("@");
+
+  return atIndex > -1 ? email.slice(atIndex + 1).replace(/[^\w.-]/g, "") : null;
 }
 
 export async function sendEmail({ to, subject, text, html }: SendEmailInput) {
@@ -49,10 +62,25 @@ export async function sendEmail({ to, subject, text, html }: SendEmailInput) {
 
   await transport.sendMail({
     from: config.from,
+    replyTo: config.replyTo,
+    envelope: {
+      from: config.envelopeFrom,
+      to,
+    },
+    messageId: config.messageDomain ? `<${randomUUID()}@${config.messageDomain}>` : undefined,
     to,
     subject,
     text,
     html,
+    headers: {
+      "X-Mailer": "Enbilir Transactional Mailer",
+      "X-Auto-Response-Suppress": "All",
+      ...(config.unsubscribeEmail
+        ? {
+            "List-Unsubscribe": `<mailto:${config.unsubscribeEmail}?subject=unsubscribe>`,
+          }
+        : {}),
+    },
   });
 
   return { skipped: false as const };
