@@ -48,7 +48,7 @@ if (!secret) {
   process.exit(1);
 }
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
+const siteUrl = (process.env.AI_AGENT_CRON_ORIGIN || "http://127.0.0.1:3006").replace(/\/$/, "");
 const url = new URL("/api/ai-market/agent/run", siteUrl);
 url.searchParams.set("secret", secret);
 
