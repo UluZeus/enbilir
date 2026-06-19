@@ -60,7 +60,7 @@ function localizeSignalText(value: string) {
 function expandMacroSummary(summary: string, assets: AgentAssetAnalysis[], news: AgentNewsItem[]) {
   const wordCount = summary.split(/\s+/).filter(Boolean).length;
 
-  if (wordCount >= 250) {
+  if (wordCount >= 450) {
     return summary;
   }
 
@@ -71,7 +71,13 @@ function expandMacroSummary(summary: string, assets: AgentAssetAnalysis[], news:
       : "Son teknik kesitte belirgin bir hareket ayrismasi sinirli kaliyor.";
   const newsText = news.slice(0, 3).map((item) => `${item.source} kaynakli ${item.category} basligi`).join(", ");
 
-  return `${summary} ${moverText} Bu raporda altin, gumus, paladyum ve Brent petrol emtia enflasyonu ve guvenli liman davranisi icin; dolar/TL, euro/TL ve euro/dolar kur geciskenligi ve global dolar likiditesi icin; BIST 100, Dow Jones ve Nasdaq ise yerel ve kuresel risk istahi icin birlikte okunmaktadir. Enerji, nukleer enerji ve yapay zeka hisseleri sektor bazli sermaye akimlarinin yonunu gosterebilir. Cin, Japonya ve Uzak Dogu endeksleri ise kuresel tedarik zinciri, yari iletken talebi ve Asya kaynakli risklerin erken sinyali olarak degerlendirilmelidir. Haber tarafinda ${newsText || "ana makro haber basliklari"} takip edilmektedir. Bu nedenle tek bir varliktaki AL veya SAT sinyali tek basina karar unsuru degil; makro rejim, hacim, momentum ve haber akisiyle birlikte yorumlanmasi gereken bir risk gostergesidir.`;
+  return [
+    summary,
+    moverText,
+    "Bu raporda altin, gumus, paladyum ve Brent petrol emtia enflasyonu, sanayi talebi ve guvenli liman davranisi icin birlikte okunmaktadir. Dolar/TL, euro/TL ve euro/dolar paritesi kur geciskenligi, global dolar likiditesi ve yerel fiyatlama davranisi acisindan ana referans noktalaridir. BIST 100, Dow Jones ve Nasdaq ise yerel ve kuresel risk istahinin farkli katmanlarini gosterir; Dow Jones daha genis ekonomik donguye, Nasdaq ise buyume, yariletken ve yapay zeka temalarina daha hassas tepki verir.",
+    "Enerji hisseleri petrol ve dogalgaz maliyetleriyle, nukleer enerji hisseleri uzun vadeli enerji guvenligi ve altyapi yatirimlariyla, yapay zeka hisseleri ise sermaye piyasalarindaki buyume istahi ve teknoloji carpanlariyla birlikte degerlendirilmelidir. Cin, Japonya ve Uzak Dogu endeksleri kuresel tedarik zinciri, ihracat talebi, yari iletken akisi ve Asya kaynakli risklerin erken sinyali olabilir. Bu nedenle rapordaki teknik gostergeler yalnizca fiyat grafigi degil, daha genis sermaye akimi ve haber rejiminin bir parcasi olarak okunmalidir.",
+    `Haber tarafinda ${newsText || "ana makro haber basliklari"} takip edilmektedir. Haber akisi kuvvetliyse AL veya SAT sinyalleri daha hizli teyit ya da iptal gorebilir; haber akisi zayifsa hacim, RSI, MACD, Ichimoku ve trend davranisi daha belirleyici hale gelir. Tek bir varliktaki sinyal, karar almak icin yeterli degildir; portfoy riski, vade, likidite, haber akisi ve makro rejim birlikte ele alinmalidir. Bu raporun ana amaci yonlendirmek degil, piyasanin hangi basliklar etrafinda dusunulmesi gerektigini sistemli bicimde gostermektir.`,
+  ].join(" ");
 }
 
 function getTopMovers(assets: AgentAssetAnalysis[]) {
@@ -95,6 +101,8 @@ function buildFallbackDraft(assets: AgentAssetAnalysis[], news: AgentNewsItem[])
       `Kapsamda ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")} basliklari yer aliyor.`,
       `Ortalama risk skoru ${averageRisk.toFixed(0)}/100 seviyesinde; ${bullishCount} varlik pozitif, ${bearishCount} varlik negatif sinyal tarafinda.`,
       "Altin, gumus ve paladyum reel faiz beklentisi ile sanayi talebi arasinda okunurken; Brent petrol enerji maliyeti, enflasyon baskisi ve enerji hisselerinin nakit akisi beklentileri icin kritik gosterge olmaya devam ediyor. Dolar/TL ve Euro/TL yerel varlik fiyatlamalarinda ana geciskenlik kanali olarak izlenmeli. BIST 100 tarafinda banka, sanayi ve ihracatci sirketlerin kur/faiz dengesine verdigi tepki onemli. ABD tarafinda Dow Jones daha genis ekonomik donguye, Nasdaq ise yapay zeka ve buyume temasina hassas. Cin, Japonya ve Uzak Dogu borsalari kuresel tedarik zinciri, yariletken talebi ve Asya risk istahi hakkinda erken sinyal verebilir. Bu nedenle rapordaki teknik sinyaller tek basina degil, haber akisi ve makro rejimle birlikte degerlendirilmelidir.",
+      "Bu raporda teknik sinyallerin yanina portfoy davranisi acisindan da ikinci bir okuma eklenmelidir. Risk istahi guclendiginde buyume hisseleri, yapay zeka temasi ve Nasdaq benzeri endeksler daha hizli toparlanabilir; riskten kacis arttiginda altin, dolar likiditesi ve savunmaci sektorler daha fazla izlenir. Enerji tarafinda Brent petrolun yonu hem enflasyon beklentileri hem de enerji sirketlerinin nakit akisi icin belirleyicidir. Nukleer enerji temasi ise kisa vadeli fiyat hareketinden cok enerji guvenligi, uzun vadeli kapasite yatirimi ve kamu politikasi beklentileriyle birlikte okunmalidir.",
+      "Asya piyasalarindaki hareketler raporun erken uyari katmanidir. Cin tarafinda buyume, kredi genislemesi ve gayrimenkul hassasiyeti; Japonya tarafinda yen, faiz farki ve ihracatci sirketlerin rekabet gucu; Uzak Dogu genelinde ise teknoloji tedarik zinciri ve yari iletken talebi izlenmelidir. Bu basliklar ABD ve Avrupa seanslarina gecmeden once risk algisini sekillendirebilir. Bu nedenle raporda yer alan AL, SAT veya IZLE ifadeleri yalnizca teknik bir sonuc degil, daha genis makro resmin icinde anlam kazanan egitsel sinyallerdir.",
     ].join(" "),
     marketRegime: averageRisk >= 70 ? "Yuksek oynaklik / temkinli rejim" : averageRisk >= 45 ? "Dengeli ama secici risk rejimi" : "Daha sakin risk rejimi",
     riskAppetite: bullishCount > bearishCount ? "Risk istahi secici bicimde pozitif" : bearishCount > bullishCount ? "Risk istahi zayif ve savunmaci" : "Risk istahi dengeli",

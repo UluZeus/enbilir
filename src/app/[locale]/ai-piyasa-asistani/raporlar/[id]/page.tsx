@@ -210,6 +210,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
   const user = await getSessionUser();
+  const recipientName = user?.name?.trim() || user?.nickname?.trim() || "Enbilir kullanicisi";
   const report = await prisma.aiMarketReport.findFirst({
     where: {
       id,
@@ -232,21 +233,33 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   return (
     <main className="report-shell min-h-screen bg-[#f3f6f8] px-3 py-5 text-[#152033] md:px-5">
       <style>{`
-        @page { size: A4; margin: 12mm 10mm 16mm; }
+        @page { size: A4; margin: 14mm 13mm; }
+        .print-only { display: none; }
         @media print {
-          html, body { background: #fff !important; }
-          .report-shell { background: #fff !important; padding: 0 !important; }
+          html, body { background: #fff !important; color: #111827 !important; }
+          .report-shell { background: #fff !important; padding: 0 !important; font-family: Georgia, "Times New Roman", serif !important; }
           .screen-only { display: none !important; }
-          .print-page { break-after: page; box-shadow: none !important; border: 0 !important; min-height: 260mm; }
-          .avoid-break { break-inside: avoid; }
-          .print-footer { position: fixed; bottom: 5mm; left: 10mm; right: 10mm; display: block !important; color: #64748b !important; font-size: 8px !important; text-align: center; }
+          .print-only { display: block !important; }
+          .print-document-header { display: none !important; }
+          .print-page { break-after: auto !important; box-shadow: none !important; border: 0 !important; min-height: auto !important; padding: 0 !important; margin: 0 0 8mm !important; }
+          .avoid-break { break-inside: auto; }
+          .print-section { border: 0 !important; background: transparent !important; padding: 0 !important; }
+          .print-grid { display: block !important; }
+          .print-card { border: 0 !important; background: transparent !important; padding: 0 !important; }
+          .print-label { color: #111827 !important; letter-spacing: 0 !important; text-transform: none !important; font-size: 12pt !important; margin-top: 6mm !important; }
+          .print-body { color: #111827 !important; font-size: 10.5pt !important; line-height: 1.65 !important; }
+          .print-title { color: #111827 !important; font-size: 18pt !important; line-height: 1.25 !important; margin-bottom: 4mm !important; }
+          .print-muted { color: #374151 !important; }
+          .print-footer { display: none !important; }
         }
       `}</style>
       <p className="print-footer hidden">{FOOTER_NOTE}</p>
 
       <article className="mx-auto grid max-w-[1120px] gap-5">
         <section className="print-page rounded-md border border-slate-200 bg-white p-6 shadow-xl">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <p className="print-only print-body mb-5">Sayin {recipientName},</p>
+
+          <div className="print-document-header flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">Planlı AI ajan raporu</p>
               <h1 className="mt-2 text-3xl font-black text-[#111827]">{report.marketRegime ?? "Piyasa raporu"}</h1>
@@ -262,15 +275,15 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Makro yorum</p>
-              <p className="mt-3 text-sm leading-7 text-slate-700">{report.macroSummary}</p>
-              {report.newsSummary ? <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">{report.newsSummary}</p> : null}
+          <div className="print-grid mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="print-section rounded-md border border-slate-200 bg-slate-50 p-4">
+              <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Makro yorum</p>
+              <p className="print-body mt-3 text-sm leading-7 text-slate-700">{report.macroSummary}</p>
+              {report.newsSummary ? <p className="print-card print-body mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">{report.newsSummary}</p> : null}
             </div>
 
-            <aside className="rounded-md border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Rejim</p>
+            <aside className="print-section rounded-md border border-slate-200 bg-slate-50 p-4">
+              <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Rejim</p>
               <div className="mt-3 grid gap-2">
                 <Info label="Risk istahi" value={report.riskAppetite ?? "-"} />
                 <Info label="Model" value={report.model ?? (report.fallbackUsed ? "Kuralli fallback" : "-")} />
@@ -282,14 +295,14 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {takeaways.map((item) => (
-              <p key={item} className="rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
+              <p key={item} className="print-card print-body rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
                 {item}
               </p>
             ))}
           </div>
 
           <div className="mt-5">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Zorunlu makro kapsam</p>
+            <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Zorunlu makro kapsam</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {requiredCoverage.map((item) => (
                 <span key={item} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-black text-slate-600">
@@ -312,9 +325,9 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
             <section key={asset.id} className="print-page avoid-break rounded-md border border-slate-200 bg-white p-5 shadow-xl">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">Son 3 gün grafik seti {index + 1}</p>
-                  <h2 className="mt-1 text-2xl font-black text-[#111827]">{asset.displayName}</h2>
-                  <p className="mt-1 text-sm font-bold text-slate-500">
+              <p className="print-label text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">Son 3 gün grafik seti {index + 1}</p>
+                  <h2 className="print-title mt-1 text-2xl font-black text-[#111827]">{asset.displayName}</h2>
+                  <p className="print-muted mt-1 text-sm font-bold text-slate-500">
                     Son: {formatNumber(asset.lastPrice)} · Degisim: {formatPercent(asset.changePercent)} · Sinyal: {formatSignal(asset.signalType)}
                   </p>
                 </div>
@@ -347,12 +360,12 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
         <section className="print-page rounded-md border border-slate-200 bg-white p-5 shadow-xl">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Varlik yorumlari</p>
-            <h2 className="mt-1 text-2xl font-black">Favoriler ve makro sepet</h2>
+            <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Varlik yorumlari</p>
+            <h2 className="print-title mt-1 text-2xl font-black">Favoriler ve makro sepet</h2>
           </div>
           <div className="mt-4 grid gap-3">
             {report.assets.map((asset) => (
-              <div key={asset.id} className="avoid-break rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div key={asset.id} className="print-card avoid-break rounded-md border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{asset.category ?? asset.assetClass}</p>
@@ -376,10 +389,10 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
         </section>
 
         <section className="print-page rounded-md border border-slate-200 bg-white p-5 shadow-xl">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Kullanilan haber basliklari</p>
+          <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Kullanilan haber basliklari</p>
           <div className="mt-3 grid gap-2">
             {report.newsItems.map((item) => (
-              <a key={item.id} href={item.link} target="_blank" rel="noreferrer" className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 hover:border-[#0f766e]">
+              <a key={item.id} href={item.link} target="_blank" rel="noreferrer" className="print-card print-body rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 hover:border-[#0f766e]">
                 <span className="font-black text-[#111827]">{item.source}</span> · {item.title}
               </a>
             ))}
@@ -395,30 +408,30 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-black text-slate-700">{value}</p>
+    <div className="print-card rounded-md border border-slate-200 bg-white p-3">
+      <p className="print-label text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p>
+      <p className="print-body mt-1 text-sm font-black text-slate-700">{value}</p>
     </div>
   );
 }
 
 function Badge({ children }: { children: string }) {
-  return <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600">{children}</span>;
+  return <span className="print-card rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600">{children}</span>;
 }
 
 function Comment({ title, body }: { title: string; body: string }) {
   return (
     <div>
-      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f766e]">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-700">{body}</p>
+      <p className="print-label text-[10px] font-black uppercase tracking-[0.14em] text-[#0f766e]">{title}</p>
+      <p className="print-body mt-1 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="avoid-break rounded-md border border-slate-200 bg-slate-50 p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{title}</p>
+    <div className="print-card avoid-break rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="print-label text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{title}</p>
       <div className="mt-2">{children}</div>
     </div>
   );

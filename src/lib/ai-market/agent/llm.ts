@@ -53,7 +53,9 @@ function getPrompt(assets: AgentAssetAnalysis[], news: AgentNewsItem[]) {
     "Dil: Turkce. Uslup: net, ihtiyatli, egitici. Yatirim tavsiyesi verme.",
     "Gorev: Teknik veriler, haber basliklari ve makro konjonkturu birlikte yorumlayarak planli makro piyasa raporu uret.",
     "Sinyal dilini Turkcelestir: BUY yerine AL, STRONG_BUY yerine GUCLU AL, SELL yerine SAT, WATCH yerine IZLE, HOLD yerine BEKLE, AVOID yerine UZAK DUR, TAKE_PROFIT yerine KAR REALIZASYONU IZLE, NO_TRADE yerine ISLEM YOK yaz.",
-    "macroSummary alani uzun olmali: yaklasik yarim A4 sayfa, 250-350 kelime, akici paragraflar halinde makro konjonktur yorumu yaz.",
+    "macroSummary alani daha kapsamli olmali: yaklasik bir A4 sayfaya yakin, 500-700 kelime, 4-6 akici paragraf halinde makro konjonktur yorumu yaz.",
+    "newsSummary alani 120-180 kelime olmali; haber akisini merkez bankalari, enerji, emtia, kur, ABD teknoloji hisseleri ve Asya piyasalari baglaminda toparla.",
+    "Her varlik icin technicalCommentary, macroCommentary ve newsCommentary alanlarini kisa not gibi degil, 60-100 kelimelik egitici yorumlar halinde yaz.",
     `Zorunlu kapsam: ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")}.`,
     "Her zorunlu kapsam basligi raporda temsil edilmeli. Favori varliklar icin tek tek yorum yap.",
     "Cikti sadece JSON olsun. Markdown kullanma.",
@@ -129,7 +131,7 @@ export async function generateAiReportDraft(assets: AgentAssetAnalysis[], news: 
       model,
       input: getPrompt(assets, news),
       temperature: 0.2,
-      max_output_tokens: 6000,
+      max_output_tokens: 9000,
     }),
   });
 
