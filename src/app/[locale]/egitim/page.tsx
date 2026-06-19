@@ -1,5 +1,6 @@
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { getSafeLocale } from "@/i18n/config";
+import { getUiCopy } from "@/i18n/ui-copy";
 import { getManagedContentItems } from "@/lib/managed-content";
 
 type ContentBlock = {
@@ -46,11 +47,24 @@ type EducationContent = {
 export default async function EducationPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
+  const pageCopy = getUiCopy(locale).simplePages.education;
   const educationItems = await getManagedContentItems({ type: "EDUCATION", locale });
   const content = getEducationContent(locale);
 
   return (
     <div className="grid gap-6">
+      <section className="premium-card premium-card--interactive p-6">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir learning library" : "Enbilir eğitim kütüphanesi"}</p>
+        <h1 className="mt-2 text-3xl font-black text-[#152033]">{pageCopy.title}</h1>
+        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{pageCopy.description}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {pageCopy.modules.map((module) => (
+            <span key={module} className="rounded-full border border-[#d1bfa7] bg-[#fffaf6] px-3 py-1 text-xs font-black text-[#49494b]">
+              {module}
+            </span>
+          ))}
+        </div>
+      </section>
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="premium-card premium-card--interactive p-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{content.learningDesignEyebrow}</p>
@@ -176,21 +190,26 @@ function getEducationContent(locale: string): EducationContent {
   if (locale === "en") {
     return {
       learningDesignEyebrow: "Learning design",
-      learningDesignTitle: "Short, practical, and repeatable learning flows for Rotary communities.",
+      learningDesignTitle: "Short, practical, and repeatable learning flows for market literacy.",
       learningDesignParagraphs: [
-        "The education page is designed to turn financial literacy into a calm, structured, and repeatable learning experience.",
-        "Users begin with price, trend, and risk language before moving into simulated portfolio practice and AI-supported interpretation.",
+        "The education page is designed to turn financial literacy into a calm, structured, and repeatable learning experience. Enbilir does not approach education as a long theoretical lecture. It tries to build a practical language that users can immediately connect to charts, virtual portfolio decisions, community conversations, and AI-supported summaries.",
+        "Many people can reach financial information today, but reaching information is not the same as knowing how to use it. The harder part is separating meaningful signals from noise, slowing down before a decision, and asking the right questions about risk, time frame, and uncertainty.",
+        "That is why this learning flow begins with simple concepts such as price, trend, volatility, allocation, and drawdown. It then connects those concepts to simulated portfolio practice, so the user can see how a decision behaves without putting real money at risk.",
+        "The structure is especially suitable for Rotarians, Rotaractors, and curious learners who want a common language. The purpose is not to tell users what to buy or sell. The purpose is to help them understand what they are looking at and why a decision should be reviewed from more than one angle.",
       ],
       communityTitle: "Learning with a shared rhythm",
       communityParagraphs: [
-        "The overall structure is built for communities that want a common language, visible progress, and repeatable reflection.",
+        "The overall structure is built for communities that want a common language, visible progress, and repeatable reflection. A user may learn alone, but learning becomes stronger when questions, comparisons, and review habits are shared inside a trusted group.",
+        "In a Rotary or Rotaract environment, market literacy can become a recurring conversation rather than a one-time presentation. A league, a weekly note, a virtual portfolio review, or an AI summary can all become simple anchors for regular learning.",
+        "This does not turn the community into an advisory environment. The boundary is clear: Enbilir is education-first, simulation-based, and not investment advice. The value of the community is to improve thinking, not to give instructions.",
       ],
       tracks: [
         {
           eyebrow: "Track 1",
           title: "Market literacy foundations",
           paragraphs: [
-            "Build a common language around price, trend, volatility, and risk so community members start from the same ground.",
+            "Build a common language around price, trend, volatility, liquidity, and risk so community members start from the same ground.",
+            "This track helps users understand that price is not only a number on a screen. It reflects expectations, news flow, liquidity, emotion, and timing. Once this is understood, charts become easier to discuss and less intimidating.",
           ],
         },
         {
@@ -198,6 +217,7 @@ function getEducationContent(locale: string): EducationContent {
           title: "Virtual portfolio discipline",
           paragraphs: [
             "Teach allocation logic, cash management, and scenario comparison through action instead of theory alone.",
+            "A virtual portfolio gives users a safe rehearsal space. They can observe what happens when they concentrate too much in one asset, ignore cash, chase a fast mover, or diversify more carefully.",
           ],
         },
         {
@@ -205,30 +225,32 @@ function getEducationContent(locale: string): EducationContent {
           title: "AI-assisted interpretation",
           paragraphs: [
             "Use the assistant to understand why signals appear, when to stay cautious, and how to read indicators together.",
+            "The AI assistant should not be treated as a shortcut for decisions. It is a thinking partner that explains context, surfaces risk notes, and helps the user compare technical signals with broader market behavior.",
           ],
         },
       ],
       outcomesTitle: "Expected outcomes",
       outcomesParagraphs: [
         "The goal is not only to teach a few concepts, but to help users think in a calmer, more structured, and more responsible way.",
+        "A successful education flow should make the platform easier to enter, the language of the community more consistent, and the learning rhythm more sustainable over time.",
       ],
       outcomeItems: [
         {
           title: "Faster onboarding",
           paragraphs: [
-            "New members can understand the product logic quickly without waiting for one-to-one explanation.",
+            "New members can understand the product logic quickly without waiting for one-to-one explanation. They see the main path: learn the terms, test decisions virtually, compare results, and review signals with context.",
           ],
         },
         {
           title: "More consistent language",
           paragraphs: [
-            "The whole community starts speaking about markets with clearer, less intimidating concepts.",
+            "The whole community starts speaking about markets with clearer, less intimidating concepts. Risk, trend, allocation, drawdown, and signal confidence become practical words rather than technical barriers.",
           ],
         },
         {
           title: "Stronger continuity",
           paragraphs: [
-            "Education no longer feels separate from the rest of the platform; it supports trading, rankings, and AI insights.",
+            "Education no longer feels separate from the rest of the platform; it supports virtual trading, rankings, league discussions, and AI insights. This continuity is what turns reading into habit.",
           ],
         },
       ],
@@ -237,24 +259,28 @@ function getEducationContent(locale: string): EducationContent {
           eyebrow: "Beginner",
           title: "Core concepts",
           paragraphs: [
-            "Start with the language of price, trend, and allocation so new users do not feel lost.",
+            "Start with the language of price, trend, volatility, allocation, and time frame so new users do not feel lost. This level gives users the basic vocabulary they need before they compare assets or read AI summaries.",
+            "The goal is to make the first contact with markets less intimidating. Users should be able to explain what they are looking at before they try to interpret whether a movement is positive or negative.",
           ],
           lesson: {
             title: "What is a virtual portfolio?",
             paragraphs: [
-              "A virtual portfolio mirrors real market movement without placing real orders. It lets users test decision quality safely.",
+              "A virtual portfolio mirrors real market movement without placing real orders. It lets users test decision quality safely and observe the consequences of their choices without financial pressure.",
+              "Used correctly, it is not a game balance to be spent carelessly. It is a rehearsal space where users can learn how allocation, timing, patience, and diversification change portfolio behavior.",
             ],
           },
           quiz: {
             title: "Why is a virtual portfolio useful for beginners?",
             paragraphs: [
               "Because it creates a safe environment to practice decision-making before any real financial risk exists.",
+              "A beginner can make mistakes, review those mistakes, and understand their own habits without turning the learning process into a financial loss.",
             ],
           },
           module: {
             title: "Core concepts module detail",
             paragraphs: [
               "The module introduces price, trend, allocation, and basic simulation logic with a simple applied flow.",
+              "The user first learns the language, then sees how that language appears inside the virtual portfolio and the AI assistant. This makes the concept visible instead of leaving it as theory.",
             ],
           },
         },
@@ -262,24 +288,28 @@ function getEducationContent(locale: string): EducationContent {
           eyebrow: "Intermediate",
           title: "Risk and return",
           paragraphs: [
-            "Teach users how upside and downside travel together and why discipline matters more than guessing.",
+            "Teach users how upside and downside travel together and why discipline matters more than guessing. The question is not only what can be gained, but also what can go wrong if the idea fails.",
+            "This level introduces position sizing, cash protection, diversification, drawdown, patience, and scenario thinking in plain language.",
           ],
           lesson: {
             title: "How is risk managed?",
             paragraphs: [
-              "Risk management starts with position size, cash protection, and understanding that every move has a downside scenario.",
+              "Risk management starts before a trade or allocation decision is made. The user should ask how much of the portfolio is affected, what happens if the expectation fails, and whether the decision fits the overall learning plan.",
+              "Good risk management does not guarantee correct predictions. It helps prevent wrong predictions from damaging the entire portfolio behavior.",
             ],
           },
           quiz: {
             title: "What is the first sign of poor risk management?",
             paragraphs: [
               "Putting too much capital into a single idea without leaving room for uncertainty.",
+              "When one asset or one opinion becomes too dominant, the portfolio becomes fragile. A disciplined user leaves room for being wrong.",
             ],
           },
           module: {
             title: "Risk and return module detail",
             paragraphs: [
               "The module turns risk and return from abstract theory into visible portfolio behavior.",
+              "Users can compare concentrated and balanced allocations, observe how drawdowns feel, and learn why waiting is sometimes an active decision rather than passivity.",
             ],
           },
         },
@@ -287,24 +317,28 @@ function getEducationContent(locale: string): EducationContent {
           eyebrow: "Advanced",
           title: "Portfolio discipline",
           paragraphs: [
-            "Move from isolated trades to repeatable behavior patterns supported by data and reflection.",
+            "Move from isolated trades to repeatable behavior patterns supported by data and reflection. Portfolio discipline asks better questions than 'which asset will rise?'",
+            "Is the portfolio balanced? Is the risk understandable? Are past decisions reviewed? Are AI insights being used as context rather than instruction? These questions create long-term learning quality.",
           ],
           lesson: {
             title: "Why does a disciplined portfolio win over time?",
             paragraphs: [
               "Because repeatable process beats emotional reaction. Good portfolios are not built from one great trade but from a consistent framework.",
+              "A user may be lucky once, but long-term consistency depends on allocation, review, patience, and risk control. Discipline reduces the tendency to become too optimistic after gains or too fearful after losses.",
             ],
           },
           quiz: {
             title: "What creates long-term consistency?",
             paragraphs: [
               "A repeatable framework for allocation, review, and risk control instead of emotional reaction to every move.",
+              "Consistency is more about behavior than prediction. The user learns to evaluate both winning and losing decisions by process, not only by outcome.",
             ],
           },
           module: {
             title: "Portfolio discipline module detail",
             paragraphs: [
               "The module encourages calmer, more consistent, and more measured portfolio decisions over time.",
+              "It also shows how AI insights, league discussions, and performance history can be used together without replacing personal responsibility.",
             ],
           },
         },
@@ -312,30 +346,35 @@ function getEducationContent(locale: string): EducationContent {
       glossaryTitle: "The concepts users will see often across the platform",
       glossaryParagraphs: [
         "These terms create a practical language for interpreting portfolio behavior, AI signals, and learning flow across the product.",
+        "They are not meant to be memorized as a dry glossary. Each term should help the user ask a better question inside the platform.",
       ],
       glossaryItems: [
         {
           term: "Virtual balance",
           paragraphs: [
             "The starting simulated capital given to the user so they can learn without exposing real savings.",
+            "It is used for practice, ranking, portfolio review, and decision awareness. It should be treated as a serious rehearsal tool, not as meaningless play money.",
           ],
         },
         {
           term: "Diversification",
           paragraphs: [
             "Spreading capital across multiple assets instead of relying on one idea alone.",
+            "Diversification does not remove all risk, but it can reduce dependence on a single event, asset, or expectation.",
           ],
         },
         {
           term: "Drawdown",
           paragraphs: [
             "The decline from a portfolio peak to a lower point; it helps users understand downside pressure.",
+            "Drawdown reminds users to look not only at return, but also at the path taken to reach that return.",
           ],
         },
         {
           term: "Signal confidence",
           paragraphs: [
             "A measure of how strongly the current technical inputs align with the AI signal being shown.",
+            "High confidence does not mean certainty. It is a support metric that should be read together with time frame, market conditions, volatility, and the user's own risk structure.",
           ],
         },
       ],

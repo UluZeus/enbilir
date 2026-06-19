@@ -321,8 +321,8 @@ export const uiCopy = {
     },
     appShell: {
       support: "Support: 0850 220 50 92",
-      tagline: "Market literacy platform for Rotary communities",
-      academy: "Rotary Market Academy",
+      tagline: "A website open to Rotarians, Rotaractors, and everyone curious enough to research and learn",
+      academy: "Enbilir Market Academy",
       aiAssistant: "AI Assistant",
       logout: "Sign out",
       footer:
@@ -338,21 +338,21 @@ export const uiCopy = {
     simplePages: {
       education: {
         title: "Education",
-        description: "The education hub for Rotary communities focused on financial literacy and virtual portfolio management.",
+        description: "A calm, structured learning hub for market literacy, virtual portfolio discipline, and AI-supported interpretation.",
         modules: ["Core concepts", "Risk and return", "Portfolio discipline"],
-        moduleBody: "Lesson content for this module will be expanded in upcoming development phases.",
+        moduleBody: "Each module connects short explanations with portfolio practice, community discussion, and AI-supported interpretation.",
       },
       blog: {
         title: "Blog",
-        description: "Rotary-focused financial literacy articles and platform updates.",
+        description: "Evergreen market literacy essays, community learning notes, and clear platform updates for Enbilir users.",
         emptyTitle: "First articles are being prepared",
-        emptyBody: "The blog area is reserved for education notes, competition updates, and market literacy content.",
+        emptyBody: "This area will host education notes, competition updates, market context, and practical reading material for the community.",
       },
       contact: {
         title: "Contact",
-        description: "Support, partnership, and account request channels.",
+        description: "Use this page for support, partnership ideas, account requests, and community onboarding questions.",
         supportTitle: "WhatsApp support",
-        supportBody: "You can reach us on WhatsApp for questions and requests.",
+        supportBody: "For quick support, partnership questions, league setup requests, or account-related needs, you can reach us on WhatsApp.",
         cta: "Message on WhatsApp",
       },
     },

@@ -8,13 +8,18 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
   const locale = getSafeLocale(rawLocale);
   const copy = getUiCopy(locale).simplePages.blog;
   const posts = await getManagedContentItems({ type: "BLOG", locale });
-  const editorialPillars = posts.length > 0 ? getManagedPostHighlights(posts) : getEditorialPillars(locale);
+  const editorialPillars = posts.length > 0 ? getManagedPostHighlights(posts, locale) : getEditorialPillars(locale);
   const starterPosts = getStarterPosts(locale);
   const contentCalendar = getContentCalendar(locale);
   const evergreenNotes = getEvergreenNotes(locale);
 
   return (
     <div className="grid gap-6">
+      <section className="premium-card premium-card--interactive p-6">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir reading room" : "Enbilir okuma alanı"}</p>
+        <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
+        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
+      </section>
       <section className="grid gap-4 md:grid-cols-3">
         {editorialPillars.map((pillar) => (
           <article key={pillar.title} className="premium-card premium-card--interactive p-6">
@@ -78,9 +83,9 @@ function firstParagraph(body: string) {
   return body.split(/\n{2,}/).map((paragraph) => paragraph.trim()).find(Boolean) ?? body;
 }
 
-function getManagedPostHighlights(posts: Awaited<ReturnType<typeof getManagedContentItems>>) {
+function getManagedPostHighlights(posts: Awaited<ReturnType<typeof getManagedContentItems>>, locale: string) {
   return posts.slice(0, 3).map((post) => ({
-    eyebrow: post.isFeatured ? "Öne çıkan yazı" : "Enbilir yazısı",
+    eyebrow: post.isFeatured ? (locale === "en" ? "Featured article" : "Öne çıkan yazı") : (locale === "en" ? "Enbilir article" : "Enbilir yazısı"),
     title: post.title,
     body: post.excerpt ?? firstParagraph(post.body),
   }));
@@ -90,19 +95,28 @@ function getEvergreenNotes(locale: string) {
   if (locale === "en") {
     return [
       {
-        eyebrow: "Evergreen",
+        eyebrow: "Market literacy",
         title: "Why does financial literacy need repetition?",
         paragraphs: [
-          "Financial literacy is not built by reading one article once. It grows when users see the same concepts in different formats: article, visual card, portfolio action, league discussion, and AI summary.",
-          "That is why content on Enbilir should not feel isolated. A blog post should feed an education card, an education card should support a league discussion, and that discussion should bring the user back to the portfolio screen.",
+          "Financial literacy is not built by reading one article once. It becomes useful only when a person can return to the same ideas in different situations and still use them calmly. Knowing what inflation means, recognizing the word risk, or seeing a trend line on a chart is a beginning; it is not the whole skill. The real test comes when the user has to interpret a moving market, compare alternatives, and decide what not to do.",
+          "This is why repetition matters. The same concept should appear first in a simple explanation, then in a chart, then in a virtual portfolio decision, then in a league conversation, and later again inside a macro report. When a user meets the same idea from different angles, it stops being a memorized sentence and starts becoming part of their decision language.",
+          "Good repetition is not mechanical. Saying the same phrase every week does not make anyone more literate. What matters is applied repetition: looking at gold one day through the lens of safe-haven behavior, looking at Nasdaq another day through growth expectations, and then comparing currency movements with central-bank expectations. The user slowly learns that markets are not random noise; they are a set of questions that must be asked again and again.",
+          "Enbilir is designed around that chain. A blog article opens the concept. An education card simplifies it. A virtual portfolio lets the user test it safely. A league makes the learning visible inside a trusted community. The AI assistant and macro reports then connect the same concept to current market context. At that point the user is not merely reading; they are practicing, comparing, and reviewing their own behavior.",
+          "This is also why virtual portfolio practice has value. It shows the user their own reflexes without real-money pressure. Do they chase the asset that has already moved? Do they hold too much of one idea? Do they panic when a position falls? These behaviors are part of financial literacy because decisions are never only about data; they are also about temperament.",
+          "Markets change every day, but the quality questions stay surprisingly stable: What am I looking at? What time frame am I using? What is my risk? What would prove me wrong? Repetition keeps those questions alive. It helps the user slow down, write the reason for a decision, and evaluate the result without turning every outcome into ego.",
         ],
       },
       {
-        eyebrow: "Evergreen",
+        eyebrow: "Community learning",
         title: "Why can community-based learning outperform solo learning?",
         paragraphs: [
-          "People tend to stay more consistent when there is a visible group rhythm around them. Community-based learning adds accountability, reflection, and motivation without needing real-money pressure.",
-          "For Rotary-oriented groups, this is especially powerful because the platform becomes not only a personal tool but also a recurring meeting topic and a shared learning environment.",
+          "Following markets often looks like a solitary activity. A person sits in front of a screen, reads headlines, checks prices, and makes a decision. That individual responsibility is real; no community should replace personal judgment. But learning itself does not have to be lonely. In many cases, the right community makes learning more consistent, more reflective, and more durable.",
+          "Community-based learning turns information into conversation. A user may think they understood a signal until another member asks a simple question: Why did you read it that way? What would change your view? Did you consider risk, or only upside? Questions like these are often more educational than long lectures because they make the user explain the reasoning behind the decision.",
+          "This is especially powerful in Rotary and Rotaract-style groups where trust already exists. Members can discuss a market move without turning the conversation into investment advice. One person may explain why gold looks defensive, another may question whether technology shares are too crowded, and another may bring macro context into the discussion. The value is not that everyone reaches the same conclusion; the value is that everyone learns to think more clearly.",
+          "There is an important boundary. A community learning environment must not become a place where people tell each other what to buy or sell. The purpose is not direction; it is better reasoning. Enbilir keeps that line visible by using virtual portfolios, education-first language, AI explanations, and repeated reminders that the platform is not investment advice.",
+          "The league structure adds rhythm. A person can abandon an individual learning plan easily, but a weekly league, a recurring report, a badge, or a shared portfolio review creates gentle accountability. The social loop does not need to pressure anyone; it simply brings people back to the learning process.",
+          "The best communities also teach people how to read success more intelligently. A user may rank high for a short period because of one lucky move, while another user may be building a more careful and sustainable process. Discussing that difference is more valuable than simply applauding the top number. It teaches users to separate outcome from process.",
+          "That is the deeper purpose of Enbilir’s leagues, badges, reports, and virtual portfolio flow. They are not only gamification layers. Used well, they make learning visible. The user sees their own development, benefits from another person’s question, and still keeps responsibility for their own decisions.",
         ],
       },
     ] as const;
@@ -221,17 +235,17 @@ function getEditorialPillars(locale: string) {
   if (locale === "en") {
     return [
       {
-        eyebrow: "Editorial 1",
+        eyebrow: "Market reading",
         title: "Market literacy notes",
-        body: "Explain concepts, indicators, and decision habits with a practical tone that helps members act, not just read.",
+        body: "Explain concepts, indicators, and decision habits with a practical tone that helps members use the platform more consciously.",
       },
       {
-        eyebrow: "Editorial 2",
+        eyebrow: "Community rhythm",
         title: "Community stories",
         body: "Highlight how Rotary leagues use the platform, what they learn, and how engagement grows over time.",
       },
       {
-        eyebrow: "Editorial 3",
+        eyebrow: "Platform notes",
         title: "Platform updates",
         body: "Use the blog to announce new features, training series, and upcoming competition cycles with a clear CTA.",
       },

@@ -71,7 +71,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <div className="grid gap-6">
-      <MacroReportTicker />
+      <MacroReportTicker locale={locale} />
       <AdBanner ads={ads} />
       <section className="hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.1fr)_360px]">
         <div>

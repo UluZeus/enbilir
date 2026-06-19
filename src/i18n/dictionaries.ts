@@ -94,42 +94,42 @@ export const dictionaries = {
     whatsapp: "WhatsApp",
     home: {
       title: "Enbilir",
-      subtitle: "A multilingual platform skeleton for financial literacy, educational content, and competition-led learning. Turkish is the default language.",
+      subtitle: "A learning platform for market literacy, virtual portfolio practice, AI-supported interpretation, and community-based competitions.",
       primaryAction: "Start learning",
       secondaryAction: "View leaderboard",
     },
     pages: {
       login: {
         title: "Login",
-        description: "A starter login page for user account access.",
+        description: "Access your Enbilir account and continue your virtual portfolio learning journey.",
       },
       register: {
         title: "Register",
-        description: "A starter page for new account creation.",
+        description: "Create your account and join the education, AI assistant, and virtual portfolio competition flow.",
       },
       panel: {
         title: "User dashboard",
-        description: "User progress, scores, and education status will be shown here.",
+        description: "Manage your profile, league participation, virtual portfolio progress, friends, and learning activity.",
       },
       admin: {
         title: "Admin panel",
-        description: "A reserved management area for content, users, and competitions.",
+        description: "Manage site visuals, announcements, page content, leagues, badges, and platform communication.",
       },
       leaderboard: {
         title: "Leaderboard",
-        description: "A ready page for user scores and ranking data.",
+        description: "Follow the overall virtual portfolio ranking and compare learning progress across the community.",
       },
       blog: {
         title: "Blog",
-        description: "Financial literacy articles and platform announcements will be published here.",
+        description: "Long-form market literacy notes, community learning stories, and Enbilir platform updates.",
       },
       education: {
         title: "Education",
-        description: "The education center for lessons, modules, and learning content.",
+        description: "A structured learning area for financial literacy, virtual portfolio discipline, and AI-assisted interpretation.",
       },
       kvkk: {
-        title: "KVKK",
-        description: "Information page for personal data protection notices.",
+        title: "Privacy Notice",
+        description: "Information about how personal data is processed, protected, and managed on Enbilir.",
       },
       terms: {
         title: "Terms of use",

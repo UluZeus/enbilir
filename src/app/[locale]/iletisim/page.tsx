@@ -11,6 +11,11 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
 
   return (
     <div className="grid gap-6">
+      <section className="premium-card premium-card--interactive p-6">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir support" : "Enbilir destek"}</p>
+        <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
+        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
+      </section>
       <ManagedContentList
         items={contactItems}
         featuredLabel={locale === "en" ? "Featured" : "Öne çıkan"}

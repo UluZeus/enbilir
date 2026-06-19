@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 export default async function AiMarketAssistantPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
+  const isEnglish = locale === "en";
   const copy = getUiCopy(locale).ai;
   const guidance = getAiGuidance(locale);
   const user = await getSessionUser();
@@ -63,31 +64,35 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
       <section className="mx-auto mb-4 max-w-[1600px] rounded-md border border-cyan-300/20 bg-cyan-300/8 p-4 text-white shadow-2xl">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">Planlı AI ajan raporu</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">{isEnglish ? "Scheduled AI agent report" : "Planlı AI ajan raporu"}</p>
             {latestReport ? (
               <>
-                <h2 className="mt-1 text-lg font-black">{latestReport.marketRegime ?? "Son piyasa raporu hazir"}</h2>
+                <h2 className="mt-1 text-lg font-black">{latestReport.marketRegime ?? (isEnglish ? "Latest market report is ready" : "Son piyasa raporu hazir")}</h2>
                 <p className="mt-1 text-sm text-slate-300">
-                  {new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(latestReport.generatedAt)}
+                  {new Intl.DateTimeFormat(isEnglish ? "en-US" : "tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(latestReport.generatedAt)}
                   {latestReport.riskAppetite ? ` · ${latestReport.riskAppetite}` : ""}
                   {latestReport.fallbackUsed ? " · fallback" : ""}
                 </p>
               </>
             ) : (
               <>
-                <h2 className="mt-1 text-lg font-black">Ilk rapor cron calistiginda olusacak</h2>
-                <p className="mt-1 text-sm text-slate-300">Makro sepet, haberler ve favori varliklar saatlik olarak yorumlanacak.</p>
+                <h2 className="mt-1 text-lg font-black">{isEnglish ? "The first report will appear after the cron runs" : "Ilk rapor cron calistiginda olusacak"}</h2>
+                <p className="mt-1 text-sm text-slate-300">
+                  {isEnglish
+                    ? "The macro basket, news flow, and favorite assets will be reviewed in scheduled reports."
+                    : "Makro sepet, haberler ve favori varliklar planlı raporlarda yorumlanacak."}
+                </p>
               </>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
             {latestReport ? (
               <Link href={`/${locale}/ai-piyasa-asistani/raporlar/${latestReport.id}`} className="rounded-md border border-cyan-200 bg-cyan-100 px-3 py-2 text-sm font-black text-slate-950">
-                Son raporu ac
+                {isEnglish ? "Open latest report" : "Son raporu ac"}
               </Link>
             ) : null}
             <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="rounded-md border border-white/15 bg-white/8 px-3 py-2 text-sm font-black text-white">
-              Tum raporlar
+              {isEnglish ? "All reports" : "Tum raporlar"}
             </Link>
           </div>
         </div>
