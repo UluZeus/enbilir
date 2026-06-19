@@ -1,8 +1,11 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const appRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function loadDotEnv() {
-  const envPath = resolve(process.cwd(), ".env");
+  const envPath = resolve(appRoot, ".env");
 
   try {
     const contents = readFileSync(envPath, "utf8");
