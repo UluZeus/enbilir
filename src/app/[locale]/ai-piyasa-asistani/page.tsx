@@ -40,22 +40,22 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
             ))}
           </div>
         </div>
-        <div className="rounded-[1.5rem] border border-emerald-400/18 bg-emerald-400/8 p-5 text-white shadow-2xl">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
+        <div className="ai-usage-panel rounded-[1.5rem] border border-emerald-400/18 bg-emerald-400/8 p-5 text-white shadow-2xl">
+          <p className="ai-usage-kicker text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
             {locale === "tr" ? "Doğru kullanım" : "Use it well"}
           </p>
           <div className="mt-4 grid gap-3">
-            <div className="rounded-2xl border border-white/8 bg-black/10 p-4">
-              <p className="text-sm font-black">{locale === "tr" ? "1. Radarı filtre olarak gör" : "1. Treat radar as a filter"}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Kayan banttaki fırsatları direkt emir mantığıyla değil, inceleme önceliği olarak kullan." : "Use the scrolling opportunities as a prioritization cue, not as an order trigger."}</p>
+            <div className="ai-usage-card rounded-2xl border border-white/8 bg-black/10 p-4">
+              <p className="ai-usage-title text-sm font-black">{locale === "tr" ? "1. Radarı filtre olarak gör" : "1. Treat radar as a filter"}</p>
+              <p className="ai-usage-body mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Kayan banttaki fırsatları direkt emir mantığıyla değil, inceleme önceliği olarak kullan." : "Use the scrolling opportunities as a prioritization cue, not as an order trigger."}</p>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-black/10 p-4">
-              <p className="text-sm font-black">{locale === "tr" ? "2. Özeti göstergelerle doğrula" : "2. Validate the summary with indicators"}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Karar destek özetini teknik panelden ayrıştır; kullanıcıya neden-sonuç bağı kazandır." : "Separate the decision summary from the technical panel so the user learns cause and effect."}</p>
+            <div className="ai-usage-card rounded-2xl border border-white/8 bg-black/10 p-4">
+              <p className="ai-usage-title text-sm font-black">{locale === "tr" ? "2. Özeti göstergelerle doğrula" : "2. Validate the summary with indicators"}</p>
+              <p className="ai-usage-body mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Karar destek özetini teknik panelden ayrıştır; kullanıcıya neden-sonuç bağı kazandır." : "Separate the decision summary from the technical panel so the user learns cause and effect."}</p>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-black/10 p-4">
-              <p className="text-sm font-black">{locale === "tr" ? "3. Lig içinde tartış" : "3. Discuss it inside the league"}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Bu ekranın gerçek gücü topluluk içi yorum ve karşılaştırmalı öğrenmedir." : "The real power of this screen is shared interpretation and comparative learning inside the community."}</p>
+            <div className="ai-usage-card rounded-2xl border border-white/8 bg-black/10 p-4">
+              <p className="ai-usage-title text-sm font-black">{locale === "tr" ? "3. Lig içinde tartış" : "3. Discuss it inside the league"}</p>
+              <p className="ai-usage-body mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Bu ekranın gerçek gücü topluluk içi yorum ve karşılaştırmalı öğrenmedir." : "The real power of this screen is shared interpretation and comparative learning inside the community."}</p>
             </div>
           </div>
         </div>

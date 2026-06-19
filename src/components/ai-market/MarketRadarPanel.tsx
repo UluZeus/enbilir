@@ -191,7 +191,7 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
   }, [loadOpportunities]);
 
   return (
-    <section className="w-full overflow-hidden rounded-md border border-slate-800 bg-[#0b111d] p-3 text-slate-100 shadow-xl md:p-4">
+    <section className="ai-market-radar-panel w-full overflow-hidden rounded-md border border-slate-800 bg-[#0b111d] p-3 text-slate-100 shadow-xl md:p-4">
       <style>{`
         @keyframes ai-market-radar-ticker {
           from { transform: translateX(0); }
@@ -207,14 +207,14 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
       `}</style>
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
-          <p className="mt-1 text-xs leading-5 text-slate-400">
+          <h2 className="ai-market-radar-heading text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
+          <p className="ai-market-radar-description mt-1 text-xs leading-5 text-slate-400">
             {locale === "tr"
               ? "Bu bölüm 30 saniyede bir fırsatları tarar; eğitim amaçlıdır, yatırım tavsiyesi değildir."
               : "This section scans opportunities every 30 seconds; it is educational and not investment advice."}
           </p>
         </div>
-        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
+        <span className="ai-market-radar-status rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
           {copy.radarStatus}
         </span>
       </div>
@@ -243,12 +243,12 @@ function RadarTickerRow({
   const tickerSegments = segments.length > 0 ? segments : [{ id: "radar-fallback", alerts: [] }];
 
   return (
-    <div className="grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/65 p-2 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
+    <div className="ai-market-radar-row grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/65 p-2 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
       <div className="shrink-0 px-1">
-        <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-300 md:text-sm">{title}</p>
-        <p className="mt-0.5 text-[11px] font-bold text-slate-500">{subtitle}</p>
+        <p className="ai-market-radar-row-title text-xs font-black uppercase tracking-[0.12em] text-slate-300 md:text-sm">{title}</p>
+        <p className="ai-market-radar-row-subtitle mt-0.5 text-[11px] font-bold text-slate-500">{subtitle}</p>
       </div>
-      <div className="min-w-0 overflow-hidden rounded-md border border-slate-800 bg-[#070b13] px-3 py-2">
+      <div className="ai-market-radar-viewport min-w-0 overflow-hidden rounded-md border border-slate-800 bg-[#070b13] px-3 py-2">
         <div className="ai-market-radar-track flex w-max min-w-full items-center gap-8">
           <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="primary" />
           <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="mirror" ariaHidden />
@@ -280,7 +280,7 @@ function RadarTickerPass({
           ) : (
             <FallbackText locale={locale} isLoading={isLoading} />
           )}
-          <span className="text-slate-700">•</span>
+          <span className="ai-market-radar-separator text-slate-700">•</span>
         </span>
       ))}
     </div>
@@ -294,22 +294,22 @@ function OpportunityItems({ locale, alerts, keyPrefix }: { locale: Locale; alert
     <>
       {alerts.map((alert) => (
         <span key={`${keyPrefix}-${alert.key}`} className="inline-flex items-center gap-2 whitespace-nowrap">
-          <span className="font-black text-white">{alert.symbol}</span>
-          <span className="text-slate-500">·</span>
-          <span className="font-semibold text-slate-200">{alert.interval}</span>
-          <span className="text-slate-500">·</span>
-          <span className={`rounded-md border px-2 py-0.5 text-xs font-black md:text-sm ${getDirectionTone(alert.alertType)}`}>
+          <span className="ai-market-radar-symbol font-black text-white">{alert.symbol}</span>
+          <span className="ai-market-radar-separator text-slate-500">·</span>
+          <span className="ai-market-radar-meta font-semibold text-slate-200">{alert.interval}</span>
+          <span className="ai-market-radar-separator text-slate-500">·</span>
+          <span className={`ai-market-radar-signal rounded-md border px-2 py-0.5 text-xs font-black md:text-sm ${getDirectionTone(alert.alertType)}`}>
             {getDirectionLabel(alert.alertType, locale)}
           </span>
-          <span className="text-slate-500">·</span>
-          <span className="rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-0.5 font-semibold text-cyan-100">
+          <span className="ai-market-radar-separator text-slate-500">·</span>
+          <span className="ai-market-radar-chip rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-0.5 font-semibold text-cyan-100">
             {copy.confidence} {formatPercent(alert.confidence)}
           </span>
-          <span className="text-slate-500">·</span>
-          <span className="rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-0.5 font-semibold text-amber-100">
+          <span className="ai-market-radar-separator text-slate-500">·</span>
+          <span className="ai-market-radar-chip ai-market-radar-chip--risk rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-0.5 font-semibold text-amber-100">
             {copy.risk} {Math.round(alert.riskScore)}/100
           </span>
-          <span className="text-slate-600">•</span>
+          <span className="ai-market-radar-separator text-slate-600">•</span>
         </span>
       ))}
     </>
@@ -329,5 +329,5 @@ function FallbackText({ locale, isLoading }: { locale: Locale; isLoading: boolea
     );
   }
 
-  return <span className="whitespace-nowrap font-semibold text-slate-300">{copy.emptyRadar}</span>;
+  return <span className="ai-market-radar-empty whitespace-nowrap font-semibold text-slate-300">{copy.emptyRadar}</span>;
 }

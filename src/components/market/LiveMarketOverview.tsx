@@ -143,7 +143,7 @@ export function LiveMarketOverview({ locale, initialItems, title, panelTitle, he
 
   return (
     <section className={`dashboard-shell grid gap-4 p-4 ${isSidebar ? "" : "lg:grid-cols-[1.1fr_1fr_1fr]"}`}>
-      <div className={`rounded-xl bg-[#101827] text-white shadow-sm ${isSidebar ? "p-4" : "p-5"}`}>
+      <div className={`market-news-panel rounded-xl bg-[#101827] text-white shadow-sm ${isSidebar ? "p-4" : "p-5"}`}>
         <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">{panelTitle ?? title}</p>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-white/10 px-3 py-2">
@@ -175,9 +175,9 @@ export function LiveMarketOverview({ locale, initialItems, title, panelTitle, he
                   href={headline.link}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-lg border border-white/10 bg-white/6 p-3 hover:bg-white/10"
+                  className="market-news-link rounded-lg border border-white/10 bg-white/6 p-3 hover:bg-white/10"
                 >
-                  <p className="text-sm font-black leading-6 text-white">{headline.title}</p>
+                  <p className="market-news-title text-sm font-black leading-6 text-white">{headline.title}</p>
                   <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                     {headline.source}
                   </p>

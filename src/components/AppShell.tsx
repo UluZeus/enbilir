@@ -27,11 +27,6 @@ const accountNav = [
   { href: "kayit", label: "register" },
 ] as const;
 
-const flags = {
-  tr: "flag-tr",
-  en: "flag-gb",
-} as const;
-
 const legalLinks = [
   { href: "kvkk", label: "kvkk" },
   { href: "acik-riza", label: "consent" },
@@ -60,6 +55,54 @@ function CommunityIcon() {
   );
 }
 
+function FlagIcon({ locale }: { locale: Locale }) {
+  if (locale === "tr") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 60 40" className="language-flag">
+        <defs>
+          <linearGradient id="tr-flag-shine" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#ff3340" />
+            <stop offset="0.55" stopColor="#e30a17" />
+            <stop offset="1" stopColor="#b90712" />
+          </linearGradient>
+        </defs>
+        <rect width="60" height="40" rx="6" fill="url(#tr-flag-shine)" />
+        <circle cx="25" cy="20" r="10.8" fill="#fff" />
+        <circle cx="29" cy="20" r="8.7" fill="#e30a17" />
+        <path
+          fill="#fff"
+          d="m40.6 12.5 1.74 5.36h5.64l-4.56 3.31 1.74 5.36-4.56-3.31-4.56 3.31 1.74-5.36-4.56-3.31h5.64z"
+          transform="rotate(-18 40.6 20)"
+        />
+        <rect width="60" height="40" rx="6" fill="none" stroke="rgba(255,255,255,.38)" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 60 40" className="language-flag">
+      <defs>
+        <clipPath id="gb-flag-clip">
+          <rect width="60" height="40" rx="6" />
+        </clipPath>
+        <linearGradient id="gb-flag-shine" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor="#173f8a" />
+          <stop offset="0.58" stopColor="#012169" />
+          <stop offset="1" stopColor="#001544" />
+        </linearGradient>
+      </defs>
+      <g clipPath="url(#gb-flag-clip)">
+        <rect width="60" height="40" fill="url(#gb-flag-shine)" />
+        <path stroke="#fff" strokeWidth="8" d="M0 0 60 40M60 0 0 40" />
+        <path stroke="#c8102e" strokeWidth="4.5" d="M0 0 60 40M60 0 0 40" />
+        <path stroke="#fff" strokeWidth="13" d="M30 0v40M0 20h60" />
+        <path stroke="#c8102e" strokeWidth="8" d="M30 0v40M0 20h60" />
+        <rect width="60" height="40" fill="none" stroke="rgba(255,255,255,.42)" />
+      </g>
+    </svg>
+  );
+}
+
 export async function AppShell({ children, locale }: AppShellProps) {
   const dictionary = getDictionary(locale);
   const ui = getUiCopy(locale);
@@ -74,9 +117,9 @@ export async function AppShell({ children, locale }: AppShellProps) {
   const card3dEnabled = isVisualEnabled(visualSettings, "card3dEnabled");
   const whatsappUrl = "https://wa.me/905322825555";
   const shellStyle = {
-    "--visual-gradient-primary": visualSettings.gradientPrimary,
-    "--visual-gradient-secondary": visualSettings.gradientSecondary,
-    "--visual-accent": visualSettings.accentColor,
+    "--visual-gradient-primary": "#d1bfa7",
+    "--visual-gradient-secondary": "#bd8c7d",
+    "--visual-accent": "#bd8c7d",
     "--visual-hero-image": imageVariable(visualSettings.heroBackgroundImageUrl),
     "--visual-home-overlay-image": imageVariable(visualSettings.homeOverlayImageUrl),
     "--visual-ad-image": imageVariable(visualSettings.adImageUrl),
@@ -90,22 +133,22 @@ export async function AppShell({ children, locale }: AppShellProps) {
       <AnimatedBackground settings={visualSettings} />
       <header className="sticky top-0 z-30 border-b border-white/50 bg-white/80 shadow-sm backdrop-blur-xl">
         <div className="border-b border-slate-100 bg-[#101827] text-white">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-slate-200">
-              <span>{ui.appShell.support}</span>
-              <span>{ui.appShell.tagline}</span>
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-1 flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-black leading-6 tracking-[0.01em] text-slate-200 sm:text-base lg:text-[17px] xl:text-lg">
+              <span className="font-black">{ui.appShell.support}</span>
+              <span className="font-black">{ui.appShell.tagline}</span>
             </div>
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex shrink-0 items-center justify-end gap-2">
               {locales.map((language) => (
                 <Link
                   key={language}
                   href={`/${language}`}
                   aria-label={dictionary.language[language]}
-                  className={`flex h-8 w-10 items-center justify-center rounded-md border ${
-                    language === locale ? "border-[#f5a623] bg-white" : "border-white/20 bg-white/10 hover:bg-white/20"
+                  className={`language-switch flex h-9 w-12 items-center justify-center rounded-xl border ${
+                    language === locale ? "border-[#d1bfa7] bg-white/18" : "border-white/20 bg-white/8 hover:bg-white/16"
                   }`}
                 >
-                  <span className={`flag ${flags[language]}`} />
+                  <FlagIcon locale={language} />
                 </Link>
               ))}
             </div>
@@ -139,16 +182,17 @@ export async function AppShell({ children, locale }: AppShellProps) {
               >
                 {ui.appShell.aiAssistant}
               </Link>
-              <Link
-                href={
-                  latestMacroReport
-                    ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
-                    : `/${locale}/ai-piyasa-asistani/raporlar`
-                }
-                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-red-600 px-2.5 py-1.5 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:bg-red-700 hover:text-white 2xl:px-3 2xl:py-2"
-              >
-                MAKRO RAPOR
-              </Link>
+                <Link
+                  href={
+                    latestMacroReport
+                      ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
+                      : `/${locale}/ai-piyasa-asistani/raporlar`
+                  }
+                  className="macro-report-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white 2xl:px-3 2xl:py-2"
+                  style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
+                >
+                  MAKRO RAPOR
+                </Link>
             </nav>
           </div>
 
@@ -183,7 +227,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
               href={whatsappUrl}
               target="_blank"
               rel="noreferrer"
-              className={`shrink-0 rounded-md bg-[#25d366] px-2.5 py-1.5 font-bold text-white shadow-sm hover:bg-[#1fb65a] 2xl:px-3 2xl:py-2 ${
+              className={`whatsapp-link shrink-0 rounded-md bg-[#25d366] px-2.5 py-1.5 font-bold text-white shadow-sm hover:bg-[#1fb65a] 2xl:px-3 2xl:py-2 ${
                 visualSettings.whatsappButtonVariant === "image" ? "inline-flex h-9 w-9 items-center justify-center px-0 2xl:h-10 2xl:w-10" : ""
               }`}
             >

@@ -1,15 +1,9 @@
-import { PageHeader } from "@/components/PageHeader";
-import { getSafeLocale } from "@/i18n/config";
-import { getUiCopy } from "@/i18n/ui-copy";
 import { getDisplayName } from "@/lib/auth";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getPortfolioSnapshot, formatMoney } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 
-export default async function LeaderboardPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale: rawLocale } = await params;
-  const locale = getSafeLocale(rawLocale);
-  const copy = getUiCopy(locale).leaderboard;
+export default async function LeaderboardPage() {
   const users = await prisma.user.findMany({
     select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
   });
@@ -26,7 +20,6 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ lo
 
   return (
     <div className="grid gap-6">
-      <PageHeader title={copy.title} description={copy.description} locale={locale} />
       <section className="glass-card overflow-hidden rounded-lg shadow-sm">
         {rankedRows.map((row, index) => (
           <div key={row.id} className="grid gap-3 border-b border-white/60 p-5 transition hover:bg-white/45 md:grid-cols-[80px_1fr_180px] md:items-center">

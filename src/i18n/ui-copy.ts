@@ -19,8 +19,8 @@ export const uiCopy = {
       selected: "Seçili",
     },
     appShell: {
-      support: "Destek: 0850 000 00 00",
-      tagline: "Rotary toplulukları için piyasa okuryazarlığı platformu",
+      support: "Destek: 0850 220 50 92",
+      tagline: "Rotary, Rotaract ve ilgi duyan tüm meraklı, araştırmayı seven kişilere açık web sayfası",
       academy: "Rotary Piyasa Akademisi",
       aiAssistant: "AI Asistanı",
       logout: "Çıkış yap",
@@ -320,7 +320,7 @@ export const uiCopy = {
       selected: "Selected",
     },
     appShell: {
-      support: "Support: 0850 000 00 00",
+      support: "Support: 0850 220 50 92",
       tagline: "Market literacy platform for Rotary communities",
       academy: "Rotary Market Academy",
       aiAssistant: "AI Assistant",

@@ -1,4 +1,3 @@
-import { PageHeader } from "@/components/PageHeader";
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -16,7 +15,6 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
 
   return (
     <div className="grid gap-6">
-      <PageHeader title={copy.title} description={copy.description} locale={locale} />
       <section className="grid gap-4 md:grid-cols-3">
         {editorialPillars.map((pillar) => (
           <article key={pillar.title} className="premium-card premium-card--interactive p-6">

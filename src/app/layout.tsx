@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 import { getSiteUrl } from "@/lib/site-url";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const manrope = Manrope({
+  variable: "--font-enbilir-sans",
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const fraunces = Fraunces({
+  variable: "--font-enbilir-display",
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -49,8 +51,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-[#f5f7fb] text-[#152033] selection:bg-[#f5a623]/30 selection:text-[#101827]">
+    <html lang="tr" className={`${manrope.variable} ${fraunces.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-[#f6f1ed] text-[#49494b] selection:bg-[#bd8c7d]/25 selection:text-[#49494b]">
         {children}
       </body>
     </html>

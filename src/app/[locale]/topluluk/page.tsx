@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { FormMessage } from "@/components/FormMessage";
-import { PageHeader } from "@/components/PageHeader";
 import { removeCommunityFriendAction, sendCommunityFriendRequestAction } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
 import { getFriendPairKey } from "@/lib/friends";
@@ -130,7 +129,6 @@ export default async function CommunityPage({
 
   return (
     <div className="grid gap-6">
-      <PageHeader title={copy.community.title} description={copy.community.description} locale={locale} />
       <FormMessage message={query.error} />
 
       <section className="glass-card rounded-lg p-5 shadow-sm">

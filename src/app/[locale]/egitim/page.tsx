@@ -1,4 +1,3 @@
-import { PageHeader } from "@/components/PageHeader";
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -16,7 +15,6 @@ export default async function EducationPage({ params }: { params: Promise<{ loca
 
   return (
     <div className="grid gap-6">
-      <PageHeader title={copy.title} description={copy.description} locale={locale} />
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="premium-card premium-card--interactive p-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">

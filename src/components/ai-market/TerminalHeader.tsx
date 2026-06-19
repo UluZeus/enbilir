@@ -142,7 +142,7 @@ export function TerminalHeader({
   const currentPrice = performance?.price ?? analysis?.lastPrice ?? null;
 
   return (
-    <section className="rounded-md border border-slate-800 bg-[#0b111d] shadow-2xl">
+    <section className="terminal-header-panel rounded-md border border-slate-800 bg-[#0b111d] shadow-2xl">
       <div className="grid gap-3 border-b border-slate-800 p-4 xl:grid-cols-[minmax(320px,1fr)_minmax(520px,1.4fr)_auto] xl:items-end">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{copy.terminal}</p>
@@ -181,12 +181,12 @@ export function TerminalHeader({
       </div>
 
       <div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_150px_minmax(200px,1fr)]">
-        <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
           {copy.focusAsset}
           <select
             value={selectedSymbol}
             onChange={(event) => onSymbolChange(event.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold normal-case tracking-normal text-slate-100"
+            className="terminal-control-input rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold normal-case tracking-normal text-slate-100"
           >
             {focusSymbols.map((symbol) => (
               <option key={symbol} value={symbol}>
@@ -196,12 +196,12 @@ export function TerminalHeader({
           </select>
         </label>
 
-        <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
           {copy.interval}
           <select
             value={interval}
             onChange={(event) => onIntervalChange(event.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold normal-case tracking-normal text-slate-100"
+            className="terminal-control-input rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold normal-case tracking-normal text-slate-100"
           >
             {intervals.map((item) => (
               <option key={item.value} value={item.value}>
@@ -211,13 +211,13 @@ export function TerminalHeader({
           </select>
         </label>
 
-        <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <label className="terminal-control-label grid gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
           {copy.exchange}
           <select
             value={exchange}
             onChange={(event) => onExchangeChange(event.target.value as MarketExchange)}
             disabled={!isCryptoSelected}
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold normal-case tracking-normal text-slate-100 disabled:opacity-45"
+            className="terminal-control-input rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold normal-case tracking-normal text-slate-100 disabled:opacity-45"
           >
             <option value="binance">Binance</option>
             <option value="gate">Gate.io</option>
@@ -255,24 +255,24 @@ function PerformanceChip({ label, value }: { label: string; value: number | null
 
 function Metric({ label, value, strong = false, tooltip }: { label: string; value: string; strong?: boolean; tooltip?: string }) {
   return (
-    <div className="min-w-0 rounded-md border border-slate-800 bg-slate-950/70 p-2">
+    <div className="terminal-header-metric min-w-0 rounded-md border border-slate-800 bg-slate-950/70 p-2">
       <div className="flex items-center gap-1">
-        <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        <p className="terminal-header-metric-label truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
         {tooltip ? <InfoTooltip text={tooltip} /> : null}
       </div>
-      <p className={`mt-1 truncate font-black ${strong ? "text-lg text-white" : "text-sm text-slate-200"}`}>{value}</p>
+      <p className={`terminal-header-metric-value mt-1 truncate font-black ${strong ? "text-lg text-white" : "text-sm text-slate-200"}`}>{value}</p>
     </div>
   );
 }
 
 function Status({ label, value, tooltip }: { label: string; value: string; tooltip?: string }) {
   return (
-    <div className="rounded-md border border-slate-800 bg-slate-950/70 p-2">
+    <div className="terminal-header-status rounded-md border border-slate-800 bg-slate-950/70 p-2">
       <div className="flex items-center gap-1">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        <p className="terminal-header-metric-label text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
         {tooltip ? <InfoTooltip text={tooltip} /> : null}
       </div>
-      <p className="mt-1 text-xs font-black text-slate-200">{value}</p>
+      <p className="terminal-header-metric-value mt-1 text-xs font-black text-slate-200">{value}</p>
     </div>
   );
 }

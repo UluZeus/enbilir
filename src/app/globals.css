@@ -1,11 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f7fb;
-  --foreground: #152033;
-  --visual-gradient-primary: #d8f7b7;
-  --visual-gradient-secondary: #8fd8ff;
-  --visual-accent: #f5a623;
+  --background: #f6f1ed;
+  --foreground: #49494b;
+  --rose-gold: #bd8c7d;
+  --soft-gold: #d1bfa7;
+  --silver: #8e8e90;
+  --onyx: #49494b;
+  --onyx-deep: #343436;
+  --onyx-soft: #5b5654;
+  --cream: #f6f1ed;
+  --paper: #fffaf6;
+  --paper-muted: #efe7df;
+  --ink-muted: #6d6664;
+  --visual-gradient-primary: #d1bfa7;
+  --visual-gradient-secondary: #bd8c7d;
+  --visual-accent: #bd8c7d;
   --visual-hero-image: none;
   --visual-home-overlay-image: none;
   --visual-ad-image: none;
@@ -14,20 +24,35 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-enbilir-sans);
+  --font-mono: var(--font-enbilir-sans);
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, rgb(143 216 255 / 28%), transparent 34%),
-    radial-gradient(circle at 82% 14%, rgb(245 166 35 / 20%), transparent 30%),
-    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 38%, #eef4f9 100%);
-  background-attachment: fixed;
-  color: var(--foreground);
   min-height: 100vh;
   overflow-x: clip;
   scroll-behavior: smooth;
+  background:
+    radial-gradient(circle at top left, rgb(189 140 125 / 18%), transparent 34%),
+    radial-gradient(circle at 82% 14%, rgb(209 191 167 / 28%), transparent 30%),
+    linear-gradient(180deg, #fffaf6 0%, #f6f1ed 42%, #ebe4dd 100%);
+  background-attachment: fixed;
+  color: var(--foreground);
+}
+
+h1,
+h2,
+h3,
+.font-black {
+  letter-spacing: -0.025em;
+}
+
+h1,
+.hero-visual h1,
+.glass-card h1,
+.premium-card h1 {
+  font-family: var(--font-enbilir-display), var(--font-enbilir-sans), serif;
+  font-weight: 760;
 }
 
 a,
@@ -53,13 +78,13 @@ a:hover {
 input,
 select,
 textarea {
-  background-color: rgb(255 255 255 / 84%);
-  color: #152033;
+  background-color: rgb(255 250 246 / 88%);
+  color: var(--onyx);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: rgb(100 116 139 / 88%);
+  color: rgb(73 73 75 / 56%);
 }
 
 .premium-card--dark input:not([type="checkbox"]):not([type="radio"]),
@@ -68,9 +93,9 @@ textarea::placeholder {
 .premium-dark input:not([type="checkbox"]):not([type="radio"]),
 .premium-dark select,
 .premium-dark textarea {
-  border-color: rgb(255 255 255 / 10%);
+  border-color: rgb(255 250 246 / 14%);
   background-color: rgb(0 0 0 / 30%);
-  color: #ffffff;
+  color: #fffaf6;
   color-scheme: dark;
 }
 
@@ -78,7 +103,7 @@ textarea::placeholder {
 .premium-card--dark textarea::placeholder,
 .premium-dark input::placeholder,
 .premium-dark textarea::placeholder {
-  color: rgb(203 213 225 / 72%);
+  color: rgb(255 250 246 / 58%);
 }
 
 .animated-background {
@@ -88,16 +113,16 @@ textarea::placeholder {
   z-index: 0;
   overflow: hidden;
   background:
-    linear-gradient(38deg, var(--visual-gradient-primary) 0%, #eefbe6 20%, #dff8f5 46%, var(--visual-gradient-secondary) 76%, #edf7ff 100%);
+    linear-gradient(38deg, #efe3d8 0%, var(--soft-gold) 23%, #f5ede8 48%, var(--rose-gold) 82%, #ece7e2 100%);
 }
 
 .animated-background__mesh {
   position: absolute;
   inset: -12%;
   background:
-    radial-gradient(ellipse at 15% 82%, color-mix(in srgb, var(--visual-gradient-primary) 82%, white) 0%, transparent 42%),
-    radial-gradient(ellipse at 82% 16%, color-mix(in srgb, var(--visual-gradient-secondary) 74%, white) 0%, transparent 46%),
-    linear-gradient(115deg, transparent 10%, rgb(255 255 255 / 34%) 42%, rgb(245 166 35 / 18%) 58%, transparent 78%);
+    radial-gradient(ellipse at 15% 82%, rgb(209 191 167 / 72%) 0%, transparent 42%),
+    radial-gradient(ellipse at 82% 16%, rgb(189 140 125 / 48%) 0%, transparent 46%),
+    linear-gradient(115deg, transparent 10%, rgb(255 250 246 / 38%) 42%, rgb(189 140 125 / 18%) 58%, transparent 78%);
   filter: saturate(1.08);
   transform: translate3d(0, 0, 0);
   animation: premium-mesh-drift 18s ease-in-out infinite alternate;
@@ -106,12 +131,12 @@ textarea::placeholder {
 .animated-background__market-grid {
   position: absolute;
   inset: 0;
-  opacity: 0.28;
+  opacity: 0.26;
   background:
     var(--visual-home-overlay-image),
-    linear-gradient(135deg, transparent 0 45%, rgb(16 24 39 / 13%) 45% 46%, transparent 46% 100%),
-    linear-gradient(90deg, rgb(16 24 39 / 7%) 1px, transparent 1px),
-    linear-gradient(0deg, rgb(16 24 39 / 6%) 1px, transparent 1px);
+    linear-gradient(135deg, transparent 0 45%, rgb(73 73 75 / 12%) 45% 46%, transparent 46% 100%),
+    linear-gradient(90deg, rgb(73 73 75 / 7%) 1px, transparent 1px),
+    linear-gradient(0deg, rgb(73 73 75 / 6%) 1px, transparent 1px);
   background-position: center;
   background-repeat: no-repeat, repeat, repeat, repeat;
   background-size: min(900px, 88vw) auto, 180px 120px, 44px 44px, 44px 44px;
@@ -121,21 +146,21 @@ textarea::placeholder {
 .animated-background__noise {
   position: absolute;
   inset: 0;
-  opacity: 0.12;
+  opacity: 0.1;
   background-image:
-    repeating-radial-gradient(circle at 0 0, rgb(16 24 39 / 35%) 0 1px, transparent 1px 4px),
+    repeating-radial-gradient(circle at 0 0, rgb(73 73 75 / 28%) 0 1px, transparent 1px 4px),
     repeating-linear-gradient(115deg, rgb(255 255 255 / 22%) 0 1px, transparent 1px 6px);
   background-size: 15px 15px, 21px 21px;
   mix-blend-mode: multiply;
 }
 
 .visual-shell {
-  --visual-surface: rgb(255 255 255 / 70%);
-  --visual-surface-strong: rgb(255 255 255 / 86%);
-  --visual-border: rgb(255 255 255 / 58%);
+  --visual-surface: rgb(255 250 246 / 74%);
+  --visual-surface-strong: rgb(255 250 246 / 92%);
+  --visual-border: rgb(255 250 246 / 64%);
   position: relative;
   min-height: 100vh;
-  color: #152033;
+  color: var(--onyx);
 }
 
 .visual-shell > header,
@@ -145,20 +170,155 @@ textarea::placeholder {
   z-index: 1;
 }
 
+.visual-shell header {
+  border-color: rgb(209 191 167 / 34%);
+  background: rgb(255 250 246 / 84%);
+  box-shadow: 0 18px 48px rgb(73 73 75 / 10%);
+}
+
+.visual-shell header > div:first-child {
+  border-color: rgb(209 191 167 / 26%);
+  background:
+    radial-gradient(circle at 12% 0%, rgb(189 140 125 / 22%), transparent 28%),
+    linear-gradient(100deg, #49494b, #5d5451 58%, #49494b);
+}
+
+.visual-shell header > div:first-child,
+.visual-shell header > div:first-child :where(span, a, p, div, button) {
+  color: #fffaf6 !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 28%);
+}
+
+.visual-shell header > div:first-child :where(.text-slate-100, .text-slate-200, .text-slate-300, .text-slate-400, .text-slate-500, .text-[#152033], .text-[#0f766e]) {
+  color: #fffaf6 !important;
+}
+
+.visual-shell header > div:first-child a {
+  border-color: rgb(255 250 246 / 24%);
+}
+
+.language-switch {
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 18%),
+    0 8px 18px rgb(0 0 0 / 14%);
+}
+
+.language-switch:hover {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 24%),
+    0 10px 22px rgb(0 0 0 / 18%);
+}
+
+.language-flag {
+  display: block;
+  width: 2.15rem;
+  height: 1.42rem;
+  border-radius: 0.38rem;
+  filter: saturate(1.06) contrast(1.04);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 28%),
+    0 6px 12px rgb(0 0 0 / 18%);
+}
+
+.visual-shell footer {
+  border-color: rgb(209 191 167 / 28%);
+  background: rgb(255 250 246 / 84%);
+  color: var(--onyx);
+}
+
+.visual-shell nav a {
+  border-radius: 999px;
+}
+
+.visual-shell nav a:hover {
+  background: rgb(189 140 125 / 12%);
+  color: var(--rose-gold);
+}
+
+.visual-shell nav .macro-report-nav-link,
+.visual-shell nav a[href*="raporlar"] {
+  border-color: rgb(252 165 165 / 72%) !important;
+  background: #dc2626 !important;
+  background-color: #dc2626 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 12px 26px rgb(220 38 38 / 30%),
+    inset 0 1px 0 rgb(255 255 255 / 22%);
+}
+
+.visual-shell nav .macro-report-nav-link:hover,
+.visual-shell nav a[href*="raporlar"]:hover {
+  background: #b91c1c !important;
+  background-color: #b91c1c !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 14px 30px rgb(185 28 28 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 24%);
+}
+
+.visual-shell a[href*="wa.me"] {
+  border-color: rgb(37 211 102 / 46%) !important;
+  background:
+    radial-gradient(circle at 18% 12%, rgb(255 255 255 / 22%), transparent 30%),
+    linear-gradient(120deg, #075e54 0%, #128c7e 42%, #25d366 100%) !important;
+  color: #fffaf6 !important;
+  box-shadow:
+    0 12px 26px rgb(18 140 126 / 26%),
+    inset 0 1px 0 rgb(255 255 255 / 26%);
+}
+
+.visual-shell a[href*="wa.me"]:hover {
+  background:
+    radial-gradient(circle at 18% 12%, rgb(255 255 255 / 26%), transparent 30%),
+    linear-gradient(120deg, #064c45 0%, #0f7f73 42%, #1ebe5d 100%) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 16px 34px rgb(18 140 126 / 34%),
+    0 0 0 1px rgb(37 211 102 / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 30%);
+}
+
+.whatsapp-link {
+  color: #fffaf6 !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 22%);
+}
+
+.whatsapp-support-card {
+  border-color: rgb(37 211 102 / 24%) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgb(37 211 102 / 14%), transparent 34%),
+    linear-gradient(145deg, rgb(255 255 255 / 94%), rgb(232 248 239 / 78%)) !important;
+  box-shadow:
+    0 18px 42px rgb(7 94 84 / 9%),
+    inset 0 1px 0 rgb(255 255 255 / 70%);
+}
+
+.whatsapp-support-card h2 {
+  color: #075e54 !important;
+}
+
+.whatsapp-support-card p {
+  color: #2f665e !important;
+}
+
 .glass-card,
 .premium-card {
   position: relative;
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 58%);
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 58%)),
-    rgb(255 255 255 / 68%);
-  box-shadow: 0 18px 50px rgb(16 24 39 / 10%);
+    linear-gradient(145deg, rgb(255 250 246 / 90%), rgb(255 250 246 / 66%)),
+    rgb(255 250 246 / 74%);
+  box-shadow: 0 22px 58px rgb(73 73 75 / 12%);
   backdrop-filter: blur(18px) saturate(1.16);
+  color: var(--onyx);
 }
 
 .premium-card {
-  border-radius: 0.5rem;
+  border-radius: 1.35rem;
   transform-style: preserve-3d;
   transition:
     border-color 220ms ease,
@@ -186,11 +346,11 @@ textarea::placeholder {
 }
 
 .premium-card--interactive:hover {
-  border-color: color-mix(in srgb, var(--visual-accent) 48%, white);
+  border-color: color-mix(in srgb, var(--rose-gold) 48%, white);
   box-shadow:
-    0 24px 64px rgb(16 24 39 / 16%),
-    0 0 0 1px color-mix(in srgb, var(--visual-accent) 28%, transparent),
-    0 0 32px color-mix(in srgb, var(--visual-accent) 22%, transparent);
+    0 28px 70px rgb(73 73 75 / 17%),
+    0 0 0 1px rgb(189 140 125 / 22%),
+    0 0 32px rgb(189 140 125 / 18%);
   transform: perspective(900px) rotateX(2.2deg) rotateY(-3deg) translateY(-4px);
 }
 
@@ -199,14 +359,57 @@ textarea::placeholder {
   transform: translateX(36%);
 }
 
+.premium-card:not(.premium-card--dark) :where(h1, h2, h3, .font-black),
+.glass-card :where(h1, h2, h3, .font-black),
+.dashboard-shell :where(h1, h2, h3) {
+  color: var(--onyx);
+}
+
+.premium-card:not(.premium-card--dark) :where(p, li),
+.glass-card :where(p, li),
+.dashboard-shell :where(p, li) {
+  color: var(--ink-muted);
+}
+
+.premium-card:not(.premium-card--dark) :where(.text-slate-400, .text-slate-500, .text-slate-600),
+.glass-card :where(.text-slate-400, .text-slate-500, .text-slate-600),
+.dashboard-shell :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: var(--ink-muted) !important;
+}
+
+.premium-card :where(.uppercase),
+.glass-card :where(.uppercase) {
+  letter-spacing: 0.18em;
+}
+
 .premium-card--dark,
-.premium-dark {
-  border-color: rgb(245 166 35 / 30%);
+.premium-dark,
+.hero-visual {
+  border-color: rgb(209 191 167 / 34%);
   background:
-    linear-gradient(145deg, rgb(16 24 39 / 95%), rgb(17 35 52 / 92%)),
-    #101827;
-  color: white;
-  box-shadow: 0 22px 60px rgb(16 24 39 / 24%);
+    radial-gradient(circle at 18% 16%, rgb(189 140 125 / 22%), transparent 34%),
+    linear-gradient(145deg, rgb(73 73 75 / 96%), rgb(53 50 50 / 94%)),
+    var(--onyx);
+  color: #fffaf6;
+  box-shadow: 0 24px 64px rgb(73 73 75 / 24%);
+}
+
+.premium-card--dark :where(h1, h2, h3, .font-black),
+.premium-dark :where(h1, h2, h3, .font-black),
+.hero-visual :where(h1, h2, h3, .font-black) {
+  color: #fffaf6 !important;
+}
+
+.premium-card--dark :where(p, li, span),
+.premium-dark :where(p, li, span),
+.hero-visual :where(p, li, span) {
+  color: rgb(255 250 246 / 78%);
+}
+
+.premium-card--dark :where(.text-slate-400, .text-slate-500, .text-slate-600),
+.premium-dark :where(.text-slate-400, .text-slate-500, .text-slate-600),
+.hero-visual :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: rgb(255 250 246 / 68%) !important;
 }
 
 .premium-cta,
@@ -216,12 +419,13 @@ textarea::placeholder {
   overflow: hidden;
   border-radius: 0.5rem;
   background:
-    linear-gradient(120deg, color-mix(in srgb, var(--visual-accent) 92%, white), #ffe2a1, color-mix(in srgb, var(--visual-gradient-secondary) 30%, var(--visual-accent)));
+    linear-gradient(120deg, var(--rose-gold), #d7aa9e, var(--soft-gold));
   background-size: 180% 180%;
   box-shadow:
-    0 12px 30px color-mix(in srgb, var(--visual-accent) 24%, transparent),
+    0 14px 34px rgb(189 140 125 / 26%),
     inset 0 1px 0 rgb(255 255 255 / 35%);
-  color: #101827;
+  color: #fffaf6 !important;
+  font-weight: 900;
 }
 
 .premium-cta::after,
@@ -239,8 +443,8 @@ textarea::placeholder {
 .premium-action:hover {
   background-position: 100% 50%;
   box-shadow:
-    0 16px 38px color-mix(in srgb, var(--visual-accent) 30%, transparent),
-    0 0 28px color-mix(in srgb, var(--visual-accent) 26%, transparent);
+    0 16px 38px rgb(189 140 125 / 30%),
+    0 0 28px rgb(189 140 125 / 22%);
   filter: saturate(1.04);
 }
 
@@ -250,14 +454,29 @@ textarea::placeholder {
 }
 
 .premium-link {
-  border: 1px solid color-mix(in srgb, var(--visual-accent) 58%, transparent);
-  color: color-mix(in srgb, var(--visual-accent) 84%, white);
+  border: 1px solid rgb(209 191 167 / 58%);
+  color: #fffaf6;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
 }
 
 .premium-link:hover {
-  background: color-mix(in srgb, var(--visual-accent) 18%, transparent);
-  box-shadow: 0 0 26px color-mix(in srgb, var(--visual-accent) 18%, transparent);
+  background: rgb(209 191 167 / 16%);
+  box-shadow: 0 0 26px rgb(209 191 167 / 18%);
+}
+
+.macro-report-ticker {
+  border-color: rgb(209 191 167 / 38%) !important;
+  background:
+    linear-gradient(90deg, rgb(73 73 75 / 96%), rgb(84 70 66 / 92%)) !important;
+  color: #fffaf6 !important;
+  box-shadow:
+    0 16px 38px rgb(73 73 75 / 18%),
+    inset 0 0 0 1px rgb(255 250 246 / 12%);
+}
+
+.macro-report-ticker * {
+  color: #fffaf6 !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 32%);
 }
 
 .macro-report-ticker__track {
@@ -279,8 +498,8 @@ textarea::placeholder {
 .portfolio-donut {
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 36%),
-    0 14px 30px rgb(15 118 110 / 14%),
-    0 0 30px color-mix(in srgb, var(--visual-accent) 18%, transparent);
+    0 14px 30px rgb(189 140 125 / 16%),
+    0 0 30px rgb(189 140 125 / 16%);
   transition:
     box-shadow 240ms ease,
     filter 240ms ease,
@@ -296,8 +515,8 @@ textarea::placeholder {
   filter: saturate(1.12) brightness(1.03);
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 42%),
-    0 18px 42px rgb(15 118 110 / 20%),
-    0 0 42px color-mix(in srgb, var(--visual-accent) 24%, transparent);
+    0 18px 42px rgb(189 140 125 / 20%),
+    0 0 42px rgb(189 140 125 / 24%);
   transform: perspective(700px) rotateX(4deg) rotateY(-5deg) scale(1.035);
 }
 
@@ -305,12 +524,32 @@ textarea::placeholder {
   position: relative;
   overflow: hidden;
   border-radius: 0.5rem;
-  border: 1px solid rgb(245 166 35 / 30%);
+}
+
+.hero-visual::before {
+  inset: 0;
+  opacity: 0.24;
   background:
-    linear-gradient(120deg, rgb(16 24 39 / 94%), rgb(12 40 52 / 90%)),
-    #101827;
-  color: white;
-  box-shadow: 0 28px 80px rgb(16 24 39 / 24%);
+    var(--visual-hero-image),
+    linear-gradient(135deg, transparent 0 46%, rgb(209 191 167 / 50%) 46% 47%, transparent 47% 100%),
+    linear-gradient(115deg, transparent 0 44%, rgb(255 255 255 / 20%) 44% 45%, transparent 45% 100%),
+    radial-gradient(ellipse at 78% 28%, rgb(189 140 125 / 34%), transparent 32%);
+  background-position: center, center, center, center;
+  background-repeat: no-repeat, repeat, repeat, no-repeat;
+  background-size: cover, 150px 100px, 210px 130px, auto;
+}
+
+.hero-visual::after {
+  right: 8%;
+  bottom: -12%;
+  width: min(360px, 48vw);
+  aspect-ratio: 1;
+  border: 1px solid rgb(209 191 167 / 26%);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, transparent 42%, rgb(209 191 167 / 35%) 43% 45%, transparent 46%),
+    linear-gradient(0deg, transparent 62%, rgb(255 255 255 / 18%) 63% 64%, transparent 65%);
+  opacity: 0.48;
 }
 
 .dashboard-shell {
@@ -319,10 +558,11 @@ textarea::placeholder {
   border-radius: 1.25rem;
   border: 1px solid rgb(255 255 255 / 68%);
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 90%), rgb(255 255 255 / 68%)),
-    rgb(255 255 255 / 72%);
-  box-shadow: 0 24px 70px rgb(16 24 39 / 12%);
+    linear-gradient(145deg, rgb(255 250 246 / 92%), rgb(255 250 246 / 72%)),
+    rgb(255 250 246 / 74%);
+  box-shadow: 0 24px 70px rgb(73 73 75 / 12%);
   backdrop-filter: blur(20px) saturate(1.15);
+  color: var(--onyx);
 }
 
 .dashboard-shell::before {
@@ -331,8 +571,8 @@ textarea::placeholder {
   inset: 0;
   background:
     linear-gradient(120deg, transparent 28%, rgb(255 255 255 / 45%) 43%, transparent 58%),
-    radial-gradient(circle at 15% 20%, rgb(245 166 35 / 10%), transparent 28%),
-    radial-gradient(circle at 80% 0%, rgb(15 118 110 / 10%), transparent 26%);
+    radial-gradient(circle at 15% 20%, rgb(189 140 125 / 12%), transparent 28%),
+    radial-gradient(circle at 80% 0%, rgb(209 191 167 / 16%), transparent 26%);
   opacity: 0.85;
   pointer-events: none;
 }
@@ -350,51 +590,299 @@ textarea::placeholder {
   border: 1px solid rgb(255 255 255 / 58%);
   background: rgb(255 255 255 / 72%);
   padding: 0.45rem 0.8rem;
-  box-shadow: 0 10px 24px rgb(16 24 39 / 8%);
+  box-shadow: 0 10px 24px rgb(73 73 75 / 9%);
   backdrop-filter: blur(16px);
+  color: var(--onyx);
 }
 
 .status-chip__dot {
   height: 0.55rem;
   width: 0.55rem;
   border-radius: 999px;
-  background: linear-gradient(180deg, #16a34a, #34d399);
-  box-shadow: 0 0 0 5px rgb(52 211 153 / 18%);
+  background: linear-gradient(180deg, var(--rose-gold), var(--soft-gold));
+  box-shadow: 0 0 0 5px rgb(189 140 125 / 18%);
 }
 
-.hero-visual::before {
-  inset: 0;
-  opacity: 0.24;
-  background:
-    var(--visual-hero-image),
-    linear-gradient(135deg, transparent 0 46%, rgb(245 166 35 / 54%) 46% 47%, transparent 47% 100%),
-    linear-gradient(115deg, transparent 0 44%, rgb(255 255 255 / 20%) 44% 45%, transparent 45% 100%),
-    radial-gradient(ellipse at 78% 28%, rgb(245 166 35 / 34%), transparent 32%);
-  background-position: center, center, center, center;
-  background-repeat: no-repeat, repeat, repeat, no-repeat;
-  background-size: cover, 150px 100px, 210px 130px, auto;
+/* Readability guard for legacy light utility surfaces. Keep this narrow and let named dark panels override it below. */
+.visual-shell :where(
+  [class*="bg-white"],
+  [class*="bg-slate-50"],
+  [class*="bg-slate-100"],
+  [class*="bg-[#fffaf6]"],
+  [class*="bg-[#f6f1ed]"],
+  [class*="bg-[#f8fafc]"]
+) {
+  color: var(--onyx);
+  text-shadow: none;
 }
 
-.hero-visual::after {
-  right: 8%;
-  bottom: -12%;
-  width: min(360px, 48vw);
-  aspect-ratio: 1;
-  border: 1px solid rgb(245 166 35 / 24%);
-  border-radius: 999px;
-  background:
-    linear-gradient(135deg, transparent 42%, rgb(245 166 35 / 35%) 43% 45%, transparent 46%),
-    linear-gradient(0deg, transparent 62%, rgb(255 255 255 / 18%) 63% 64%, transparent 65%);
-  opacity: 0.48;
+.visual-shell :where(
+  [class*="bg-white"],
+  [class*="bg-slate-50"],
+  [class*="bg-slate-100"],
+  [class*="bg-[#fffaf6]"],
+  [class*="bg-[#f6f1ed]"],
+  [class*="bg-[#f8fafc]"]
+) :where(.text-white, .text-slate-100, .text-slate-200, .text-slate-300) {
+  color: var(--onyx) !important;
+  text-shadow: none !important;
+}
+
+.visual-shell :where(
+  [class*="bg-white"],
+  [class*="bg-slate-50"],
+  [class*="bg-slate-100"],
+  [class*="bg-[#fffaf6]"],
+  [class*="bg-[#f6f1ed]"],
+  [class*="bg-[#f8fafc]"]
+) :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: var(--ink-muted) !important;
+}
+
+/* Dark surfaces often use translucent bg-white cards. They must still read as dark panels. */
+.visual-shell :where(
+  .hero-visual,
+  .premium-dark,
+  .premium-card--dark
+) :where(
+  p,
+  li,
+  span,
+  label,
+  small,
+  strong,
+  a,
+  button,
+  div
+) {
+  color: rgb(255 250 246 / 82%) !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 28%);
+}
+
+.visual-shell :where(
+  .hero-visual,
+  .premium-dark,
+  .premium-card--dark
+) :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-black,
+  .text-white,
+  .text-slate-100,
+  .text-slate-200,
+  .text-slate-300
+) {
+  color: #fffaf6 !important;
+}
+
+.visual-shell :where(
+  .hero-visual,
+  .premium-dark,
+  .premium-card--dark
+) :where(
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600
+) {
+  color: rgb(255 250 246 / 70%) !important;
+}
+
+.visual-shell :where(
+  .hero-visual,
+  .premium-dark,
+  .premium-card--dark
+) :where(
+  [class*="bg-white/"],
+  [class*="bg-white\\["],
+  [class*="bg-black/"],
+  [class*="bg-black\\["]
+) {
+  border-color: rgb(255 250 246 / 16%);
+  color: #fffaf6 !important;
+}
+
+/* Home hero has legacy dark text utilities inside translucent dark cards. Force only that zone to off-white. */
+.visual-shell .hero-visual [class*="text-[#152033]"],
+.visual-shell .hero-visual [class*="text-[#101827]"],
+.visual-shell .hero-visual [class*="text-slate-500"],
+.visual-shell .hero-visual [class*="text-slate-600"],
+.visual-shell .hero-visual [class*="text-slate-700"],
+.visual-shell .hero-visual [class*="text-slate-800"],
+.visual-shell .hero-visual [class*="text-slate-900"] {
+  color: rgb(255 250 246 / 84%) !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 28%);
+}
+
+.visual-shell .hero-visual :where(h1, h2, h3, h4, .font-black, .font-bold) {
+  color: #fffaf6 !important;
+}
+
+.visual-shell .hero-visual :where([class*="bg-white/"], [class*="bg-white\\["]) {
+  background: rgb(255 250 246 / 8%);
+  border-color: rgb(255 250 246 / 18%);
 }
 
 .ad-visual {
   background-image:
-    linear-gradient(120deg, rgb(255 255 255 / 88%), rgb(255 249 232 / 78%)),
+    linear-gradient(120deg, rgb(255 250 246 / 90%), rgb(246 241 237 / 82%)),
     var(--visual-ad-image);
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
+}
+
+.market-news-panel,
+.ai-market-radar-panel,
+.ai-market-signal-overlay,
+.terminal-header-panel,
+.quick-watchlist-panel {
+  border-color: rgb(209 191 167 / 28%) !important;
+  background:
+    radial-gradient(circle at 86% 10%, rgb(189 140 125 / 18%), transparent 32%),
+    linear-gradient(145deg, #49494b, #373738) !important;
+  color: #fffaf6 !important;
+}
+
+.market-news-panel :where(p, span, h1, h2, h3, label),
+.ai-market-radar-panel :where(p, span, h1, h2, h3, label),
+.ai-market-signal-overlay :where(p, span, h1, h2, h3, label),
+.terminal-header-panel :where(p, span, h1, h2, h3, label),
+.quick-watchlist-panel :where(p, span, h1, h2, h3, label) {
+  color: rgb(255 250 246 / 82%);
+}
+
+.market-news-panel :where(.font-black, .market-news-title),
+.ai-market-radar-panel :where(.font-black, .ai-market-radar-symbol, .ai-market-radar-row-title),
+.ai-market-signal-overlay :where(.font-black, .ai-market-signal-symbol),
+.terminal-header-panel :where(h1, .font-black, .terminal-header-metric-value),
+.quick-watchlist-panel :where(.font-black, .quick-watchlist-title, .quick-watchlist-symbol) {
+  color: #fffaf6 !important;
+}
+
+.market-news-panel :where(.uppercase, [class*="text-[#f5a623]"]),
+.terminal-header-panel :where(.terminal-control-label, .terminal-header-metric-label),
+.quick-watchlist-panel :where(.quick-watchlist-kicker),
+.ai-market-signal-label,
+.ai-market-radar-heading,
+.ai-market-radar-status {
+  color: var(--soft-gold) !important;
+}
+
+.market-news-link,
+.ai-market-radar-row,
+.terminal-header-metric,
+.terminal-header-status,
+.quick-watchlist-count,
+.quick-watchlist-item {
+  border-color: rgb(255 250 246 / 16%) !important;
+  background: rgb(255 250 246 / 8%) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+.market-news-link:hover,
+.ai-market-radar-row:hover,
+.quick-watchlist-item:hover {
+  border-color: rgb(209 191 167 / 46%) !important;
+  background: rgb(255 250 246 / 13%) !important;
+}
+
+.ai-market-radar-viewport,
+.ai-market-signal-viewport {
+  border-color: rgb(209 191 167 / 24%) !important;
+  background:
+    linear-gradient(90deg, rgb(33 33 35 / 92%), rgb(48 44 43 / 90%)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 250 246 / 5%),
+    0 10px 24px rgb(0 0 0 / 16%);
+}
+
+.ai-market-radar-meta,
+.ai-market-signal-meta,
+.ai-market-signal-time,
+.ai-market-radar-empty,
+.ai-market-signal-fallback,
+.ai-market-radar-description,
+.ai-market-signal-source,
+.quick-watchlist-name {
+  color: rgb(255 250 246 / 72%) !important;
+}
+
+.ai-market-radar-separator,
+.ai-market-signal-separator {
+  color: rgb(209 191 167 / 70%) !important;
+}
+
+.ai-market-radar-signal,
+.ai-market-signal-chip,
+.ai-market-radar-chip {
+  border-color: rgb(209 191 167 / 34%) !important;
+  background: rgb(189 140 125 / 20%) !important;
+  color: #fffaf6 !important;
+}
+
+.ai-market-radar-chip--risk {
+  background: rgb(209 191 167 / 14%) !important;
+  color: #f3e7d7 !important;
+}
+
+.terminal-control-input,
+.terminal-control-input option {
+  border-color: rgb(209 191 167 / 26%) !important;
+  background-color: #343436 !important;
+  color: #fffaf6 !important;
+}
+
+.quick-watchlist-item.border-amber-300\/40,
+.quick-watchlist-item[class*="border-amber"] {
+  border-color: var(--soft-gold) !important;
+  background: rgb(209 191 167 / 16%) !important;
+}
+
+.terminal-health-panel,
+.ai-usage-panel {
+  border-color: rgb(209 191 167 / 36%) !important;
+  background:
+    linear-gradient(145deg, rgb(255 250 246 / 96%), rgb(240 235 228 / 94%)) !important;
+  color: var(--onyx) !important;
+  text-shadow: none !important;
+}
+
+.terminal-health-panel :where(p, span, h1, h2, h3, div),
+.ai-usage-panel :where(p, span, h1, h2, h3, div) {
+  text-shadow: none !important;
+}
+
+.terminal-health-kicker,
+.terminal-health-label,
+.ai-usage-kicker {
+  color: color-mix(in srgb, var(--rose-gold) 76%, var(--onyx)) !important;
+}
+
+.terminal-health-title,
+.terminal-health-value,
+.ai-usage-title {
+  color: var(--onyx) !important;
+}
+
+.terminal-health-description,
+.ai-usage-body {
+  color: var(--ink-muted) !important;
+}
+
+.terminal-health-metric,
+.ai-usage-card {
+  border-color: rgb(209 191 167 / 42%) !important;
+  background: rgb(255 255 255 / 70%) !important;
+}
+
+.terminal-health-metric .text-red-700 {
+  color: #a4473d !important;
+}
+
+.terminal-health-metric [class*="text-emerald"] {
+  color: #54705e !important;
 }
 
 .visual-motion-off *,
@@ -458,52 +946,4 @@ textarea::placeholder {
   .premium-card {
     backdrop-filter: blur(10px);
   }
-}
-
-.flag {
-  display: inline-block;
-  height: 16px;
-  width: 24px;
-  overflow: hidden;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 18%);
-}
-
-.flag-tr {
-  position: relative;
-  background: #e30a17;
-}
-
-.flag-tr::before {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 4px;
-  height: 8px;
-  width: 8px;
-  border-radius: 999px;
-  box-shadow: -2px 0 0 2px #fff;
-}
-
-.flag-tr::after {
-  content: "";
-  position: absolute;
-  left: 14px;
-  top: 5px;
-  height: 0;
-  width: 0;
-  border-bottom: 3px solid transparent;
-  border-left: 8px solid #fff;
-  border-top: 3px solid transparent;
-  transform: rotate(18deg);
-}
-
-.flag-gb {
-  position: relative;
-  background:
-    linear-gradient(32deg, transparent 42%, #fff 42% 48%, #c8102e 48% 53%, #fff 53% 59%, transparent 59%),
-    linear-gradient(148deg, transparent 42%, #fff 42% 48%, #c8102e 48% 53%, #fff 53% 59%, transparent 59%),
-    linear-gradient(90deg, transparent 38%, #fff 38% 45%, #c8102e 45% 55%, #fff 55% 62%, transparent 62%),
-    linear-gradient(0deg, transparent 32%, #fff 32% 42%, #c8102e 42% 58%, #fff 58% 68%, transparent 68%),
-    #012169;
 }

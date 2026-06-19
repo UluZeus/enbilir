@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/PageHeader";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getSessionUser } from "@/lib/auth";
@@ -18,12 +17,6 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
 
   return (
     <div className="grid gap-6">
-      <PageHeader
-        title={copy.title}
-        description={copy.description}
-        locale={locale}
-      />
-
       <section className="hero-visual p-6 text-white">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>

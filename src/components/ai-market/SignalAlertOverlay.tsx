@@ -263,7 +263,7 @@ export function SignalAlertOverlay() {
   } aday${isScanning ? ", kontrol sürüyor" : ""}.`;
 
   return (
-    <section className="border-b border-slate-800 bg-[#050914] text-slate-100">
+    <section className="ai-market-signal-overlay border-b border-slate-800 bg-[#050914] text-slate-100">
       <style>{`
         @keyframes ai-market-signal-ticker {
           from { transform: translateX(0); }
@@ -284,13 +284,13 @@ export function SignalAlertOverlay() {
 
       <div className="mx-auto flex max-w-[1920px] flex-col gap-2 px-3 py-2 md:flex-row md:items-center md:px-5">
         <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-md border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200">
+          <span className="ai-market-signal-label rounded-md border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200">
             {locale === "en" ? "Market Radar" : "Piyasa Radarı"}
           </span>
-          <span className="hidden text-[11px] font-bold text-slate-500 sm:inline">{locale === "en" ? "Binance / 30 sec" : "Binance / 30 sn"}</span>
+          <span className="ai-market-signal-source hidden text-[11px] font-bold text-slate-500 sm:inline">{locale === "en" ? "Binance / 30 sec" : "Binance / 30 sn"}</span>
         </div>
 
-        <div className="min-w-0 flex-1 overflow-hidden rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1.5">
+        <div className="ai-market-signal-viewport min-w-0 flex-1 overflow-hidden rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1.5">
           <div className="flex w-max min-w-full items-center gap-8 ai-market-signal-ticker-track">
             <TickerContent locale={locale} alerts={tickerItems} fallback={calmMessage} />
             <TickerContent locale={locale} alerts={tickerItems} fallback={calmMessage} ariaHidden />
@@ -308,7 +308,7 @@ export function SignalAlertOverlay() {
 function TickerContent({ locale, alerts, fallback, ariaHidden = false }: { locale: Locale; alerts: MarketScanAlert[]; fallback: string; ariaHidden?: boolean }) {
   if (alerts.length === 0) {
     return (
-      <span aria-hidden={ariaHidden} className={`text-xs font-bold text-slate-400 md:text-sm ${ariaHidden ? "motion-reduce:hidden" : ""}`}>
+      <span aria-hidden={ariaHidden} className={`ai-market-signal-fallback text-xs font-bold text-slate-400 md:text-sm ${ariaHidden ? "motion-reduce:hidden" : ""}`}>
         {fallback}
       </span>
     );
@@ -318,17 +318,17 @@ function TickerContent({ locale, alerts, fallback, ariaHidden = false }: { local
     <span aria-hidden={ariaHidden} className={`flex items-center gap-4 text-xs font-bold md:text-sm ${ariaHidden ? "motion-reduce:hidden" : ""}`}>
       {alerts.map((alert) => (
         <span key={`${alert.key}-${ariaHidden ? "clone" : "main"}`} className="inline-flex items-center gap-2">
-          <span className="font-black text-white">{alert.symbol}</span>
-          <span className="text-slate-500">{alert.interval}</span>
-          <span className={getAlertClass(alert.alertType)}>{translateAlertLabel(alert.label, locale)}</span>
-          <span className="text-slate-500">{locale === "en" ? "Confidence" : "Güven"} %{alert.confidence}</span>
-          <span className="text-slate-500">Risk %{alert.riskScore}</span>
-          <span className="text-slate-500">{formatPrice(alert.price)}</span>
-          <span className="text-slate-600">{formatTime(alert.timestamp)}</span>
-          <span className="text-slate-700">•</span>
+          <span className="ai-market-signal-symbol font-black text-white">{alert.symbol}</span>
+          <span className="ai-market-signal-meta text-slate-500">{alert.interval}</span>
+          <span className={`ai-market-signal-chip ${getAlertClass(alert.alertType)}`}>{translateAlertLabel(alert.label, locale)}</span>
+          <span className="ai-market-signal-meta text-slate-500">{locale === "en" ? "Confidence" : "Güven"} %{alert.confidence}</span>
+          <span className="ai-market-signal-meta text-slate-500">Risk %{alert.riskScore}</span>
+          <span className="ai-market-signal-meta text-slate-500">{formatPrice(alert.price)}</span>
+          <span className="ai-market-signal-time text-slate-600">{formatTime(alert.timestamp)}</span>
+          <span className="ai-market-signal-separator text-slate-700">•</span>
         </span>
       ))}
-      <span className="text-slate-500">{getExchangeLabel(alerts[0].exchange)} {locale === "en" ? "radar" : "radarı"}</span>
+      <span className="ai-market-signal-meta text-slate-500">{getExchangeLabel(alerts[0].exchange)} {locale === "en" ? "radar" : "radarı"}</span>
     </span>
   );
 }
