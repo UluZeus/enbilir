@@ -16,6 +16,11 @@ type SendLatestReportEmailInput = {
   recipient: MorningReportRecipient;
 };
 
+const REPORT_PREFACE =
+  "Burada yazan tüm yazı ve düşünceler yatırım tavsiyesi niteliğinde olmayıp sadece Dr. Hakan Ünsal'ın kişisel görüşlerini yansıtmaktadır. Ayrıca yapay zeka çıktısı da yine Dr. Hakan Ünsal'ın eğittiği bir yapay zeka ajanı olduğu dikkate alınmalıdır. Yapay zeka hata yapabilir, buradaki bazı değerler gecikmeli olabilir ve bir başka kaynaktan da doğrulamakta her zaman fayda vardır.";
+
+const SIGNATURE_TEXT = ["Saygılarımla...", "Dr. Hakan Ünsal", "www.enbilir.com"];
+
 function getReportUrl(reportId: string) {
   return `${getSiteUrl()}/tr/ai-piyasa-asistani/raporlar/${reportId}`;
 }
@@ -28,15 +33,14 @@ function getMorningMailText(name: string, reportUrl: string, reportsUrl: string)
   return [
     `Merhaba ${name},`,
     "",
+    REPORT_PREFACE,
+    "",
     "Dr. Hakan Ünsal'ın hazırladığı sabah makro raporu yayında.",
     `Raporu buradan okuyabilirsiniz: ${reportUrl}`,
     "",
     `Gün içinde Türkiye saatiyle 07.00, 12.00 ve 18.00'de yeni bir makro rapor oluşturulmaktadır. İsteyenler güncellenmiş en son rapora (${reportsUrl}) sayfasından ulaşabilirler.`,
     "",
-    "Buradaki yorumlar ve tavsiyeler asla yatırım tavsiyesi niteliğinde olmayıp Dr. Hakan Ünsal'ın kendi bilgisiyle oluşturduğu yorumlarıdır. Piyasa verileri gecikmeli, eksik veya hatalı olabilir; karar almadan önce bağımsız kaynaklarla doğrulama yapılmalıdır.",
-    "",
-    "Dr. Hakan Ünsal",
-    "www.enbilir.com",
+    ...SIGNATURE_TEXT,
   ].join("\n");
 }
 
@@ -44,11 +48,11 @@ function getMorningMailHtml(name: string, reportUrl: string, reportsUrl: string)
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#152033">
       <p>Merhaba ${name},</p>
+      <p style="font-size:13px;color:#475569">${REPORT_PREFACE}</p>
       <p><strong>Dr. Hakan Ünsal'ın hazırladığı sabah makro raporu yayında.</strong></p>
       <p><a href="${reportUrl}" style="color:#0f766e;font-weight:700">Makro raporu okumak için tıklayın</a></p>
       <p>Gün içinde Türkiye saatiyle <strong>07.00, 12.00 ve 18.00</strong>'de yeni bir makro rapor oluşturulmaktadır. İsteyenler güncellenmiş en son rapora (<a href="${reportsUrl}" style="color:#0f766e;font-weight:700">${reportsUrl}</a>) sayfasından ulaşabilirler.</p>
-      <p style="font-size:12px;color:#64748b">Buradaki yorumlar ve tavsiyeler asla yatırım tavsiyesi niteliğinde olmayıp Dr. Hakan Ünsal'ın kendi bilgisiyle oluşturduğu yorumlarıdır. Piyasa verileri gecikmeli, eksik veya hatalı olabilir; karar almadan önce bağımsız kaynaklarla doğrulama yapılmalıdır.</p>
-      <p><strong>Dr. Hakan Ünsal</strong><br /><a href="https://www.enbilir.com" style="color:#0f766e">www.enbilir.com</a></p>
+      <p>Saygılarımla...<br /><strong>Dr. Hakan Ünsal</strong><br /><a href="https://www.enbilir.com" style="color:#0f766e">www.enbilir.com</a></p>
     </div>
   `;
 }
@@ -57,15 +61,14 @@ function getLatestMailText(name: string, reportUrl: string, reportsUrl: string) 
   return [
     `Merhaba ${name},`,
     "",
+    REPORT_PREFACE,
+    "",
     "Talebiniz üzerine en son üretilmiş makro raporu gönderiyoruz.",
     `Raporu buradan okuyabilirsiniz: ${reportUrl}`,
     "",
     `Yeni raporlar Türkiye saatiyle 07.00, 12.00 ve 18.00'de hazırlanır. Güncel rapor arşivine (${reportsUrl}) sayfasından ulaşabilirsiniz.`,
     "",
-    "Buradaki yorumlar ve tavsiyeler asla yatırım tavsiyesi niteliğinde olmayıp Dr. Hakan Ünsal'ın kendi bilgisiyle oluşturduğu yorumlarıdır. Piyasa verileri gecikmeli, eksik veya hatalı olabilir; karar almadan önce bağımsız kaynaklarla doğrulama yapılmalıdır.",
-    "",
-    "Dr. Hakan Ünsal",
-    "www.enbilir.com",
+    ...SIGNATURE_TEXT,
   ].join("\n");
 }
 
@@ -73,11 +76,11 @@ function getLatestMailHtml(name: string, reportUrl: string, reportsUrl: string) 
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#152033">
       <p>Merhaba ${name},</p>
+      <p style="font-size:13px;color:#475569">${REPORT_PREFACE}</p>
       <p><strong>Talebiniz üzerine en son üretilmiş makro raporu gönderiyoruz.</strong></p>
       <p><a href="${reportUrl}" style="color:#0f766e;font-weight:700">Makro raporu okumak için tıklayın</a></p>
       <p>Yeni raporlar Türkiye saatiyle <strong>07.00, 12.00 ve 18.00</strong>'de hazırlanır. Güncel rapor arşivine (<a href="${reportsUrl}" style="color:#0f766e;font-weight:700">${reportsUrl}</a>) sayfasından ulaşabilirsiniz.</p>
-      <p style="font-size:12px;color:#64748b">Buradaki yorumlar ve tavsiyeler asla yatırım tavsiyesi niteliğinde olmayıp Dr. Hakan Ünsal'ın kendi bilgisiyle oluşturduğu yorumlarıdır. Piyasa verileri gecikmeli, eksik veya hatalı olabilir; karar almadan önce bağımsız kaynaklarla doğrulama yapılmalıdır.</p>
-      <p><strong>Dr. Hakan Ünsal</strong><br /><a href="https://www.enbilir.com" style="color:#0f766e">www.enbilir.com</a></p>
+      <p>Saygılarımla...<br /><strong>Dr. Hakan Ünsal</strong><br /><a href="https://www.enbilir.com" style="color:#0f766e">www.enbilir.com</a></p>
     </div>
   `;
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { PrintReportButton } from "@/components/ai-market/PrintReportButton";
@@ -9,7 +10,8 @@ import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indi
 
 export const dynamic = "force-dynamic";
 
-const FOOTER_NOTE = "Bunlar yatırım tavsiyesi olmayıp Dr. Hakan Ünsal'ın kişisel görüşleridir.";
+const REPORT_PREFACE =
+  "Burada yazan tüm yazı ve düşünceler yatırım tavsiyesi niteliğinde olmayıp sadece Dr. Hakan Ünsal'ın kişisel görüşlerini yansıtmaktadır. Ayrıca yapay zeka çıktısı da yine Dr. Hakan Ünsal'ın eğittiği bir yapay zeka ajanı olduğu dikkate alınmalıdır. Yapay zeka hata yapabilir, buradaki bazı değerler gecikmeli olabilir ve bir başka kaynaktan da doğrulamakta her zaman fayda vardır.";
 const THREE_DAYS_MS = 1000 * 60 * 60 * 24 * 3;
 
 type SourcePayload = {
@@ -237,9 +239,14 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
         .print-only { display: none; }
         @media print {
           html, body { background: #fff !important; color: #111827 !important; }
+          .visual-shell > header,
+          .visual-shell > footer,
+          .visual-shell > .fixed { display: none !important; }
+          .visual-shell > main { max-width: none !important; padding: 0 !important; }
           .report-shell { background: #fff !important; padding: 0 !important; font-family: Georgia, "Times New Roman", serif !important; }
           .screen-only { display: none !important; }
           .print-only { display: block !important; }
+          .print-logo { display: block !important; width: 32mm !important; height: auto !important; margin: 0 auto 8mm !important; }
           .print-document-header { display: none !important; }
           .print-page { break-after: auto !important; box-shadow: none !important; border: 0 !important; min-height: auto !important; padding: 0 !important; margin: 0 0 8mm !important; }
           .avoid-break { break-inside: auto; }
@@ -253,11 +260,12 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
           .print-footer { display: none !important; }
         }
       `}</style>
-      <p className="print-footer hidden">{FOOTER_NOTE}</p>
 
       <article className="mx-auto grid max-w-[1120px] gap-5">
         <section className="print-page rounded-md border border-slate-200 bg-white p-6 shadow-xl">
-          <p className="print-only print-body mb-5">Sayin {recipientName},</p>
+          <Image src="/logo.svg" alt="Enbilir logo" width={128} height={128} className="print-logo print-only" />
+          <p className="print-only print-body mb-4">{REPORT_PREFACE}</p>
+          <p className="print-only print-body mb-5">Sayın {recipientName},</p>
 
           <div className="print-document-header flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -400,6 +408,10 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
           <p className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
             {report.disclaimer}
           </p>
+          <div className="print-only print-body mt-8">
+            <p>Saygılarımla...</p>
+            <p className="mt-1 font-bold">Dr. Hakan Ünsal</p>
+          </div>
         </section>
       </article>
     </main>
