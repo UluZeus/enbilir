@@ -248,7 +248,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
         <section className="print-page rounded-md border border-slate-200 bg-white p-6 shadow-xl">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">1 saatlik AI ajan raporu</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">Planlı AI ajan raporu</p>
               <h1 className="mt-2 text-3xl font-black text-[#111827]">{report.marketRegime ?? "Piyasa raporu"}</h1>
               <p className="mt-2 text-sm font-bold text-slate-500">
                 {new Intl.DateTimeFormat("tr-TR", { dateStyle: "full", timeStyle: "short" }).format(report.generatedAt)} · {report.scope}

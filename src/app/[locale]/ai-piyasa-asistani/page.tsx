@@ -63,7 +63,7 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
       <section className="mx-auto mb-4 max-w-[1600px] rounded-md border border-cyan-300/20 bg-cyan-300/8 p-4 text-white shadow-2xl">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">1 saatlik AI ajan raporu</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">Planlı AI ajan raporu</p>
             {latestReport ? (
               <>
                 <h2 className="mt-1 text-lg font-black">{latestReport.marketRegime ?? "Son piyasa raporu hazir"}</h2>

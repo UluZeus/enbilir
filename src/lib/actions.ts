@@ -7,7 +7,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import path from "path";
-import { canAccessAdmin, createSession, destroySession, getSessionUser, masterAdminEmail } from "@/lib/auth";
+import { canAccessAdmin, createSession, destroySession, getDisplayName, getSessionUser, masterAdminEmail } from "@/lib/auth";
+import { sendLatestMacroReportEmail } from "@/lib/ai-market/agent/morning-report-email";
 import { buildEmailVerificationUrl, buildWelcomeVerificationEmail, createEmailVerificationToken } from "@/lib/email-verification";
 import { sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
@@ -1274,4 +1275,28 @@ export async function changeLeagueAction(formData: FormData) {
   const locale = formData.get("locale");
   await requireSession(locale, "giris", "Lig değiştirmek için önce giriş yapmalısın.");
   redirect(getRedirect(locale, "topluluk", "Lig değişikliği yakında aktif olacak."));
+}
+
+export async function sendLatestMacroReportEmailAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const sessionUser = await requireSession(locale, "giris", "Makro raporu e-posta ile almak için önce giriş yapmalısın.");
+  const latestReport = await prisma.aiMarketReport.findFirst({
+    where: { scope: "GLOBAL" },
+    orderBy: { generatedAt: "desc" },
+    select: { id: true },
+  });
+
+  if (!latestReport) {
+    redirect(getRedirect(locale, "ai-piyasa-asistani/raporlar", "Henüz gönderilecek bir makro rapor yok."));
+  }
+
+  await sendLatestMacroReportEmail({
+    reportId: latestReport.id,
+    recipient: {
+      email: sessionUser.email,
+      name: getDisplayName(sessionUser),
+    },
+  });
+
+  redirect(getRedirect(locale, "ai-piyasa-asistani/raporlar", undefined, "En son makro rapor e-posta adresine gönderildi."));
 }

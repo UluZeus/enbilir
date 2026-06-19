@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const REPORT_SCHEDULE_TIME_ZONE = "Europe/Istanbul";
-const REPORT_SCHEDULE_MINUTE = 55;
-const REPORT_SCHEDULE_HOURS = new Set([6, 8, 11, 14, 17, 20, 23]);
+const REPORT_SCHEDULE_MINUTE = 0;
+const REPORT_SCHEDULE_HOURS = new Set([7, 12, 18]);
+const REPORT_SCHEDULE_LABELS = ["07:00", "12:00", "18:00"];
 
 function isAuthorized(request: Request) {
   const secret = process.env.AI_AGENT_CRON_SECRET;
@@ -46,7 +47,7 @@ function isScheduledReportTime(date = new Date()) {
 function isMorningReportTime(date = new Date()) {
   const { hour, minute } = getIstanbulTimeParts(date);
 
-  return hour === 6 && minute === REPORT_SCHEDULE_MINUTE;
+  return hour === 7 && minute === REPORT_SCHEDULE_MINUTE;
 }
 
 export async function POST(request: Request) {
@@ -63,9 +64,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ranAt: new Date().toISOString(),
       scheduled: false,
-      message: "AI piyasa raporu yalnizca Turkiye saatiyle 06:55, 08:55, 11:55, 14:55, 17:55, 20:55 ve 23:55 zamanlarinda uretilir.",
+      message: "AI piyasa raporu yalnizca Turkiye saatiyle 07:00, 12:00 ve 18:00 zamanlarinda uretilir.",
       currentTurkeyTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-      scheduleTurkeyTime: ["06:55", "08:55", "11:55", "14:55", "17:55", "20:55", "23:55"],
+      scheduleTurkeyTime: REPORT_SCHEDULE_LABELS,
     });
   }
 

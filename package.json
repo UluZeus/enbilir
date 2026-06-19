@@ -9,6 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "agent:run": "node scripts/run-ai-agent-cron.mjs",
+    "agent:install-cron": "node scripts/install-ai-agent-cron.mjs",
     "db:reset-virtual-portfolios": "node scripts/reset-virtual-portfolios.mjs",
     "db:upsert-managed-blog-content": "node scripts/upsert-managed-blog-content.mjs",
     "postinstall": "prisma generate",

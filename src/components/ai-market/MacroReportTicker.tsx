@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-const REPORT_HOURS = [6, 8, 11, 14, 17, 20, 23];
-const REPORT_MINUTE = 55;
+const REPORT_HOURS = [7, 12, 18];
+const REPORT_MINUTE = 0;
 const ISTANBUL_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 function getNextReportTime(now: Date) {

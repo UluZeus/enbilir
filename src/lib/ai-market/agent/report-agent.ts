@@ -91,7 +91,7 @@ function buildFallbackDraft(assets: AgentAssetAnalysis[], news: AgentNewsItem[])
 
   return {
     macroSummary: [
-      "1 saatlik ajan raporu teknik gostergeler, haber akisi ve zorunlu makro varlik sepetiyle olusturuldu. Kuresel piyasalarda ana belirleyici basliklar merkez bankalarinin faiz patikasi, dolar likiditesi, enerji fiyatlari ve teknoloji hisselerindeki risk istahi olmaya devam ediyor.",
+      "Planli makro ajan raporu teknik gostergeler, haber akisi ve zorunlu makro varlik sepetiyle olusturuldu. Kuresel piyasalarda ana belirleyici basliklar merkez bankalarinin faiz patikasi, dolar likiditesi, enerji fiyatlari ve teknoloji hisselerindeki risk istahi olmaya devam ediyor.",
       `Kapsamda ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")} basliklari yer aliyor.`,
       `Ortalama risk skoru ${averageRisk.toFixed(0)}/100 seviyesinde; ${bullishCount} varlik pozitif, ${bearishCount} varlik negatif sinyal tarafinda.`,
       "Altin, gumus ve paladyum reel faiz beklentisi ile sanayi talebi arasinda okunurken; Brent petrol enerji maliyeti, enflasyon baskisi ve enerji hisselerinin nakit akisi beklentileri icin kritik gosterge olmaya devam ediyor. Dolar/TL ve Euro/TL yerel varlik fiyatlamalarinda ana geciskenlik kanali olarak izlenmeli. BIST 100 tarafinda banka, sanayi ve ihracatci sirketlerin kur/faiz dengesine verdigi tepki onemli. ABD tarafinda Dow Jones daha genis ekonomik donguye, Nasdaq ise yapay zeka ve buyume temasina hassas. Cin, Japonya ve Uzak Dogu borsalari kuresel tedarik zinciri, yariletken talebi ve Asya risk istahi hakkinda erken sinyal verebilir. Bu nedenle rapordaki teknik sinyaller tek basina degil, haber akisi ve makro rejimle birlikte degerlendirilmelidir.",
