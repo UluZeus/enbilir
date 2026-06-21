@@ -165,9 +165,22 @@ function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot |
         <PortfolioDonut
           total={snapshot.totalValueUsd}
           animated
+          labels={{
+            allocation: copy.cash === "Cash" ? "Weight" : "Ağırlık",
+            profitLoss: copy.cash === "Cash" ? "P/L" : "K/Z",
+          }}
           items={[
-            { label: copy.cash, value: snapshot.cashValueUsd },
-            ...positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
+            { label: copy.cash, detail: snapshot.cashCurrency, value: snapshot.cashValueUsd, profitLossPercent: null },
+            ...positions.map((position) => {
+              const costUsd = position.quantity * position.averagePriceUsd;
+
+              return {
+                label: position.symbol,
+                detail: position.name,
+                value: position.valueUsd,
+                profitLossPercent: costUsd > 0 ? (position.profitLossUsd / costUsd) * 100 : null,
+              };
+            }),
           ]}
         />
       </div>

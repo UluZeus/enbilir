@@ -361,9 +361,22 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                     total={snapshot.totalValueUsd}
                     size="sm"
                     animated
+                    labels={{
+                      allocation: locale === "en" ? "Weight" : "Ağırlık",
+                      profitLoss: locale === "en" ? "P/L" : "K/Z",
+                    }}
                     items={[
-                      { label: copy.trade.cash, value: snapshot.cashValueUsd },
-                      ...snapshot.positions.map((position) => ({ label: position.symbol, value: position.valueUsd })),
+                      { label: copy.trade.cash, detail: snapshot.cashCurrency, value: snapshot.cashValueUsd, profitLossPercent: null },
+                      ...snapshot.positions.map((position) => {
+                        const costUsd = position.quantity * position.averagePriceUsd;
+
+                        return {
+                          label: position.symbol,
+                          detail: position.name,
+                          value: position.valueUsd,
+                          profitLossPercent: costUsd > 0 ? (position.profitLossUsd / costUsd) * 100 : null,
+                        };
+                      }),
                     ]}
                   />
                 </div>
