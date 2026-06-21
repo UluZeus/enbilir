@@ -115,6 +115,7 @@ model User {
   aiMarketFavorites                   AiMarketFavorite[]
   aiMarketReports                     AiMarketReport[]
   aiMarketReportEvents                AiMarketReportEvent[]
+  subscriptionEmailLogs               SubscriptionEmailLog[]
 }
 
 model OAuthAccount {
@@ -510,4 +511,21 @@ model AiMarketReportNewsItem {
 
   @@index([reportId, relevance])
   @@index([category, createdAt])
+}
+
+model SubscriptionEmailLog {
+  id           String   @id @default(cuid())
+  userId       String
+  email        String
+  emailType    String
+  periodKey    String
+  subject      String
+  sentAt       DateTime @default(now())
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, emailType, periodKey])
+  @@index([emailType, periodKey])
+  @@index([sentAt])
 }

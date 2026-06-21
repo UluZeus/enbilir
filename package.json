@@ -12,6 +12,8 @@
     "agent:run": "node scripts/run-ai-agent-cron.mjs",
     "agent:install-cron": "node scripts/install-ai-agent-cron.mjs",
     "agent:ensure-secret": "node scripts/ensure-ai-agent-secret.mjs",
+    "subscription:run": "node scripts/run-subscription-emails-cron.mjs",
+    "subscription:install-cron": "node scripts/install-subscription-emails-cron.mjs",
     "db:reset-virtual-portfolios": "node scripts/reset-virtual-portfolios.mjs",
     "db:upsert-managed-blog-content": "node scripts/upsert-managed-blog-content.mjs",
     "test:visual": "node scripts/visual-qa.mjs",
