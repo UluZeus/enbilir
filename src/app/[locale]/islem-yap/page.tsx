@@ -97,7 +97,7 @@ export default async function TradePage({
         </aside>
 
         <div className="grid min-w-0 gap-5">
-          <div className="premium-card rounded-2xl p-6 shadow-sm">
+          <div className="trade-ticket-panel premium-card rounded-2xl p-6 shadow-sm">
             <h1 className="text-2xl font-black text-[#152033]">{copy.trade.title}</h1>
             <p className="mt-2 text-sm leading-6 text-slate-600">{copy.trade.description}</p>
             <TradeTicketForm
@@ -113,7 +113,7 @@ export default async function TradePage({
             />
           </div>
 
-          <div className="premium-card rounded-2xl p-6 shadow-sm">
+          <div className="trade-cash-panel premium-card rounded-2xl p-6 shadow-sm">
             <h2 className="text-xl font-black text-[#152033]">{copy.trade.cashPreference}</h2>
             <form action={updateCashModeAction} className="mt-4 flex flex-wrap gap-3">
               <input type="hidden" name="locale" value={locale} />
@@ -141,7 +141,7 @@ function formatPercent(value: number) {
 function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot | null; copy: ReturnType<typeof getUiCopy>["trade"] }) {
   if (!snapshot) {
     return (
-      <div className="premium-card p-5 shadow-sm">
+      <div className="trade-portfolio-panel premium-card p-5 shadow-sm">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.totalPortfolio}</p>
         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
           {copy.portfolioUnavailable}
@@ -153,7 +153,7 @@ function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot |
   const positions = [...snapshot.positions].sort((a, b) => b.valueUsd - a.valueUsd);
 
   return (
-    <div className="premium-card p-5 shadow-sm">
+    <div className="trade-portfolio-panel premium-card p-5 shadow-sm">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.totalPortfolio}</p>
       <p className="mt-2 text-3xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
       <p className={`mt-1 text-sm font-black ${snapshot.profitLossUsd >= 0 ? "text-emerald-700" : "text-red-600"}`}>

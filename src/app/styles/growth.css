@@ -1,0 +1,124 @@
+/* Growth sprint readability guards */
+.market-trend-list,
+.dashboard-shell .market-trend-list {
+  background: rgb(255 255 255 / 92%) !important;
+  color: #152033 !important;
+}
+
+.market-trend-list :where(h1, h2, h3, h4, p, span, li, label),
+.dashboard-shell .market-trend-list :where(h1, h2, h3, h4, p, span, li, label) {
+  color: #152033 !important;
+}
+
+.market-trend-list .market-trend-name,
+.market-trend-list .market-trend-price,
+.market-trend-list .market-trend-mini {
+  color: #475569 !important;
+}
+
+.market-trend-list .market-trend-symbol {
+  color: #173f8a !important;
+}
+
+.market-trend-list .market-trend-change--up {
+  color: #047857 !important;
+}
+
+.market-trend-list .market-trend-change--down {
+  color: #dc2626 !important;
+}
+
+.trade-portfolio-panel,
+.trade-ticket-panel,
+.trade-cash-panel {
+  color: #152033 !important;
+}
+
+.trade-portfolio-panel :where(h1, h2, h3, h4, p, span, li, label),
+.trade-ticket-panel :where(h1, h2, h3, h4, p, span, li, label),
+.trade-cash-panel :where(h1, h2, h3, h4, p, span, li, label) {
+  color: #152033 !important;
+}
+
+.trade-portfolio-panel :where(.text-slate-400, .text-slate-500, .text-slate-600),
+.trade-ticket-panel :where(.text-slate-400, .text-slate-500, .text-slate-600),
+.trade-cash-panel :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: #475569 !important;
+}
+
+.trade-portfolio-panel :where(.text-emerald-700, .text-\[\#0f766e\]),
+.trade-ticket-panel :where(.text-emerald-700, .text-\[\#0f766e\]),
+.trade-cash-panel :where(.text-emerald-700, .text-\[\#0f766e\]) {
+  color: #047857 !important;
+}
+
+.trade-portfolio-panel :where(.text-red-600),
+.trade-ticket-panel :where(.text-red-600),
+.trade-cash-panel :where(.text-red-600) {
+  color: #dc2626 !important;
+}
+
+.trade-ticket-terminal {
+  color: rgb(255 250 246 / 88%) !important;
+}
+
+.trade-ticket-terminal > :where(div, label, p, h1, h2, h3, span):not(.trade-category-card):not(.trade-trend-badge),
+.trade-ticket-terminal .trade-terminal-field,
+.trade-ticket-terminal .trade-terminal-field > span {
+  color: rgb(255 250 246 / 88%) !important;
+}
+
+.trade-ticket-terminal .trade-category-card,
+.trade-ticket-terminal .trade-trend-badge {
+  background: rgb(255 250 246 / 94%) !important;
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-card :where(h1, h2, h3, h4, p, span, a),
+.trade-ticket-terminal .trade-trend-badge :where(h1, h2, h3, h4, p, span) {
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-card :where(.text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700),
+.trade-ticket-terminal .trade-trend-badge :where(.text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700) {
+  color: #5f6674 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill {
+  background: #f8fafc !important;
+  border-color: #d8dee8 !important;
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill :where(span, p) {
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill[aria-current="page"] {
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+  color: #fffaf6 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill[aria-current="page"] :where(span, p) {
+  color: #fffaf6 !important;
+}
+
+.trade-ticket-terminal :where(input, select) {
+  background: #fffaf6 !important;
+  color: #152033 !important;
+  border-color: #d8dee8 !important;
+}
+
+.trade-ticket-terminal :where(input, select)::placeholder {
+  color: #6b7280 !important;
+}
+
+.trade-ticket-terminal .premium-cta {
+  color: #fffaf6 !important;
+}
+
+.trade-ticket-terminal .trade-trend-badge:has(.text-emerald-800) {
+  background: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+}

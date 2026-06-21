@@ -12,7 +12,7 @@ export function PageHeader({ title, description, locale = "tr" }: PageHeaderProp
   const labels = safeLocale === "tr" ? ["Eğitim", "Analiz", "Liderlik", "Panel"] : ["Education", "Analysis", "Leaderboard", "Dashboard"];
 
   return (
-    <section className="glass-card overflow-hidden rounded-lg shadow-sm">
+    <section className="page-header-premium glass-card overflow-hidden rounded-lg shadow-sm">
       <div className="grid gap-0 lg:grid-cols-[1fr_340px]">
         <div className="p-8 sm:p-10">
           <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-[#0f766e]">Enbilir</p>

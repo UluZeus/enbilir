@@ -78,7 +78,7 @@ function TrendBadge({ label, value, tone }: { label: string; value: string; tone
         : "border-slate-200 bg-slate-50 text-slate-700";
 
   return (
-    <div className={`rounded-lg border px-3 py-2 ${toneClasses}`}>
+    <div className={`trade-trend-badge rounded-lg border px-3 py-2 ${toneClasses}`}>
       <p className="text-[10px] font-black uppercase tracking-[0.12em] opacity-70">{label}</p>
       <p className="mt-1 text-sm font-black">{value}</p>
     </div>
@@ -329,7 +329,7 @@ export function TradeTicketForm({
 
   return (
     <div className="grid min-w-0 gap-5">
-      <form action={formAction} className="dashboard-shell min-w-0 p-4 lg:p-5">
+      <form action={formAction} className="trade-ticket-terminal dashboard-shell min-w-0 p-4 lg:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.title}</p>
@@ -358,7 +358,7 @@ export function TradeTicketForm({
         <input type="hidden" name="userId" value={userId} />
         <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm">
+        <div className="trade-category-card mt-5 rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{copy.category}</h3>
@@ -378,7 +378,7 @@ export function TradeTicketForm({
                 key={String(option.value)}
                 href={buildTradeHref(safeLocale, option.value, undefined, query)}
                 aria-current={category === option.value ? "page" : undefined}
-                className={`rounded-full border px-3 py-2 text-[11px] font-black transition ${
+                className={`trade-category-pill rounded-full border px-3 py-2 text-[11px] font-black transition ${
                   category === option.value
                     ? "border-[#0f766e] bg-[#0f766e] text-white shadow-sm"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-[#0f766e] hover:text-[#0f766e]"
@@ -394,7 +394,7 @@ export function TradeTicketForm({
         <input type="hidden" name="symbol" value={effectiveSelectedSymbol} />
 
         <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,0.9fr)_auto] xl:items-end">
-          <label className="grid min-w-0 gap-2 text-sm font-bold text-slate-700">
+          <label className="trade-terminal-field grid min-w-0 gap-2 text-sm font-bold text-slate-700">
             {copy.action}
             <select name="side" className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal outline-none focus:border-[#0f766e]">
               <option value="BUY">{copy.buy}</option>
@@ -402,7 +402,7 @@ export function TradeTicketForm({
             </select>
           </label>
 
-          <label className="grid min-w-0 gap-2 text-sm font-bold text-slate-700">
+          <label className="trade-terminal-field grid min-w-0 gap-2 text-sm font-bold text-slate-700">
             {copy.amountUsd}
             <input
               name="amountUsd"

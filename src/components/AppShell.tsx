@@ -14,9 +14,9 @@ import { getSiteVisualSettings, isVisualEnabled } from "@/lib/site-visual-settin
 const primaryNav = [
   { href: "", label: "home" },
   { href: "islem-yap", label: "trade" },
+  { href: "ligler", label: "leagues" },
   { href: "egitim", label: "education" },
   { href: "liderlik-tablosu", label: "leaderboard" },
-  { href: "ligler", label: "leagues" },
   { href: "topluluk", label: "community" },
   { href: "blog", label: "blog" },
   { href: "iletisim", label: "contact" },
@@ -131,10 +131,10 @@ export async function AppShell({ children, locale }: AppShellProps) {
       style={shellStyle}
     >
       <AnimatedBackground settings={visualSettings} />
-      <header className="sticky top-0 z-30 border-b border-white/50 bg-white/80 shadow-sm backdrop-blur-xl">
-        <div className="border-b border-slate-100 bg-[#101827] text-white">
+      <header className="premium-site-header sticky top-0 z-30">
+        <div className="premium-finance-topbar">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-1 flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-black leading-6 tracking-[0.01em] text-slate-200 sm:text-base lg:text-[17px] xl:text-lg">
+            <div className="premium-support-copy flex flex-1 flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-black leading-6 tracking-[0.01em] sm:text-base lg:text-[17px] xl:text-lg">
               <span className="font-black">{ui.appShell.support}</span>
               <span className="font-black">{ui.appShell.tagline}</span>
             </div>
@@ -155,22 +155,22 @@ export async function AppShell({ children, locale }: AppShellProps) {
           </div>
         </div>
 
-        <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3 xl:px-5">
+        <div className="premium-finance-header mx-auto flex w-full max-w-[92rem] flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3 xl:px-5">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center xl:flex-1 xl:gap-3">
-            <Link href={`/${locale}`} className="flex shrink-0 items-center gap-2.5">
-              <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="h-12 w-12 rounded-md xl:h-11 xl:w-11" />
+            <Link href={`/${locale}`} className="premium-brand-lockup flex shrink-0 items-center gap-2.5">
+              <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="premium-brand-mark h-12 w-12 rounded-md xl:h-11 xl:w-11" />
               <span>
                 <span className="block text-xl font-black tracking-normal text-[#152033] xl:text-lg 2xl:text-xl">enbilir.com</span>
                 <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0f766e] 2xl:text-xs">{ui.appShell.academy}</span>
               </span>
             </Link>
 
-            <nav className="flex flex-wrap items-center gap-0.5 overflow-visible text-sm font-semibold text-slate-700 xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
+            <nav className="premium-main-nav flex flex-wrap items-center gap-0.5 overflow-visible text-sm font-semibold xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
               {primaryNav.map((item) => (
                 <Link
                   key={item.href}
                   href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
+                  className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
                 >
                   {item.label === "community" ? <CommunityIcon /> : null}
                   {dictionary.nav[item.label]}
@@ -178,7 +178,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
               ))}
               <Link
                 href={`/${locale}/ai-piyasa-asistani`}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/70 hover:text-[#0f766e] hover:shadow-sm 2xl:px-2.5 2xl:py-2"
+                className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
               >
                 {ui.appShell.aiAssistant}
               </Link>
@@ -188,7 +188,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
                       ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
                       : `/${locale}/ai-piyasa-asistani/raporlar`
                   }
-                  className="macro-report-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white 2xl:px-3 2xl:py-2"
+                  className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white 2xl:px-3 2xl:py-2"
                   style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
                 >
                   MAKRO RAPOR
@@ -217,7 +217,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
                 <Link
                   key={item.href}
                   href={`/${locale}/${item.href}`}
-                  className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-3 2xl:py-2"
+                  className="premium-account-link shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur 2xl:px-3 2xl:py-2"
                 >
                   {dictionary.nav[item.label]}
                 </Link>
@@ -240,7 +240,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
       <main className="mx-auto w-full max-w-7xl px-5 py-8 pb-24 md:pb-8">{children}</main>
 
       <div className="fixed inset-x-3 bottom-3 z-30 md:hidden">
-        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/60 bg-white/88 p-2 shadow-2xl backdrop-blur-xl">
+        <div className="premium-mobile-dock grid grid-cols-4 gap-2 rounded-2xl border border-white/60 bg-white/88 p-2 shadow-2xl backdrop-blur-xl">
           <Link
             href={`/${locale}/${sessionUser ? "panel" : "kayit"}`}
             className="premium-cta flex items-center justify-center px-3 py-3 text-center text-xs font-black"
@@ -258,6 +258,16 @@ export async function AppShell({ children, locale }: AppShellProps) {
             className="rounded-xl border border-slate-200 bg-[#101827] px-3 py-3 text-center text-xs font-black text-white"
           >
             {ui.appShell.aiAssistant}
+          </Link>
+          <Link
+            href={
+              latestMacroReport
+                ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
+                : `/${locale}/ai-piyasa-asistani/raporlar`
+            }
+            className="macro-report-nav-link rounded-xl px-3 py-3 text-center text-xs font-black text-white"
+          >
+            {locale === "tr" ? "Makro" : "Macro"}
           </Link>
         </div>
       </div>

@@ -68,42 +68,51 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const goalCards = getGoalCards(locale);
   const knowledgeBlocks = getKnowledgeBlocks(locale);
   const faqItems = getFaqItems(locale);
+  const heroStats = getHeroStats(locale);
 
   return (
-    <div className="grid gap-6">
+    <div className="home-premium grid gap-6">
       <MacroReportTicker locale={locale} />
       <AdBanner ads={ads} />
-      <section className="hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.1fr)_360px]">
+      <section className="home-premium-hero hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.home.eyebrow}</p>
-          <h1 className="relative mt-3 max-w-4xl text-4xl font-black tracking-normal sm:text-6xl">
-            {locale === "tr" ? "Rotary toplulukları için modern piyasa okuryazarlığı deneyimi" : "A modern market-literacy experience for Rotary communities"}
+          <h1 className="relative mt-3 max-w-5xl text-4xl font-black tracking-normal sm:text-6xl">
+            {locale === "tr"
+              ? "Gerçek para riski olmadan piyasa okuryazarlığı, sanal portföy ve AI makro rapor deneyimi"
+              : "Market literacy, virtual portfolios, and AI macro reports without real-money risk"}
           </h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
-            {copy.home.description}
+          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
+            {locale === "tr"
+              ? "Enbilir; meraklı kullanıcılar, Rotaryenler ve finansal okuryazarlığını geliştirmek isteyen topluluklar için sanal işlem, lig rekabeti, canlı piyasa verisi ve Dr. Hakan Ünsal'ın eğittiği AI ajan yorumlarını tek güvenli öğrenme akışında birleştirir."
+              : "Enbilir brings virtual trading, league competition, live market data, and AI-agent commentary trained by Dr. Hakan Unsal into one safe learning flow for curious users and community-led financial literacy."}
           </p>
           <div className="relative mt-6 flex flex-wrap gap-3">
             <Link href={`/${locale}/kayit`} className="premium-cta px-5 py-3 text-sm font-black">
-              {locale === "tr" ? "Topluluğunu dahil et" : "Bring your community in"}
+              {locale === "tr" ? "Ücretsiz başla" : "Start for free"}
             </Link>
-            <Link href={`/${locale}/islem-yap`} className="premium-link rounded-md px-5 py-3 text-sm font-black">{copy.home.trade}</Link>
-            <Link href={`/${locale}/ligler`} className="premium-link rounded-md px-5 py-3 text-sm font-black">{copy.home.leagues}</Link>
+            <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="premium-link rounded-md px-5 py-3 text-sm font-black">
+              {locale === "tr" ? "Makro raporu aç" : "Open macro report"}
+            </Link>
+            <Link href={`/${locale}/ai-piyasa-asistani`} className="premium-link rounded-md px-5 py-3 text-sm font-black">
+              {locale === "tr" ? "AI asistanı gör" : "View AI assistant"}
+            </Link>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {strategicCards.map((card) => (
-              <div key={card.title} className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">{card.eyebrow}</p>
-                <h2 className="mt-2 text-lg font-black text-white">{card.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{card.body}</p>
+            {heroStats.map((stat) => (
+              <div key={stat.label} className="home-premium-stat rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur">
+                <p className="text-2xl font-black text-white">{stat.value}</p>
+                <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">{stat.label}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{stat.body}</p>
               </div>
             ))}
           </div>
         </div>
 
         <div className="grid gap-4 self-start">
-          <div className="rounded-[1.5rem] border border-white/12 bg-[#07111f]/88 p-5 shadow-2xl">
+          <div className="home-flow-card rounded-[1.5rem] border border-white/12 bg-[#07111f]/88 p-5 shadow-2xl">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
-              {locale === "tr" ? "Rotary için hazırlanmış akış" : "Built for Rotary"}
+              {locale === "tr" ? "Premium öğrenme akışı" : "Premium learning flow"}
             </p>
             <div className="mt-4 grid gap-3">
               {communitySteps.map((step) => (
@@ -118,6 +127,15 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 </div>
               ))}
             </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+            {strategicCards.map((card) => (
+              <div key={card.title} className="home-product-card rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">{card.eyebrow}</p>
+                <h2 className="mt-2 text-lg font-black text-white">{card.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{card.body}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -528,6 +546,22 @@ function formatLeagueTypeLabel(type: string, locale: string) {
         };
 
   return labels[type as keyof typeof labels] ?? type;
+}
+
+function getHeroStats(locale: string) {
+  if (locale === "en") {
+    return [
+      { value: "0", label: "Real-money risk", body: "Practice decisions in a simulation-first environment." },
+      { value: "3", label: "Daily macro reports", body: "Follow the morning, noon, and evening market rhythm." },
+      { value: "24/7", label: "Learning surface", body: "Read market data, rankings, and AI context whenever you return." },
+    ] as const;
+  }
+
+  return [
+    { value: "0", label: "Gerçek para riski", body: "Karar pratiğini simülasyon öncelikli güvenli alanda yap." },
+    { value: "3", label: "Günlük makro rapor", body: "Sabah, öğlen ve akşam piyasa ritmini takip et." },
+    { value: "7/24", label: "Öğrenme zemini", body: "Piyasa verisi, sıralama ve AI bağlamına her dönüşünde ulaş." },
+  ] as const;
 }
 
 function getValueProps(locale: string) {

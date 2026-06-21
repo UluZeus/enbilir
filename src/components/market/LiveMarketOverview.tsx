@@ -49,22 +49,22 @@ function buildOverviewSignature(payload: MarketOverviewPayload) {
 
 function TrendList({ title, items }: { title: string; items: MarketItem[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-      <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{title}</h3>
+    <div className="market-trend-list rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+      <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-600">{title}</h3>
       <div className="mt-3 grid gap-2">
         {items.map((item) => (
-          <div key={item.symbol} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+          <div key={item.symbol} className="market-trend-row flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
             <div className="min-w-0">
-              <p className="truncate text-sm font-black text-[#152033]">{item.symbol}</p>
-              <p className="truncate text-[11px] font-semibold text-slate-500">{item.name}</p>
-              <p className="mt-0.5 text-[11px] font-bold text-slate-500">{formatMarketItemPrice(item)}</p>
+              <p className="market-trend-symbol truncate text-sm font-black text-[#152033]">{item.symbol}</p>
+              <p className="market-trend-name truncate text-[11px] font-semibold text-slate-600">{item.name}</p>
+              <p className="market-trend-price mt-0.5 text-[11px] font-bold text-slate-600">{formatMarketItemPrice(item)}</p>
             </div>
             <div className="shrink-0 text-right">
-              <span className={`block text-sm font-black ${item.changePercent >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+              <span className={`market-trend-change block text-sm font-black ${item.changePercent >= 0 ? "market-trend-change--up text-emerald-700" : "market-trend-change--down text-red-600"}`}>
                 {item.changePercent >= 0 ? "+" : ""}
                 {item.changePercent.toFixed(2)}%
               </span>
-              <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+              <span className="market-trend-mini mt-0.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
                 {formatMarketItemPrice(item)}
               </span>
             </div>

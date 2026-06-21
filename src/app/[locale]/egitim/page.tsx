@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { EducationProgressTracker } from "@/components/education/EducationProgressTracker";
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -65,6 +67,31 @@ export default async function EducationPage({ params }: { params: Promise<{ loca
           ))}
         </div>
       </section>
+      <section className="education-growth-path rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">
+              {locale === "tr" ? "Ürün içi öğrenme yolu" : "In-product learning path"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black md:text-3xl">
+              {locale === "tr" ? "Oku, sanal portföyde dene, ligde tartış, AI raporla gözden geçir." : "Read, test in a virtual portfolio, discuss in a league, and review with AI reports."}
+            </h2>
+          </div>
+          <Link href={`/${locale}/kayit`} className="premium-cta px-5 py-3 text-sm font-black">
+            {locale === "tr" ? "Öğrenmeye başla" : "Start learning"}
+          </Link>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          {getEducationGrowthSteps(locale).map((item) => (
+            <Link key={item.href} href={item.href} className="education-growth-step rounded-2xl border border-white/10 bg-white/8 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{item.step}</p>
+              <h3 className="mt-2 text-base font-black text-white">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+      <EducationProgressTracker locale={locale} />
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="premium-card premium-card--interactive p-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{content.learningDesignEyebrow}</p>
@@ -621,4 +648,22 @@ function getEducationContent(locale: string): EducationContent {
       },
     ],
   };
+}
+
+function getEducationGrowthSteps(locale: string) {
+  if (locale === "en") {
+    return [
+      { step: "01", title: "Read the concept", body: "Start with simple explanations and shared vocabulary.", href: "/en/egitim" },
+      { step: "02", title: "Test virtually", body: "Apply the idea in the virtual portfolio without real-money risk.", href: "/en/islem-yap" },
+      { step: "03", title: "Discuss in league", body: "Turn the same concept into a club conversation.", href: "/en/ligler" },
+      { step: "04", title: "Review with AI", body: "Use macro reports and the assistant to connect learning with live context.", href: "/en/ai-piyasa-asistani" },
+    ] as const;
+  }
+
+  return [
+    { step: "01", title: "Kavramı oku", body: "Sade anlatımla ortak dili kur.", href: "/tr/egitim" },
+    { step: "02", title: "Sanal dene", body: "Fikri gerçek para riski olmadan portföyde uygula.", href: "/tr/islem-yap" },
+    { step: "03", title: "Ligde tartış", body: "Aynı kavramı kulüp sohbetine dönüştür.", href: "/tr/ligler" },
+    { step: "04", title: "AI ile gözden geçir", body: "Makro rapor ve asistanla canlı bağlama bağla.", href: "/tr/ai-piyasa-asistani" },
+  ] as const;
 }

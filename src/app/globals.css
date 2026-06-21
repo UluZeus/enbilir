@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@import "./styles/base.css";
+@import "./styles/layout.css";
+@import "./styles/premium.css";
+@import "./styles/ai-market.css";
+@import "./styles/print.css";
+@import "./styles/growth.css";
 
 :root {
   --background: #f6f1ed;
@@ -1013,4 +1019,717 @@ textarea::placeholder {
   .premium-card {
     backdrop-filter: blur(10px);
   }
+}
+
+/* Premium finance visual system v2 */
+:root {
+  --pf-onyx: #49494b;
+  --pf-onyx-950: #151517;
+  --pf-onyx-900: #242426;
+  --pf-onyx-800: #343436;
+  --pf-rose-gold: #bd8c7d;
+  --pf-soft-gold: #d1bfa7;
+  --pf-silver: #8e8e90;
+  --pf-paper: #fffaf6;
+  --pf-cream: #f4eee8;
+  --pf-ink: #323236;
+  --pf-muted: #6e6865;
+  --pf-blue: #38bdf8;
+  --pf-green: #16a34a;
+  --pf-red: #dc2626;
+}
+
+body {
+  color: var(--pf-ink);
+  background:
+    radial-gradient(circle at 18% 8%, rgb(209 191 167 / 34%), transparent 34rem),
+    radial-gradient(circle at 92% 12%, rgb(189 140 125 / 36%), transparent 36rem),
+    linear-gradient(135deg, #f5efe8 0%, #fffaf6 46%, #e6d7cd 100%);
+}
+
+.visual-shell {
+  color: var(--pf-ink);
+}
+
+.premium-site-header {
+  border-bottom: 1px solid rgb(255 250 246 / 58%);
+  background:
+    linear-gradient(180deg, rgb(255 250 246 / 92%), rgb(244 238 232 / 82%)),
+    rgb(255 250 246 / 88%);
+  box-shadow: 0 18px 50px rgb(21 21 23 / 12%);
+  backdrop-filter: blur(22px);
+}
+
+.premium-finance-topbar {
+  border-bottom: 1px solid rgb(209 191 167 / 28%);
+  color: var(--pf-paper);
+  background:
+    radial-gradient(circle at 12% 0%, rgb(189 140 125 / 28%), transparent 26rem),
+    linear-gradient(135deg, var(--pf-onyx-950), var(--pf-onyx-800));
+}
+
+.premium-support-copy {
+  color: var(--pf-paper);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+}
+
+.premium-support-copy span:first-child {
+  color: var(--pf-soft-gold);
+}
+
+.premium-finance-header {
+  color: var(--pf-ink);
+}
+
+.premium-brand-lockup {
+  border-radius: 1rem;
+}
+
+.premium-brand-lockup span,
+.premium-brand-lockup .block {
+  color: var(--pf-ink) !important;
+}
+
+.premium-brand-lockup .block:last-child {
+  color: #6f5a4f !important;
+}
+
+.premium-brand-mark {
+  box-shadow: 0 12px 28px rgb(73 73 75 / 16%);
+}
+
+.language-switch {
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.language-switch:hover {
+  transform: translateY(-1px);
+}
+
+.language-flag {
+  width: 2.25rem;
+  height: 1.5rem;
+  filter: saturate(1.08) contrast(1.04);
+}
+
+.premium-main-nav {
+  color: var(--pf-ink);
+}
+
+.premium-main-nav .premium-nav-link,
+.premium-account-link {
+  color: var(--pf-ink);
+  border: 1px solid rgb(209 191 167 / 34%);
+  background: rgb(255 250 246 / 68%);
+  box-shadow: 0 10px 28px rgb(73 73 75 / 7%);
+  transition: transform 180ms ease, color 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.premium-main-nav .premium-nav-link:hover,
+.premium-account-link:hover {
+  color: #6f5a4f;
+  border-color: rgb(189 140 125 / 54%);
+  background: rgb(255 250 246 / 94%);
+  box-shadow: 0 14px 34px rgb(73 73 75 / 12%);
+  transform: translateY(-1px);
+}
+
+.macro-report-nav-link,
+.premium-main-nav .macro-report-nav-link {
+  color: #ffffff !important;
+  border-color: rgb(255 255 255 / 24%) !important;
+  background: linear-gradient(135deg, #b91c1c, #dc2626 58%, #ef4444) !important;
+  box-shadow: 0 16px 34px rgb(220 38 38 / 28%) !important;
+}
+
+.macro-report-nav-link:hover {
+  color: #ffffff !important;
+  filter: brightness(1.04);
+}
+
+.whatsapp-link {
+  color: #ffffff !important;
+  border: 1px solid rgb(255 255 255 / 28%);
+  background: linear-gradient(135deg, #0f8f49, #25d366 62%, #79ef9f) !important;
+  box-shadow: 0 14px 30px rgb(37 211 102 / 24%);
+}
+
+.premium-mobile-dock {
+  background:
+    linear-gradient(135deg, rgb(255 250 246 / 94%), rgb(244 238 232 / 90%)),
+    rgb(255 250 246 / 92%);
+}
+
+.home-premium-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(209 191 167 / 24%);
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at 80% 12%, rgb(209 191 167 / 20%), transparent 24rem),
+    radial-gradient(circle at 20% 86%, rgb(189 140 125 / 16%), transparent 28rem),
+    linear-gradient(135deg, #121316 0%, #2e2e31 55%, #4a403d 100%) !important;
+  box-shadow: 0 30px 80px rgb(21 21 23 / 26%);
+}
+
+.home-premium-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -34% 44%;
+  height: 26rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(209 191 167 / 22%), transparent 68%);
+  pointer-events: none;
+}
+
+.home-premium-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.home-premium-hero :where(h1, h2, h3, .font-black, .text-white),
+.hero-visual :where(h1, h2, h3, .font-black, .text-white) {
+  color: var(--pf-paper) !important;
+}
+
+.home-premium-hero :where(p, span, li, .text-slate-300, .text-slate-400),
+.hero-visual :where(p, span, li, .text-slate-300, .text-slate-400) {
+  color: rgb(255 250 246 / 84%) !important;
+}
+
+.home-premium-hero :where(.text-\[\#f5a623\], .text-\[\#d1bfa7\]),
+.hero-visual :where(.text-\[\#f5a623\], .text-\[\#d1bfa7\]) {
+  color: var(--pf-soft-gold) !important;
+}
+
+.home-premium-stat,
+.home-product-card,
+.home-flow-card {
+  border-color: rgb(255 250 246 / 14%) !important;
+  background: linear-gradient(135deg, rgb(255 250 246 / 10%), rgb(255 250 246 / 5%)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 250 246 / 8%);
+}
+
+.home-premium-stat:hover,
+.home-product-card:hover {
+  border-color: rgb(209 191 167 / 38%) !important;
+  transform: translateY(-2px);
+}
+
+.premium-card,
+.glass-card {
+  color: var(--pf-ink);
+  border-color: rgb(209 191 167 / 36%);
+  background:
+    linear-gradient(145deg, rgb(255 250 246 / 94%), rgb(244 238 232 / 88%)),
+    rgb(255 250 246 / 90%);
+  box-shadow: 0 22px 56px rgb(73 73 75 / 12%);
+}
+
+.premium-card :where(h1, h2, h3, h4, summary, .font-black),
+.glass-card :where(h1, h2, h3, h4, summary, .font-black) {
+  color: var(--pf-ink);
+}
+
+.premium-card :where(p, li, label, span),
+.glass-card :where(p, li, label, span) {
+  color: var(--pf-muted);
+}
+
+.premium-card :where(.text-\[\#0f766e\], .text-emerald-700, .text-teal-700),
+.glass-card :where(.text-\[\#0f766e\], .text-emerald-700, .text-teal-700) {
+  color: #816653 !important;
+}
+
+.premium-card :where(.bg-\[\#f8fafc\], .bg-white, .bg-white\/80, .bg-white\/85),
+.glass-card :where(.bg-\[\#f8fafc\], .bg-white, .bg-white\/80, .bg-white\/85) {
+  color: var(--pf-ink);
+  border-color: rgb(209 191 167 / 34%);
+  background: rgb(255 250 246 / 72%) !important;
+}
+
+.premium-card :where(.bg-\[\#f8fafc\], .bg-white, .bg-white\/80, .bg-white\/85) :where(h1, h2, h3, h4, p, span, li, label, summary) {
+  color: var(--pf-ink) !important;
+}
+
+.premium-card :where(.bg-\[\#f8fafc\], .bg-white, .bg-white\/80, .bg-white\/85) :where(p, li, label) {
+  color: var(--pf-muted) !important;
+}
+
+.premium-cta,
+.premium-action {
+  color: #2b211e !important;
+  border: 1px solid rgb(255 250 246 / 42%);
+  background: linear-gradient(135deg, var(--pf-rose-gold), var(--pf-soft-gold)) !important;
+  box-shadow: 0 16px 32px rgb(189 140 125 / 24%);
+}
+
+.premium-link {
+  color: var(--pf-paper) !important;
+  border: 1px solid rgb(255 250 246 / 22%);
+  background: rgb(255 250 246 / 8%);
+  box-shadow: inset 0 1px 0 rgb(255 250 246 / 10%);
+}
+
+.premium-link:hover {
+  color: var(--pf-paper) !important;
+  border-color: rgb(209 191 167 / 46%);
+  background: rgb(255 250 246 / 14%);
+}
+
+.dashboard-shell,
+.market-news-panel,
+.ai-market-radar-panel,
+.ai-market-signal-overlay,
+.terminal-header-panel,
+.quick-watchlist-panel,
+.premium-card--dark,
+.premium-dark {
+  color: var(--pf-paper) !important;
+  border-color: rgb(209 191 167 / 18%) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(189 140 125 / 14%), transparent 22rem),
+    linear-gradient(135deg, var(--pf-onyx-950), #1f232b 62%, var(--pf-onyx-800)) !important;
+}
+
+.dashboard-shell :where(h1, h2, h3, h4, .font-black, strong),
+.market-news-panel :where(h1, h2, h3, h4, .font-black, strong),
+.ai-market-radar-panel :where(h1, h2, h3, h4, .font-black, strong),
+.ai-market-signal-overlay :where(h1, h2, h3, h4, .font-black, strong),
+.terminal-header-panel :where(h1, h2, h3, h4, .font-black, strong),
+.quick-watchlist-panel :where(h1, h2, h3, h4, .font-black, strong),
+.premium-card--dark :where(h1, h2, h3, h4, .font-black, strong),
+.premium-dark :where(h1, h2, h3, h4, .font-black, strong) {
+  color: var(--pf-paper) !important;
+}
+
+.dashboard-shell :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700),
+.market-news-panel :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700),
+.ai-market-radar-panel :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700),
+.ai-market-signal-overlay :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700),
+.terminal-header-panel :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700),
+.quick-watchlist-panel :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700),
+.premium-card--dark :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700),
+.premium-dark :where(p, span, li, label, td, th, .text-slate-500, .text-slate-600, .text-slate-700) {
+  color: rgb(255 250 246 / 82%) !important;
+}
+
+.dashboard-shell :where(.bg-white, .bg-white\/80, .bg-white\/85, .bg-\[\#f8fafc\]),
+.market-news-panel :where(.bg-white, .bg-white\/80, .bg-white\/85, .bg-\[\#f8fafc\]),
+.terminal-header-panel :where(.terminal-header-metric, .terminal-header-status),
+.quick-watchlist-panel :where(.quick-watchlist-item, .quick-watchlist-count),
+.ai-market-radar-panel :where(.ai-market-radar-row, .ai-market-radar-viewport),
+.ai-market-signal-overlay :where(.ai-market-signal-viewport) {
+  border-color: rgb(209 191 167 / 18%) !important;
+  background: rgb(255 250 246 / 8%) !important;
+}
+
+.ai-market-radar-panel .ai-market-radar-symbol,
+.ai-market-signal-overlay .ai-market-signal-symbol,
+.quick-watchlist-symbol {
+  color: var(--pf-blue) !important;
+}
+
+.ai-market-radar-panel .ai-market-radar-signal[class*="emerald"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="emerald"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="green"] {
+  color: #4ade80 !important;
+}
+
+.ai-market-radar-panel .ai-market-radar-signal[class*="red"],
+.ai-market-radar-panel .ai-market-radar-signal[class*="rose"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="red"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="rose"] {
+  color: #fb7185 !important;
+}
+
+.ai-market-radar-panel .ai-market-radar-signal[class*="emerald"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="emerald"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="green"] {
+  border-color: rgb(74 222 128 / 32%) !important;
+  background: rgb(22 163 74 / 16%) !important;
+}
+
+.ai-market-radar-panel .ai-market-radar-signal[class*="red"],
+.ai-market-radar-panel .ai-market-radar-signal[class*="rose"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="red"],
+.ai-market-signal-overlay .ai-market-signal-chip[class*="rose"] {
+  border-color: rgb(251 113 133 / 34%) !important;
+  background: rgb(220 38 38 / 16%) !important;
+}
+
+.ai-guide-card {
+  background: linear-gradient(135deg, rgb(255 250 246 / 10%), rgb(255 250 246 / 6%)) !important;
+}
+
+.ai-guide-card :where(h1, h2, h3, p, span, div) {
+  color: var(--pf-paper) !important;
+}
+
+.page-header-premium,
+.page-header-visual {
+  color: var(--pf-ink);
+}
+
+input,
+select,
+textarea {
+  color: var(--pf-ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgb(110 104 101 / 62%);
+}
+
+@media (max-width: 1024px) {
+  .premium-main-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.25rem;
+  }
+
+  .premium-main-nav::-webkit-scrollbar {
+    height: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .premium-site-header {
+    position: sticky;
+  }
+
+  .premium-finance-header {
+    padding-inline: 1rem;
+  }
+
+  .premium-support-copy {
+    font-size: 0.78rem;
+    line-height: 1.35rem;
+  }
+
+  .home-premium-hero {
+    border-radius: 1.4rem;
+    padding: 1.25rem !important;
+  }
+
+  .home-premium-hero h1 {
+    font-size: clamp(2.1rem, 11vw, 3.5rem);
+    line-height: 0.96;
+  }
+
+  .premium-mobile-dock a {
+    min-height: 3rem;
+    padding-inline: 0.35rem;
+  }
+}
+
+/* Premium AI and macro report surfaces */
+.ai-premium-page,
+.macro-report-page {
+  background:
+    radial-gradient(circle at 12% 0%, rgb(189 140 125 / 18%), transparent 32rem),
+    radial-gradient(circle at 88% 18%, rgb(209 191 167 / 12%), transparent 34rem),
+    linear-gradient(135deg, #07080b 0%, #111419 46%, #2b292a 100%);
+}
+
+.ai-command-hero,
+.ai-usage-panel,
+.ai-latest-report-card,
+.macro-report-hero,
+.macro-latest-report,
+.macro-report-list-card {
+  color: var(--pf-paper) !important;
+  border-color: rgb(209 191 167 / 18%) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(189 140 125 / 16%), transparent 22rem),
+    linear-gradient(135deg, rgb(255 250 246 / 9%), rgb(255 250 246 / 4%)) !important;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 28%), inset 0 1px 0 rgb(255 250 246 / 8%);
+  backdrop-filter: blur(16px);
+}
+
+.ai-command-hero :where(h1, h2, h3, p, span),
+.ai-usage-panel :where(h1, h2, h3, p, span),
+.ai-latest-report-card :where(h1, h2, h3, p, span),
+.macro-report-hero :where(h1, h2, h3, p, span),
+.macro-latest-report :where(h1, h2, h3, p, span),
+.macro-report-list-card :where(h1, h2, h3, p, span) {
+  color: rgb(255 250 246 / 84%) !important;
+}
+
+.ai-command-hero :where(h1, h2, h3, .font-black),
+.ai-usage-panel :where(h1, h2, h3, .font-black),
+.ai-latest-report-card :where(h1, h2, h3, .font-black),
+.macro-report-hero :where(h1, h2, h3, .font-black),
+.macro-latest-report :where(h1, h2, h3, .font-black),
+.macro-report-list-card :where(h1, h2, h3, .font-black) {
+  color: var(--pf-paper) !important;
+}
+
+.ai-command-hero :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.ai-usage-panel :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.ai-latest-report-card :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.macro-report-hero :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.macro-latest-report :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]) {
+  color: var(--pf-soft-gold) !important;
+}
+
+.ai-command-metric,
+.ai-guide-card,
+.ai-usage-card,
+.macro-report-hero-panel,
+.macro-empty-state {
+  border-color: rgb(255 250 246 / 12%) !important;
+  background: linear-gradient(135deg, rgb(255 250 246 / 10%), rgb(255 250 246 / 5%)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 250 246 / 8%);
+}
+
+.ai-report-primary-action {
+  color: #1f2a25 !important;
+  border-color: rgb(255 250 246 / 34%) !important;
+  background: linear-gradient(135deg, #bfe8ce, #d1bfa7) !important;
+  box-shadow: 0 16px 34px rgb(15 143 73 / 16%);
+}
+
+.macro-report-list-card:hover,
+.macro-latest-report:hover,
+.ai-command-metric:hover,
+.ai-guide-card:hover {
+  border-color: rgb(209 191 167 / 38%) !important;
+  transform: translateY(-2px);
+}
+
+.report-screen-shell {
+  background:
+    radial-gradient(circle at 12% 0%, rgb(209 191 167 / 24%), transparent 34rem),
+    radial-gradient(circle at 90% 8%, rgb(189 140 125 / 22%), transparent 30rem),
+    linear-gradient(135deg, #f2ece6 0%, #fffaf6 48%, #e8ddd5 100%) !important;
+}
+
+.report-screen-hero,
+.report-chart-section,
+.report-assets-section,
+.report-news-section {
+  border-color: rgb(209 191 167 / 38%) !important;
+  background:
+    linear-gradient(145deg, rgb(255 250 246 / 96%), rgb(246 241 237 / 92%)),
+    var(--pf-paper) !important;
+  box-shadow: 0 26px 68px rgb(73 73 75 / 14%);
+}
+
+.report-screen-card,
+.report-asset-card,
+.report-chart-section .print-card,
+.report-news-section .print-card,
+.report-takeaway-card,
+.report-screen-note {
+  border-color: rgb(209 191 167 / 34%) !important;
+  background: rgb(255 250 246 / 78%) !important;
+}
+
+.report-screen-shell :where(h1, h2, h3, h4, .font-black, strong) {
+  color: var(--pf-ink) !important;
+}
+
+.report-screen-shell :where(p, span, li, a, .text-slate-500, .text-slate-600, .text-slate-700) {
+  color: var(--pf-muted) !important;
+}
+
+.report-screen-shell :where(.text-\[\#0f766e\], .text-\[\#8a6a5d\]) {
+  color: #8a6a5d !important;
+}
+
+.report-screen-shell svg text {
+  fill: #5f5a57;
+}
+
+.report-screen-shell svg {
+  border: 1px solid rgb(209 191 167 / 30%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%);
+}
+
+@media print {
+  .report-screen-shell,
+  .report-screen-hero,
+  .report-chart-section,
+  .report-assets-section,
+  .report-news-section,
+  .report-screen-card,
+  .report-asset-card,
+  .report-chart-section .print-card,
+  .report-news-section .print-card,
+  .report-takeaway-card,
+  .report-screen-note {
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Product growth surfaces: leagues, dashboard, education, admin */
+.growth-page {
+  color: var(--pf-ink);
+}
+
+.league-growth-hero,
+.league-detail-hero,
+.panel-growth-command,
+.education-growth-path,
+.admin-growth-command {
+  position: relative;
+  overflow: hidden;
+  color: var(--pf-paper) !important;
+  border-color: rgb(209 191 167 / 20%) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(189 140 125 / 18%), transparent 24rem),
+    radial-gradient(circle at 86% 14%, rgb(209 191 167 / 16%), transparent 28rem),
+    linear-gradient(135deg, #101114 0%, #282a2f 58%, #4a403d 100%) !important;
+  box-shadow: 0 26px 74px rgb(21 21 23 / 24%), inset 0 1px 0 rgb(255 250 246 / 8%);
+}
+
+.league-growth-hero::after,
+.panel-growth-command::after,
+.education-growth-path::after,
+.admin-growth-command::after {
+  content: "";
+  position: absolute;
+  inset: auto -8% -40% 48%;
+  height: 22rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(209 191 167 / 20%), transparent 68%);
+  pointer-events: none;
+}
+
+.league-growth-hero > *,
+.panel-growth-command > *,
+.education-growth-path > *,
+.admin-growth-command > * {
+  position: relative;
+  z-index: 1;
+}
+
+.league-growth-hero :where(h1, h2, h3, p, span),
+.league-detail-hero :where(h1, h2, h3, p, span),
+.panel-growth-command :where(h1, h2, h3, p, span),
+.education-growth-path :where(h1, h2, h3, p, span),
+.admin-growth-command :where(h1, h2, h3, p, span) {
+  color: rgb(255 250 246 / 84%) !important;
+}
+
+.league-growth-hero :where(h1, h2, h3, .font-black),
+.league-detail-hero :where(h1, h2, h3, .font-black),
+.panel-growth-command :where(h1, h2, h3, .font-black),
+.education-growth-path :where(h1, h2, h3, .font-black),
+.admin-growth-command :where(h1, h2, h3, .font-black) {
+  color: var(--pf-paper) !important;
+}
+
+.league-growth-hero :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.league-detail-hero :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.panel-growth-command :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.education-growth-path :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.admin-growth-command :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]) {
+  color: var(--pf-soft-gold) !important;
+}
+
+.growth-stat-card,
+.panel-growth-action,
+.education-growth-step,
+.admin-growth-command .rounded-2xl,
+.panel-growth-command .rounded-2xl {
+  border-color: rgb(255 250 246 / 12%) !important;
+  background: linear-gradient(135deg, rgb(255 250 246 / 10%), rgb(255 250 246 / 5%)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 250 246 / 8%);
+}
+
+.growth-stat-card:hover,
+.panel-growth-action:hover,
+.education-growth-step:hover {
+  border-color: rgb(209 191 167 / 40%) !important;
+  transform: translateY(-2px);
+}
+
+.growth-loop-grid .premium-card {
+  border-color: rgb(209 191 167 / 34%);
+}
+
+.league-invite-preview,
+.league-invite-preview :where(h1, h2, h3, p, span) {
+  color: var(--pf-paper) !important;
+}
+
+@media (max-width: 768px) {
+  .league-growth-hero,
+  .league-detail-hero,
+  .panel-growth-command,
+  .education-growth-path,
+  .admin-growth-command {
+    border-radius: 1.25rem;
+    padding: 1.25rem !important;
+  }
+}
+
+/* Trade terminal readability overrides must stay after the dark-surface rules. */
+.trade-ticket-terminal {
+  color: rgb(255 250 246 / 88%) !important;
+}
+
+.trade-ticket-terminal > :where(div, label, p, h1, h2, h3, span):not(.trade-category-card):not(.trade-trend-badge),
+.trade-ticket-terminal .trade-terminal-field,
+.trade-ticket-terminal .trade-terminal-field > span {
+  color: rgb(255 250 246 / 88%) !important;
+}
+
+.trade-ticket-terminal .trade-category-card,
+.trade-ticket-terminal .trade-trend-badge {
+  background: rgb(255 250 246 / 94%) !important;
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-card :where(h1, h2, h3, h4, p, span, a),
+.trade-ticket-terminal .trade-trend-badge :where(h1, h2, h3, h4, p, span) {
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-card :where(.text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700),
+.trade-ticket-terminal .trade-trend-badge :where(.text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700) {
+  color: #5f6674 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill {
+  background: #f8fafc !important;
+  border-color: #d8dee8 !important;
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill :where(span, p) {
+  color: #152033 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill[aria-current="page"] {
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+  color: #fffaf6 !important;
+}
+
+.trade-ticket-terminal .trade-category-pill[aria-current="page"] :where(span, p) {
+  color: #fffaf6 !important;
+}
+
+.trade-ticket-terminal :where(input, select) {
+  background: #fffaf6 !important;
+  color: #152033 !important;
+  border-color: #d8dee8 !important;
+}
+
+.trade-ticket-terminal :where(input, select)::placeholder {
+  color: #6b7280 !important;
+}
+
+.trade-ticket-terminal .premium-cta {
+  color: #fffaf6 !important;
+}
+
+.trade-ticket-terminal .trade-trend-badge:has(.text-emerald-800) {
+  background: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
 }

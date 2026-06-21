@@ -12,6 +12,8 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
   const isEnglish = locale === "en";
   const copy = getUiCopy(locale).ai;
   const guidance = getAiGuidance(locale);
+  const commandMetrics = getCommandMetrics(locale);
+  const reportSlots = getReportSlots(locale);
   const user = await getSessionUser();
   const latestReport = await prisma.aiMarketReport.findFirst({
     where: user ? { OR: [{ userId: user.id }, { scope: "GLOBAL" }] } : { scope: "GLOBAL" },
@@ -20,18 +22,27 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
   });
 
   return (
-    <div className="min-h-screen bg-[#030711] px-3 py-4 md:px-5">
-      <section className="mx-auto mb-4 grid max-w-[1600px] gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-[1.5rem] border border-slate-800 bg-[#07101d] p-5 text-white shadow-2xl">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">
+    <div className="ai-premium-page min-h-screen px-3 py-4 md:px-5">
+      <section className="ai-command-center mx-auto mb-4 grid max-w-[1600px] gap-4 lg:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="ai-command-hero rounded-[1.7rem] border border-slate-800 bg-[#07101d] p-5 text-white shadow-2xl md:p-6">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d1bfa7]">
             {locale === "tr" ? "AI rehberi" : "AI guide"}
           </p>
-          <h1 className="mt-2 text-3xl font-black">{copy.terminal}</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+          <h1 className="mt-2 max-w-4xl text-3xl font-black md:text-5xl">{copy.terminal}</h1>
+          <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300 md:text-base md:leading-8">
             {locale === "tr"
-              ? "Bu ekran sinyal kovalamak için değil, piyasa davranışını yorumlamayı öğrenmek için tasarlandı. Rotary topluluklarında ortak dil oluşturmak için teknik veri, özet ve radar akışını birlikte kullanın."
-              : "This screen is designed to learn how to interpret market behavior, not to chase signals. Use the technical data, summaries, and radar flow together to build a shared language inside Rotary communities."}
+              ? "Bu ekran sinyal kovalamak için değil, piyasa davranışını yorumlamayı öğrenmek için tasarlandı. Teknik veri, haber akışı, favori varlıklar ve planlı makro raporları aynı masaya koyarak daha bilinçli bir piyasa okuryazarlığı ritmi kurar."
+              : "This screen is designed to learn how to interpret market behavior, not to chase signals. It brings technical data, news flow, favorite assets, and scheduled macro reports into one disciplined market-literacy rhythm."}
           </p>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {commandMetrics.map((item) => (
+              <div key={item.label} className="ai-command-metric rounded-2xl border border-white/10 bg-white/6 p-4">
+                <p className="text-2xl font-black text-white">{item.value}</p>
+                <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{item.label}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+              </div>
+            ))}
+          </div>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {guidance.map((item) => (
               <div key={item.title} className="ai-guide-card rounded-2xl border border-white/10 bg-white/6 p-4">
@@ -41,33 +52,30 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
             ))}
           </div>
         </div>
-        <div className="ai-usage-panel rounded-[1.5rem] border border-emerald-400/18 bg-emerald-400/8 p-5 text-white shadow-2xl">
-          <p className="ai-usage-kicker text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
-            {locale === "tr" ? "Doğru kullanım" : "Use it well"}
+        <div className="ai-usage-panel rounded-[1.7rem] border border-emerald-400/18 bg-emerald-400/8 p-5 text-white shadow-2xl">
+          <p className="ai-usage-kicker text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">
+            {locale === "tr" ? "Planlı rapor ritmi" : "Scheduled report rhythm"}
           </p>
           <div className="mt-4 grid gap-3">
-            <div className="ai-usage-card rounded-2xl border border-white/8 bg-black/10 p-4">
-              <p className="ai-usage-title text-sm font-black">{locale === "tr" ? "1. Radarı filtre olarak gör" : "1. Treat radar as a filter"}</p>
-              <p className="ai-usage-body mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Kayan banttaki fırsatları direkt emir mantığıyla değil, inceleme önceliği olarak kullan." : "Use the scrolling opportunities as a prioritization cue, not as an order trigger."}</p>
-            </div>
-            <div className="ai-usage-card rounded-2xl border border-white/8 bg-black/10 p-4">
-              <p className="ai-usage-title text-sm font-black">{locale === "tr" ? "2. Özeti göstergelerle doğrula" : "2. Validate the summary with indicators"}</p>
-              <p className="ai-usage-body mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Karar destek özetini teknik panelden ayrıştır; kullanıcıya neden-sonuç bağı kazandır." : "Separate the decision summary from the technical panel so the user learns cause and effect."}</p>
-            </div>
-            <div className="ai-usage-card rounded-2xl border border-white/8 bg-black/10 p-4">
-              <p className="ai-usage-title text-sm font-black">{locale === "tr" ? "3. Lig içinde tartış" : "3. Discuss it inside the league"}</p>
-              <p className="ai-usage-body mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Bu ekranın gerçek gücü topluluk içi yorum ve karşılaştırmalı öğrenmedir." : "The real power of this screen is shared interpretation and comparative learning inside the community."}</p>
-            </div>
+            {reportSlots.map((slot) => (
+              <div key={slot.time} className="ai-usage-card rounded-2xl border border-white/8 bg-black/10 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="ai-usage-title text-sm font-black">{slot.title}</p>
+                  <span className="rounded-full border border-white/12 bg-white/10 px-2.5 py-1 text-xs font-black text-[#d1bfa7]">{slot.time}</span>
+                </div>
+                <p className="ai-usage-body mt-2 text-sm leading-6 text-slate-300">{slot.body}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
-      <section className="mx-auto mb-4 max-w-[1600px] rounded-md border border-cyan-300/20 bg-cyan-300/8 p-4 text-white shadow-2xl">
+      <section className="ai-latest-report-card mx-auto mb-4 max-w-[1600px] rounded-[1.25rem] border border-cyan-300/20 bg-cyan-300/8 p-4 text-white shadow-2xl">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">{isEnglish ? "Scheduled AI agent report" : "Planlı AI ajan raporu"}</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">{isEnglish ? "Scheduled AI agent report" : "Planlı AI ajan raporu"}</p>
             {latestReport ? (
               <>
-                <h2 className="mt-1 text-lg font-black">{latestReport.marketRegime ?? (isEnglish ? "Latest market report is ready" : "Son piyasa raporu hazir")}</h2>
+                <h2 className="mt-1 text-lg font-black">{latestReport.marketRegime ?? (isEnglish ? "Latest market report is ready" : "Son piyasa raporu hazır")}</h2>
                 <p className="mt-1 text-sm text-slate-300">
                   {new Intl.DateTimeFormat(isEnglish ? "en-US" : "tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(latestReport.generatedAt)}
                   {latestReport.riskAppetite ? ` · ${latestReport.riskAppetite}` : ""}
@@ -76,23 +84,23 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
               </>
             ) : (
               <>
-                <h2 className="mt-1 text-lg font-black">{isEnglish ? "The first report will appear after the cron runs" : "Ilk rapor cron calistiginda olusacak"}</h2>
+                <h2 className="mt-1 text-lg font-black">{isEnglish ? "The first report will appear after the scheduled job runs" : "İlk rapor planlı görev çalıştığında oluşacak"}</h2>
                 <p className="mt-1 text-sm text-slate-300">
                   {isEnglish
                     ? "The macro basket, news flow, and favorite assets will be reviewed in scheduled reports."
-                    : "Makro sepet, haberler ve favori varliklar planlı raporlarda yorumlanacak."}
+                    : "Makro sepet, haberler ve favori varlıklar planlı raporlarda yorumlanacak."}
                 </p>
               </>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
             {latestReport ? (
-              <Link href={`/${locale}/ai-piyasa-asistani/raporlar/${latestReport.id}`} className="rounded-md border border-cyan-200 bg-cyan-100 px-3 py-2 text-sm font-black text-slate-950">
-                {isEnglish ? "Open latest report" : "Son raporu ac"}
+              <Link href={`/${locale}/ai-piyasa-asistani/raporlar/${latestReport.id}`} className="ai-report-primary-action rounded-md border border-cyan-200 bg-cyan-100 px-3 py-2 text-sm font-black text-slate-950">
+                {isEnglish ? "Open latest report" : "Son raporu aç"}
               </Link>
             ) : null}
             <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="rounded-md border border-white/15 bg-white/8 px-3 py-2 text-sm font-black text-white">
-              {isEnglish ? "All reports" : "Tum raporlar"}
+              {isEnglish ? "All reports" : "Tüm raporlar"}
             </Link>
           </div>
         </div>
@@ -100,6 +108,38 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
       <MarketAssistantDashboard locale={locale} symbols={AI_MARKET_SYMBOLS} />
     </div>
   );
+}
+
+function getCommandMetrics(locale: string) {
+  if (locale === "en") {
+    return [
+      { value: "1h", label: "Live terminal", body: "Focuses on the active asset with indicators, radar, and confidence context." },
+      { value: "3x", label: "Macro reports", body: "Creates a broader market read at 07:00, 12:00, and 18:00 Türkiye time." },
+      { value: "AI", label: "Learning agent", body: "Explains signals as educational context, never as automatic trade orders." },
+    ] as const;
+  }
+
+  return [
+    { value: "1 sa", label: "Canlı terminal", body: "Odak varlığı gösterge, radar ve güven bağlamıyla birlikte okutur." },
+    { value: "3x", label: "Makro rapor", body: "Türkiye saatiyle 07.00, 12.00 ve 18.00'de daha geniş piyasa okuması üretir." },
+    { value: "AI", label: "Öğrenme ajanı", body: "Sinyalleri otomatik emir değil, eğitim bağlamı olarak açıklar." },
+  ] as const;
+}
+
+function getReportSlots(locale: string) {
+  if (locale === "en") {
+    return [
+      { time: "07:00", title: "Morning macro frame", body: "Starts the day with overnight news, Asia/US close, metals, FX, and energy context." },
+      { time: "12:00", title: "Midday reset", body: "Refreshes the picture after European flow and early Türkiye market behavior." },
+      { time: "18:00", title: "Evening decision note", body: "Collects the day into a calmer summary before the next morning cycle." },
+    ] as const;
+  }
+
+  return [
+    { time: "07.00", title: "Sabah makro çerçeve", body: "Gece haberleri, Asya/ABD kapanışı, metaller, döviz ve enerji bağlamıyla günü açar." },
+    { time: "12.00", title: "Öğlen güncellemesi", body: "Avrupa akışı ve Türkiye piyasasının ilk yarısı sonrasında resmi tazeler." },
+    { time: "18.00", title: "Akşam karar notu", body: "Günü daha sakin bir özetle toparlar ve bir sonraki sabah döngüsüne bağlar." },
+  ] as const;
 }
 
 function getAiGuidance(locale: string) {

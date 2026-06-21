@@ -114,6 +114,7 @@ model User {
   oauthAccounts                       OAuthAccount[]
   aiMarketFavorites                   AiMarketFavorite[]
   aiMarketReports                     AiMarketReport[]
+  aiMarketReportEvents                AiMarketReportEvent[]
 }
 
 model OAuthAccount {
@@ -447,10 +448,26 @@ model AiMarketReport {
   user               User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   assets             AiMarketReportAsset[]
   newsItems          AiMarketReportNewsItem[]
+  events             AiMarketReportEvent[]
 
   @@unique([userId, periodKey, scope])
   @@index([generatedAt])
   @@index([userId, generatedAt])
+}
+
+model AiMarketReportEvent {
+  id        String         @id @default(cuid())
+  reportId  String
+  userId    String?
+  eventType String
+  metadata  Json?
+  createdAt DateTime       @default(now())
+  report    AiMarketReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([reportId, eventType, createdAt])
+  @@index([userId, eventType, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model AiMarketReportAsset {

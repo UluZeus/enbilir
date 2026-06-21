@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   if (!globalReport.reused && isMorningReportTime(triggeredAt)) {
     const recipients = await prisma.user.findMany({
       where: { isActive: true },
-      select: { email: true, name: true },
+      select: { id: true, email: true, name: true },
     });
     morningEmailResult = await sendMorningMacroReportEmails({
       reportId: globalReport.reportId,

@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260618211500_add_ai_market_agent_reports";
+const prismaSchemaVersion = "20260621120000_add_ai_market_report_events";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -41,6 +41,7 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     aiMarketReport?: unknown;
     aiMarketReportAsset?: unknown;
     aiMarketReportNewsItem?: unknown;
+    aiMarketReportEvent?: unknown;
   };
 
   return Boolean(
@@ -65,7 +66,8 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.aiMarketFavorite &&
       candidate?.aiMarketReport &&
       candidate?.aiMarketReportAsset &&
-      candidate?.aiMarketReportNewsItem,
+      candidate?.aiMarketReportNewsItem &&
+      candidate?.aiMarketReportEvent,
   );
 }
 

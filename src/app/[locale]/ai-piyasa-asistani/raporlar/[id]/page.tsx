@@ -6,6 +6,8 @@ import { PrintReportButton } from "@/components/ai-market/PrintReportButton";
 import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { prisma } from "@/lib/prisma";
+import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
+import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
 
 export const dynamic = "force-dynamic";
@@ -41,14 +43,14 @@ function formatPercent(value: number | null) {
 
 function formatSignal(value: string | null) {
   const labels: Record<string, string> = {
-    STRONG_BUY: "GUCLU AL",
+    STRONG_BUY: "GÜÇLÜ AL",
     BUY: "AL",
-    WATCH: "IZLE",
+    WATCH: "İZLE",
     HOLD: "BEKLE",
-    TAKE_PROFIT: "KAR REALIZASYONU IZLE",
+    TAKE_PROFIT: "KAR REALİZASYONU İZLE",
     SELL: "SAT",
     AVOID: "UZAK DUR",
-    NO_TRADE: "ISLEM YOK",
+    NO_TRADE: "İŞLEM YOK",
   };
 
   return value ? labels[value] ?? value : "-";
@@ -228,12 +230,19 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
     notFound();
   }
 
+  await recordMacroReportEvent({
+    reportId: report.id,
+    userId: user?.id,
+    eventType: macroReportEventTypes.read,
+    metadata: { locale, source: "report-detail" },
+  });
+
   const takeaways = toStringArray(report.keyTakeaways);
   const requiredCoverage = toStringArray(report.requiredCoverage);
   const chartAssets = report.assets.filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length).slice(0, 6);
 
   return (
-    <main className="report-shell min-h-screen bg-[#f3f6f8] px-3 py-5 text-[#152033] md:px-5">
+    <main className="report-shell report-screen-shell min-h-screen px-3 py-5 text-[#152033] md:px-5">
       <style>{`
         @page { size: A4; margin: 14mm 13mm; }
         .print-only { display: none; }
@@ -262,15 +271,22 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
       `}</style>
 
       <article className="mx-auto grid max-w-[1120px] gap-5">
-        <section className="print-page rounded-md border border-slate-200 bg-white p-6 shadow-xl">
+        <section className="report-screen-hero print-page rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-xl">
           <Image src="/logo.svg" alt="Enbilir logo" width={128} height={128} className="print-logo print-only" />
           <p className="print-only print-body mb-4">{REPORT_PREFACE}</p>
           <p className="print-only print-body mb-5">Sayın {recipientName},</p>
 
           <div className="print-document-header flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">Planlı AI ajan raporu</p>
-              <h1 className="mt-2 text-3xl font-black text-[#111827]">{report.marketRegime ?? "Piyasa raporu"}</h1>
+              <div className="screen-only mb-4 flex items-center gap-3">
+                <Image src="/logo.svg" alt="Enbilir logo" width={52} height={52} className="rounded-md" />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">Enbilir AI Makro Rapor</p>
+                  <p className="text-sm font-bold text-slate-500">Dr. Hakan Ünsal&apos;ın eğittiği AI ajan tarafından hazırlanır.</p>
+                </div>
+              </div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">Planlı AI ajan raporu</p>
+              <h1 className="mt-2 text-3xl font-black text-[#111827] md:text-5xl">{report.marketRegime ?? "Piyasa raporu"}</h1>
               <p className="mt-2 text-sm font-bold text-slate-500">
                 {new Intl.DateTimeFormat("tr-TR", { dateStyle: "full", timeStyle: "short" }).format(report.generatedAt)} · {report.scope}
               </p>
@@ -279,23 +295,27 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
               <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-black text-slate-700">
                 Rapor listesi
               </Link>
-              <PrintReportButton />
+              <PrintReportButton reportId={report.id} />
             </div>
           </div>
 
+          <div className="screen-only mt-5 rounded-[1.15rem] border border-[#d1bfa7]/40 bg-[#fffaf6]/82 p-4 text-sm leading-7 text-[#49494b]">
+            {REPORT_PREFACE}
+          </div>
+
           <div className="print-grid mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="print-section rounded-md border border-slate-200 bg-slate-50 p-4">
+            <div className="report-screen-card print-section rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
               <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Makro yorum</p>
               <p className="print-body mt-3 text-sm leading-7 text-slate-700">{report.macroSummary}</p>
-              {report.newsSummary ? <p className="print-card print-body mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">{report.newsSummary}</p> : null}
+              {report.newsSummary ? <p className="report-screen-note print-card print-body mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">{report.newsSummary}</p> : null}
             </div>
 
-            <aside className="print-section rounded-md border border-slate-200 bg-slate-50 p-4">
+            <aside className="report-screen-card print-section rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
               <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Rejim</p>
               <div className="mt-3 grid gap-2">
-                <Info label="Risk istahi" value={report.riskAppetite ?? "-"} />
-                <Info label="Model" value={report.model ?? (report.fallbackUsed ? "Kuralli fallback" : "-")} />
-                <Info label="Kapsam" value={`${report.assets.length} varlik`} />
+                <Info label="Risk iştahı" value={report.riskAppetite ?? "-"} />
+                <Info label="Model" value={report.model ?? (report.fallbackUsed ? "Kurallı fallback" : "-")} />
+                <Info label="Kapsam" value={`${report.assets.length} varlık`} />
                 <Info label="Periyot" value="1 saat" />
               </div>
             </aside>
@@ -303,7 +323,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {takeaways.map((item) => (
-              <p key={item} className="print-card print-body rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
+              <p key={item} className="report-takeaway-card print-card print-body rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
                 {item}
               </p>
             ))}
@@ -330,16 +350,16 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
           }
 
           return (
-            <section key={asset.id} className="print-page avoid-break rounded-md border border-slate-200 bg-white p-5 shadow-xl">
+            <section key={asset.id} className="report-chart-section print-page avoid-break rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
               <p className="print-label text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">Son 3 gün grafik seti {index + 1}</p>
                   <h2 className="print-title mt-1 text-2xl font-black text-[#111827]">{asset.displayName}</h2>
                   <p className="print-muted mt-1 text-sm font-bold text-slate-500">
-                    Son: {formatNumber(asset.lastPrice)} · Degisim: {formatPercent(asset.changePercent)} · Sinyal: {formatSignal(asset.signalType)}
+                    Son: {formatNumber(asset.lastPrice)} · Değişim: {formatPercent(asset.changePercent)} · Sinyal: {formatSignal(asset.signalType)}
                   </p>
                 </div>
-                <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600">{source.interval ?? "4h"}</span>
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600">{source.interval ?? "1h"}</span>
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -366,14 +386,14 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
           );
         })}
 
-        <section className="print-page rounded-md border border-slate-200 bg-white p-5 shadow-xl">
+        <section className="report-assets-section print-page rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
           <div>
             <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Varlik yorumlari</p>
             <h2 className="print-title mt-1 text-2xl font-black">Favoriler ve makro sepet</h2>
           </div>
           <div className="mt-4 grid gap-3">
             {report.assets.map((asset) => (
-              <div key={asset.id} className="print-card avoid-break rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div key={asset.id} className="report-asset-card print-card avoid-break rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{asset.category ?? asset.assetClass}</p>
@@ -396,8 +416,8 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
           </div>
         </section>
 
-        <section className="print-page rounded-md border border-slate-200 bg-white p-5 shadow-xl">
-          <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Kullanilan haber basliklari</p>
+        <section className="report-news-section print-page rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
+          <p className="print-label text-xs font-black uppercase tracking-[0.16em] text-slate-500">Kullanılan haber başlıkları</p>
           <div className="mt-3 grid gap-2">
             {report.newsItems.map((item) => (
               <a key={item.id} href={item.link} target="_blank" rel="noreferrer" className="print-card print-body rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 hover:border-[#0f766e]">

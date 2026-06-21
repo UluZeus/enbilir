@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FormMessage } from "@/components/FormMessage";
+import { LeagueInviteActions } from "@/components/leagues/LeagueInviteActions";
 import { PageHeader } from "@/components/PageHeader";
 import { getSafeLocale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -16,6 +17,8 @@ import { getBadgeDashboard } from "@/lib/badges";
 import { getCompetitionRankingsForUser } from "@/lib/competition-periods";
 import { getFriendDashboard } from "@/lib/friends";
 import { getUserLeagues, leagueTypes } from "@/lib/leagues";
+import { prisma } from "@/lib/prisma";
+import { getSiteUrl } from "@/lib/site-url";
 
 function getPanelCopy(locale: "tr" | "en") {
   return locale === "en"
@@ -161,17 +164,116 @@ export default async function DashboardPage({
     );
   }
 
-  const [friendDashboard, userLeagues, badges, competitionRankings] = await Promise.all([
+  const [friendDashboard, userLeagues, badges, competitionRankings, tradeCount, reportReadCount] = await Promise.all([
     getFriendDashboard(user.id),
     getUserLeagues(user.id),
     getBadgeDashboard(user.id),
     getCompetitionRankingsForUser(user.id),
+    prisma.virtualTrade.count({ where: { userId: user.id } }),
+    prisma.aiMarketReportEvent.count({ where: { userId: user.id, eventType: "READ" } }),
   ]);
+  const ownedLeague = userLeagues.find((membership) => membership.role === "OWNER");
+  const earnedBadges = badges.filter((badge) => badge.earnedAt).length;
+  const panelGrowthActions = getPanelGrowthActions(locale, Boolean(ownedLeague), userLeagues.length > 0);
+  const inviteUrl = `${getSiteUrl()}/${locale}/panel`;
+  const onboardingItems = getOnboardingChecklist(locale, {
+    profileComplete: Boolean(user.name.trim() && (user.nickname?.trim() || user.displayNameMode === "REAL_NAME")),
+    firstTradeComplete: tradeCount > 0,
+    leagueJoined: userLeagues.length > 0,
+    reportRead: reportReadCount > 0,
+  });
+  const onboardingComplete = onboardingItems.filter((item) => item.done).length;
+  const onboardingPercent = Math.round((onboardingComplete / onboardingItems.length) * 100);
 
   return (
-    <div className="grid gap-6">
+    <div className="growth-page grid gap-6">
       <PageHeader title={dictionary.pages.panel.title} description={dictionary.pages.panel.description} locale={locale} />
       <FormMessage message={query.error} />
+
+      <section className="panel-growth-command rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">
+              {locale === "tr" ? "Büyüme merkezi" : "Growth center"}
+            </p>
+            <h1 className="mt-2 text-3xl font-black md:text-4xl">
+              {locale === "tr" ? "Kulübünü davet et, öğrenme ritmini kur, ilerlemeyi görünür yap." : "Invite your club, build a learning rhythm, and make progress visible."}
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+              {locale === "tr"
+                ? "Panel, yalnızca hesap ekranı değil; lig kurma, davet kodu paylaşma, eğitim akışını başlatma ve AI raporlarla haftalık değerlendirme yapma merkezidir."
+                : "The dashboard is not only an account page; it is where users create leagues, share invite codes, start the learning flow, and review AI reports weekly."}
+            </p>
+            {ownedLeague ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{locale === "tr" ? "Paylaşılacak davet kodu" : "Invite code to share"}</p>
+                <p className="mt-2 text-2xl font-black tracking-[0.18em] text-white">{ownedLeague.league.inviteCode}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{ownedLeague.league.name}</p>
+                <div className="mt-3">
+                  <LeagueInviteActions inviteCode={ownedLeague.league.inviteCode} inviteUrl={inviteUrl} leagueName={ownedLeague.league.name} locale={locale} />
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <PanelMetric label={locale === "tr" ? "Lig üyeliği" : "League memberships"} value={String(userLeagues.length)} />
+            <PanelMetric label={locale === "tr" ? "Rozet" : "Badges"} value={`${earnedBadges}/${badges.length}`} />
+            <PanelMetric label={locale === "tr" ? "Arkadaş" : "Friends"} value={String(friendDashboard.friends.length)} />
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          {panelGrowthActions.map((action) => (
+            <Link key={action.href} href={action.href} className="panel-growth-action rounded-2xl border border-white/10 bg-white/8 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{action.kicker}</p>
+              <h2 className="mt-2 text-base font-black text-white">{action.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{action.body}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel-onboarding-checklist premium-card p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
+              {locale === "tr" ? "Başlangıç kontrol listesi" : "Onboarding checklist"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">
+              {locale === "tr" ? "Platformu tam kullanmak için dört temel adım." : "Four essential steps to use the platform fully."}
+            </h2>
+          </div>
+          <div className="rounded-2xl border border-[#d1bfa7]/45 bg-[#fffaf6] px-5 py-3 text-right">
+            <p className="text-3xl font-black text-[#0f766e]">{onboardingPercent}%</p>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">
+              {locale === "tr" ? "Tamamlandı" : "Complete"}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 h-2 overflow-hidden rounded-full bg-[#eee5dc]">
+          <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${onboardingPercent}%` }} />
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          {onboardingItems.map((item) => (
+            <Link
+              key={item.title}
+              href={item.href}
+              className={`rounded-2xl border p-4 transition ${
+                item.done
+                  ? "border-[#0f766e]/30 bg-[#ecfdf5] text-[#152033]"
+                  : "border-[#d1bfa7]/45 bg-white/75 text-[#152033] hover:border-[#bd8c7d]"
+              }`}
+            >
+              <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${
+                item.done ? "bg-[#0f766e] text-white" : "bg-[#bd8c7d]/16 text-[#8a6a5d]"
+              }`}>
+                {item.done ? (locale === "tr" ? "Tamamlandı" : "Done") : (locale === "tr" ? "Sırada" : "Next")}
+              </span>
+              <h3 className="mt-3 text-base font-black">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="glass-card grid gap-4 rounded-lg p-6 shadow-sm md:grid-cols-3">
         <div className="rounded-md bg-[#f8fafc] p-5">
@@ -239,7 +341,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="premium-card premium-card--dark overflow-hidden shadow-sm">
+      <section id="league-system" className="premium-card premium-card--dark overflow-hidden shadow-sm">
         <div className="border-b border-white/10 p-6 text-white">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.achievementSystem}</p>
           <h2 className="mt-2 text-2xl font-black">{copy.myBadges}</h2>
@@ -395,4 +497,137 @@ export default async function DashboardPage({
       </section>
     </div>
   );
+}
+
+function PanelMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/18 p-4">
+      <p className="text-3xl font-black text-white">{value}</p>
+      <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{label}</p>
+    </div>
+  );
+}
+
+function getOnboardingChecklist(
+  locale: "tr" | "en",
+  state: {
+    profileComplete: boolean;
+    firstTradeComplete: boolean;
+    leagueJoined: boolean;
+    reportRead: boolean;
+  },
+) {
+  if (locale === "en") {
+    return [
+      {
+        title: "Complete your profile",
+        body: "Set how your name appears in rankings and community areas.",
+        href: "/en/panel",
+        done: state.profileComplete,
+      },
+      {
+        title: "Make your first virtual trade",
+        body: "Test a decision without real money and start building your portfolio history.",
+        href: "/en/islem-yap",
+        done: state.firstTradeComplete,
+      },
+      {
+        title: "Join a league",
+        body: "Use an invite code or create a club league to learn with others.",
+        href: "/en/panel#league-system",
+        done: state.leagueJoined,
+      },
+      {
+        title: "Read your first macro report",
+        body: "Use the AI macro report as a calmer daily market note.",
+        href: "/en/ai-piyasa-asistani/raporlar",
+        done: state.reportRead,
+      },
+    ];
+  }
+
+  return [
+    {
+      title: "Profilini tamamla",
+      body: "Sıralama ve topluluk alanlarında nasıl görüneceğini belirle.",
+      href: "/tr/panel",
+      done: state.profileComplete,
+    },
+    {
+      title: "İlk sanal işlemi yap",
+      body: "Gerçek para riski olmadan bir karar dene ve portföy geçmişini başlat.",
+      href: "/tr/islem-yap",
+      done: state.firstTradeComplete,
+    },
+    {
+      title: "Bir lige katıl",
+      body: "Davet kodu kullan veya kulübün için özel bir lig oluştur.",
+      href: "/tr/panel#league-system",
+      done: state.leagueJoined,
+    },
+    {
+      title: "İlk makro raporu oku",
+      body: "AI makro raporu günlük piyasa değerlendirmesi için sakin bir not gibi kullan.",
+      href: "/tr/ai-piyasa-asistani/raporlar",
+      done: state.reportRead,
+    },
+  ];
+}
+
+function getPanelGrowthActions(locale: "tr" | "en", hasOwnedLeague: boolean, hasLeague: boolean) {
+  if (locale === "en") {
+    return [
+      {
+        href: "/en/ligler",
+        kicker: "League",
+        title: hasLeague ? "Review your league" : "Join a league",
+        body: hasLeague ? "Open league standings and compare the learning rhythm." : "Use an invite code or find an active league.",
+      },
+      {
+        href: "/en/panel#league-system",
+        kicker: "Invite",
+        title: hasOwnedLeague ? "Share your code" : "Create a club league",
+        body: hasOwnedLeague ? "Bring members in from the code area below." : "Start a private space for your community.",
+      },
+      {
+        href: "/en/egitim",
+        kicker: "Learning",
+        title: "Open the education flow",
+        body: "Use the learning path before portfolio decisions.",
+      },
+      {
+        href: "/en/ai-piyasa-asistani/raporlar",
+        kicker: "AI report",
+        title: "Read macro reports",
+        body: "Use the 07:00, 12:00, and 18:00 reports as review anchors.",
+      },
+    ] as const;
+  }
+
+  return [
+    {
+      href: "/tr/ligler",
+      kicker: "Lig",
+      title: hasLeague ? "Ligini incele" : "Bir lige katıl",
+      body: hasLeague ? "Lig sıralamasını ve öğrenme ritmini aç." : "Davet kodu kullan veya aktif ligleri incele.",
+    },
+    {
+      href: "/tr/panel#league-system",
+      kicker: "Davet",
+      title: hasOwnedLeague ? "Kodunu paylaş" : "Kulüp ligi kur",
+      body: hasOwnedLeague ? "Aşağıdaki kod alanından üyeleri davet et." : "Topluluğun için özel bir alan başlat.",
+    },
+    {
+      href: "/tr/egitim",
+      kicker: "Eğitim",
+      title: "Eğitim akışını aç",
+      body: "Portföy kararlarından önce öğrenme yolunu kullan.",
+    },
+    {
+      href: "/tr/ai-piyasa-asistani/raporlar",
+      kicker: "AI rapor",
+      title: "Makro rapor oku",
+      body: "07.00, 12.00 ve 18.00 raporlarını değerlendirme çıpası yap.",
+    },
+  ] as const;
 }

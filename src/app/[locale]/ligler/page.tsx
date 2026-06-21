@@ -14,21 +14,42 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
     user ? getUserLeagues(user.id) : Promise.resolve([]),
   ]);
   const userLeagueIds = new Set(userLeagues.map((membership) => membership.leagueId));
+  const totalMembers = activeLeagues.reduce((sum, league) => sum + league._count.memberships, 0);
+  const ownedLeagueCount = userLeagues.filter((membership) => membership.role === "OWNER").length;
+  const growthStats = [
+    { value: String(activeLeagues.length), label: locale === "tr" ? "Aktif lig" : "Active leagues" },
+    { value: String(totalMembers), label: locale === "tr" ? "Toplam üyelik" : "Total memberships" },
+    { value: String(userLeagues.length), label: locale === "tr" ? "Senin liglerin" : "Your leagues" },
+    { value: String(ownedLeagueCount), label: locale === "tr" ? "Yönettiğin lig" : "Managed by you" },
+  ];
 
   return (
-    <div className="grid gap-6">
-      <section className="hero-visual p-6 text-white">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="growth-page grid gap-6">
+      <section className="league-growth-hero hero-visual p-6 text-white">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.heroEyebrow}</p>
-            <h2 className="mt-2 text-2xl font-black">{copy.heroTitle}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+            <h1 className="mt-2 max-w-4xl text-3xl font-black md:text-5xl">{copy.heroTitle}</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300 md:text-base">
               {copy.heroBody}
             </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link href={`/${locale}/panel`} className="premium-cta px-5 py-3 text-sm font-black">
+                {copy.managePanel}
+              </Link>
+              <Link href={`/${locale}/egitim`} className="premium-link rounded-md px-5 py-3 text-sm font-black">
+                {locale === "tr" ? "Eğitim akışını gör" : "View learning flow"}
+              </Link>
+            </div>
           </div>
-          <Link href={`/${locale}/panel`} className="premium-cta px-5 py-3 text-sm font-black">
-            {copy.managePanel}
-          </Link>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {growthStats.map((stat) => (
+              <div key={stat.label} className="growth-stat-card rounded-2xl border border-white/10 bg-white/8 p-4">
+                <p className="text-3xl font-black text-white">{stat.value}</p>
+                <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -55,7 +76,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
             </div>
           </div>
         </div>
-        <div className="premium-card premium-card--dark p-6">
+        <div className="league-invite-preview premium-card premium-card--dark p-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
             {locale === "tr" ? "Demo lig görünümü" : "Demo league view"}
           </p>
@@ -71,6 +92,16 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="growth-loop-grid grid gap-4 md:grid-cols-4">
+        {getLeagueGrowthLoop(locale).map((item) => (
+          <div key={item.title} className="premium-card premium-card--interactive p-5">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">{item.step}</p>
+            <h2 className="mt-2 text-lg font-black text-[#152033]">{item.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+          </div>
+        ))}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -110,4 +141,22 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
       </section>
     </div>
   );
+}
+
+function getLeagueGrowthLoop(locale: string) {
+  if (locale === "en") {
+    return [
+      { step: "01", title: "Create the club league", body: "Give the community a private space with a clear purpose and league type." },
+      { step: "02", title: "Share the invite code", body: "Bring members in through a simple code instead of manual onboarding." },
+      { step: "03", title: "Run a weekly ritual", body: "Use education, portfolio review, and macro reports as repeatable anchors." },
+      { step: "04", title: "Celebrate progress", body: "Rankings, badges, and league highlights make learning visible." },
+    ] as const;
+  }
+
+  return [
+    { step: "01", title: "Kulüp ligini kur", body: "Topluluğa net amaçlı, türü belli ve güvenli bir özel alan ver." },
+    { step: "02", title: "Davet kodunu paylaş", body: "Üyeleri tek tek anlatmak yerine basit bir kodla içeri al." },
+    { step: "03", title: "Haftalık ritim kur", body: "Eğitim, portföy değerlendirmesi ve makro raporu tekrar eden bağ yap." },
+    { step: "04", title: "İlerlemeyi görünür kıl", body: "Sıralama, rozet ve lig özeti öğrenmeyi görünür hale getirir." },
+  ] as const;
 }

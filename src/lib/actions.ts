@@ -9,6 +9,8 @@ import { revalidatePath } from "next/cache";
 import path from "path";
 import { canAccessAdmin, createSession, destroySession, getDisplayName, getSessionUser, masterAdminEmail } from "@/lib/auth";
 import { sendLatestMacroReportEmail } from "@/lib/ai-market/agent/morning-report-email";
+import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
+import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
 import { buildEmailVerificationUrl, buildWelcomeVerificationEmail, createEmailVerificationToken } from "@/lib/email-verification";
 import { sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
@@ -1290,13 +1292,31 @@ export async function sendLatestMacroReportEmailAction(formData: FormData) {
     redirect(getRedirect(locale, "ai-piyasa-asistani/raporlar", "Henüz gönderilecek bir makro rapor yok."));
   }
 
-  await sendLatestMacroReportEmail({
-    reportId: latestReport.id,
-    recipient: {
-      email: sessionUser.email,
-      name: getDisplayName(sessionUser),
-    },
-  });
+  try {
+    await sendLatestMacroReportEmail({
+      reportId: latestReport.id,
+      recipient: {
+        email: sessionUser.email,
+        name: getDisplayName(sessionUser),
+      },
+    });
+
+    await recordMacroReportEvent({
+      reportId: latestReport.id,
+      userId: sessionUser.id,
+      eventType: macroReportEventTypes.emailSent,
+      metadata: { source: "manual-latest-report-email" },
+    });
+  } catch (error) {
+    await recordMacroReportEvent({
+      reportId: latestReport.id,
+      userId: sessionUser.id,
+      eventType: macroReportEventTypes.emailFailed,
+      metadata: { source: "manual-latest-report-email", message: error instanceof Error ? error.message : "unknown" },
+    });
+
+    redirect(getRedirect(locale, "ai-piyasa-asistani/raporlar", "Makro rapor e-postası gönderilemedi. SMTP ayarlarını kontrol edelim."));
+  }
 
   redirect(getRedirect(locale, "ai-piyasa-asistani/raporlar", undefined, "En son makro rapor e-posta adresine gönderildi."));
 }

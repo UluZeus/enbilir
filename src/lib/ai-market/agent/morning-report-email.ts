@@ -1,7 +1,10 @@
 import { sendEmail } from "@/lib/email";
+import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
+import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
 import { getSiteUrl } from "@/lib/site-url";
 
 type MorningReportRecipient = {
+  id?: string;
   email: string;
   name: string;
 };
@@ -96,6 +99,21 @@ export async function sendMorningMacroReportEmails({ reportId, recipients }: Sen
         subject: "Dr. Hakan Ünsal'ın sabah makro raporu yayında",
         text: getMorningMailText(recipient.name, reportUrl, reportsUrl),
         html: getMorningMailHtml(recipient.name, reportUrl, reportsUrl),
+      }),
+    ),
+  );
+
+  await Promise.all(
+    settled.map((result, index) =>
+      recordMacroReportEvent({
+        reportId,
+        userId: uniqueRecipients[index]?.id,
+        eventType: result.status === "fulfilled" ? macroReportEventTypes.emailSent : macroReportEventTypes.emailFailed,
+        metadata: {
+          source: "morning-cron",
+          recipientEmail: uniqueRecipients[index]?.email,
+          message: result.status === "rejected" && result.reason instanceof Error ? result.reason.message : null,
+        },
       }),
     ),
   );

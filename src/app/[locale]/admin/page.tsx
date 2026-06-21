@@ -303,6 +303,15 @@ function formatDateTimeInput(value: Date | null) {
   ].join("");
 }
 
+function formatAdminDate(value: Date, locale: "tr" | "en") {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "tr-TR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
+}
+
 type AdminCopy = ReturnType<typeof getAdminCopy>;
 
 function AdminField({ label, children }: { label: string; children: ReactNode }) {
@@ -486,18 +495,142 @@ export default async function AdminPage({
 
   await ensureDefaultBadges();
 
-  const [ads, managedItems, badges, competitionPeriods, visualSettings] = await Promise.all([
+  const [
+    ads,
+    managedItems,
+    badges,
+    competitionPeriods,
+    visualSettings,
+    userCount,
+    leagueCount,
+    membershipCount,
+    latestReport,
+    latestEmailEvent,
+    latestEmailFailure,
+    latestReadEvent,
+    reportReadUsers,
+    reportDownloadedUsers,
+    reportEmailEvents,
+    leagueJoinedUsers,
+    tradedUsers,
+  ] = await Promise.all([
     prisma.adPlacement.findMany({ orderBy: [{ slot: "asc" }, { priority: "desc" }, { createdAt: "desc" }] }),
     prisma.managedContentItem.findMany({ orderBy: [{ type: "asc" }, { locale: "asc" }, { sortOrder: "desc" }, { createdAt: "desc" }] }),
     prisma.badge.findMany({ orderBy: [{ category: "asc" }, { createdAt: "asc" }] }),
     prisma.competitionPeriod.findMany({ orderBy: [{ startsAt: "desc" }, { type: "asc" }] }),
     getSiteVisualSettings(),
+    prisma.user.count(),
+    prisma.league.count({ where: { isActive: true } }),
+    prisma.leagueMembership.count(),
+    prisma.aiMarketReport.findFirst({ where: { scope: "GLOBAL" }, orderBy: { generatedAt: "desc" }, select: { id: true, generatedAt: true, status: true, fallbackUsed: true } }),
+    prisma.aiMarketReportEvent.findFirst({ where: { eventType: "EMAIL_SENT" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reportId: true } }),
+    prisma.aiMarketReportEvent.findFirst({ where: { eventType: "EMAIL_FAILED" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reportId: true, metadata: true } }),
+    prisma.aiMarketReportEvent.findFirst({ where: { eventType: "READ" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reportId: true } }),
+    prisma.aiMarketReportEvent.findMany({ where: { eventType: "READ", userId: { not: null } }, distinct: ["userId"], select: { userId: true } }),
+    prisma.aiMarketReportEvent.findMany({ where: { eventType: "PDF_DOWNLOAD", userId: { not: null } }, distinct: ["userId"], select: { userId: true } }),
+    prisma.aiMarketReportEvent.count({ where: { eventType: "EMAIL_SENT" } }),
+    prisma.leagueMembership.findMany({ distinct: ["userId"], select: { userId: true } }),
+    prisma.virtualTrade.findMany({ distinct: ["userId"], select: { userId: true } }),
   ]);
+  const activeAds = ads.filter((ad) => ad.isActive).length;
+  const publishedItems = managedItems.filter((item) => item.isActive).length;
+  const activePeriods = competitionPeriods.filter((period) => period.isActive).length;
+  const smtpConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+  const cronConfigured = Boolean(process.env.AI_MARKET_AGENT_SECRET || process.env.CRON_SECRET);
+  const funnelSteps = [
+    { label: locale === "tr" ? "Kayıt olan" : "Registered", value: userCount },
+    { label: locale === "tr" ? "Lige katılan" : "Joined league", value: leagueJoinedUsers.length },
+    { label: locale === "tr" ? "İşlem yapan" : "Made trade", value: tradedUsers.length },
+    { label: locale === "tr" ? "Rapor okuyan" : "Read report", value: reportReadUsers.length },
+  ];
 
   return (
-    <div className="grid gap-6">
+    <div className="growth-page grid gap-6">
       <PageHeader title={copy.title} description={copy.description} locale={locale} />
       <FormMessage message={query.error} />
+      <section className="admin-growth-command rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">
+              {locale === "tr" ? "Operasyon merkezi" : "Operations center"}
+            </p>
+            <h1 className="mt-2 text-3xl font-black">
+              {locale === "tr" ? "Büyüme, içerik ve yarışma ritmini tek ekrandan takip et." : "Track growth, content, and competition rhythm from one screen."}
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-300">
+              {locale === "tr"
+                ? "Kullanıcı, lig, içerik ve dönem metrikleri admin kararlarını hızlandırır. Aşağıdaki formlar aynı şekilde çalışmaya devam eder."
+                : "User, league, content, and period metrics help admins move faster. The existing management forms continue to work as before."}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{locale === "tr" ? "Bugünkü odak" : "Today focus"}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              {locale === "tr" ? "Aktif içerikleri taze tut, lig davetlerini büyüt, dönemleri açık bırak." : "Keep content fresh, grow league invites, and keep periods active."}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-4 xl:grid-cols-7">
+          <AdminMetric label={locale === "tr" ? "Kullanıcı" : "Users"} value={String(userCount)} />
+          <AdminMetric label={locale === "tr" ? "Aktif lig" : "Active leagues"} value={String(leagueCount)} />
+          <AdminMetric label={locale === "tr" ? "Lig üyeliği" : "Memberships"} value={String(membershipCount)} />
+          <AdminMetric label={locale === "tr" ? "Yayın içerik" : "Published"} value={String(publishedItems)} />
+          <AdminMetric label={locale === "tr" ? "Aktif reklam" : "Active ads"} value={`${activeAds}/${ads.length}`} />
+          <AdminMetric label={locale === "tr" ? "Dönem" : "Periods"} value={`${activePeriods}/${competitionPeriods.length}`} />
+          <AdminMetric label={locale === "tr" ? "Rozet" : "Badges"} value={String(badges.length)} />
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="premium-card p-6">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
+            {locale === "tr" ? "Cron / Mail / Rapor sağlık durumu" : "Cron / Mail / Report health"}
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-[#152033]">
+            {locale === "tr" ? "Rapor motoru ve e-posta dağıtımı tek bakışta." : "Report engine and email delivery at a glance."}
+          </h2>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <AdminHealthCard
+              label={locale === "tr" ? "Son rapor" : "Latest report"}
+              value={latestReport ? formatAdminDate(latestReport.generatedAt, locale) : "-"}
+              tone={latestReport ? "good" : "warn"}
+              note={latestReport ? `${latestReport.status}${latestReport.fallbackUsed ? " · fallback" : ""}` : locale === "tr" ? "Henüz rapor yok" : "No report yet"}
+            />
+            <AdminHealthCard
+              label={locale === "tr" ? "Son mail" : "Latest email"}
+              value={latestEmailEvent ? formatAdminDate(latestEmailEvent.createdAt, locale) : "-"}
+              tone={latestEmailEvent ? "good" : "warn"}
+              note={smtpConfigured ? (locale === "tr" ? "SMTP tanımlı" : "SMTP configured") : (locale === "tr" ? "SMTP eksik" : "SMTP missing")}
+            />
+            <AdminHealthCard
+              label={locale === "tr" ? "Son hata" : "Latest error"}
+              value={latestEmailFailure ? formatAdminDate(latestEmailFailure.createdAt, locale) : (locale === "tr" ? "Yok" : "None")}
+              tone={latestEmailFailure ? "bad" : "good"}
+              note={cronConfigured ? (locale === "tr" ? "Cron secret tanımlı" : "Cron secret configured") : (locale === "tr" ? "Cron secret eksik" : "Cron secret missing")}
+            />
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <AdminMetric label={locale === "tr" ? "Okuyan kullanıcı" : "Readers"} value={String(reportReadUsers.length)} />
+            <AdminMetric label={locale === "tr" ? "PDF indiren" : "PDF downloads"} value={String(reportDownloadedUsers.length)} />
+            <AdminMetric label={locale === "tr" ? "Mail logu" : "Email logs"} value={String(reportEmailEvents)} />
+            <AdminMetric label={locale === "tr" ? "Son okuma" : "Last read"} value={latestReadEvent ? formatAdminDate(latestReadEvent.createdAt, locale) : "-"} />
+          </div>
+        </div>
+
+        <div className="premium-card p-6">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
+            {locale === "tr" ? "Kullanıcı büyüme hunisi" : "User growth funnel"}
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-[#152033]">
+            {locale === "tr" ? "Kayıttan rapor okumaya dönüşüm." : "Conversion from registration to report reading."}
+          </h2>
+          <div className="mt-5 grid gap-3">
+            {funnelSteps.map((step) => (
+              <FunnelStep key={step.label} label={step.label} value={step.value} max={Math.max(userCount, 1)} />
+            ))}
+          </div>
+        </div>
+      </section>
       <section className="premium-card p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -726,6 +859,47 @@ function AdminNotice({ title, body }: { title: string; body: string }) {
       <h1 className="text-2xl font-black">{title}</h1>
       <p className="mt-2 text-sm">{body}</p>
     </section>
+  );
+}
+
+function AdminMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/18 p-4">
+      <p className="text-2xl font-black text-white">{value}</p>
+      <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{label}</p>
+    </div>
+  );
+}
+
+function AdminHealthCard({ label, value, note, tone }: { label: string; value: string; note: string; tone: "good" | "warn" | "bad" }) {
+  const toneClass = tone === "good"
+    ? "border-[#0f766e]/30 bg-[#ecfdf5] text-[#0f766e]"
+    : tone === "warn"
+      ? "border-[#d1bfa7]/50 bg-[#fffaf6] text-[#8a6a5d]"
+      : "border-red-200 bg-red-50 text-red-700";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+      <p className="text-xs font-black uppercase tracking-[0.14em] opacity-80">{label}</p>
+      <p className="mt-2 text-xl font-black">{value}</p>
+      <p className="mt-1 text-xs font-bold opacity-80">{note}</p>
+    </div>
+  );
+}
+
+function FunnelStep({ label, value, max }: { label: string; value: number; max: number }) {
+  const percent = Math.round((value / max) * 100);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-black text-[#152033]">{label}</span>
+        <span className="font-black text-[#0f766e]">{value} · {percent}%</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eee5dc]">
+        <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, percent)}%` }} />
+      </div>
+    </div>
   );
 }
 
