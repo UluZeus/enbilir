@@ -55,14 +55,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Yetkisiz ajan tetikleme istegi." }, { status: 401 });
   }
 
+  const triggeredAt = new Date();
   const url = new URL(request.url);
   const force = url.searchParams.get("force") === "true";
 
-  if (!force && !isScheduledReportTime()) {
-    const { hour, minute } = getIstanbulTimeParts();
+  if (!force && !isScheduledReportTime(triggeredAt)) {
+    const { hour, minute } = getIstanbulTimeParts(triggeredAt);
 
     return NextResponse.json({
-      ranAt: new Date().toISOString(),
+      ranAt: triggeredAt.toISOString(),
       scheduled: false,
       message: "AI piyasa raporu yalnizca Turkiye saatiyle 07:00, 12:00 ve 18:00 zamanlarinda uretilir.",
       currentTurkeyTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
   const userReports = await Promise.allSettled(users.map((user) => runAiMarketAgent({ userId: user.id, force })));
   let morningEmailResult: Awaited<ReturnType<typeof sendMorningMacroReportEmails>> | null = null;
 
-  if (!globalReport.reused && isMorningReportTime()) {
+  if (!globalReport.reused && isMorningReportTime(triggeredAt)) {
     const recipients = await prisma.user.findMany({
       where: { isActive: true },
       select: { email: true, name: true },
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    ranAt: new Date().toISOString(),
+    ranAt: triggeredAt.toISOString(),
     scheduled: true,
     globalReport,
     morningEmailResult,
