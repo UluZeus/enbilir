@@ -17,6 +17,7 @@
     "db:reset-virtual-portfolios": "node scripts/reset-virtual-portfolios.mjs",
     "db:upsert-managed-blog-content": "node scripts/upsert-managed-blog-content.mjs",
     "db:upsert-managed-blog-content:en": "node scripts/upsert-managed-blog-content-en.mjs",
+    "db:upsert-icerik2-content": "node scripts/upsert-icerik2-content.mjs",
     "test:visual": "node scripts/visual-qa.mjs",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",

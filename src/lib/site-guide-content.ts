@@ -1,3 +1,5 @@
+import enbilirIcerik2 from "@/data/enbilir-icerik2-content.json";
+
 export type SiteGuideArticle = {
   id: string;
   eyebrow: string;
@@ -5,6 +7,31 @@ export type SiteGuideArticle = {
   excerpt: string;
   paragraphs: string[];
 };
+
+type GeneratedContentItem = {
+  idBase: string;
+  section: string;
+  tr: { title: string; excerpt: string; body: string };
+  en: { title: string; excerpt: string; body: string };
+};
+
+function getGeneratedSiteGuideArticles(locale: string): SiteGuideArticle[] {
+  const items = enbilirIcerik2 as GeneratedContentItem[];
+
+  return items
+    .filter((item) => item.section === "SITE_GUIDE")
+    .map((item) => {
+      const copy = locale === "en" ? item.en : item.tr;
+
+      return {
+        id: item.idBase,
+        eyebrow: locale === "en" ? "From the new guide" : "Yeni rehberden",
+        title: copy.title,
+        excerpt: copy.excerpt,
+        paragraphs: copy.body.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean),
+      };
+    });
+}
 
 export function getSiteGuideArticles(locale: string): SiteGuideArticle[] {
   if (locale === "en") {
@@ -84,6 +111,7 @@ export function getSiteGuideArticles(locale: string): SiteGuideArticle[] {
           "For me, a successful user is not always the person with the highest return. A successful user is someone who can explain their decision, recognize their risk, evaluate the result calmly, and become more disciplined over time. That is why Enbilir exists.",
         ],
       },
+      ...getGeneratedSiteGuideArticles(locale),
     ];
   }
 
@@ -163,5 +191,6 @@ export function getSiteGuideArticles(locale: string): SiteGuideArticle[] {
         "Benim için başarılı kullanıcı, her zaman en yüksek getiriyi yapan kişi değildir. Başarılı kullanıcı, kararını gerekçelendirebilen, riskini fark eden, sonucu soğukkanlı değerlendiren ve zaman içinde daha disiplinli hale gelen kişidir. Enbilir'in varlık nedeni budur.",
       ],
     },
+    ...getGeneratedSiteGuideArticles(locale),
   ];
 }

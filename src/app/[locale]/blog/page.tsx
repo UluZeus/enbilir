@@ -27,6 +27,18 @@ const blogCategoryByPostId: Record<string, Exclude<BlogCategoryCode, "ALL">> = {
   "managed-home-community-learning": "COMMUNITY",
   "managed-home-market-calm-decision": "RISK",
   "managed-home-virtual-portfolio-serious": "RISK",
+  "icerik2-piyasayi-anlamak": "RISK",
+  "icerik2-piyasa-heyecani-bilinci": "RISK",
+  "icerik2-sanal-portfoy-kazanc-degil": "RISK",
+  "icerik2-risk-yonetimi-hazirlik": "RISK",
+  "icerik2-guclu-sinyal-sorular": "RISK",
+  "icerik2-acele-eden-degil-dusunen": "RISK",
+  "icerik2-piyasa-gurultusu-gercek-bilgi": "RISK",
+  "icerik2-portfoyde-kaybetmeyi-ogrenmek": "RISK",
+  "icerik2-piyasada-sabir-pasiflik-degil": "RISK",
+  "icerik2-duyduguna-degil-anladigina-guven": "RISK",
+  "icerik2-portfoyde-denge": "RISK",
+  "icerik2-gunluk-heyecan-uzun-vadeli-ogrenme": "RISK",
 };
 
 function getBlogCategory(postId: string) {
