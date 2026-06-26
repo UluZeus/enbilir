@@ -103,6 +103,9 @@ const copy = {
     voiceStop: "Durdur",
     voiceListening: "Dinliyorum...",
     voiceUnsupported: "Bu tarayıcı ses tanımayı desteklemiyor. Chrome veya Edge ile deneyin; daha kurumsal çözüm için ayrıca bir konuşma tanıma servisi bağlanabilir.",
+    voicePermissionDenied: "Mikrofon izni kapalı görünüyor. Adres çubuğundaki kilit simgesinden mikrofon iznini bu site için 'İzin ver' yapıp sayfayı yenileyin.",
+    voiceNoSpeech: "Ses algılanamadı. Mikrofon açıkken biraz daha yakından ve net konuşarak tekrar deneyin.",
+    voiceNetworkError: "Tarayıcının ses tanıma servisine ulaşılamadı. İnternet bağlantısını veya Chrome/Edge tarayıcı ayarlarını kontrol edip tekrar deneyin.",
     voiceSpeakOn: "Sesli yanıt açık",
     voiceSpeakOff: "Sesli yanıt kapalı",
     voiceReplay: "Son yanıtı oku",
@@ -136,6 +139,9 @@ const copy = {
     voiceStop: "Stop",
     voiceListening: "Listening...",
     voiceUnsupported: "This browser does not support speech recognition. Try Chrome or Edge; for a more enterprise-grade solution, a speech-to-text service can be connected.",
+    voicePermissionDenied: "Microphone permission appears to be blocked. Use the lock icon in the address bar, allow microphone access for this site, then refresh the page.",
+    voiceNoSpeech: "No speech was detected. Try again with the microphone enabled and speak a little closer and clearer.",
+    voiceNetworkError: "The browser speech recognition service could not be reached. Check your connection or Chrome/Edge speech settings and try again.",
     voiceSpeakOn: "Voice answer on",
     voiceSpeakOff: "Voice answer off",
     voiceReplay: "Read last answer",
@@ -161,6 +167,10 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
   };
 
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+}
+
+function stopMicrophonePreview(stream: MediaStream) {
+  stream.getTracks().forEach((track) => track.stop());
 }
 
 export function AiMarketChatPanel({
@@ -273,7 +283,38 @@ export function AiMarketChatPanel({
     void ask(input);
   }
 
-  function startVoiceQuestion() {
+  async function requestMicrophoneAccess() {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      return true;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stopMicrophonePreview(stream);
+      return true;
+    } catch {
+      setVoiceError(text.voicePermissionDenied);
+      return false;
+    }
+  }
+
+  function getVoiceRecognitionErrorMessage(error?: string) {
+    if (error === "not-allowed" || error === "service-not-allowed") {
+      return text.voicePermissionDenied;
+    }
+
+    if (error === "no-speech" || error === "audio-capture") {
+      return text.voiceNoSpeech;
+    }
+
+    if (error === "network") {
+      return text.voiceNetworkError;
+    }
+
+    return error ? `${text.failure} (${error})` : text.failure;
+  }
+
+  async function startVoiceQuestion() {
     const Recognition = getSpeechRecognitionConstructor();
 
     if (!Recognition) {
@@ -289,6 +330,13 @@ export function AiMarketChatPanel({
 
     setVoiceError(null);
     setVoiceTranscript("");
+
+    const microphoneAllowed = await requestMicrophoneAccess();
+
+    if (!microphoneAllowed) {
+      return;
+    }
+
     const recognition = new Recognition();
     recognition.lang = safeLocale === "tr" ? "tr-TR" : "en-US";
     recognition.continuous = false;
@@ -316,13 +364,19 @@ export function AiMarketChatPanel({
       }
     };
     recognition.onerror = (event) => {
-      setVoiceError(event.error ? `${text.failure} (${event.error})` : text.failure);
+      setVoiceError(getVoiceRecognitionErrorMessage(event.error));
       setIsListening(false);
     };
     recognition.onend = () => setIsListening(false);
     recognitionRef.current = recognition;
     setIsListening(true);
-    recognition.start();
+
+    try {
+      recognition.start();
+    } catch {
+      setVoiceError(text.voicePermissionDenied);
+      setIsListening(false);
+    }
   }
 
   return (
@@ -396,7 +450,7 @@ export function AiMarketChatPanel({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={startVoiceQuestion}
+                onClick={() => void startVoiceQuestion()}
                 disabled={!voiceSupported || isSending}
                 className={`rounded-md px-4 py-2 text-sm font-black ${
                   isListening
