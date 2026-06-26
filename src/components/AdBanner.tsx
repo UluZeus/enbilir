@@ -2,6 +2,7 @@ import type { DisplayAd } from "@/lib/ads";
 
 type AdBannerProps = {
   ads: DisplayAd[];
+  locale?: string;
   variant?: "top" | "side" | "bottom";
 };
 
@@ -51,9 +52,10 @@ function AdMedia({ ad }: { ad: DisplayAd }) {
   return null;
 }
 
-export function AdBanner({ ads, variant = "top" }: AdBannerProps) {
+export function AdBanner({ ads, locale = "tr", variant = "top" }: AdBannerProps) {
   const firstAd = ads[0];
   const totalSeconds = ads.reduce((sum, ad) => sum + ad.displaySeconds, 0);
+  const isEnglish = locale === "en";
 
   if (!firstAd) {
     return null;
@@ -67,7 +69,9 @@ export function AdBanner({ ads, variant = "top" }: AdBannerProps) {
     >
       <div className={`grid gap-4 ${variant === "side" ? "" : "md:grid-cols-[minmax(0,1fr)_minmax(220px,0.36fr)] md:items-center"}`}>
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Reklam / Bilgi Alanı</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
+            {isEnglish ? "Ad / Info Area" : "Reklam / Bilgi Alanı"}
+          </p>
           <h2 className="mt-2 text-lg font-black">{firstAd.title}</h2>
           <p className="mt-1 text-sm leading-6">{firstAd.body}</p>
           {firstAd.linkUrl ? (
@@ -77,14 +81,14 @@ export function AdBanner({ ads, variant = "top" }: AdBannerProps) {
               rel={firstAd.linkUrl.startsWith("/") ? undefined : "noreferrer"}
               className="mt-3 inline-flex rounded-md border border-amber-700/30 bg-white/55 px-3 py-2 text-xs font-black text-amber-800 hover:bg-white"
             >
-              {firstAd.linkLabel || "Detay"}
+              {firstAd.linkLabel || (isEnglish ? "Details" : "Detay")}
             </a>
           ) : null}
         </div>
         <div className={variant === "side" ? "grid gap-3" : "grid gap-3 md:justify-items-end"}>
           <AdMedia ad={firstAd} />
           <div className="shrink-0 text-xs font-bold text-amber-700">
-            {ads.length} içerik · {totalSeconds} sn döngü
+            {isEnglish ? `${ads.length} item${ads.length === 1 ? "" : "s"} · ${totalSeconds}s loop` : `${ads.length} içerik · ${totalSeconds} sn döngü`}
           </div>
         </div>
       </div>

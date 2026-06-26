@@ -25,8 +25,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   });
 }
 
-const REPORT_PREFACE =
-  "Burada yazan tüm yazı ve düşünceler yatırım tavsiyesi niteliğinde olmayıp sadece Dr. Hakan Ünsal'ın kişisel görüşlerini yansıtmaktadır. Ayrıca yapay zeka çıktısı da yine Dr. Hakan Ünsal'ın eğittiği bir yapay zeka ajanı olduğu dikkate alınmalıdır. Yapay zeka hata yapabilir, buradaki bazı değerler gecikmeli olabilir ve bir başka kaynaktan da doğrulamakta her zaman fayda vardır.";
+const REPORT_PREFACE = {
+  tr: "Burada yazan tüm yazı ve düşünceler yatırım tavsiyesi niteliğinde olmayıp sadece Dr. Hakan Ünsal'ın kişisel görüşlerini yansıtmaktadır. Ayrıca yapay zeka çıktısı da yine Dr. Hakan Ünsal'ın eğittiği bir yapay zeka ajanı olduğu dikkate alınmalıdır. Yapay zeka hata yapabilir, buradaki bazı değerler gecikmeli olabilir ve bir başka kaynaktan da doğrulamakta her zaman fayda vardır.",
+  en: "The comments and views here are not investment advice. They reflect the educational market-reading framework prepared by Dr. Hakan Unsal and the AI agent trained for Enbilir. AI can make mistakes, market data may be delayed or incomplete, and independent verification is always useful.",
+};
 const THREE_DAYS_MS = 1000 * 60 * 60 * 24 * 3;
 
 type SourcePayload = {
@@ -38,12 +40,12 @@ function toStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-function formatNumber(value: number | null) {
+function formatNumber(value: number | null, locale = "tr") {
   if (value === null || !Number.isFinite(value)) {
     return "-";
   }
 
-  return value.toLocaleString("tr-TR", { maximumFractionDigits: value >= 100 ? 2 : 4 });
+  return value.toLocaleString(locale === "en" ? "en-US" : "tr-TR", { maximumFractionDigits: value >= 100 ? 2 : 4 });
 }
 
 function formatPercent(value: number | null) {
@@ -54,19 +56,31 @@ function formatPercent(value: number | null) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatSignal(value: string | null) {
-  const labels: Record<string, string> = {
-    STRONG_BUY: "GÜÇLÜ AL",
-    BUY: "AL",
-    WATCH: "İZLE",
-    HOLD: "BEKLE",
-    TAKE_PROFIT: "KAR REALİZASYONU İZLE",
-    SELL: "SAT",
-    AVOID: "UZAK DUR",
-    NO_TRADE: "İŞLEM YOK",
+function formatSignal(value: string | null, locale = "tr") {
+  const labels: Record<string, Record<string, string>> = {
+    tr: {
+      STRONG_BUY: "GÜÇLÜ AL",
+      BUY: "AL",
+      WATCH: "İZLE",
+      HOLD: "BEKLE",
+      TAKE_PROFIT: "KAR REALİZASYONU İZLE",
+      SELL: "SAT",
+      AVOID: "UZAK DUR",
+      NO_TRADE: "İŞLEM YOK",
+    },
+    en: {
+      STRONG_BUY: "STRONG BUY",
+      BUY: "BUY",
+      WATCH: "WATCH",
+      HOLD: "HOLD",
+      TAKE_PROFIT: "WATCH TAKE-PROFIT",
+      SELL: "SELL",
+      AVOID: "AVOID",
+      NO_TRADE: "NO TRADE",
+    },
   };
 
-  return value ? labels[value] ?? value : "-";
+  return value ? labels[locale === "en" ? "en" : "tr"][value] ?? value : "-";
 }
 
 function readSourcePayload(value: unknown): SourcePayload {
@@ -253,6 +267,126 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   const takeaways = toStringArray(report.keyTakeaways);
   const requiredCoverage = toStringArray(report.requiredCoverage);
   const chartAssets = report.assets.filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length).slice(0, 6);
+  const isEnglish = locale === "en";
+
+  if (isEnglish) {
+    return (
+      <main className="report-shell report-screen-shell min-h-screen px-3 py-5 text-[#152033] md:px-5">
+        <article className="mx-auto grid max-w-[1120px] gap-5">
+          <section className="report-screen-hero rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <Image src="/logo.svg" alt="Enbilir logo" width={52} height={52} className="rounded-md" />
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">Enbilir AI Macro Report</p>
+                    <p className="text-sm font-bold text-slate-500">Prepared by the scheduled AI agent trained for Enbilir.</p>
+                  </div>
+                </div>
+                <h1 className="mt-2 text-3xl font-black text-[#111827] md:text-5xl">Scheduled Macro Report</h1>
+                <p className="mt-2 text-sm font-bold text-slate-500">
+                  {new Intl.DateTimeFormat("en-US", { dateStyle: "full", timeStyle: "short" }).format(report.generatedAt)} · {report.scope}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-black text-slate-700">
+                  Report list
+                </Link>
+                <PrintReportButton reportId={report.id} locale={locale} />
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[1.15rem] border border-[#d1bfa7]/40 bg-[#fffaf6]/82 p-4 text-sm leading-7 text-[#49494b]">
+              {REPORT_PREFACE.en}
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="report-screen-card rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">English summary</p>
+                <p className="mt-3 text-sm leading-7 text-slate-700">
+                  This English report view summarizes the scheduled AI report without showing Turkish raw commentary from older stored reports. Use it to review the date, market coverage, watched assets, signal labels, and news-source context. The Turkish version keeps the full generated text for the original report.
+                </p>
+              </div>
+              <aside className="report-screen-card rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Report frame</p>
+                <div className="mt-3 grid gap-2">
+                  <Info label="Assets covered" value={`${report.assets.length} assets`} />
+                  <Info label="Model" value={report.model ?? (report.fallbackUsed ? "Rule-based fallback" : "-")} />
+                  <Info label="Period" value="1 hour" />
+                </div>
+              </aside>
+            </div>
+
+            {takeaways.length > 0 ? (
+              <div className="mt-5 rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Takeaway count</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">
+                  The original report contains {takeaways.length} AI-generated takeaway{takeaways.length === 1 ? "" : "s"}. For a fully translated historical archive, regenerate future reports in English or store translated report fields separately.
+                </p>
+              </div>
+            ) : null}
+
+            {requiredCoverage.length > 0 ? (
+              <div className="mt-5 rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Coverage</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">
+                  This report covers the macro basket, watched assets, technical context, and available public-news context used by the scheduled agent.
+                </p>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="report-assets-section rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Asset scan</p>
+              <h2 className="mt-1 text-2xl font-black">Favorites and macro basket</h2>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {report.assets.map((asset) => (
+                <div key={asset.id} className="report-asset-card rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{asset.category ?? asset.assetClass}</p>
+                      <h3 className="mt-1 text-lg font-black">{asset.displayName}</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge>{formatNumber(asset.lastPrice, "en")}</Badge>
+                      <Badge>{formatPercent(asset.changePercent)}</Badge>
+                      <Badge>{formatSignal(asset.signalType, "en")}</Badge>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {chartAssets.length > 0 ? (
+            <section className="report-chart-section rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Chart coverage</p>
+              <p className="mt-2 text-sm leading-7 text-slate-700">
+                {chartAssets.length} asset{chartAssets.length === 1 ? "" : "s"} include recent technical chart data in this report.
+              </p>
+            </section>
+          ) : null}
+
+          <section className="report-news-section rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">News sources used</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Array.from(new Set(report.newsItems.map((item) => item.source))).map((source) => (
+                <span key={source} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600">
+                  {source}
+                </span>
+              ))}
+              {report.newsItems.length === 0 ? <p className="text-sm text-slate-600">No news-source item was attached to this report.</p> : null}
+            </div>
+            <p className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+              {REPORT_PREFACE.en}
+            </p>
+          </section>
+        </article>
+      </main>
+    );
+  }
 
   return (
     <main className="report-shell report-screen-shell min-h-screen px-3 py-5 text-[#152033] md:px-5">
@@ -286,7 +420,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
       <article className="mx-auto grid max-w-[1120px] gap-5">
         <section className="report-screen-hero print-page rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-xl">
           <Image src="/logo.svg" alt="Enbilir logo" width={128} height={128} className="print-logo print-only" />
-          <p className="print-only print-body mb-4">{REPORT_PREFACE}</p>
+          <p className="print-only print-body mb-4">{REPORT_PREFACE.tr}</p>
           <p className="print-only print-body mb-5">Sayın {recipientName},</p>
 
           <div className="print-document-header flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -308,12 +442,12 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
               <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-black text-slate-700">
                 Rapor listesi
               </Link>
-              <PrintReportButton reportId={report.id} />
+              <PrintReportButton reportId={report.id} locale={locale} />
             </div>
           </div>
 
           <div className="screen-only mt-5 rounded-[1.15rem] border border-[#d1bfa7]/40 bg-[#fffaf6]/82 p-4 text-sm leading-7 text-[#49494b]">
-            {REPORT_PREFACE}
+            {REPORT_PREFACE.tr}
           </div>
 
           <div className="print-grid mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">

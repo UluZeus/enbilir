@@ -271,7 +271,12 @@ export function AiMarketChatPanel({
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{text.sourceTitle}</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {(sources.length > 0 ? sources : [{ label: "Veri", value: "Hazır" }, { label: "Kapsam", value: "Site içi" }]).map((source) => (
+              {(sources.length > 0
+                ? sources
+                : safeLocale === "tr"
+                  ? [{ label: "Veri", value: "Hazır" }, { label: "Kapsam", value: "Site içi" }]
+                  : [{ label: "Data", value: "Ready" }, { label: "Scope", value: "Site context" }]
+              ).map((source) => (
                 <div key={`${source.label}-${source.value}`} className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-2">
                   <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{source.label}</p>
                   <p className="mt-1 truncate text-xs font-black text-slate-100">{source.value}</p>

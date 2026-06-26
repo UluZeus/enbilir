@@ -240,7 +240,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
               className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white"
               style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
             >
-              MAKRO RAPOR
+              {locale === "en" ? "MACRO REPORT" : "MAKRO RAPOR"}
             </Link>
             <a
               href={whatsappUrl}

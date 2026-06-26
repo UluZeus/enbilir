@@ -2,7 +2,7 @@
 
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 
-export function PrintReportButton({ reportId }: { reportId: string }) {
+export function PrintReportButton({ reportId, locale = "tr" }: { reportId: string; locale?: string }) {
   async function handlePrint() {
     try {
       await fetch("/api/ai-market/reports/events", {
@@ -27,7 +27,7 @@ export function PrintReportButton({ reportId }: { reportId: string }) {
       onClick={handlePrint}
       className="rounded-md border border-[#0f766e] bg-[#0f766e] px-3 py-2 text-sm font-black text-white"
     >
-      PDF için yazdır
+      {locale === "en" ? "Print for PDF" : "PDF için yazdır"}
     </button>
   );
 }

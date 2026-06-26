@@ -45,7 +45,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const user = await getSessionUser();
   const fallbackMarketItems = getFallbackMarketItems();
   const [adsResult, liveItemsResult, snapshotResult, announcementsResult] = await Promise.allSettled([
-    getAds("home_top"),
+    getAds("home_top", locale),
     getLiveMarketItems(),
     user ? getPortfolioSnapshot(user.id, fallbackMarketItems) : Promise.resolve(null),
     getManagedContentItems({ type: "ANNOUNCEMENT", locale, limit: 3 }),
@@ -60,7 +60,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     getLeaderboardHighlights(),
     getActiveLeagueHighlights(),
   ]);
-  const economyHeadlines = await getEconomyHeadlines(4);
+  const economyHeadlines = await getEconomyHeadlines(4, locale);
   const chartPeriods = settledValue<PortfolioPerformancePeriod[]>(chartPeriodsResult, []);
   const rankingPeriods = settledValue<UserRankingPeriod[]>(rankingPeriodsResult, []);
   const leaderboardHighlights = settledValue<LeaderboardHighlight[]>(leaderboardHighlightsResult, []);
@@ -81,7 +81,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   return (
     <div className="home-premium grid gap-6">
       <MacroReportTicker locale={locale} />
-      <AdBanner ads={ads} />
+      <AdBanner ads={ads} locale={locale} />
       <section className="home-premium-hero hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.02fr)_minmax(390px,0.98fr)]">
         <div className="home-hero-copy">
           <div className="home-hero-eyebrow-row flex flex-wrap items-center gap-2">
@@ -195,7 +195,11 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           <span className="home-ribbon-icon">30</span>
           <div>
             <p className="font-black">{locale === "tr" ? "30 gün ücretsiz dene" : "Try 30 days free"}</p>
-            <p>{locale === "tr" ? "Sonrasında gönüllü 50 TL abonelik katkısı." : "Then an optional 50 TL monthly contribution."}</p>
+            <p>
+              {locale === "tr"
+                ? "Sonrasında standart 70 TL gönüllü katkı veya 100 TL VIP üyelik seçeneği."
+                : "Then choose optional 70 TL standard support or 100 TL VIP membership."}
+            </p>
           </div>
         </div>
       </section>

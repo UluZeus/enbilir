@@ -112,10 +112,13 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">{isEnglish ? "Scheduled AI agent report" : "Planlı AI ajan raporu"}</p>
             {latestReport ? (
               <>
-                <h2 className="mt-1 text-lg font-black">{latestReport.marketRegime ?? (isEnglish ? "Latest market report is ready" : "Son piyasa raporu hazır")}</h2>
+                <h2 className="mt-1 text-lg font-black">
+                  {isEnglish ? "Latest market report is ready" : latestReport.marketRegime ?? "Son piyasa raporu hazır"}
+                </h2>
                 <p className="mt-1 text-sm text-slate-300">
                   {new Intl.DateTimeFormat(isEnglish ? "en-US" : "tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(latestReport.generatedAt)}
-                  {latestReport.riskAppetite ? ` · ${latestReport.riskAppetite}` : ""}
+                  {latestReport.riskAppetite && !isEnglish ? ` · ${latestReport.riskAppetite}` : ""}
+                  {isEnglish ? " · macro context available" : ""}
                   {latestReport.fallbackUsed ? " · fallback" : ""}
                 </p>
               </>

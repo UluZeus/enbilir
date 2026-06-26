@@ -8,11 +8,11 @@ type MarketPulseProps = {
   accentLabel: string;
 };
 
-function formatUpdatedCount(value: number) {
-  return new Intl.NumberFormat("tr-TR").format(value);
+function formatUpdatedCount(value: number, locale: string) {
+  return new Intl.NumberFormat(locale === "en" ? "en-US" : "tr-TR").format(value);
 }
 
-function TrendRow({ label, item }: { label: string; item: MarketItem | undefined }) {
+function TrendRow({ label, item, locale }: { label: string; item: MarketItem | undefined; locale: string }) {
   return (
     <div className="rounded-2xl border border-white/60 bg-white/80 p-4 shadow-sm backdrop-blur">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
@@ -35,7 +35,7 @@ function TrendRow({ label, item }: { label: string; item: MarketItem | undefined
           </div>
         </div>
       ) : (
-        <p className="mt-2 text-sm text-slate-500">Veri bekleniyor.</p>
+        <p className="mt-2 text-sm text-slate-500">{locale === "en" ? "Waiting for data." : "Veri bekleniyor."}</p>
       )}
     </div>
   );
@@ -48,6 +48,25 @@ export function MarketPulse({ locale, items, title, subtitle, accentLabel }: Mar
   const topRiser = [...safeItems].sort((a, b) => b.changePercent - a.changePercent)[0];
   const topFaller = [...safeItems].sort((a, b) => a.changePercent - b.changePercent)[0];
   const caption = locale === "en" ? "Live scan every 30 seconds" : "30 saniyede bir canlı tarama";
+  const labels = locale === "en"
+    ? {
+        products: "Products",
+        rising: "Rising",
+        falling: "Falling",
+        strongestRiser: "Strongest riser",
+        strongestFaller: "Strongest faller",
+        topRiser: "Top riser",
+        topFaller: "Top faller",
+      }
+    : {
+        products: "Ürün",
+        rising: "Yükselen",
+        falling: "Düşen",
+        strongestRiser: "En güçlü yükselen",
+        strongestFaller: "En güçlü düşen",
+        topRiser: "Top yükselen",
+        topFaller: "Top düşen",
+      };
 
   return (
     <section className="dashboard-shell grid gap-4 p-5 lg:grid-cols-[1.1fr_0.9fr] lg:p-6">
@@ -67,34 +86,34 @@ export function MarketPulse({ locale, items, title, subtitle, accentLabel }: Mar
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Ürün</p>
-            <p className="mt-1 text-2xl font-black">{formatUpdatedCount(safeItems.length)}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">{labels.products}</p>
+            <p className="mt-1 text-2xl font-black">{formatUpdatedCount(safeItems.length, locale)}</p>
           </div>
           <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100">Yükselen</p>
-            <p className="mt-1 text-2xl font-black text-emerald-200">{formatUpdatedCount(positiveCount)}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100">{labels.rising}</p>
+            <p className="mt-1 text-2xl font-black text-emerald-200">{formatUpdatedCount(positiveCount, locale)}</p>
           </div>
           <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-100">Düşen</p>
-            <p className="mt-1 text-2xl font-black text-red-200">{formatUpdatedCount(negativeCount)}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-100">{labels.falling}</p>
+            <p className="mt-1 text-2xl font-black text-red-200">{formatUpdatedCount(negativeCount, locale)}</p>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">En güçlü yükselen</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">{labels.strongestRiser}</p>
             <p className="mt-1 text-lg font-black">{topRiser ? topRiser.symbol : "-"}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">En güçlü düşen</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">{labels.strongestFaller}</p>
             <p className="mt-1 text-lg font-black">{topFaller ? topFaller.symbol : "-"}</p>
           </div>
         </div>
       </div>
 
       <div className="grid gap-3">
-        <TrendRow label="Top yükselen" item={topRiser} />
-        <TrendRow label="Top düşen" item={topFaller} />
+        <TrendRow label={labels.topRiser} item={topRiser} locale={locale} />
+        <TrendRow label={labels.topFaller} item={topFaller} locale={locale} />
       </div>
     </section>
   );

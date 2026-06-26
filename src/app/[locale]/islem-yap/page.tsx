@@ -77,9 +77,9 @@ export default async function TradePage({
   const fallbackMarketItems = getFallbackMarketItems();
   const liveMarketItems = await getLiveMarketItems();
   const [topAdsResult, sideAdsResult, bottomAdsResult, snapshotResult] = await Promise.allSettled([
-    getAds("trade_top"),
-    getAds("trade_right"),
-    getAds("trade_bottom"),
+    getAds("trade_top", locale),
+    getAds("trade_right", locale),
+    getAds("trade_bottom", locale),
     getPortfolioSnapshot(user.id, liveMarketItems),
   ]);
   const topAds = settledValue<DisplayAd[]>(topAdsResult, []);
@@ -96,12 +96,12 @@ export default async function TradePage({
       <FormMessage message={query.error} />
       <FormMessage message={query.success} tone="success" />
       <FormMessage message={dataError} tone="info" />
-      <AdBanner ads={topAds} />
+      <AdBanner ads={topAds} locale={locale} />
       <section className="grid min-w-0 gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
         <aside className="grid min-w-0 content-start gap-5 self-start">
           <TradePortfolioPanel snapshot={snapshot} copy={copy.trade} />
           <LiveMarketOverview locale={locale} initialItems={marketItems} title={copy.trade.title} variant="sidebar" />
-          <AdBanner ads={sideAds} variant="side" />
+          <AdBanner ads={sideAds} locale={locale} variant="side" />
         </aside>
 
         <div className="grid min-w-0 gap-5">
@@ -131,7 +131,7 @@ export default async function TradePage({
               ))}
             </form>
           </div>
-          <AdBanner ads={bottomAds} variant="bottom" />
+          <AdBanner ads={bottomAds} locale={locale} variant="bottom" />
         </div>
       </section>
 

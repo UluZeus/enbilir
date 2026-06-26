@@ -29,6 +29,11 @@ const blogCategoryByPostId: Record<string, Exclude<BlogCategoryCode, "ALL">> = {
   "managed-home-virtual-portfolio-serious": "RISK",
 };
 
+function getBlogCategory(postId: string) {
+  const normalizedId = postId.endsWith("-en") ? postId.slice(0, -3) : postId;
+  return blogCategoryByPostId[normalizedId];
+}
+
 function getBlogCategoryLabels(locale: string): Record<BlogCategoryCode, string> {
   if (locale === "en") {
     return {
@@ -74,7 +79,7 @@ export default async function BlogPage({
   const categoryOptions = Object.entries(categoryLabels) as Array<[BlogCategoryCode, string]>;
   const filteredPosts = selectedCategory === "ALL"
     ? posts
-    : posts.filter((post) => blogCategoryByPostId[post.id] === selectedCategory);
+    : posts.filter((post) => getBlogCategory(post.id) === selectedCategory);
   const starterPosts = getStarterPosts(locale);
   const contentCalendar = getContentCalendar(locale);
   const evergreenNotes = getEvergreenNotes(locale);

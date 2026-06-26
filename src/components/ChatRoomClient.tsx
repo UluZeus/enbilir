@@ -114,6 +114,8 @@ function getCopy(locale: string) {
       vote: "Vote",
       votes: "votes",
       download: "Open file",
+      locationFallback: "Location",
+      openMap: "Open in map",
       uploadError: "File could not be uploaded.",
     };
   }
@@ -172,6 +174,8 @@ function getCopy(locale: string) {
     vote: "Oy ver",
     votes: "oy",
     download: "Dosyayı aç",
+    locationFallback: "Konum",
+    openMap: "Haritada aç",
     uploadError: "Dosya yüklenemedi.",
   };
 }
@@ -759,10 +763,10 @@ function MessageAttachment({
 
     return latitude !== null && longitude !== null ? (
       <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
-        <p className="font-black text-[#152033]">{getString(attachment?.label) || "Konum"}</p>
+        <p className="font-black text-[#152033]">{getString(attachment?.label) || copy.locationFallback}</p>
         <p className="mt-1 text-slate-600">{latitude}, {longitude}</p>
         <a href={`https://www.google.com/maps?q=${latitude},${longitude}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex font-black text-[#0f766e]">
-          Haritada aç
+          {copy.openMap}
         </a>
       </div>
     ) : null;
