@@ -91,6 +91,24 @@ export const defaultBadges = [
     icon: "▦",
     category: "Portföy",
   },
+  {
+    code: "TRADE_JOURNALIST",
+    nameTr: "Karar Günlüğü",
+    nameEn: "Decision Journal",
+    descriptionTr: "En az bir sanal işlemde karar gerekçesi yazdın.",
+    descriptionEn: "You wrote a decision note on at least one virtual trade.",
+    icon: "✎",
+    category: "Öğrenme",
+  },
+  {
+    code: "DISCIPLINED_REVIEWER",
+    nameTr: "Disiplinli Gözden Geçiren",
+    nameEn: "Disciplined Reviewer",
+    descriptionTr: "En az beş işlemde karar notu tutarak kendi sürecini izlemeye başladın.",
+    descriptionEn: "You kept decision notes on at least five trades and started tracking your process.",
+    icon: "□",
+    category: "Öğrenme",
+  },
 ] as const;
 
 export async function ensureDefaultBadges() {
@@ -160,6 +178,21 @@ export async function evaluateTradeBadges(userId: string) {
 
   if (positionCount >= 5) {
     await awardBadge(userId, "PORTFOLIO_ARCHITECT", { positionCount });
+  }
+
+  const tradeNoteCount = await prisma.virtualTrade.count({
+    where: {
+      userId,
+      reason: { not: null },
+    },
+  });
+
+  if (tradeNoteCount >= 1) {
+    await awardBadge(userId, "TRADE_JOURNALIST", { tradeNoteCount });
+  }
+
+  if (tradeNoteCount >= 5) {
+    await awardBadge(userId, "DISCIPLINED_REVIEWER", { tradeNoteCount });
   }
 }
 

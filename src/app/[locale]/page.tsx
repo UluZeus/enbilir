@@ -77,6 +77,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const knowledgeBlocks = getKnowledgeBlocks(locale);
   const faqItems = getFaqItems(locale);
   const heroStats = getHeroStats(locale);
+  const learningLoopCards = getLearningLoopCards(locale);
 
   return (
     <div className="home-premium grid gap-6">
@@ -201,6 +202,38 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 : "Then choose optional 70 TL standard support or 100 TL VIP membership."}
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="home-learning-loop premium-card p-5 md:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+              {locale === "tr" ? "Profesyonel öğrenme akışı" : "Professional learning loop"}
+            </p>
+            <h2 className="mt-2 max-w-4xl text-2xl font-black text-[#152033] md:text-3xl">
+              {locale === "tr" ? "Tek sayfa değil, tekrar eden bir finansal okuryazarlık sistemi." : "Not a single page, but a repeatable market-literacy system."}
+            </h2>
+            <p className="mt-2 max-w-4xl text-sm leading-7 text-slate-600">
+              {locale === "tr"
+                ? "Enbilir'in profesyonel kullanım mantığı beş adımdır: kavramı oku, karar gerekçeni yaz, sanal portföyde dene, toplulukla karşılaştır ve AI ile gözden geçir."
+                : "The professional way to use Enbilir has five steps: read the concept, write your decision reason, test virtually, compare with the community, and review with AI."}
+            </p>
+          </div>
+          <Link href={`/${locale}/icerik-merkezi`} className="premium-action inline-flex px-5 py-3 text-sm font-black">
+            {locale === "tr" ? "İçerik merkezini aç" : "Open content hub"}
+          </Link>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-5">
+          {learningLoopCards.map((card) => (
+            <Link key={card.step} href={card.href} className="home-learning-step rounded-2xl border border-[#d1bfa7]/35 bg-white/72 p-4 hover:border-[#0f766e]/45">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#101827] text-xs font-black text-[#d1bfa7]">
+                {card.step}
+              </span>
+              <h3 className="mt-3 text-base font-black text-[#152033]">{card.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{card.body}</p>
+            </Link>
+          ))}
         </div>
       </section>
 
@@ -654,6 +687,26 @@ function getValueProps(locale: string) {
     { eyebrow: "Fayda 1", title: "Sanal para", body: "Güvenli sanal bakiye ile gerçek para baskısı olmadan uygulayarak öğren." },
     { eyebrow: "Fayda 2", title: "Canlı piyasa verisi", body: "30 saniyede bir güncellenen piyasa akışıyla ritmi izle, öğrenmeyi güncel tut." },
     { eyebrow: "Fayda 3", title: "Arkadaş ve lig rekabeti", body: "Rotary çevrenle yarış, portföyleri karşılaştır ve sosyal motivasyonu diri tut." },
+  ] as const;
+}
+
+function getLearningLoopCards(locale: string) {
+  if (locale === "en") {
+    return [
+      { step: "01", title: "Read", body: "Start from the content hub and build the language of the concept.", href: "/en/icerik-merkezi" },
+      { step: "02", title: "Write", body: "Record why a virtual decision makes sense before you test it.", href: "/en/islem-yap" },
+      { step: "03", title: "Test", body: "Apply the idea in the virtual portfolio without real-money pressure.", href: "/en/islem-yap" },
+      { step: "04", title: "Compare", body: "Use leagues and leaderboards to see behavior in context.", href: "/en/liderlik-tablosu" },
+      { step: "05", title: "Review", body: "Ask the AI scenario mode what changed and what risk means.", href: "/en/ai-piyasa-asistani" },
+    ] as const;
+  }
+
+  return [
+    { step: "01", title: "Oku", body: "İçerik merkezinden başla ve kavram dilini kur.", href: "/tr/icerik-merkezi" },
+    { step: "02", title: "Yaz", body: "Sanal kararı denemeden önce nedenini kaydet.", href: "/tr/islem-yap" },
+    { step: "03", title: "Dene", body: "Fikri gerçek para baskısı olmadan sanal portföyde uygula.", href: "/tr/islem-yap" },
+    { step: "04", title: "Karşılaştır", body: "Lig ve liderlik ekranlarıyla davranışı bağlama oturt.", href: "/tr/liderlik-tablosu" },
+    { step: "05", title: "Gözden geçir", body: "AI senaryo moduna ne değiştiğini ve riskin ne anlattığını sor.", href: "/tr/ai-piyasa-asistani" },
   ] as const;
 }
 

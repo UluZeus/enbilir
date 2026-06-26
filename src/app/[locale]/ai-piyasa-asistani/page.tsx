@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AiMarketChatPanel } from "@/components/ai-market/AiMarketChatPanel";
+import { AiScenarioLab } from "@/components/ai-market/AiScenarioLab";
 import { MarketAssistantDashboard } from "@/components/ai-market/MarketAssistantDashboard";
 import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
@@ -145,6 +146,7 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
           </div>
         </div>
       </section>
+      <AiScenarioLab locale={locale} />
       <AiMarketChatPanel
         locale={locale}
         membershipTier={membership?.effectiveTier ?? "STANDARD"}
