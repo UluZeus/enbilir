@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { AdBanner } from "@/components/AdBanner";
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { MacroReportTicker } from "@/components/ai-market/MacroReportTicker";
@@ -21,10 +22,17 @@ import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
 import { formatMoney, getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
+import { buildPageMetadata } from "@/lib/seo";
 import type { DisplayAd } from "@/lib/ads";
 import type { MarketItem } from "@/lib/market-data";
 
 type UserRankingPeriod = Awaited<ReturnType<typeof getUserRankingPeriods>>[number];
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/", page: "home" });
+}
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
   return result.status === "fulfilled" ? result.value : fallback;
@@ -74,10 +82,15 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     <div className="home-premium grid gap-6">
       <MacroReportTicker locale={locale} />
       <AdBanner ads={ads} />
-      <section className="home-premium-hero hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.home.eyebrow}</p>
-          <h1 className="relative mt-3 max-w-5xl text-4xl font-black tracking-normal sm:text-6xl">
+      <section className="home-premium-hero hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.02fr)_minmax(390px,0.98fr)]">
+        <div className="home-hero-copy">
+          <div className="home-hero-eyebrow-row flex flex-wrap items-center gap-2">
+            <p className="home-hero-pill text-xs font-black uppercase tracking-[0.18em]">{copy.home.eyebrow}</p>
+            <p className="home-hero-pill home-hero-pill--live text-xs font-black uppercase tracking-[0.18em]">
+              {locale === "tr" ? "Canlı piyasa + AI yorum" : "Live market + AI commentary"}
+            </p>
+          </div>
+          <h1 className="relative mt-4 max-w-5xl text-4xl font-black tracking-normal sm:text-6xl">
             {locale === "tr"
               ? "Gerçek para riski olmadan piyasa okuryazarlığı, sanal portföy ve AI makro rapor deneyimi"
               : "Market literacy, virtual portfolios, and AI macro reports without real-money risk"}
@@ -89,7 +102,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </p>
           <div className="relative mt-6 flex flex-wrap gap-3">
             <Link href={`/${locale}/kayit`} className="premium-cta px-5 py-3 text-sm font-black">
-              {locale === "tr" ? "Ücretsiz başla" : "Start for free"}
+              {locale === "tr" ? "30 gün ücretsiz başla" : "Start 30 days free"}
             </Link>
             <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="premium-link rounded-md px-5 py-3 text-sm font-black">
               {locale === "tr" ? "Makro raporu aç" : "Open macro report"}
@@ -110,9 +123,32 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
 
         <div className="grid gap-4 self-start">
-          <div className="home-flow-card rounded-[1.5rem] border border-white/12 bg-[#07111f]/88 p-5 shadow-2xl">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
-              {locale === "tr" ? "Premium öğrenme akışı" : "Premium learning flow"}
+          <div className="home-command-center rounded-[1.75rem] border border-white/12 bg-[#07111f]/88 p-5 shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
+                  {locale === "tr" ? "Canlı öğrenme terminali" : "Live learning terminal"}
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-white">
+                  {locale === "tr" ? "Piyasa ritmini tek ekranda oku" : "Read market rhythm on one screen"}
+                </h2>
+              </div>
+              <span className="home-live-badge rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em]">
+                {locale === "tr" ? "Aktif" : "Live"}
+              </span>
+            </div>
+            <div className="home-terminal-chart mt-5" aria-hidden="true">
+              <span className="home-terminal-line home-terminal-line--one" />
+              <span className="home-terminal-line home-terminal-line--two" />
+              <span className="home-terminal-line home-terminal-line--three" />
+              <span className="home-terminal-candle home-terminal-candle--one" />
+              <span className="home-terminal-candle home-terminal-candle--two" />
+              <span className="home-terminal-candle home-terminal-candle--three" />
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-300">
+              {locale === "tr"
+                ? "Sanal işlem, lig rekabeti, makro rapor ve AI açıklamalarını tek öğrenme panelinde birleştirir."
+                : "Combines virtual trading, league competition, macro reports, and AI explanations in one learning panel."}
             </p>
             <div className="mt-4 grid gap-3">
               {communitySteps.map((step) => (
@@ -136,6 +172,30 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 <p className="mt-2 text-sm leading-6 text-slate-300">{card.body}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="home-trust-ribbon grid gap-3 md:grid-cols-3">
+        <div className="home-ribbon-item">
+          <span className="home-ribbon-icon">01</span>
+          <div>
+            <p className="font-black">{locale === "tr" ? "Gerçek para riski yok" : "No real-money risk"}</p>
+            <p>{locale === "tr" ? "Alım satım eğitim amaçlı sanal portföye yazılır." : "Trades are written to an educational virtual portfolio."}</p>
+          </div>
+        </div>
+        <div className="home-ribbon-item">
+          <span className="home-ribbon-icon">AI</span>
+          <div>
+            <p className="font-black">{locale === "tr" ? "AI makro rapor ritmi" : "AI macro report rhythm"}</p>
+            <p>{locale === "tr" ? "Gün içinde 07.00, 12.00 ve 18.00 çerçevesi." : "Daily 07:00, 12:00, and 18:00 market frames."}</p>
+          </div>
+        </div>
+        <div className="home-ribbon-item">
+          <span className="home-ribbon-icon">30</span>
+          <div>
+            <p className="font-black">{locale === "tr" ? "30 gün ücretsiz dene" : "Try 30 days free"}</p>
+            <p>{locale === "tr" ? "Sonrasında gönüllü 50 TL abonelik katkısı." : "Then an optional 50 TL monthly contribution."}</p>
           </div>
         </div>
       </section>

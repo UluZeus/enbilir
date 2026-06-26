@@ -1,32 +1,56 @@
 import type { MetadataRoute } from "next";
+import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
 
-const routes = [
-  "",
-  "/giris",
-  "/kayit",
-  "/ligler",
-  "/liderlik-tablosu",
-  "/blog",
-  "/egitim",
-  "/iletisim",
-  "/kvkk",
-  "/acik-riza",
-  "/cerez-politikasi",
-  "/kullanim-sartlari",
-  "/yatirim-tavsiyesi-degildir",
+const staticRoutes = [
+  { path: "", frequency: "daily", priority: 1 },
+  { path: "/islem-yap", frequency: "daily", priority: 0.92 },
+  { path: "/ai-piyasa-asistani", frequency: "daily", priority: 0.95 },
+  { path: "/ai-piyasa-asistani/raporlar", frequency: "daily", priority: 0.93 },
+  { path: "/ai-piyasa-asistani/performans", frequency: "daily", priority: 0.78 },
+  { path: "/ai-piyasa-asistani/varlik-yonetimi", frequency: "daily", priority: 0.78 },
+  { path: "/kayit", frequency: "weekly", priority: 0.82 },
+  { path: "/giris", frequency: "weekly", priority: 0.58 },
+  { path: "/ligler", frequency: "daily", priority: 0.86 },
+  { path: "/liderlik-tablosu", frequency: "daily", priority: 0.8 },
+  { path: "/topluluk", frequency: "weekly", priority: 0.76 },
+  { path: "/blog", frequency: "weekly", priority: 0.82 },
+  { path: "/egitim", frequency: "weekly", priority: 0.88 },
+  { path: "/iletisim", frequency: "monthly", priority: 0.62 },
+  { path: "/kvkk", frequency: "yearly", priority: 0.35 },
+  { path: "/acik-riza", frequency: "yearly", priority: 0.35 },
+  { path: "/cerez-politikasi", frequency: "yearly", priority: 0.35 },
+  { path: "/kullanim-sartlari", frequency: "yearly", priority: 0.35 },
+  { path: "/yatirim-tavsiyesi-degildir", frequency: "yearly", priority: 0.45 },
 ];
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const now = new Date();
+  const latestReports = await prisma.aiMarketReport.findMany({
+    where: { scope: "GLOBAL", status: "COMPLETED" },
+    orderBy: { generatedAt: "desc" },
+    take: 50,
+    select: { id: true, updatedAt: true, generatedAt: true },
+  });
 
-  return ["tr", "en"].flatMap((locale) =>
-    routes.map((route) => ({
-      url: `${siteUrl}/${locale}${route}`,
+  const staticItems = ["tr", "en"].flatMap((locale) =>
+    staticRoutes.map((route) => ({
+      url: `${siteUrl}/${locale}${route.path}`,
       lastModified: now,
-      changeFrequency: route === "" ? "daily" : "weekly",
-      priority: route === "" ? 1 : 0.7,
+      changeFrequency: route.frequency as MetadataRoute.Sitemap[number]["changeFrequency"],
+      priority: route.priority,
     })),
   );
+
+  const reportItems = ["tr", "en"].flatMap((locale) =>
+    latestReports.map((report) => ({
+      url: `${siteUrl}/${locale}/ai-piyasa-asistani/raporlar/${report.id}`,
+      lastModified: report.updatedAt ?? report.generatedAt,
+      changeFrequency: "daily" as const,
+      priority: 0.72,
+    })),
+  );
+
+  return [...staticItems, ...reportItems];
 }

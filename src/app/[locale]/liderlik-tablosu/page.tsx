@@ -1,9 +1,17 @@
+import type { Metadata } from "next";
 import { getDisplayName } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getPortfolioSnapshot, formatMoney } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
+import { buildPageMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/liderlik-tablosu", page: "leaderboard" });
+}
 
 export default async function LeaderboardPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;

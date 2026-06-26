@@ -1,11 +1,19 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { MacroReportTicker } from "@/components/ai-market/MacroReportTicker";
 import { getSessionUser } from "@/lib/auth";
 import { sendLatestMacroReportEmailAction } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
 import { getSafeLocale } from "@/i18n/config";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/ai-piyasa-asistani/raporlar", page: "reports" });
+}
 
 export default async function AiMarketReportsPage({
   params,

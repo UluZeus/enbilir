@@ -1,10 +1,18 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { FormMessage } from "@/components/FormMessage";
 import { PageHeader } from "@/components/PageHeader";
 import { getSafeLocale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { registerAction } from "@/lib/actions";
+import { buildPageMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/kayit", page: "register" });
+}
 
 export default async function RegisterPage({
   params,
@@ -67,7 +75,20 @@ export default async function RegisterPage({
           </div>
         </div>
 
-        <form action={registerAction} className="mx-auto grid w-full gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <form action={registerAction} className="auth-conversion-form mx-auto grid w-full gap-4 rounded-[1.35rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="auth-form-intro rounded-2xl p-4">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#bd8c7d]">
+              {locale === "tr" ? "30 gün ücretsiz deneme" : "30-day free trial"}
+            </p>
+            <h1 className="mt-2 text-2xl font-black text-[#152033]">
+              {locale === "tr" ? "Sanal portföyünü hemen aç" : "Open your virtual portfolio now"}
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {locale === "tr"
+                ? "Gerçek para riski olmadan işlem yap, liglere katıl, AI makro raporları takip et. Sonrasında 50 TL katkı gönüllülük esaslıdır."
+                : "Trade without real-money risk, join leagues, and follow AI macro reports. The later 50 TL contribution is voluntary."}
+            </p>
+          </div>
           <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
           <a
             href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/panel`)}`}
@@ -98,7 +119,17 @@ export default async function RegisterPage({
           <label className="flex gap-3 text-sm text-slate-700"><input name="termsAccepted" type="checkbox" /> <span><Link href={`/${locale}/kullanim-sartlari`} className="font-bold text-[#0f766e]">{locale === "tr" ? "Kullanım Şartları" : "Terms of Use"}</Link>{locale === "tr" ? "’nı kabul ediyorum." : " accepted."}</span></label>
           <label className="flex gap-3 text-sm text-slate-700"><input name="noAdviceAccepted" type="checkbox" /> <span>{copy.noAdviceAccepted}</span></label>
           <label className="flex gap-3 text-sm text-slate-700"><input name="electronicConsent" type="checkbox" /> <span>{copy.electronicConsent}</span></label>
-          <button className="rounded-md bg-[#101827] px-5 py-3 text-sm font-black text-white">{copy.register}</button>
+          <button className="premium-cta px-5 py-3 text-sm font-black">{copy.register}</button>
+          <div className="auth-trust-grid grid gap-2 sm:grid-cols-3">
+            {(locale === "tr"
+              ? ["Gerçek para yok", "AI destekli öğrenme", "Lig ve topluluk"]
+              : ["No real money", "AI-assisted learning", "League community"]
+            ).map((item) => (
+              <span key={item} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-black text-[#152033]">
+                {item}
+              </span>
+            ))}
+          </div>
         </form>
       </section>
     </div>

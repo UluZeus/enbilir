@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { FormMessage } from "@/components/FormMessage";
 import { removeCommunityFriendAction, sendCommunityFriendRequestAction } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
@@ -6,7 +7,14 @@ import { getFriendPairKey } from "@/lib/friends";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { prisma } from "@/lib/prisma";
+import { buildPageMetadata } from "@/lib/seo";
 import type { FriendRequestStatus, LeagueType } from "@/generated/prisma/enums";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/topluluk", page: "community" });
+}
 
 const categoryStyles: Record<UserCategory, string> = {
   Rotaryen: "bg-blue-50 text-blue-700 ring-blue-200",

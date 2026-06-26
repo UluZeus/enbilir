@@ -1,8 +1,16 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getSessionUser } from "@/lib/auth";
 import { getActiveLeagues, getUserLeagues } from "@/lib/leagues";
+import { buildPageMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/ligler", page: "leagues" });
+}
 
 export default async function LeaguesPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;

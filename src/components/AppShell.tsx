@@ -13,7 +13,6 @@ import { getSiteVisualSettings, isVisualEnabled } from "@/lib/site-visual-settin
 
 const primaryNav = [
   { href: "", label: "home" },
-  { href: "islem-yap", label: "trade" },
   { href: "ligler", label: "leagues" },
   { href: "egitim", label: "education" },
   { href: "liderlik-tablosu", label: "leaderboard" },
@@ -25,6 +24,11 @@ const primaryNav = [
 const accountNav = [
   { href: "giris", label: "login" },
   { href: "kayit", label: "register" },
+] as const;
+
+const productNav = [
+  { href: "islem-yap", label: "trade", tone: "trade" },
+  { href: "ai-piyasa-asistani", label: "ai", tone: "ai" },
 ] as const;
 
 const legalLinks = [
@@ -176,12 +180,16 @@ export async function AppShell({ children, locale }: AppShellProps) {
                   {dictionary.nav[item.label]}
                 </Link>
               ))}
-              <Link
-                href={`/${locale}/ai-piyasa-asistani`}
-                className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
-              >
-                {ui.appShell.aiAssistant}
-              </Link>
+              <span className="premium-nav-divider hidden h-7 w-px bg-[#d1bfa7]/45 xl:inline-flex" aria-hidden="true" />
+              {productNav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={`/${locale}/${item.href}`}
+                  className={`premium-product-nav premium-product-nav--${item.tone} inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 font-black 2xl:px-3 2xl:py-2`}
+                >
+                  {item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label]}
+                </Link>
+              ))}
                 <Link
                   href={
                     latestMacroReport

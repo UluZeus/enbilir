@@ -1,9 +1,17 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { EducationProgressTracker } from "@/components/education/EducationProgressTracker";
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getManagedContentItems } from "@/lib/managed-content";
+import { buildPageMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/egitim", page: "education" });
+}
 
 type ContentBlock = {
   title: string;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
+import { coreSeoKeywords, getSeoPage, seoBrand } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 const manrope = Manrope({
@@ -15,10 +16,20 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
+const homeSeo = getSeoPage("home", "tr");
+
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
-  title: "Enbilir",
-  description: "Finansal okuryazarlık ve eğitim platformu.",
+  title: {
+    default: homeSeo.title,
+    template: "%s | Enbilir",
+  },
+  description: homeSeo.description,
+  keywords: coreSeoKeywords,
+  authors: [{ name: seoBrand.founder, url: getSiteUrl() }],
+  creator: seoBrand.founder,
+  publisher: seoBrand.legalName,
+  category: "financial literacy, education, virtual trading, AI market reports",
   alternates: {
     canonical: "/tr",
     languages: {
@@ -28,20 +39,40 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/logo.png",
   },
   openGraph: {
     type: "website",
     url: "/tr",
-    siteName: "enbilir.com",
-    title: "Enbilir",
-    description: "Finansal okuryazarlık ve eğitim platformu.",
-    images: ["/logo.png"],
+    siteName: seoBrand.domain,
+    title: homeSeo.title,
+    description: homeSeo.description,
+    images: [
+      {
+        url: "/logo.png",
+        width: 1200,
+        height: 630,
+        alt: "Enbilir finansal okuryazarlık platformu",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Enbilir",
-    description: "Finansal okuryazarlık ve eğitim platformu.",
+    title: homeSeo.title,
+    description: homeSeo.description,
     images: ["/logo.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
   },
 };
 

@@ -2,15 +2,28 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { PrintReportButton } from "@/components/ai-market/PrintReportButton";
 import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { prisma } from "@/lib/prisma";
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
+import { buildPageMetadata } from "@/lib/seo";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
+  const { locale: rawLocale, id } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({
+    locale,
+    path: `/ai-piyasa-asistani/raporlar/${id}`,
+    page: "reports",
+    keywords: ["makro rapor arşivi", "AI rapor detayı", "piyasa raporu PDF"],
+  });
+}
 
 const REPORT_PREFACE =
   "Burada yazan tüm yazı ve düşünceler yatırım tavsiyesi niteliğinde olmayıp sadece Dr. Hakan Ünsal'ın kişisel görüşlerini yansıtmaktadır. Ayrıca yapay zeka çıktısı da yine Dr. Hakan Ünsal'ın eğittiği bir yapay zeka ajanı olduğu dikkate alınmalıdır. Yapay zeka hata yapabilir, buradaki bazı değerler gecikmeli olabilir ve bir başka kaynaktan da doğrulamakta her zaman fayda vardır.";

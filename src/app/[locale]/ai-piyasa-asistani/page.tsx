@@ -1,10 +1,18 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { MarketAssistantDashboard } from "@/components/ai-market/MarketAssistantDashboard";
 import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { AI_MARKET_SYMBOLS } from "@/lib/ai-market/symbols";
 import { prisma } from "@/lib/prisma";
+import { buildPageMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/ai-piyasa-asistani", page: "ai" });
+}
 
 export default async function AiMarketAssistantPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
@@ -14,6 +22,7 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
   const guidance = getAiGuidance(locale);
   const commandMetrics = getCommandMetrics(locale);
   const reportSlots = getReportSlots(locale);
+  const decisionCards = getDecisionCards(locale);
   const user = await getSessionUser();
   const latestReport = await prisma.aiMarketReport.findFirst({
     where: user ? { OR: [{ userId: user.id }, { scope: "GLOBAL" }] } : { scope: "GLOBAL" },
@@ -48,6 +57,15 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
               <div key={item.title} className="ai-guide-card rounded-2xl border border-white/10 bg-white/6 p-4">
                 <p className="ai-guide-card-title text-sm font-black text-white">{item.title}</p>
                 <p className="ai-guide-card-body mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+              </div>
+            ))}
+          </div>
+          <div className="ai-decision-strip mt-5 grid gap-3 md:grid-cols-3">
+            {decisionCards.map((item) => (
+              <div key={item.title} className="ai-decision-card rounded-2xl p-4">
+                <span className="ai-decision-index">{item.index}</span>
+                <p className="mt-3 text-sm font-black text-white">{item.title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
               </div>
             ))}
           </div>
@@ -108,6 +126,46 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
       <MarketAssistantDashboard locale={locale} symbols={AI_MARKET_SYMBOLS} />
     </div>
   );
+}
+
+function getDecisionCards(locale: string) {
+  if (locale === "en") {
+    return [
+      {
+        index: "01",
+        title: "Signal is not an order",
+        body: "Buy/sell labels are learning cues. Confirm them with trend, volume, risk, and macro context.",
+      },
+      {
+        index: "02",
+        title: "Favorites get deeper context",
+        body: "Assets you follow are interpreted one by one in macro reports and terminal summaries.",
+      },
+      {
+        index: "03",
+        title: "Discuss before deciding",
+        body: "Use the output to ask better questions inside your league, not to outsource judgement.",
+      },
+    ] as const;
+  }
+
+  return [
+    {
+      index: "01",
+      title: "Sinyal emir değildir",
+      body: "AL/SAT etiketleri öğrenme ipucudur. Trend, hacim, risk ve makro bağlamla doğrula.",
+    },
+    {
+      index: "02",
+      title: "Favoriler daha derin okunur",
+      body: "Takip ettiğin varlıklar makro raporlarda ve terminal özetlerinde tek tek yorumlanır.",
+    },
+    {
+      index: "03",
+      title: "Karardan önce tartış",
+      body: "Çıktıyı karar devretmek için değil, lig içinde daha iyi sorular sormak için kullan.",
+    },
+  ] as const;
 }
 
 function getCommandMetrics(locale: string) {

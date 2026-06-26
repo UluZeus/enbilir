@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { randomUUID } from "crypto";
+import type { Metadata } from "next";
 import { AdBanner } from "@/components/AdBanner";
 import { FormMessage } from "@/components/FormMessage";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
@@ -12,6 +13,7 @@ import { tradeAction, updateCashModeAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
 import { getFallbackMarketItems, getLiveMarketItems } from "@/lib/live-market";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
+import { buildPageMetadata } from "@/lib/seo";
 import type { DisplayAd } from "@/lib/ads";
 import type { MarketItem } from "@/lib/market-data";
 
@@ -31,6 +33,12 @@ const tradeCategories: TradeCategory[] = [
   "EUROBOND",
   "INDEX",
 ];
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/islem-yap", page: "trade" });
+}
 
 function getInitialTradeCategory(value: string | undefined): TradeCategory {
   return tradeCategories.includes(value as TradeCategory) ? value as TradeCategory : "ALL";
