@@ -234,7 +234,9 @@ function CommunityRow({
           {initials(row.displayName)}
         </div>
         <div className="min-w-0">
-          <p className="truncate font-black text-[#152033]">{row.displayName}</p>
+          <Link href={`/${locale}/topluluk/${row.user.id}`} className="truncate font-black text-[#152033] hover:text-[#0f766e]">
+            {row.displayName}
+          </Link>
           <p className="mt-1 text-xs text-slate-500">
             {row.displayName === row.realName ? copy.realNameSaved : row.realName}
             {isSelf ? ` · ${getUiCopy(getSafeLocale(locale)).common.you}` : ""}

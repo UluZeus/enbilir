@@ -36,6 +36,15 @@ type SourcePayload = {
   technicalSeries?: TechnicalSeries;
 };
 
+type ReportAssetSummary = {
+  displayName: string;
+  assetClass: string;
+  category: string | null;
+  changePercent: number | null;
+  riskScore: number | null;
+  signalType: string | null;
+};
+
 function toStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
@@ -81,6 +90,44 @@ function formatSignal(value: string | null, locale = "tr") {
   };
 
   return value ? labels[locale === "en" ? "en" : "tr"][value] ?? value : "-";
+}
+
+function getReportDashboardStats(assets: ReportAssetSummary[]) {
+  const riskValues = assets
+    .map((asset) => asset.riskScore)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const averageRisk = riskValues.length > 0 ? Math.round(riskValues.reduce((sum, value) => sum + value, 0) / riskValues.length) : 0;
+  const signalCounts = assets.reduce<Record<string, number>>((acc, asset) => {
+    const signal = asset.signalType ?? "NO_SIGNAL";
+    acc[signal] = (acc[signal] ?? 0) + 1;
+    return acc;
+  }, {});
+  const heatmap = Object.values(
+    assets.reduce<Record<string, { label: string; count: number; averageChange: number; risk: number }>>((acc, asset) => {
+      const label = asset.category ?? asset.assetClass ?? "Other";
+      const existing = acc[label] ?? { label, count: 0, averageChange: 0, risk: 0 };
+      const change = typeof asset.changePercent === "number" && Number.isFinite(asset.changePercent) ? asset.changePercent : 0;
+      const risk = typeof asset.riskScore === "number" && Number.isFinite(asset.riskScore) ? asset.riskScore : 0;
+
+      acc[label] = {
+        label,
+        count: existing.count + 1,
+        averageChange: existing.averageChange + change,
+        risk: existing.risk + risk,
+      };
+      return acc;
+    }, {}),
+  ).map((item) => ({
+    ...item,
+    averageChange: item.count > 0 ? item.averageChange / item.count : 0,
+    risk: item.count > 0 ? item.risk / item.count : 0,
+  }));
+  const topRiskAssets = [...assets]
+    .filter((asset) => typeof asset.riskScore === "number")
+    .sort((a, b) => (b.riskScore ?? 0) - (a.riskScore ?? 0))
+    .slice(0, 3);
+
+  return { averageRisk, signalCounts, heatmap, topRiskAssets };
 }
 
 function readSourcePayload(value: unknown): SourcePayload {
@@ -268,6 +315,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   const requiredCoverage = toStringArray(report.requiredCoverage);
   const chartAssets = report.assets.filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length).slice(0, 6);
   const isEnglish = locale === "en";
+  const dashboardStats = getReportDashboardStats(report.assets);
 
   if (isEnglish) {
     return (
@@ -325,6 +373,8 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
                 </p>
               </div>
             ) : null}
+
+            <ReportVisualDashboard locale="en" stats={dashboardStats} riskAppetite={report.riskAppetite} marketRegime={report.marketRegime} />
 
             {requiredCoverage.length > 0 ? (
               <div className="mt-5 rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
@@ -449,6 +499,8 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
           <div className="screen-only mt-5 rounded-[1.15rem] border border-[#d1bfa7]/40 bg-[#fffaf6]/82 p-4 text-sm leading-7 text-[#49494b]">
             {REPORT_PREFACE.tr}
           </div>
+
+          <ReportVisualDashboard locale="tr" stats={dashboardStats} riskAppetite={report.riskAppetite} marketRegime={report.marketRegime} />
 
           <div className="print-grid mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="report-screen-card print-section rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
@@ -604,6 +656,95 @@ function Comment({ title, body }: { title: string; body: string }) {
       <p className="print-label text-[10px] font-black uppercase tracking-[0.14em] text-[#0f766e]">{title}</p>
       <p className="print-body mt-1 text-sm leading-6 text-slate-700">{body}</p>
     </div>
+  );
+}
+
+function ReportVisualDashboard({
+  locale,
+  stats,
+  riskAppetite,
+  marketRegime,
+}: {
+  locale: "tr" | "en";
+  stats: ReturnType<typeof getReportDashboardStats>;
+  riskAppetite: string | null;
+  marketRegime: string | null;
+}) {
+  const isEnglish = locale === "en";
+  const riskTone = stats.averageRisk >= 70 ? "bg-red-50 text-red-700 border-red-200" : stats.averageRisk >= 45 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
+  const signalEntries = Object.entries(stats.signalCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  return (
+    <section className="report-visual-dashboard screen-only mt-5 rounded-[1.25rem] border border-slate-200 bg-white/86 p-4 shadow-sm">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
+            {isEnglish ? "Visual report dashboard" : "Görsel rapor paneli"}
+          </p>
+          <h2 className="mt-1 text-2xl font-black text-[#111827]">
+            {isEnglish ? "Risk, regime, signals, and asset heatmap" : "Risk, rejim, sinyal ve varlık ısı haritası"}
+          </h2>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-sm font-black ${riskTone}`}>
+          {isEnglish ? "Avg risk" : "Ort. risk"}: {stats.averageRisk}/100
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{isEnglish ? "Market frame" : "Piyasa çerçevesi"}</p>
+          <p className="mt-3 text-lg font-black text-[#152033]">{marketRegime ?? (isEnglish ? "Not labeled" : "Etiket yok")}</p>
+          <p className="mt-2 text-sm font-semibold text-slate-600">{riskAppetite ?? (isEnglish ? "Risk appetite not labeled" : "Risk iştahı etiketi yok")}</p>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
+            <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, Math.max(0, stats.averageRisk))}%` }} />
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{isEnglish ? "Signal distribution" : "Sinyal dağılımı"}</p>
+            <div className="mt-3 grid gap-2">
+              {signalEntries.map(([signal, count]) => (
+                <div key={signal} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <span className="text-xs font-black text-slate-700">{formatSignal(signal === "NO_SIGNAL" ? null : signal, locale)}</span>
+                  <span className="rounded-full bg-[#101827] px-2 py-1 text-xs font-black text-white">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{isEnglish ? "Highest risk notes" : "En yüksek risk notları"}</p>
+            <div className="mt-3 grid gap-2">
+              {stats.topRiskAssets.map((asset) => (
+                <div key={asset.displayName} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-black text-[#152033]">{asset.displayName}</p>
+                    <p className="shrink-0 text-xs font-black text-red-700">{asset.riskScore}/100</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {stats.heatmap.slice(0, 8).map((item) => {
+          const tone = item.averageChange >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800";
+
+          return (
+            <div key={item.label} className={`rounded-2xl border p-3 ${tone}`}>
+              <p className="text-xs font-black uppercase tracking-[0.12em] opacity-75">{item.label}</p>
+              <p className="mt-2 text-lg font-black">{formatPercent(item.averageChange)}</p>
+              <p className="mt-1 text-xs font-bold opacity-80">
+                {item.count} {isEnglish ? "assets" : "varlık"} · {isEnglish ? "risk" : "risk"} {Math.round(item.risk)}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

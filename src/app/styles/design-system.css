@@ -1,0 +1,116 @@
+/* Enbilir product design system: shared interaction, state, and surface standards. */
+:root {
+  --ds-radius-sm: 0.5rem;
+  --ds-radius-md: 0.75rem;
+  --ds-radius-lg: 1rem;
+  --ds-radius-xl: 1.25rem;
+  --ds-focus: #0f766e;
+  --ds-surface: rgb(255 250 246 / 90%);
+  --ds-border: rgb(209 191 167 / 34%);
+  --ds-ink: #152033;
+  --ds-muted: #64748b;
+  --ds-positive: #047857;
+  --ds-warning: #b45309;
+  --ds-negative: #dc2626;
+}
+
+.visual-shell :where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid rgb(15 118 110 / 32%);
+  outline-offset: 3px;
+}
+
+.ds-product-surface {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-xl);
+  background:
+    radial-gradient(circle at 92% 0%, rgb(15 118 110 / 8%), transparent 30%),
+    linear-gradient(145deg, rgb(255 250 246 / 96%), rgb(246 241 237 / 86%));
+  box-shadow:
+    0 22px 62px rgb(73 73 75 / 10%),
+    inset 0 1px 0 rgb(255 255 255 / 64%);
+}
+
+.ds-data-surface {
+  border: 1px solid rgb(15 23 42 / 12%);
+  border-radius: var(--ds-radius-lg);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 88%), rgb(248 250 252 / 84%)),
+    #fff;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 8%);
+}
+
+.ds-state-card {
+  border: 1px dashed rgb(148 163 184 / 55%);
+  border-radius: var(--ds-radius-lg);
+  background: rgb(255 255 255 / 72%);
+  padding: 1rem;
+  color: var(--ds-muted);
+}
+
+.ds-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ds-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  border: 1px solid rgb(226 232 240 / 90%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 78%);
+  padding: 0.25rem 0.75rem;
+  color: var(--ds-ink);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.ds-chip--positive {
+  border-color: rgb(167 243 208 / 90%);
+  background: #ecfdf5;
+  color: var(--ds-positive);
+}
+
+.ds-chip--warning {
+  border-color: rgb(253 230 138 / 90%);
+  background: #fffbeb;
+  color: var(--ds-warning);
+}
+
+.ds-chip--negative {
+  border-color: rgb(254 202 202 / 90%);
+  background: #fef2f2;
+  color: var(--ds-negative);
+}
+
+.ds-micro-lift {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 220ms ease,
+    background-color 180ms ease;
+}
+
+.ds-micro-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgb(73 73 75 / 12%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-micro-lift,
+  .premium-card,
+  a,
+  button {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .ds-micro-lift:hover,
+  .premium-card--interactive:hover,
+  a:hover,
+  button:hover {
+    transform: none !important;
+  }
+}

@@ -18,7 +18,8 @@ import { getCompetitionRankingsForUser } from "@/lib/competition-periods";
 import { getFriendDashboard } from "@/lib/friends";
 import { getUserLeagues, leagueTypes } from "@/lib/leagues";
 import { getMembershipLabel, getMembershipSnapshot, membershipConfig } from "@/lib/membership";
-import { formatMoney } from "@/lib/portfolio";
+import { calculatePortfolioHealth } from "@/lib/portfolio-health";
+import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -200,6 +201,7 @@ export default async function DashboardPage({
     reportReadCount,
     membershipUser,
     latestTrades,
+    portfolioSnapshot,
   ] = await Promise.all([
     getFriendDashboard(user.id),
     getUserLeagues(user.id),
@@ -228,6 +230,7 @@ export default async function DashboardPage({
         createdAt: true,
       },
     }),
+    getPortfolioSnapshot(user.id),
   ]);
   const membership = membershipUser ? getMembershipSnapshot(membershipUser) : null;
   const ownedLeague = userLeagues.find((membership) => membership.role === "OWNER");
@@ -264,6 +267,18 @@ export default async function DashboardPage({
     reportReadCount,
     leagueCount: userLeagues.length,
     earnedBadges,
+  });
+  const portfolioHealth = calculatePortfolioHealth({
+    snapshot: portfolioSnapshot,
+    tradeCount,
+    tradeNoteCount,
+  });
+  const todayActions = getTodayActions(locale, {
+    portfolioHealthScore: portfolioHealth.score,
+    hasTradeNote: tradeNoteCount > 0,
+    hasLeague: userLeagues.length > 0,
+    hasReportRead: reportReadCount > 0,
+    concentrationRatio: portfolioHealth.concentrationRatio,
   });
 
   return (
@@ -443,6 +458,74 @@ export default async function DashboardPage({
               <p className="mt-2 text-sm leading-6 text-slate-600">{mission.body}</p>
             </Link>
           ))}
+        </div>
+      </section>
+
+      <section className="panel-today-command premium-card p-6">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
+              {locale === "tr" ? "Bugün ne yapmalıyım?" : "What should I do today?"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">
+              {locale === "tr" ? "Günün akışı portföy sağlık skoruna ve öğrenme davranışına göre önerilir." : "Today's flow is suggested from portfolio health and learning behavior."}
+            </h2>
+            <p className="mt-2 max-w-4xl text-sm leading-7 text-slate-600">
+              {locale === "tr"
+                ? "Bu alan yatırım tavsiyesi vermez; sadece platformu daha disiplinli kullanman için sıradaki öğrenme adımlarını gösterir."
+                : "This area does not provide investment advice; it only shows the next learning steps for using the platform more deliberately."}
+            </p>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {todayActions.map((action) => (
+                <Link key={action.title} href={action.href} className="rounded-2xl border border-[#d1bfa7]/40 bg-white/78 p-4 hover:border-[#0f766e]/45">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">{action.kicker}</p>
+                  <h3 className="mt-2 text-base font-black text-[#152033]">{action.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{action.body}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <aside className="portfolio-health-card rounded-2xl border border-[#0f766e]/25 bg-emerald-50 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
+                  {locale === "tr" ? "Portföy sağlık skoru" : "Portfolio health score"}
+                </p>
+                <p className="mt-2 text-5xl font-black text-[#0f766e]">{portfolioHealth.score}</p>
+              </div>
+              <span className="rounded-full border border-[#0f766e]/25 bg-white px-3 py-1 text-sm font-black text-[#0f766e]">
+                {portfolioHealth.grade}
+              </span>
+            </div>
+            <p className="mt-2 text-sm font-black text-[#152033]">
+              {locale === "tr" ? portfolioHealth.riskLabelTr : portfolioHealth.riskLabelEn}
+            </p>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
+              <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${portfolioHealth.score}%` }} />
+            </div>
+            <div className="mt-4 grid gap-2 text-xs font-bold text-slate-700">
+              <div className="flex justify-between gap-3">
+                <span>{locale === "tr" ? "Nakit oranı" : "Cash ratio"}</span>
+                <span>{Math.round(portfolioHealth.cashRatio * 100)}%</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>{locale === "tr" ? "En büyük varlık" : "Largest asset"}</span>
+                <span>{Math.round(portfolioHealth.concentrationRatio * 100)}%</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>{locale === "tr" ? "Not oranı" : "Note ratio"}</span>
+                <span>{Math.round(portfolioHealth.noteRatio * 100)}%</span>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {(locale === "tr" ? portfolioHealth.highlightsTr : portfolioHealth.highlightsEn).slice(0, 3).map((highlight) => (
+                <p key={highlight} className="rounded-xl border border-emerald-200 bg-white/75 px-3 py-2 text-xs font-semibold leading-5 text-slate-700">
+                  {highlight}
+                </p>
+              ))}
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -1001,5 +1084,128 @@ function getWeeklyMissions(
       href: "/tr/panel#league-system",
       done: state.earnedBadges > 1,
     },
+  ];
+}
+
+function getTodayActions(
+  locale: "tr" | "en",
+  state: {
+    portfolioHealthScore: number;
+    hasTradeNote: boolean;
+    hasLeague: boolean;
+    hasReportRead: boolean;
+    concentrationRatio: number;
+  },
+) {
+  if (locale === "en") {
+    return [
+      state.portfolioHealthScore < 66
+        ? {
+            kicker: "Health",
+            title: "Review portfolio balance",
+            body: "Your health score suggests checking cash, diversification, and concentration before adding risk.",
+            href: "/en/islem-yap",
+          }
+        : {
+            kicker: "Health",
+            title: "Keep the discipline",
+            body: "Portfolio health is acceptable; review whether the current balance still matches your learning plan.",
+            href: "/en/panel",
+          },
+      !state.hasTradeNote
+        ? {
+            kicker: "Journal",
+            title: "Write your first decision reason",
+            body: "A short note turns the next virtual trade into a reviewable learning moment.",
+            href: "/en/islem-yap",
+          }
+        : {
+            kicker: "Journal",
+            title: "Re-read a past decision",
+            body: "Open your journal and compare your original reason with what happened afterward.",
+            href: "/en/panel",
+          },
+      !state.hasReportRead
+        ? {
+            kicker: "Macro",
+            title: "Read today's macro report",
+            body: "Use the report before looking at single-asset movement.",
+            href: "/en/ai-piyasa-asistani/raporlar",
+          }
+        : {
+            kicker: "AI",
+            title: "Run a scenario question",
+            body: "Ask what would invalidate one of your current views.",
+            href: "/en/ai-piyasa-asistani",
+          },
+      !state.hasLeague
+        ? {
+            kicker: "Community",
+            title: "Join a league",
+            body: "A league adds rhythm and accountability to learning.",
+            href: "/en/ligler",
+          }
+        : {
+            kicker: "Concentration",
+            title: state.concentrationRatio > 0.42 ? "Check single-asset weight" : "Compare with your league",
+            body: state.concentrationRatio > 0.42 ? "One position may dominate the portfolio behavior." : "Use league rhythm to compare process, not only result.",
+            href: state.concentrationRatio > 0.42 ? "/en/islem-yap" : "/en/ligler",
+          },
+    ];
+  }
+
+  return [
+    state.portfolioHealthScore < 66
+      ? {
+          kicker: "Sağlık",
+          title: "Portföy dengesini gözden geçir",
+          body: "Sağlık skoru, yeni risk eklemeden önce nakit, çeşitlendirme ve yoğunlaşmayı kontrol etmeni öneriyor.",
+          href: "/tr/islem-yap",
+        }
+      : {
+          kicker: "Sağlık",
+          title: "Disiplini koru",
+          body: "Portföy sağlığı kabul edilebilir; mevcut dengenin öğrenme planınla uyumunu gözden geçir.",
+          href: "/tr/panel",
+        },
+    !state.hasTradeNote
+      ? {
+          kicker: "Günlük",
+          title: "İlk karar gerekçeni yaz",
+          body: "Kısa bir not, sonraki sanal işlemi incelenebilir öğrenme anına dönüştürür.",
+          href: "/tr/islem-yap",
+        }
+      : {
+          kicker: "Günlük",
+          title: "Geçmiş bir kararı yeniden oku",
+          body: "İşlem günlüğünde ilk gerekçenle sonrasında olanları karşılaştır.",
+          href: "/tr/panel",
+        },
+    !state.hasReportRead
+      ? {
+          kicker: "Makro",
+          title: "Bugünkü makro raporu oku",
+          body: "Tek varlık hareketine bakmadan önce raporu piyasa çerçevesi olarak kullan.",
+          href: "/tr/ai-piyasa-asistani/raporlar",
+        }
+      : {
+          kicker: "AI",
+          title: "Bir senaryo sorusu çalıştır",
+          body: "Mevcut görüşlerinden birini hangi şartta geçersiz sayacağını AI'a sor.",
+          href: "/tr/ai-piyasa-asistani",
+        },
+    !state.hasLeague
+      ? {
+          kicker: "Topluluk",
+          title: "Bir lige katıl",
+          body: "Lig, öğrenmeye ritim ve sorumluluk duygusu ekler.",
+          href: "/tr/ligler",
+        }
+      : {
+          kicker: "Yoğunlaşma",
+          title: state.concentrationRatio > 0.42 ? "Tek varlık ağırlığını kontrol et" : "Liginle karşılaştır",
+          body: state.concentrationRatio > 0.42 ? "Bir pozisyon portföy davranışını fazla belirliyor olabilir." : "Lig ritmini sadece sonuç değil süreç karşılaştırması için kullan.",
+          href: state.concentrationRatio > 0.42 ? "/tr/islem-yap" : "/tr/ligler",
+        },
   ];
 }

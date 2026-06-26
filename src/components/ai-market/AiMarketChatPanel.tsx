@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSafeLocale, type Locale } from "@/i18n/config";
 
 type AiMarketChatPanelProps = {
@@ -23,6 +23,31 @@ type ChatSource = {
   label: string;
   value: string;
 };
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: { transcript: string };
+  }>;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 type ChatResponse = {
   answer?: string;
@@ -73,6 +98,14 @@ const copy = {
     standardPay: "70 TL katkı linki",
     vipPay: "100 TL VIP linki",
     note: "Sohbet, Enbilir içindeki canlı/cache veriyi yorumlar; dış haber veya yatırım emri üretmez.",
+    voiceTitle: "Sesli AI sohbet",
+    voiceStart: "Mikrofonla sor",
+    voiceStop: "Durdur",
+    voiceListening: "Dinliyorum...",
+    voiceUnsupported: "Bu tarayıcı ses tanımayı desteklemiyor. Chrome veya Edge ile deneyin; daha kurumsal çözüm için ayrıca bir konuşma tanıma servisi bağlanabilir.",
+    voiceSpeakOn: "Sesli yanıt açık",
+    voiceSpeakOff: "Sesli yanıt kapalı",
+    voiceReplay: "Son yanıtı oku",
   },
   en: {
     kicker: "Live data chat",
@@ -98,6 +131,14 @@ const copy = {
     standardPay: "70 TL contribution link",
     vipPay: "100 TL VIP link",
     note: "The chat interprets Enbilir live/cache data only; it does not create external news or trade orders.",
+    voiceTitle: "Voice AI chat",
+    voiceStart: "Ask by voice",
+    voiceStop: "Stop",
+    voiceListening: "Listening...",
+    voiceUnsupported: "This browser does not support speech recognition. Try Chrome or Edge; for a more enterprise-grade solution, a speech-to-text service can be connected.",
+    voiceSpeakOn: "Voice answer on",
+    voiceSpeakOff: "Voice answer off",
+    voiceReplay: "Read last answer",
   },
 } as const;
 
@@ -107,6 +148,19 @@ function newId(prefix: string) {
 
 function formatMessage(content: string) {
   return content.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
+}
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const speechWindow = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
 }
 
 export function AiMarketChatPanel({
@@ -128,7 +182,23 @@ export function AiMarketChatPanel({
   const [sources, setSources] = useState<ChatSource[]>([]);
   const [mode, setMode] = useState<"openai" | "local" | null>(null);
   const [effectiveTier, setEffectiveTier] = useState<"STANDARD" | "VIP">(membershipTier);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [speakAnswers, setSpeakAnswers] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [lastAnswer, setLastAnswer] = useState("");
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setVoiceSupported(Boolean(getSpeechRecognitionConstructor()));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const history = useMemo(
     () => messages
@@ -138,7 +208,23 @@ export function AiMarketChatPanel({
     [messages],
   );
 
-  async function ask(question: string) {
+  function speak(textToRead: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || !textToRead.trim()) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(textToRead);
+    utterance.lang = safeLocale === "tr" ? "tr-TR" : "en-US";
+    utterance.rate = 0.96;
+    utterance.pitch = 1;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  async function ask(question: string, options?: { speakAnswer?: boolean }) {
     const cleanQuestion = question.replace(/\s+/g, " ").trim();
 
     if (!cleanQuestion || isSending) {
@@ -165,9 +251,13 @@ export function AiMarketChatPanel({
       }
 
       setMessages((current) => [...current, { id: newId("assistant"), role: "assistant", content: payload.answer ?? "" }]);
+      setLastAnswer(payload.answer ?? "");
       setSources(payload.sources ?? []);
       setMode(payload.mode ?? null);
       setEffectiveTier(payload.membership ?? membershipTier);
+      if (options?.speakAnswer && speakAnswers) {
+        speak(payload.answer ?? "");
+      }
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : text.failure;
       setError(message);
@@ -181,6 +271,58 @@ export function AiMarketChatPanel({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void ask(input);
+  }
+
+  function startVoiceQuestion() {
+    const Recognition = getSpeechRecognitionConstructor();
+
+    if (!Recognition) {
+      setVoiceError(text.voiceUnsupported);
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    setVoiceError(null);
+    setVoiceTranscript("");
+    const recognition = new Recognition();
+    recognition.lang = safeLocale === "tr" ? "tr-TR" : "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      let transcript = "";
+      let finalTranscript = "";
+
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        transcript += result[0]?.transcript ?? "";
+        if (result.isFinal) {
+          finalTranscript += result[0]?.transcript ?? "";
+        }
+      }
+
+      const cleanTranscript = transcript.trim();
+      setVoiceTranscript(cleanTranscript);
+      setInput(cleanTranscript);
+
+      if (finalTranscript.trim()) {
+        recognition.stop();
+        setIsListening(false);
+        void ask(finalTranscript.trim(), { speakAnswer: true });
+      }
+    };
+    recognition.onerror = (event) => {
+      setVoiceError(event.error ? `${text.failure} (${event.error})` : text.failure);
+      setIsListening(false);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
   }
 
   return (
@@ -240,6 +382,47 @@ export function AiMarketChatPanel({
             </button>
           </form>
           {error ? <p className="mt-2 text-xs font-bold text-rose-200">{error}</p> : null}
+          <div className="mt-3 rounded-md border border-cyan-300/16 bg-cyan-300/8 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">{text.voiceTitle}</p>
+              <button
+                type="button"
+                onClick={() => setSpeakAnswers((current) => !current)}
+                className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-black text-white hover:bg-white/15"
+              >
+                {speakAnswers ? text.voiceSpeakOn : text.voiceSpeakOff}
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={startVoiceQuestion}
+                disabled={!voiceSupported || isSending}
+                className={`rounded-md px-4 py-2 text-sm font-black ${
+                  isListening
+                    ? "border border-rose-200 bg-rose-100 text-rose-800"
+                    : "border border-cyan-200 bg-cyan-100 text-slate-950"
+                } disabled:cursor-not-allowed disabled:opacity-55`}
+              >
+                {isListening ? text.voiceStop : text.voiceStart}
+              </button>
+              <button
+                type="button"
+                onClick={() => speak(lastAnswer)}
+                disabled={!lastAnswer || isSpeaking}
+                className="rounded-md border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {isSpeaking ? "..." : text.voiceReplay}
+              </button>
+            </div>
+            {isListening ? <p className="mt-2 text-xs font-bold text-cyan-100">{text.voiceListening}</p> : null}
+            {voiceTranscript ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-200">{voiceTranscript}</p> : null}
+            {voiceError || !voiceSupported ? (
+              <p className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-5 text-amber-100">
+                {voiceError ?? text.voiceUnsupported}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <aside className="grid content-start gap-3 rounded-md border border-slate-800 bg-slate-950/45 p-3">
