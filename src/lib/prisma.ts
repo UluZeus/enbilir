@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260626223000_add_chat_attachments_and_polls";
+const prismaSchemaVersion = "20260626233000_add_membership_tiers";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;

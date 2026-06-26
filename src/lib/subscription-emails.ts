@@ -1,18 +1,25 @@
 import { sendEmail } from "@/lib/email";
+import { addMembershipDays, formatTryAmount, membershipConfig } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
 
-const PAYMENT_LINK = "https://isyerim.param.com.tr/#/paymentform/paymentrequest/boqGRDE32";
-const TRIAL_DAYS = 30;
-const TRIAL_REMINDER_DAYS_BEFORE_END = 7;
+const STANDARD_PAYMENT_LINK = membershipConfig.standardPaymentLink;
+const VIP_PAYMENT_LINK = membershipConfig.vipPaymentLink;
+const TRIAL_DAYS = membershipConfig.trialDays;
+const TRIAL_REMINDER_DAYS_BEFORE_END = membershipConfig.trialReminderDaysBeforeEnd;
 const TRIAL_REMINDER_AFTER_DAYS = TRIAL_DAYS - TRIAL_REMINDER_DAYS_BEFORE_END;
 const ISTANBUL_TIME_ZONE = "Europe/Istanbul";
 
 const PAYMENT_EXPLANATION =
-  "Bu 50 TL.'lik abonelik bedeli yapay zeka sorgulamaları için her sorgu başına yapay zeka şirketlerine yapılan ödemelerin bir bölümü karşılamak için sizden talep edilmektedir ve gönüllülük esasına bağlıdır. Ödemeyi yapmazsanız da aboneliğiniz finansal açıdan beni zor duruma düşürmediği sürece devam edecektir.";
+  `Standart üyelikte ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} aylık katkı gönüllülük esasına bağlıdır. Bu katkı, sitedeki canlı/cache piyasa verisi ve standart AI sohbet altyapısının maliyetini karşılamaya destek olur; ödeme yapılmasa da standart kullanımınız, site sürdürülebilirliği izin verdiği sürece devam eder.`;
+
+const VIP_PAYMENT_EXPLANATION =
+  `VIP üyelik aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} olarak kurgulanmıştır. VIP üyelikte AI Asistan, sitedeki canlı/cache veriye ek olarak ücretsiz erişilebilen public haber/veri kaynaklarından derlenen bağlamla daha üst seviye piyasa okuması sunar. VIP ödeme yenilenmezse üyelik standart seviyeye döner.`;
 
 const emailTypes = {
   trialEndingReminder: "TRIAL_ENDING_REMINDER",
   monthlyPaymentRequest: "MONTHLY_PAYMENT_REQUEST",
+  vipPaymentReminder: "VIP_PAYMENT_REMINDER",
+  vipDowngradeNotice: "VIP_DOWNGRADE_NOTICE",
 } as const;
 
 type SubscriptionEmailType = (typeof emailTypes)[keyof typeof emailTypes];
@@ -29,6 +36,7 @@ type DueEmail = {
   periodKey: string;
   recipient: Recipient;
   trialEndsAt?: Date;
+  vipPaidUntil?: Date;
 };
 
 type RunSubscriptionEmailJobInput = {
@@ -37,12 +45,6 @@ type RunSubscriptionEmailJobInput = {
   limit?: number;
   testEmail?: string;
 };
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
 
 function getIstanbulMonthKey(date: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -104,12 +106,25 @@ function buildMailShell({ title, eyebrow, bodyHtml }: { title: string; eyebrow: 
 function buildPaymentButton() {
   return `
     <p style="margin:22px 0;">
-      <a href="${PAYMENT_LINK}" style="display:inline-block;border-radius:14px;background:#bd8c7d;color:#ffffff;text-decoration:none;padding:14px 22px;font-weight:900;font-size:15px;">
-        50 TL Abonelik Ödemesi Yap
+      <a href="${STANDARD_PAYMENT_LINK}" style="display:inline-block;border-radius:14px;background:#bd8c7d;color:#ffffff;text-decoration:none;padding:14px 22px;font-weight:900;font-size:15px;">
+        ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} Standart Katkı Ödemesi Yap
       </a>
     </p>
     <p style="margin:0 0 18px 0;font-size:13px;line-height:1.7;color:#64748b;word-break:break-all;">
-      Ödeme linki: <a href="${PAYMENT_LINK}" style="color:#0f766e;">${PAYMENT_LINK}</a>
+      Ödeme linki: <a href="${STANDARD_PAYMENT_LINK}" style="color:#0f766e;">${STANDARD_PAYMENT_LINK}</a>
+    </p>
+  `;
+}
+
+function buildVipPaymentButton() {
+  return `
+    <p style="margin:22px 0;">
+      <a href="${VIP_PAYMENT_LINK}" style="display:inline-block;border-radius:14px;background:#0f766e;color:#ffffff;text-decoration:none;padding:14px 22px;font-weight:900;font-size:15px;">
+        ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} VIP Üyelik Ödemesi Yap
+      </a>
+    </p>
+    <p style="margin:0 0 18px 0;font-size:13px;line-height:1.7;color:#64748b;word-break:break-all;">
+      VIP ödeme linki: <a href="${VIP_PAYMENT_LINK}" style="color:#0f766e;">${VIP_PAYMENT_LINK}</a>
     </p>
   `;
 }
@@ -124,11 +139,16 @@ function buildTrialEndingReminderEmail(recipient: Recipient, trialEndsAt: Date) 
     "",
     `Enbilir'deki 30 günlük ücretsiz kullanım süreniz yaklaşık bir hafta sonra, ${trialEndLabel} tarihinde sona erecek.`,
     "",
-    "Dilerseniz kullanımınızı aylık 50 TL gönüllü abonelik katkısıyla sürdürebilirsiniz.",
+    `Dilerseniz kullanımınızı aylık ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} gönüllü abonelik katkısıyla sürdürebilirsiniz.`,
+    "",
+    `VIP üyelik isterseniz aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} ile daha üst seviye AI Asistan hizmetine geçebilirsiniz.`,
     "",
     PAYMENT_EXPLANATION,
     "",
-    `Ödeme linki: ${PAYMENT_LINK}`,
+    VIP_PAYMENT_EXPLANATION,
+    "",
+    `Standart ödeme linki: ${STANDARD_PAYMENT_LINK}`,
+    `VIP ödeme linki: ${VIP_PAYMENT_LINK}`,
     "",
     "Saygılarımla,",
     "Dr. Hakan Ünsal",
@@ -143,12 +163,19 @@ function buildTrialEndingReminderEmail(recipient: Recipient, trialEndsAt: Date) 
         Enbilir'deki 30 günlük ücretsiz kullanım süreniz yaklaşık bir hafta sonra, <strong>${escapeHtml(trialEndLabel)}</strong> tarihinde sona erecek.
       </p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        Dilerseniz kullanımınızı aylık <strong>50 TL</strong> gönüllü abonelik katkısıyla sürdürebilirsiniz.
+        Dilerseniz kullanımınızı aylık <strong>${formatTryAmount(membershipConfig.standardMonthlyAmountTry)}</strong> gönüllü abonelik katkısıyla sürdürebilirsiniz.
+      </p>
+      <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
+        Daha üst seviye AI Asistan isterseniz VIP üyelik aylık <strong>${formatTryAmount(membershipConfig.vipMonthlyAmountTry)}</strong> olarak devam eder.
       </p>
       <div style="margin:0 0 18px 0;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0;padding:16px;">
         <p style="margin:0;font-size:14px;line-height:1.8;color:#334155;">${escapeHtml(PAYMENT_EXPLANATION)}</p>
       </div>
       ${buildPaymentButton()}
+      <div style="margin:18px 0;border-radius:16px;background:#ecfdf5;border:1px solid #bbf7d0;padding:16px;">
+        <p style="margin:0;font-size:14px;line-height:1.8;color:#14532d;">${escapeHtml(VIP_PAYMENT_EXPLANATION)}</p>
+      </div>
+      ${buildVipPaymentButton()}
     `,
   });
 
@@ -162,11 +189,11 @@ function buildMonthlyPaymentRequestEmail(recipient: Recipient) {
   const text = [
     `Merhaba ${safeName},`,
     "",
-    "Enbilir kullanımınız için aylık 50 TL gönüllü abonelik yenileme hatırlatmasını paylaşıyoruz.",
+    `Enbilir standart kullanımınız için aylık ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} gönüllü abonelik yenileme hatırlatmasını paylaşıyoruz.`,
     "",
     PAYMENT_EXPLANATION,
     "",
-    `Ödeme linki: ${PAYMENT_LINK}`,
+    `Ödeme linki: ${STANDARD_PAYMENT_LINK}`,
     "",
     "Saygılarımla,",
     "Dr. Hakan Ünsal",
@@ -178,7 +205,7 @@ function buildMonthlyPaymentRequestEmail(recipient: Recipient) {
     bodyHtml: `
       <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;">Merhaba <strong>${escapedName}</strong>,</p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        Enbilir kullanımınız için aylık <strong>50 TL</strong> gönüllü abonelik yenileme hatırlatmasını paylaşıyoruz.
+        Enbilir standart kullanımınız için aylık <strong>${formatTryAmount(membershipConfig.standardMonthlyAmountTry)}</strong> gönüllü abonelik yenileme hatırlatmasını paylaşıyoruz.
       </p>
       <div style="margin:0 0 18px 0;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0;padding:16px;">
         <p style="margin:0;font-size:14px;line-height:1.8;color:#334155;">${escapeHtml(PAYMENT_EXPLANATION)}</p>
@@ -190,9 +217,94 @@ function buildMonthlyPaymentRequestEmail(recipient: Recipient) {
   return { subject, text, html };
 }
 
+function buildVipPaymentReminderEmail(recipient: Recipient, vipPaidUntil: Date) {
+  const safeName = recipient.name.trim() || "Değerli üyemiz";
+  const escapedName = escapeHtml(safeName);
+  const vipEndLabel = formatDateTr(vipPaidUntil);
+  const subject = "Enbilir VIP üyeliğinizin yenileme zamanı yaklaşıyor";
+  const text = [
+    `Merhaba ${safeName},`,
+    "",
+    `VIP üyeliğiniz ${vipEndLabel} tarihinde yenileme dönemine giriyor.`,
+    "",
+    VIP_PAYMENT_EXPLANATION,
+    "",
+    `VIP ödeme linki: ${VIP_PAYMENT_LINK}`,
+    "",
+    "Ödeme yenilenmezse VIP üyeliğiniz standart üyeliğe dönüşür; standart kullanımınız devam eder.",
+    "",
+    "Saygılarımla,",
+    "Dr. Hakan Ünsal",
+    "www.enbilir.com",
+  ].join("\n");
+  const html = buildMailShell({
+    eyebrow: "Enbilir VIP",
+    title: "VIP üyelik yenileme hatırlatması",
+    bodyHtml: `
+      <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;">Merhaba <strong>${escapedName}</strong>,</p>
+      <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
+        VIP üyeliğiniz <strong>${escapeHtml(vipEndLabel)}</strong> tarihinde yenileme dönemine giriyor.
+      </p>
+      <div style="margin:0 0 18px 0;border-radius:16px;background:#ecfdf5;border:1px solid #bbf7d0;padding:16px;">
+        <p style="margin:0;font-size:14px;line-height:1.8;color:#14532d;">${escapeHtml(VIP_PAYMENT_EXPLANATION)}</p>
+      </div>
+      ${buildVipPaymentButton()}
+      <p style="margin:0 0 16px 0;font-size:14px;line-height:1.8;color:#64748b;">
+        Ödeme yenilenmezse VIP üyeliğiniz standart üyeliğe dönüşür; standart kullanımınız devam eder.
+      </p>
+    `,
+  });
+
+  return { subject, text, html };
+}
+
+function buildVipDowngradeNoticeEmail(recipient: Recipient, vipPaidUntil: Date) {
+  const safeName = recipient.name.trim() || "Değerli üyemiz";
+  const escapedName = escapeHtml(safeName);
+  const vipEndLabel = formatDateTr(vipPaidUntil);
+  const subject = "Enbilir VIP üyeliğiniz standart üyeliğe döndü";
+  const text = [
+    `Merhaba ${safeName},`,
+    "",
+    `VIP ödeme döneminiz ${vipEndLabel} tarihinde sona erdiği için üyeliğiniz standart üyeliğe dönüştürüldü.`,
+    "",
+    "VIP hizmete devam etmek isterseniz ödeme linkinden yenileme yapabilirsiniz.",
+    "",
+    `VIP ödeme linki: ${VIP_PAYMENT_LINK}`,
+    "",
+    "Saygılarımla,",
+    "Dr. Hakan Ünsal",
+    "www.enbilir.com",
+  ].join("\n");
+  const html = buildMailShell({
+    eyebrow: "Enbilir VIP",
+    title: "VIP üyelik durumu",
+    bodyHtml: `
+      <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;">Merhaba <strong>${escapedName}</strong>,</p>
+      <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
+        VIP ödeme döneminiz <strong>${escapeHtml(vipEndLabel)}</strong> tarihinde sona erdiği için üyeliğiniz standart üyeliğe dönüştürüldü.
+      </p>
+      <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
+        VIP hizmete devam etmek isterseniz ödeme linkinden yenileme yapabilirsiniz.
+      </p>
+      ${buildVipPaymentButton()}
+    `,
+  });
+
+  return { subject, text, html };
+}
+
 function buildEmail(dueEmail: DueEmail) {
   if (dueEmail.type === emailTypes.trialEndingReminder) {
-    return buildTrialEndingReminderEmail(dueEmail.recipient, dueEmail.trialEndsAt ?? addDays(dueEmail.recipient.createdAt, TRIAL_DAYS));
+    return buildTrialEndingReminderEmail(dueEmail.recipient, dueEmail.trialEndsAt ?? addMembershipDays(dueEmail.recipient.createdAt, TRIAL_DAYS));
+  }
+
+  if (dueEmail.type === emailTypes.vipPaymentReminder) {
+    return buildVipPaymentReminderEmail(dueEmail.recipient, dueEmail.vipPaidUntil ?? new Date());
+  }
+
+  if (dueEmail.type === emailTypes.vipDowngradeNotice) {
+    return buildVipDowngradeNoticeEmail(dueEmail.recipient, dueEmail.vipPaidUntil ?? new Date());
   }
 
   return buildMonthlyPaymentRequestEmail(dueEmail.recipient);
@@ -207,11 +319,15 @@ async function getDueEmails(now: Date, limit: number) {
       name: true,
       email: true,
       createdAt: true,
+      membershipTier: true,
+      vipPaidUntil: true,
       subscriptionEmailLogs: {
         where: {
           OR: [
             { emailType: emailTypes.monthlyPaymentRequest, periodKey: monthlyPeriodKey },
             { emailType: emailTypes.trialEndingReminder },
+            { emailType: emailTypes.vipPaymentReminder },
+            { emailType: emailTypes.vipDowngradeNotice },
           ],
         },
         select: { emailType: true, periodKey: true },
@@ -229,15 +345,25 @@ async function getDueEmails(now: Date, limit: number) {
       email: user.email,
       createdAt: user.createdAt,
     };
-    const trialReminderAt = addDays(user.createdAt, TRIAL_REMINDER_AFTER_DAYS);
-    const trialEndsAt = addDays(user.createdAt, TRIAL_DAYS);
+    const trialReminderAt = addMembershipDays(user.createdAt, TRIAL_REMINDER_AFTER_DAYS);
+    const trialEndsAt = addMembershipDays(user.createdAt, TRIAL_DAYS);
     const trialPeriodKey = `trial-ending-${getDateKey(trialEndsAt)}`;
+    const vipPaidUntil = user.vipPaidUntil;
+    const vipReminderAt = vipPaidUntil ? addMembershipDays(vipPaidUntil, -7) : null;
+    const vipPeriodKey = vipPaidUntil ? `vip-renewal-${getDateKey(vipPaidUntil)}` : null;
+    const vipDowngradePeriodKey = vipPaidUntil ? `vip-downgrade-${getDateKey(vipPaidUntil)}` : null;
     const hasTrialReminder = user.subscriptionEmailLogs.some(
       (log) => log.emailType === emailTypes.trialEndingReminder && log.periodKey === trialPeriodKey,
     );
     const hasMonthlyPaymentRequest = user.subscriptionEmailLogs.some(
       (log) => log.emailType === emailTypes.monthlyPaymentRequest && log.periodKey === monthlyPeriodKey,
     );
+    const hasVipPaymentReminder = vipPeriodKey
+      ? user.subscriptionEmailLogs.some((log) => log.emailType === emailTypes.vipPaymentReminder && log.periodKey === vipPeriodKey)
+      : true;
+    const hasVipDowngradeNotice = vipDowngradePeriodKey
+      ? user.subscriptionEmailLogs.some((log) => log.emailType === emailTypes.vipDowngradeNotice && log.periodKey === vipDowngradePeriodKey)
+      : true;
 
     if (now >= trialReminderAt && now < trialEndsAt && !hasTrialReminder) {
       dueEmails.push({
@@ -253,6 +379,24 @@ async function getDueEmails(now: Date, limit: number) {
         type: emailTypes.monthlyPaymentRequest,
         periodKey: monthlyPeriodKey,
         recipient,
+      });
+    }
+
+    if (user.membershipTier === "VIP" && vipPaidUntil && vipReminderAt && now >= vipReminderAt && now < vipPaidUntil && !hasVipPaymentReminder) {
+      dueEmails.push({
+        type: emailTypes.vipPaymentReminder,
+        periodKey: vipPeriodKey ?? monthlyPeriodKey,
+        recipient,
+        vipPaidUntil,
+      });
+    }
+
+    if (user.membershipTier === "VIP" && vipPaidUntil && now >= vipPaidUntil && !hasVipDowngradeNotice) {
+      dueEmails.push({
+        type: emailTypes.vipDowngradeNotice,
+        periodKey: vipDowngradePeriodKey ?? monthlyPeriodKey,
+        recipient,
+        vipPaidUntil,
       });
     }
   }
@@ -271,19 +415,31 @@ export async function runSubscriptionEmailJob({
       id: "test-user",
       name: "Test Kullanıcısı",
       email: testEmail,
-      createdAt: addDays(now, -TRIAL_REMINDER_AFTER_DAYS),
+      createdAt: addMembershipDays(now, -TRIAL_REMINDER_AFTER_DAYS),
     };
     const testEmails: DueEmail[] = [
       {
         type: emailTypes.trialEndingReminder,
         periodKey: "test-trial-ending",
         recipient,
-        trialEndsAt: addDays(recipient.createdAt, TRIAL_DAYS),
+        trialEndsAt: addMembershipDays(recipient.createdAt, TRIAL_DAYS),
       },
       {
         type: emailTypes.monthlyPaymentRequest,
         periodKey: "test-monthly-payment",
         recipient,
+      },
+      {
+        type: emailTypes.vipPaymentReminder,
+        periodKey: "test-vip-reminder",
+        recipient,
+        vipPaidUntil: addMembershipDays(now, 5),
+      },
+      {
+        type: emailTypes.vipDowngradeNotice,
+        periodKey: "test-vip-downgrade",
+        recipient,
+        vipPaidUntil: addMembershipDays(now, -1),
       },
     ];
 
@@ -342,11 +498,19 @@ export async function runSubscriptionEmailJob({
           periodKey: dueEmail.periodKey,
           subject: message.subject,
           metadata: {
-            paymentLink: PAYMENT_LINK,
+            standardPaymentLink: STANDARD_PAYMENT_LINK,
+            vipPaymentLink: VIP_PAYMENT_LINK,
             trialEndsAt: dueEmail.trialEndsAt?.toISOString(),
+            vipPaidUntil: dueEmail.vipPaidUntil?.toISOString(),
           },
         },
       });
+      if (dueEmail.type === emailTypes.vipDowngradeNotice) {
+        await prisma.user.update({
+          where: { id: dueEmail.recipient.id },
+          data: { membershipTier: "STANDARD", vipStartedAt: null, vipPaidUntil: null },
+        });
+      }
       sent += 1;
       results.push({
         emailType: dueEmail.type,
@@ -377,8 +541,11 @@ export async function runSubscriptionEmailJob({
 }
 
 export const subscriptionEmailConfig = {
-  paymentLink: PAYMENT_LINK,
+  paymentLink: STANDARD_PAYMENT_LINK,
+  standardPaymentLink: STANDARD_PAYMENT_LINK,
+  vipPaymentLink: VIP_PAYMENT_LINK,
   paymentExplanation: PAYMENT_EXPLANATION,
+  vipPaymentExplanation: VIP_PAYMENT_EXPLANATION,
   emailTypes,
   trialDays: TRIAL_DAYS,
   trialReminderDaysBeforeEnd: TRIAL_REMINDER_DAYS_BEFORE_END,

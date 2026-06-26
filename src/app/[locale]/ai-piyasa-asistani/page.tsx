@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AiMarketChatPanel } from "@/components/ai-market/AiMarketChatPanel";
 import { MarketAssistantDashboard } from "@/components/ai-market/MarketAssistantDashboard";
 import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { AI_MARKET_SYMBOLS } from "@/lib/ai-market/symbols";
+import { getMembershipSnapshot, membershipConfig } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -24,6 +26,13 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
   const reportSlots = getReportSlots(locale);
   const decisionCards = getDecisionCards(locale);
   const user = await getSessionUser();
+  const fullUser = user
+    ? await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { createdAt: true, membershipTier: true, vipPaidUntil: true },
+      })
+    : null;
+  const membership = fullUser ? getMembershipSnapshot(fullUser) : null;
   const latestReport = await prisma.aiMarketReport.findFirst({
     where: user ? { OR: [{ userId: user.id }, { scope: "GLOBAL" }] } : { scope: "GLOBAL" },
     orderBy: { generatedAt: "desc" },
@@ -133,6 +142,13 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
           </div>
         </div>
       </section>
+      <AiMarketChatPanel
+        locale={locale}
+        membershipTier={membership?.effectiveTier ?? "STANDARD"}
+        vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null}
+        standardPaymentLink={membershipConfig.standardPaymentLink}
+        vipPaymentLink={membershipConfig.vipPaymentLink}
+      />
       <MarketAssistantDashboard locale={locale} symbols={AI_MARKET_SYMBOLS} />
     </div>
   );

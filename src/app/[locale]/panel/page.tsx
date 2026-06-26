@@ -17,6 +17,7 @@ import { getBadgeDashboard } from "@/lib/badges";
 import { getCompetitionRankingsForUser } from "@/lib/competition-periods";
 import { getFriendDashboard } from "@/lib/friends";
 import { getUserLeagues, leagueTypes } from "@/lib/leagues";
+import { getMembershipLabel, getMembershipSnapshot, membershipConfig } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -76,6 +77,18 @@ function getPanelCopy(locale: "tr" | "en") {
         addFriend: "Add friend",
         currentFriends: "Current friends",
         noFriends: "You have not added friends yet.",
+        membership: "Membership",
+        membershipBody: "Every account starts with 30 free days. Standard support is voluntary; VIP enables the higher-level AI market chat.",
+        trial: "Free trial",
+        trialEnds: "Trial ends",
+        currentTier: "Current tier",
+        standardSupport: "Standard support",
+        vipUpgrade: "VIP upgrade",
+        standardBody: "Standard AI chat stays limited to site live/cache market data.",
+        vipBody: "VIP AI chat adds free public news/data headlines to the site data context.",
+        standardPay: "Pay 70 TL voluntary support",
+        vipPay: "Pay 100 TL VIP",
+        vipUntil: "VIP paid until",
       }
     : {
         loginTitle: "Giriş gerekli",
@@ -131,6 +144,18 @@ function getPanelCopy(locale: "tr" | "en") {
         addFriend: "Arkadaş ekle",
         currentFriends: "Mevcut arkadaşlar",
         noFriends: "Henüz arkadaş eklemediniz.",
+        membership: "Üyelik",
+        membershipBody: "Her hesap 30 gün ücretsiz başlar. Standart katkı gönüllüdür; VIP daha üst seviye AI piyasa sohbetini açar.",
+        trial: "Ücretsiz deneme",
+        trialEnds: "Deneme bitişi",
+        currentTier: "Güncel üyelik",
+        standardSupport: "Standart destek",
+        vipUpgrade: "VIP yükseltme",
+        standardBody: "Standart AI sohbet sitedeki canlı/cache piyasa verileriyle sınırlı kalır.",
+        vipBody: "VIP AI sohbet site verisine ek olarak ücretsiz public haber/veri başlıklarını bağlama dahil eder.",
+        standardPay: "70 TL gönüllü katkı öde",
+        vipPay: "100 TL VIP öde",
+        vipUntil: "VIP bitiş tarihi",
       };
 }
 
@@ -164,14 +189,19 @@ export default async function DashboardPage({
     );
   }
 
-  const [friendDashboard, userLeagues, badges, competitionRankings, tradeCount, reportReadCount] = await Promise.all([
+  const [friendDashboard, userLeagues, badges, competitionRankings, tradeCount, reportReadCount, membershipUser] = await Promise.all([
     getFriendDashboard(user.id),
     getUserLeagues(user.id),
     getBadgeDashboard(user.id),
     getCompetitionRankingsForUser(user.id),
     prisma.virtualTrade.count({ where: { userId: user.id } }),
     prisma.aiMarketReportEvent.count({ where: { userId: user.id, eventType: "READ" } }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { createdAt: true, membershipTier: true, vipPaidUntil: true },
+    }),
   ]);
+  const membership = membershipUser ? getMembershipSnapshot(membershipUser) : null;
   const ownedLeague = userLeagues.find((membership) => membership.role === "OWNER");
   const earnedBadges = badges.filter((badge) => badge.earnedAt).length;
   const panelGrowthActions = getPanelGrowthActions(locale, Boolean(ownedLeague), userLeagues.length > 0);
@@ -189,6 +219,37 @@ export default async function DashboardPage({
     <div className="growth-page grid gap-6">
       <PageHeader title={dictionary.pages.panel.title} description={dictionary.pages.panel.description} locale={locale} />
       <FormMessage message={query.error} />
+
+      {membership ? (
+        <section className="premium-card grid gap-4 p-6 md:grid-cols-[minmax(0,1fr)_320px]">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">{copy.membership}</p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">{getMembershipLabel(membership.effectiveTier, locale)}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{copy.membershipBody}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <PanelSoftMetric label={copy.currentTier} value={getMembershipLabel(membership.effectiveTier, locale)} />
+              <PanelSoftMetric label={copy.trialEnds} value={new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium" }).format(membership.trialEndsAt)} />
+              <PanelSoftMetric label={copy.vipUntil} value={membership.vipPaidUntil ? new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium" }).format(membership.vipPaidUntil) : "-"} />
+            </div>
+          </div>
+          <div className="grid content-start gap-3">
+            <div className="rounded-2xl border border-[#d1bfa7]/45 bg-[#fffaf6] p-4">
+              <p className="font-black text-[#152033]">{copy.standardSupport}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{copy.standardBody}</p>
+              <a href={membershipConfig.standardPaymentLink} target="_blank" rel="noreferrer" className="premium-action mt-3 inline-flex px-4 py-2 text-sm font-black">
+                {copy.standardPay}
+              </a>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="font-black text-[#152033]">{copy.vipUpgrade}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{copy.vipBody}</p>
+              <a href={membershipConfig.vipPaymentLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-black text-white">
+                {copy.vipPay}
+              </a>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="panel-growth-command rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
@@ -504,6 +565,15 @@ function PanelMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-white/10 bg-black/18 p-4">
       <p className="text-3xl font-black text-white">{value}</p>
       <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{label}</p>
+    </div>
+  );
+}
+
+function PanelSoftMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#d1bfa7]/45 bg-white/70 p-4">
+      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">{label}</p>
+      <p className="mt-2 text-sm font-black text-[#152033]">{value}</p>
     </div>
   );
 }

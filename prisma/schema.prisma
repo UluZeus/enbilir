@@ -92,6 +92,11 @@ enum ChatMessageType {
   POLL
 }
 
+enum MembershipTier {
+  STANDARD
+  VIP
+}
+
 model User {
   id                                  String    @id @default(cuid())
   name                                String
@@ -105,6 +110,10 @@ model User {
   emailVerificationExpiresAt          DateTime?
   emailVerificationSentAt             DateTime?
   role                                Role      @default(USER)
+  membershipTier                      MembershipTier @default(STANDARD)
+  vipStartedAt                        DateTime?
+  vipPaidUntil                        DateTime?
+  vipLastReminderSentAt               DateTime?
   score                               Int       @default(0)
   kvkkDisclosureAccepted              Boolean   @default(false)
   kvkkDisclosureAcceptedAt            DateTime?
