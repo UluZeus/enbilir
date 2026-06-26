@@ -63,3 +63,39 @@ export async function getManagedContentItems({
 
   return items as PublicManagedContentItem[];
 }
+
+export async function getManagedContentItemById({
+  id,
+  type,
+  locale,
+}: {
+  id: string;
+  type: ManagedContentTypeCode;
+  locale: string;
+}): Promise<PublicManagedContentItem | null> {
+  const item = await prisma.managedContentItem.findFirst({
+    where: {
+      id,
+      type,
+      locale,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      type: true,
+      locale: true,
+      title: true,
+      excerpt: true,
+      body: true,
+      imageUrl: true,
+      videoUrl: true,
+      linkUrl: true,
+      linkLabel: true,
+      sortOrder: true,
+      isFeatured: true,
+      publishedAt: true,
+    },
+  });
+
+  return item as PublicManagedContentItem | null;
+}

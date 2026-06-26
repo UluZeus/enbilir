@@ -77,6 +77,21 @@ enum ManagedContentType {
   CONTACT
 }
 
+enum ChatRoomType {
+  GENERAL
+  PRIVATE
+}
+
+enum ChatMessageType {
+  TEXT
+  FILE
+  IMAGE
+  VIDEO
+  LOCATION
+  CONTACT
+  POLL
+}
+
 model User {
   id                                  String    @id @default(cuid())
   name                                String
@@ -116,6 +131,10 @@ model User {
   aiMarketReports                     AiMarketReport[]
   aiMarketReportEvents                AiMarketReportEvent[]
   subscriptionEmailLogs               SubscriptionEmailLog[]
+  createdChatRooms                    ChatRoom[] @relation("CreatedChatRooms")
+  chatMessages                        ChatMessage[]
+  chatPresences                       ChatPresence[]
+  chatPollVotes                       ChatPollVote[]
 }
 
 model OAuthAccount {
@@ -246,6 +265,7 @@ model VirtualTrade {
   quantity    Float
   priceUsd    Float
   totalUsd    Float
+  reason      String?
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -528,4 +548,77 @@ model SubscriptionEmailLog {
   @@unique([userId, emailType, periodKey])
   @@index([emailType, periodKey])
   @@index([sentAt])
+}
+
+model ChatRoom {
+  id              String         @id @default(cuid())
+  code            String         @unique
+  name            String
+  type            ChatRoomType
+  createdByUserId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  createdBy       User?          @relation("CreatedChatRooms", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  messages        ChatMessage[]
+  presences       ChatPresence[]
+
+  @@index([type, createdAt])
+  @@index([createdByUserId])
+}
+
+model ChatMessage {
+  id          String          @id @default(cuid())
+  roomId      String
+  userId      String
+  type        ChatMessageType @default(TEXT)
+  body        String
+  attachment  Json?
+  createdAt   DateTime        @default(now())
+  room        ChatRoom        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pollOptions ChatPollOption[]
+  pollVotes   ChatPollVote[]
+
+  @@index([roomId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
+model ChatPresence {
+  id         String   @id @default(cuid())
+  roomId     String
+  userId     String
+  lastSeenAt DateTime @default(now())
+  room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([lastSeenAt])
+  @@index([userId, lastSeenAt])
+}
+
+model ChatPollOption {
+  id        String         @id @default(cuid())
+  messageId String
+  label     String
+  sortOrder Int            @default(0)
+  message   ChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  votes     ChatPollVote[]
+
+  @@index([messageId, sortOrder])
+}
+
+model ChatPollVote {
+  id        String         @id @default(cuid())
+  messageId String
+  optionId  String
+  userId    String
+  createdAt DateTime       @default(now())
+  message   ChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  option    ChatPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([optionId])
+  @@index([userId, createdAt])
 }

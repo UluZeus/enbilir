@@ -11,6 +11,7 @@ import { TopOpportunitiesPanel } from "@/components/ai-market/TopOpportunitiesPa
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import type { TechnicalSeries } from "@/lib/ai-market/indicators";
+import { getSignalReadingGuide } from "@/lib/ai-market/signal-reading-guide";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
 const FAVORITES_CHANGED_EVENT = "ai-market-favorites-changed";
@@ -427,6 +428,9 @@ function DesktopResultRows({
         <span className="block overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
           {analysis.explanation}
         </span>
+        <span className="mt-2 block rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1.5 text-[11px] font-bold leading-4 text-cyan-900">
+          {getSignalReadingGuide(signal, copy.terminal === "AI Trading Terminal" ? "en" : "tr")}
+        </span>
       </td>
       </tr>
       {analysis.technicalSeries ? (
@@ -503,6 +507,9 @@ function MobileCard({
       </div>
 
       <p className="mt-3 text-xs leading-5 text-slate-600">{analysis.explanation}</p>
+      <p className="mt-2 rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1.5 text-xs font-bold leading-5 text-cyan-900">
+        {getSignalReadingGuide(signal, copy.terminal === "AI Trading Terminal" ? "en" : "tr")}
+      </p>
       {analysis.technicalSeries ? (
         <div className="mt-3">
           <TechnicalIndicatorCharts locale={copy.terminal === "AI Trading Terminal" ? "en" : "tr"} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />

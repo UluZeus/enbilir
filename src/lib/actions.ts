@@ -418,6 +418,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   const symbol = String(formData.get("symbol") ?? "");
   const side = String(formData.get("side") ?? "") as TradeSide;
   const amountUsd = Number(formData.get("amountUsd") ?? 0);
+  const reason = normalizeText(formData.get("reason")).slice(0, 700) || null;
   const idempotencyKey = String(formData.get("idempotencyKey") ?? "");
   const cookieStore = await cookies();
   const nonceCookieName = `enbilir_trade_${userId}`;
@@ -545,6 +546,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
           quantity: currentQuantity,
           priceUsd: currentTradePriceUsd,
           totalUsd: amountUsd,
+          reason,
         },
       });
     });

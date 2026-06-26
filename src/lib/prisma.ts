@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260621193000_add_subscription_email_logs";
+const prismaSchemaVersion = "20260626223000_add_chat_attachments_and_polls";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -43,6 +43,11 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     aiMarketReportNewsItem?: unknown;
     aiMarketReportEvent?: unknown;
     subscriptionEmailLog?: unknown;
+    chatRoom?: unknown;
+    chatMessage?: unknown;
+    chatPresence?: unknown;
+    chatPollOption?: unknown;
+    chatPollVote?: unknown;
   };
 
   return Boolean(
@@ -69,7 +74,12 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.aiMarketReportAsset &&
       candidate?.aiMarketReportNewsItem &&
       candidate?.aiMarketReportEvent &&
-      candidate?.subscriptionEmailLog,
+      candidate?.subscriptionEmailLog &&
+      candidate?.chatRoom &&
+      candidate?.chatMessage &&
+      candidate?.chatPresence &&
+      candidate?.chatPollOption &&
+      candidate?.chatPollVote,
   );
 }
 

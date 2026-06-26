@@ -53,3 +53,4 @@ next-env.d.ts
 
 # admin-uploaded runtime media
 /public/uploads/admin/
+/public/uploads/chat/

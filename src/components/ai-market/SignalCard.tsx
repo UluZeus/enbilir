@@ -1,4 +1,5 @@
 import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getSignalReadingGuide } from "@/lib/ai-market/signal-reading-guide";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
 const signalLabelsTr: Record<SignalType, string> = {
@@ -81,6 +82,13 @@ export function SignalCard({ locale = "tr", analysis }: { locale?: Locale | stri
 
       <div className="mt-5 rounded-md border border-white/10 bg-white/5 p-4">
         <p className="text-sm leading-6 text-slate-200">{analysis.explanation}</p>
+      </div>
+
+      <div className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-4">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">
+          {safeLocale === "en" ? "How to read this signal" : "Bu sinyali nasıl okumalıyım?"}
+        </p>
+        <p className="mt-2 text-sm leading-6 text-cyan-50">{getSignalReadingGuide(analysis.signal.signal, safeLocale)}</p>
       </div>
 
       <div className="mt-4 grid gap-2">

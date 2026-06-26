@@ -425,6 +425,26 @@ export function TradeTicketForm({
           </div>
         </div>
 
+        <label className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
+          {safeLocale === "tr" ? "İşlem gerekçesi" : "Decision note"}
+          <textarea
+            name="reason"
+            maxLength={700}
+            rows={3}
+            placeholder={
+              safeLocale === "tr"
+                ? "Bu işlemi neden yapıyorum? Hangi vadede düşünüyorum? Hangi durumda yanıldığımı kabul ederim?"
+                : "Why am I placing this virtual trade? What is my time frame? What would prove me wrong?"
+            }
+            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal leading-6 outline-none focus:border-[#0f766e]"
+          />
+          <span className="text-xs font-semibold leading-5 text-slate-500">
+            {safeLocale === "tr"
+              ? "Bu not yatırım tavsiyesi değildir; kendi karar sürecini sonradan değerlendirebilmen için saklanır."
+              : "This note is not investment advice; it is saved so you can review your own decision process later."}
+          </span>
+        </label>
+
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <TrendBadge label="Görüntülenen" value={String(filteredItems.length)} tone="slate" />
           <TrendBadge label="Alım / Satım" value="Aktif" tone="green" />

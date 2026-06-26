@@ -3,6 +3,7 @@
 import { SelectedAssetMiniCharts } from "@/components/ai-market/SelectedAssetMiniCharts";
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
+import { getSignalReadingGuide } from "@/lib/ai-market/signal-reading-guide";
 import type { MarketAnalysis } from "@/lib/ai-market/types";
 
 type TerminalChartAreaProps = {
@@ -59,7 +60,8 @@ function Metric({ label, value, tone = "text-slate-700" }: { label: string; valu
 }
 
 export function TerminalChartArea({ locale, analysis, status }: TerminalChartAreaProps) {
-  const copy = getUiCopy(getSafeLocale(locale)).ai;
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale).ai;
   const signalTone =
     analysis?.signal.signal === "STRONG_BUY" || analysis?.signal.signal === "BUY"
       ? "text-emerald-700"
@@ -93,6 +95,15 @@ export function TerminalChartArea({ locale, analysis, status }: TerminalChartAre
       <div className="mt-3">
         <SelectedAssetMiniCharts locale={locale} symbol={analysis?.symbol ?? "-"} interval={analysis?.interval ?? "-"} series={analysis?.technicalSeries} />
       </div>
+
+      {analysis ? (
+        <div className="mt-3 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2.5">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-800">
+            {safeLocale === "en" ? "How to read this signal" : "Bu sinyali nasıl okumalıyım?"}
+          </p>
+          <p className="mt-1 text-xs font-bold leading-5 text-cyan-950">{getSignalReadingGuide(analysis.signal.signal, safeLocale)}</p>
+        </div>
+      ) : null}
     </section>
   );
 }

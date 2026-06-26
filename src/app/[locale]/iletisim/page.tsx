@@ -29,6 +29,20 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
         featuredLabel={locale === "en" ? "Featured" : "Öne çıkan"}
         variant="compact"
       />
+      <section className="premium-card premium-card--interactive p-6">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+          {locale === "en" ? "Email contact" : "E-posta iletişim"}
+        </p>
+        <h2 className="mt-2 text-xl font-black text-[#152033]">info@ikiadam.com</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {locale === "en"
+            ? "For support, partnership, league setup, and account requests, you can write to this address."
+            : "Destek, iş birliği, lig kurulumu ve hesap talepleri için bu adrese yazabilirsiniz."}
+        </p>
+        <a href="mailto:info@ikiadam.com" className="premium-action mt-5 inline-flex px-5 py-3 text-sm font-black">
+          {locale === "en" ? "Send email" : "E-posta gönder"}
+        </a>
+      </section>
       <section className="whatsapp-support-card rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-black text-[#152033]">{copy.supportTitle}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">{copy.supportBody}</p>

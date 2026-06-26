@@ -69,6 +69,16 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
               </div>
             ))}
           </div>
+          <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
+              {locale === "tr" ? "Bu sinyali nasıl okumalıyım?" : "How should I read the signal?"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-cyan-50">
+              {locale === "tr"
+                ? "AL, SAT, bekle veya izle etiketleri emir değildir. Önce trend, hacim, risk skoru, vade ve kendi sanal portföy dağılımın aynı şeyi söylüyor mu diye kontrol et."
+                : "BUY, SELL, hold, or watch labels are not orders. First check whether trend, volume, risk score, time frame, and your virtual portfolio allocation tell the same story."}
+            </p>
+          </div>
         </div>
         <div className="ai-usage-panel rounded-[1.7rem] border border-emerald-400/18 bg-emerald-400/8 p-5 text-white shadow-2xl">
           <p className="ai-usage-kicker text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">

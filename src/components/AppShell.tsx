@@ -18,6 +18,7 @@ const primaryNav = [
   { href: "liderlik-tablosu", label: "leaderboard" },
   { href: "topluluk", label: "community" },
   { href: "blog", label: "blog" },
+  { href: "siteyi-anlamak", label: "siteGuide" },
   { href: "iletisim", label: "contact" },
 ] as const;
 
@@ -159,89 +160,99 @@ export async function AppShell({ children, locale }: AppShellProps) {
           </div>
         </div>
 
-        <div className="premium-finance-header mx-auto flex w-full max-w-[92rem] flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3 xl:px-5">
-          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center xl:flex-1 xl:gap-3">
-            <Link href={`/${locale}`} className="premium-brand-lockup flex shrink-0 items-center gap-2.5">
-              <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="premium-brand-mark h-12 w-12 rounded-md xl:h-11 xl:w-11" />
-              <span>
-                <span className="block text-xl font-black tracking-normal text-[#152033] xl:text-lg 2xl:text-xl">enbilir.com</span>
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0f766e] 2xl:text-xs">{ui.appShell.academy}</span>
-              </span>
-            </Link>
+        <div className="premium-finance-header mx-auto grid w-full max-w-[92rem] gap-x-4 gap-y-3 px-4 py-3 lg:grid-cols-[178px_minmax(0,1fr)] lg:items-center xl:grid-cols-[190px_minmax(0,1fr)] xl:px-5">
+          <Link href={`/${locale}`} className="premium-brand-lockup flex shrink-0 items-center gap-2.5 lg:row-span-2 lg:self-center">
+            <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="premium-brand-mark h-12 w-12 rounded-md xl:h-11 xl:w-11" />
+            <span>
+              <span className="block text-xl font-black tracking-normal text-[#152033] xl:text-lg 2xl:text-xl">enbilir.com</span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0f766e] 2xl:text-xs">{ui.appShell.academy}</span>
+            </span>
+          </Link>
 
-            <nav className="premium-main-nav flex flex-wrap items-center gap-0.5 overflow-visible text-sm font-semibold xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
-              {primaryNav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                  className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
-                >
-                  {item.label === "community" ? <CommunityIcon /> : null}
-                  {dictionary.nav[item.label]}
-                </Link>
-              ))}
-              <span className="premium-nav-divider hidden h-7 w-px bg-[#d1bfa7]/45 xl:inline-flex" aria-hidden="true" />
-              {productNav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={`/${locale}/${item.href}`}
-                  className={`premium-product-nav premium-product-nav--${item.tone} inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 font-black 2xl:px-3 2xl:py-2`}
-                >
-                  {item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label]}
-                </Link>
-              ))}
-                <Link
-                  href={
-                    latestMacroReport
-                      ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
-                      : `/${locale}/ai-piyasa-asistani/raporlar`
-                  }
-                  className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white 2xl:px-3 2xl:py-2"
-                  style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
-                >
-                  MAKRO RAPOR
-                </Link>
-            </nav>
+          <div className="flex min-w-0 flex-col gap-3 lg:col-start-2 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
+            <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center xl:flex-1 xl:gap-3">
+              <nav className="premium-main-nav flex flex-wrap items-center gap-0.5 overflow-visible text-sm font-semibold xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
+                {primaryNav.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={`/${locale}${item.href ? `/${item.href}` : ""}`}
+                    className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
+                  >
+                    {item.label === "community" ? <CommunityIcon /> : null}
+                    {dictionary.nav[item.label]}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-sm xl:shrink-0 xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
+              {sessionUser ? (
+                <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap">
+                  <Link
+                    href={`/${locale}/panel`}
+                    className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e] 2xl:px-3 2xl:py-2"
+                  >
+                    {locale === "tr" ? "Merhaba" : "Hello"}, {getDisplayName(sessionUser)}
+                  </Link>
+                  <form action={logoutAction}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <button className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-3 2xl:py-2">
+                      {ui.appShell.logout}
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                accountNav.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={`/${locale}/${item.href}`}
+                    className="premium-account-link shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur 2xl:px-3 2xl:py-2"
+                  >
+                    {dictionary.nav[item.label]}
+                  </Link>
+                ))
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 text-sm xl:shrink-0 xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
-            {sessionUser ? (
-              <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap">
-                <Link
-                  href={`/${locale}/panel`}
-                  className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e] 2xl:px-3 2xl:py-2"
-                >
-                  {locale === "tr" ? "Merhaba" : "Hello"}, {getDisplayName(sessionUser)}
-                </Link>
-                <form action={logoutAction}>
-                  <input type="hidden" name="locale" value={locale} />
-                  <button className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-3 2xl:py-2">
-                    {ui.appShell.logout}
-                  </button>
-                </form>
-              </div>
-            ) : (
-              accountNav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={`/${locale}/${item.href}`}
-                  className="premium-account-link shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur 2xl:px-3 2xl:py-2"
-                >
-                  {dictionary.nav[item.label]}
-                </Link>
-              ))
-            )}
+          <nav className="premium-secondary-nav flex flex-wrap items-center justify-start gap-2 border-t border-[#d1bfa7]/35 pt-3 text-sm font-semibold lg:col-start-2 xl:text-[13px]">
+            {productNav.map((item) => (
+              <Link
+                key={item.href}
+                href={`/${locale}/${item.href}`}
+                className={`premium-product-nav premium-product-nav--${item.tone} inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black`}
+              >
+                {item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label]}
+              </Link>
+            ))}
+            <Link
+              href={`/${locale}/sohbet`}
+              className="premium-product-nav premium-product-nav--chat inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black"
+            >
+              {dictionary.nav.chat}
+            </Link>
+            <Link
+              href={
+                latestMacroReport
+                  ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
+                  : `/${locale}/ai-piyasa-asistani/raporlar`
+              }
+              className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white"
+              style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
+            >
+              MAKRO RAPOR
+            </Link>
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noreferrer"
-              className={`whatsapp-link shrink-0 rounded-md bg-[#25d366] px-2.5 py-1.5 font-bold text-white shadow-sm hover:bg-[#1fb65a] 2xl:px-3 2xl:py-2 ${
+              className={`whatsapp-link inline-flex shrink-0 items-center justify-center rounded-md bg-[#25d366] px-3 py-2 font-bold text-white shadow-sm hover:bg-[#1fb65a] ${
                 visualSettings.whatsappButtonVariant === "image" ? "inline-flex h-9 w-9 items-center justify-center px-0 2xl:h-10 2xl:w-10" : ""
               }`}
             >
               {visualSettings.whatsappButtonVariant === "image" ? <span className="text-xs font-black">WA</span> : dictionary.whatsapp}
             </a>
-          </div>
+          </nav>
         </div>
       </header>
 

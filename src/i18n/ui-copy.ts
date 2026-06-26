@@ -21,7 +21,7 @@ export const uiCopy = {
     appShell: {
       support: "Destek: 0850 220 50 92",
       tagline: "Rotaryen, Rotaract ve ilgi duyan tüm meraklı, araştırmayı seven kişilere açık web sayfası",
-      academy: "Rotary Piyasa Akademisi",
+      academy: "Piyasa Akademisi",
       aiAssistant: "AI Asistanı",
       logout: "Çıkış yap",
       footer:
@@ -322,7 +322,7 @@ export const uiCopy = {
     appShell: {
       support: "Support: 0850 220 50 92",
       tagline: "A website open to Rotarians, Rotaractors, and everyone curious enough to research and learn",
-      academy: "Enbilir Market Academy",
+      academy: "Market Academy",
       aiAssistant: "AI Assistant",
       logout: "Sign out",
       footer:

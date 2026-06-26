@@ -217,6 +217,18 @@ const pageSeo = {
         "Enbilir blog articles on economy, stock markets, crypto, financial literacy, Rotary communities, and AI-supported market commentary.",
     },
   },
+  siteGuide: {
+    tr: {
+      title: "Siteyi Anlamak | Enbilir Kullanım Rehberi",
+      description:
+        "Enbilir'i en verimli şekilde kullanmak için sanal portföy, AI Asistanı, liderlik, ligler, topluluk ve eğitim akışını anlatan kullanım rehberi.",
+    },
+    en: {
+      title: "Understanding the Site | Enbilir User Guide",
+      description:
+        "A practical guide to using Enbilir through virtual portfolios, the AI assistant, leaderboards, leagues, community learning, and education flows.",
+    },
+  },
   community: {
     tr: {
       title: "Topluluk | Rotary ve Finansal Okuryazarlık",
@@ -227,6 +239,18 @@ const pageSeo = {
       title: "Community | Rotary and Financial Literacy",
       description:
         "A community experience for Rotary, Rotaract, Interact, and curious learners focused on financial literacy, virtual portfolios, and education.",
+    },
+  },
+  chat: {
+    tr: {
+      title: "Sohbet | Enbilir Canlı Topluluk Odaları",
+      description:
+        "Enbilir üyeleri için genel sohbet odası, özel sohbet odaları, çevrimiçi kullanıcı listesi ve saygılı topluluk konuşmaları.",
+    },
+    en: {
+      title: "Chat | Enbilir Live Community Rooms",
+      description:
+        "General and private chat rooms for Enbilir members with online user lists and respectful community conversation.",
     },
   },
   contact: {

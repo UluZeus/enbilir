@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -11,12 +12,69 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return buildPageMetadata({ locale, path: "/blog", page: "blog" });
 }
 
-export default async function BlogPage({ params }: { params: Promise<{ locale: string }> }) {
+type BlogCategoryCode = "ALL" | "FINANCIALS" | "CRYPTO" | "MACRO" | "RISK" | "COMMUNITY";
+
+const blogCategoryByPostId: Record<string, Exclude<BlogCategoryCode, "ALL">> = {
+  "managed-bilanco-okuma-teknikleri": "FINANCIALS",
+  "managed-finansci-olmayanlar-finansal-tablo": "FINANCIALS",
+  "managed-kripto-piyasasi-temel-kavramlar": "CRYPTO",
+  "managed-kripto-para-dijital-para-farki": "CRYPTO",
+  "managed-borsalara-yatirimda-dikkat": "RISK",
+  "managed-rezerv-para-tarihi-dolar": "MACRO",
+  "managed-degerli-metaller-para-sistemi": "MACRO",
+  "managed-finansal-kararlarda-psikoloji": "RISK",
+  "managed-portfoy-gunlugu-tutmak": "RISK",
+  "managed-home-community-learning": "COMMUNITY",
+  "managed-home-market-calm-decision": "RISK",
+  "managed-home-virtual-portfolio-serious": "RISK",
+};
+
+function getBlogCategoryLabels(locale: string): Record<BlogCategoryCode, string> {
+  if (locale === "en") {
+    return {
+      ALL: "All",
+      FINANCIALS: "Financial statements",
+      CRYPTO: "Crypto",
+      MACRO: "Macro",
+      RISK: "Risk psychology",
+      COMMUNITY: "Community",
+    };
+  }
+
+  return {
+    ALL: "Tümü",
+    FINANCIALS: "Bilanço",
+    CRYPTO: "Kripto",
+    MACRO: "Makro",
+    RISK: "Risk Psikolojisi",
+    COMMUNITY: "Topluluk",
+  };
+}
+
+function getSafeBlogCategory(value: string | undefined): BlogCategoryCode {
+  return ["ALL", "FINANCIALS", "CRYPTO", "MACRO", "RISK", "COMMUNITY"].includes(value ?? "")
+    ? value as BlogCategoryCode
+    : "ALL";
+}
+
+export default async function BlogPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ kategori?: string; category?: string }>;
+}) {
   const { locale: rawLocale } = await params;
+  const query = searchParams ? await searchParams : {};
   const locale = getSafeLocale(rawLocale);
   const copy = getUiCopy(locale).simplePages.blog;
   const posts = await getManagedContentItems({ type: "BLOG", locale });
-  const editorialPillars = posts.length > 0 ? getManagedPostHighlights(posts, locale) : getEditorialPillars(locale);
+  const selectedCategory = getSafeBlogCategory(query.kategori ?? query.category);
+  const categoryLabels = getBlogCategoryLabels(locale);
+  const categoryOptions = Object.entries(categoryLabels) as Array<[BlogCategoryCode, string]>;
+  const filteredPosts = selectedCategory === "ALL"
+    ? posts
+    : posts.filter((post) => blogCategoryByPostId[post.id] === selectedCategory);
   const starterPosts = getStarterPosts(locale);
   const contentCalendar = getContentCalendar(locale);
   const evergreenNotes = getEvergreenNotes(locale);
@@ -27,28 +85,100 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
         <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir reading room" : "Enbilir okuma alanı"}</p>
         <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
         <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {categoryOptions.map(([code, label]) => (
+            <Link
+              key={code}
+              href={code === "ALL" ? `/${locale}/blog` : `/${locale}/blog?kategori=${code}`}
+              aria-current={selectedCategory === code ? "page" : undefined}
+              className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                selectedCategory === code
+                  ? "border-[#0f766e] bg-[#0f766e] text-white"
+                  : "border-slate-200 bg-white/80 text-slate-700 hover:border-[#0f766e] hover:text-[#0f766e]"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
       </section>
-      <section className="grid gap-4 md:grid-cols-3">
-        {editorialPillars.map((pillar) => (
-          <article key={pillar.title} className="premium-card premium-card--interactive p-6">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{pillar.eyebrow}</p>
-            <h2 className="mt-2 text-xl font-black text-[#152033]">{pillar.title}</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">{pillar.body}</p>
-          </article>
-        ))}
-      </section>
+      {selectedCategory === "COMMUNITY" ? (
+        <section className="premium-card premium-card--interactive p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+                {locale === "en" ? "Live community chat" : "Canlı topluluk sohbeti"}
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-[#152033]">
+                {locale === "en" ? "Join the Enbilir chat room" : "Enbilir sohbet odasına katıl"}
+              </h2>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                {locale === "en"
+                  ? "Members can meet in the general room, open private rooms with shareable links, and appear with the name or nickname they selected."
+                  : "Üyeler genel odada buluşabilir, paylaşılabilir linkle özel oda açabilir ve daha önce seçtikleri ad veya rumuzla görünebilir."}
+              </p>
+            </div>
+            <Link href={`/${locale}/sohbet`} className="premium-action inline-flex shrink-0 px-5 py-3 text-sm font-black">
+              {locale === "en" ? "Open chat" : "Sohbeti aç"}
+            </Link>
+          </div>
+        </section>
+      ) : null}
       <section className="premium-card premium-card--interactive p-6">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
           {locale === "tr" ? "Haftalık içerik takvimi" : "Weekly content calendar"}
         </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <h2 className="mt-2 text-2xl font-black text-[#152033]">
+          {locale === "tr" ? "Her günün amacı farklı: oku, uygula, karşılaştır, değerlendir." : "Each day has a role: read, apply, compare, and review."}
+        </h2>
+        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
+          {locale === "tr"
+            ? "Bu takvim yalnızca yayın planı değildir. Enbilir'i düzenli kullanan bir kişinin haftalık öğrenme ritmini anlatır. Pazartesi kavramı açar, Çarşamba mini dersle sadeleştirir, Cuma sanal portföye bağlar, Pazar ise liderlik ve topluluk üzerinden haftayı değerlendirir."
+            : "This is more than a publishing plan. It describes a weekly learning rhythm for Enbilir users: Monday opens the concept, Wednesday simplifies it, Friday connects it to virtual portfolios, and Sunday reviews the week through rankings and community reflection."}
+        </p>
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
           {contentCalendar.map((item) => (
-            <div key={item.day} className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
+            <a key={item.day} href={`#${item.id}`} className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70 transition hover:-translate-y-0.5 hover:ring-[#0f766e]/50">
               <p className="text-sm font-black text-[#152033]">{item.day}</p>
+              <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">{item.theme}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
-            </div>
+            </a>
           ))}
         </div>
+      </section>
+      <section className="grid gap-4">
+        {contentCalendar.map((item) => (
+          <article key={item.id} id={item.id} className="premium-card premium-card--interactive p-6 scroll-mt-32">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{item.day} · {item.theme}</p>
+                <h2 className="mt-2 text-2xl font-black text-[#152033]">{item.title}</h2>
+                <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{item.body}</p>
+              </div>
+              <Link href={item.ctaHref} className="premium-action inline-flex shrink-0 px-4 py-2 text-xs font-black">
+                {item.ctaLabel}
+              </Link>
+            </div>
+            <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid gap-4 text-sm leading-7 text-slate-600">
+                {item.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+              <aside className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                  {locale === "tr" ? "Bu günün uygulaması" : "Practice for this day"}
+                </p>
+                <p className="mt-2 text-sm font-black text-[#152033]">{item.practiceTitle}</p>
+                <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-600">
+                  {item.checklist.map((entry) => (
+                    <li key={entry}>• {entry}</li>
+                  ))}
+                </ul>
+              </aside>
+            </div>
+          </article>
+        ))}
       </section>
       <section className="grid gap-4 md:grid-cols-2">
         {evergreenNotes.map((item) => (
@@ -63,10 +193,13 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
       </section>
       {posts.length > 0 ? (
         <ManagedContentList
-          items={posts}
-          emptyTitle={copy.emptyTitle}
-          emptyBody={copy.emptyBody}
+          items={filteredPosts}
+          emptyTitle={locale === "en" ? "No article in this category yet" : "Bu kategoride henüz yazı yok"}
+          emptyBody={locale === "en" ? "Try another category or return to all articles." : "Başka bir kategori seçebilir veya tüm yazılara dönebilirsin."}
           featuredLabel={locale === "en" ? "Featured" : "Öne çıkan"}
+          showBody={false}
+          linkBasePath={`/${locale}/blog`}
+          linkLabel={locale === "en" ? "Read article" : "Yazıyı oku"}
         />
       ) : (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -85,18 +218,6 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
       )}
     </div>
   );
-}
-
-function firstParagraph(body: string) {
-  return body.split(/\n{2,}/).map((paragraph) => paragraph.trim()).find(Boolean) ?? body;
-}
-
-function getManagedPostHighlights(posts: Awaited<ReturnType<typeof getManagedContentItems>>, locale: string) {
-  return posts.slice(0, 3).map((post) => ({
-    eyebrow: post.isFeatured ? (locale === "en" ? "Featured article" : "Öne çıkan yazı") : (locale === "en" ? "Enbilir article" : "Enbilir yazısı"),
-    title: post.title,
-    body: post.excerpt ?? firstParagraph(post.body),
-  }));
 }
 
 function getEvergreenNotes(locale: string) {
@@ -166,18 +287,174 @@ function getEvergreenNotes(locale: string) {
 function getContentCalendar(locale: string) {
   if (locale === "en") {
     return [
-      { day: "Monday", body: "Weekly market-literacy article" },
-      { day: "Wednesday", body: "Mini education lesson with visual support" },
-      { day: "Friday", body: "League and portfolio weekly summary" },
-      { day: "Sunday", body: "Leaders of the week and badge winners" },
+      {
+        id: "monday-market-literacy",
+        day: "Monday",
+        theme: "Concept",
+        title: "Weekly market-literacy article",
+        body: "Start the week with one calm concept: financial statements, crypto, reserve currencies, precious metals, or investor behavior.",
+        ctaHref: `/${locale}/blog?kategori=MACRO`,
+        ctaLabel: "Read macro articles",
+        practiceTitle: "Monday reading ritual",
+        paragraphs: [
+          "Monday is the day for opening the main idea of the week. The goal is not to predict the market immediately. The goal is to build a clean mental frame before prices, headlines, and social media noise start pushing the user into quick reactions.",
+          "A Monday article should answer a simple question in plain language. What does a balance sheet show? Why does gold react to real interest rates? What is the difference between crypto money and digital money? Why do reserve currencies change over long historical cycles? One good question is enough for one week.",
+          "The user should finish Monday with two or three sentences they can repeat in their own words. If they cannot explain the idea simply, they should not move too quickly to the virtual portfolio screen. Enbilir works best when the language is built before the decision.",
+        ],
+        checklist: [
+          "Choose one article and write the main idea in your own words.",
+          "Note one market example connected to the concept.",
+          "Write one risk question before looking at prices.",
+        ],
+      },
+      {
+        id: "wednesday-mini-lesson",
+        day: "Wednesday",
+        theme: "Mini lesson",
+        title: "Mini education lesson with visual support",
+        body: "Turn the Monday concept into a smaller lesson with ratios, charts, signal explanations, and simple examples.",
+        ctaHref: `/${locale}/egitim`,
+        ctaLabel: "Open education",
+        practiceTitle: "Wednesday simplification",
+        paragraphs: [
+          "Wednesday is the day for simplification. A concept that sounded broad on Monday should become visible through one table, one chart, one ratio, or one practical comparison.",
+          "For example, if Monday discussed balance sheets, Wednesday can compare cash, debt, and equity with a small example. If Monday discussed crypto, Wednesday can compare Bitcoin, Ethereum, Solana, BNB, and LINK by purpose instead of price. If Monday discussed risk psychology, Wednesday can turn it into a checklist before placing a virtual trade.",
+          "The purpose is to make the user say: I can now see where this idea appears on the platform. That is why Wednesday content should point toward education modules, the AI explanation boxes, and the trade reason note.",
+        ],
+        checklist: [
+          "Convert the concept into one visible metric or example.",
+          "Compare two assets or two behaviors using the same question.",
+          "Prepare one sentence you would explain to another member.",
+        ],
+      },
+      {
+        id: "friday-portfolio-review",
+        day: "Friday",
+        theme: "Portfolio",
+        title: "League and portfolio weekly summary",
+        body: "Connect the week’s learning to virtual portfolio behavior: allocation, cash, risk, and decision notes.",
+        ctaHref: `/${locale}/islem-yap`,
+        ctaLabel: "Open virtual trading",
+        practiceTitle: "Friday portfolio review",
+        paragraphs: [
+          "Friday is where reading turns into practice. The user should not only ask which asset moved. They should ask whether their own virtual portfolio reflects the idea they studied during the week.",
+          "If the week was about balance sheets, the user may compare companies more carefully. If the week was about crypto infrastructure, they may avoid putting every coin into the same mental bucket. If the week was about precious metals, they may ask whether gold and silver are being used as risk balance or as a late emotional chase.",
+          "This day should also use the decision note field. Before a virtual trade, the user writes why the trade makes sense, what time frame is being used, and what would prove the idea wrong. This small note turns a click into a learning record.",
+        ],
+        checklist: [
+          "Review portfolio allocation before any new virtual trade.",
+          "Write a decision note before acting.",
+          "Compare the result with the week’s concept, not only with profit/loss.",
+        ],
+      },
+      {
+        id: "sunday-community-review",
+        day: "Sunday",
+        theme: "Community",
+        title: "Leaders of the week and badge winners",
+        body: "Close the week by reviewing leaderboard movement, league behavior, badges, and learning quality.",
+        ctaHref: `/${locale}/liderlik-tablosu`,
+        ctaLabel: "Open leaderboard",
+        practiceTitle: "Sunday reflection",
+        paragraphs: [
+          "Sunday is not only a day to applaud the top number. It is the day to ask what kind of decisions produced the week’s movement. A user may rise because of one lucky concentration, while another may build a better process with balanced risk.",
+          "Leaderboards, leagues, and badges should be read as learning signals. They help the community return to the platform, but the deeper value is in the conversation: Why did this portfolio behave well? Which risk was controlled? Which decision was lucky? Which decision was repeatable?",
+          "A healthy Sunday review prepares the next Monday. The community closes the week with a few learning notes, then the next concept can begin with better questions.",
+        ],
+        checklist: [
+          "Review top movers and ask what process created the result.",
+          "Discuss one decision note inside your league or community.",
+          "Choose the next week’s concept based on what confused users most.",
+        ],
+      },
     ] as const;
   }
 
   return [
-    { day: "Pazartesi", body: "Haftalık piyasa okuryazarlığı yazısı" },
-    { day: "Çarşamba", body: "Görsel destekli mini eğitim dersi" },
-    { day: "Cuma", body: "Haftanın lig ve portföy özeti" },
-    { day: "Pazar", body: "Haftanın liderleri ve rozet kazananlar" },
+    {
+      id: "pazartesi-piyasa-okuryazarligi",
+      day: "Pazartesi",
+      theme: "Kavram",
+      title: "Haftalık piyasa okuryazarlığı yazısı",
+      body: "Haftaya tek bir ana fikirle başlanır: bilanço, kripto, rezerv para, değerli metaller, risk psikolojisi veya portföy disiplini.",
+      ctaHref: `/${locale}/blog?kategori=MACRO`,
+      ctaLabel: "Makro yazıları oku",
+      practiceTitle: "Pazartesi okuma ritüeli",
+      paragraphs: [
+        "Pazartesi gününün görevi, haftanın ana kavramını sakin biçimde açmaktır. Bu günün amacı hemen işlem fikri üretmek değildir. Amaç, piyasa fiyatları, haberler ve sosyal medya yorumları kullanıcıyı acele ettirmeden önce doğru düşünme çerçevesini kurmaktır.",
+        "Pazartesi yazısı tek bir güçlü soruya cevap vermelidir. Bilanço bize şirket hakkında ne söyler? Altın neden bazı dönemlerde güvenli liman gibi davranır? Kripto para ile dijital para neden aynı şey değildir? Doların rezerv para konumu tarih içinde nasıl okunmalıdır? Bir haftaya bir ana soru yeterlidir.",
+        "Kullanıcı Pazartesi yazısını bitirdiğinde kendi cümlesiyle iki veya üç not çıkarabilmelidir. Eğer kavramı sade anlatamıyorsa, sanal portföyde karar vermek için acele etmemelidir. Enbilir'in mantığı burada başlar: önce dili kur, sonra kararı dene.",
+        "Bu bölümde Dr. Hakan Ünsal'ın üslubu özellikle sakin kalmalıdır. Kullanıcıya bir varlığı almasını veya satmasını söylemek yerine, hangi soruları sorması gerektiğini göstermelidir. Pazartesi yazısı haftanın pusulasıdır; yön verir ama kullanıcı adına yürümemelidir.",
+      ],
+      checklist: [
+        "Bir yazı seç ve ana fikri kendi cümlenle yaz.",
+        "Bu kavramla ilgili piyasadan bir örnek belirle.",
+        "Fiyatlara bakmadan önce bir risk sorusu yaz.",
+      ],
+    },
+    {
+      id: "carsamba-mini-egitim",
+      day: "Çarşamba",
+      theme: "Mini ders",
+      title: "Görsel destekli mini eğitim dersi",
+      body: "Pazartesi açılan kavram; oran, grafik, tablo, sinyal açıklaması veya sade örnekle görünür hale getirilir.",
+      ctaHref: `/${locale}/egitim`,
+      ctaLabel: "Eğitim bölümünü aç",
+      practiceTitle: "Çarşamba sadeleştirme görevi",
+      paragraphs: [
+        "Çarşamba gününün görevi sadeleştirmektir. Pazartesi geniş anlatılan kavram, Çarşamba günü bir oran, bir tablo, bir grafik, bir karşılaştırma veya kısa bir örnek üzerinden görünür hale gelmelidir. Çünkü finansal okuryazarlık, yalnızca okumakla değil, kavramı somutlaştırmakla güçlenir.",
+        "Örneğin Pazartesi bilanço anlatıldıysa, Çarşamba günü nakit, borç ve özkaynak ilişkisi küçük bir örnekle gösterilebilir. Pazartesi kripto varlıkların mantığı anlatıldıysa, Çarşamba günü Bitcoin, Ethereum, Solana, BNB ve LINK fiyatına göre değil, çözmeye çalıştıkları probleme göre karşılaştırılabilir.",
+        "Risk psikolojisi haftasında Çarşamba içeriği, sanal işlem öncesi sorulacak üç soruya dönüşebilir: Bu işlemi neden yapıyorum? Hangi vadede düşünüyorum? Hangi durumda yanıldığımı kabul ederim? Böylece kavram doğrudan platform davranışına bağlanır.",
+        "Bu günün sonunda kullanıcı şunu söylemelidir: Bu kavramı Enbilir içinde nerede göreceğimi anladım. Eğitim sayfası, AI açıklamaları, sanal işlem gerekçesi ve portföy paneli aynı öğrenme zincirinin parçaları haline gelir.",
+      ],
+      checklist: [
+        "Haftanın kavramını bir oran, grafik veya örneğe indir.",
+        "İki varlığı veya iki davranışı aynı soruyla karşılaştır.",
+        "Bu konuyu başka bir üyeye nasıl anlatacağını tek cümleyle yaz.",
+      ],
+    },
+    {
+      id: "cuma-portfoy-ozeti",
+      day: "Cuma",
+      theme: "Portföy",
+      title: "Haftanın lig ve portföy özeti",
+      body: "Haftanın öğrenmesi sanal portföy davranışına bağlanır: dağılım, nakit, risk, gerekçe ve karar kalitesi birlikte okunur.",
+      ctaHref: `/${locale}/islem-yap`,
+      ctaLabel: "Sanal işlem sayfasını aç",
+      practiceTitle: "Cuma portföy değerlendirmesi",
+      paragraphs: [
+        "Cuma günü, okunan bilginin sanal portföyde nasıl davrandığına bakma günüdür. Kullanıcı yalnızca hangi varlığın yükseldiğini veya düştüğünü sormamalıdır. Daha önemli soru şudur: Bu haftanın kavramı benim sanal portföyümde nasıl göründü?",
+        "Hafta bilanço üzerineyse kullanıcı şirketleri daha dikkatli ayırmayı deneyebilir. Hafta kripto altyapısı üzerineyse her coin'i aynı sepete koymamayı öğrenebilir. Hafta değerli metaller üzerineyse altın ve gümüşü sadece yükseliyor diye değil, portföyde risk dengeleme rolüyle okuyabilir.",
+        "Cuma'nın en önemli aracı işlem gerekçesidir. Kullanıcı sanal işlem yapmadan önce nedenini yazmalıdır. Gerekçenin mükemmel olması gerekmez. Önemli olan kararın görünür hale gelmesidir. Çünkü yazılmayan karar sonradan kolayca unutulur veya yanlış hatırlanır.",
+        "Bu günün özeti kar veya zarar tablosu değildir. Cuma özeti karar kalitesi tablosudur. Kullanıcı pozisyon büyüklüğünü, nakit payını, tek varlığa yüklenip yüklenmediğini, AI sinyalini nasıl okuduğunu ve ters senaryosunu birlikte değerlendirmelidir.",
+      ],
+      checklist: [
+        "Yeni sanal işlemden önce portföy dağılımına bak.",
+        "İşlem gerekçesini ve ters senaryonu yaz.",
+        "Sonucu yalnız kar/zararla değil, haftanın kavramıyla karşılaştır.",
+      ],
+    },
+    {
+      id: "pazar-topluluk-degerlendirmesi",
+      day: "Pazar",
+      theme: "Topluluk",
+      title: "Haftanın liderleri ve rozet kazananlar",
+      body: "Hafta liderlik, ligler, rozetler ve topluluk konuşmalarıyla kapanır; amaç sadece derece değil, öğrenme kalitesidir.",
+      ctaHref: `/${locale}/liderlik-tablosu`,
+      ctaLabel: "Liderlik tablosunu aç",
+      practiceTitle: "Pazar değerlendirme soruları",
+      paragraphs: [
+        "Pazar günü yalnızca en yüksek portföy değerini alkışlama günü değildir. Bu gün, haftanın kararlarının nasıl alındığını konuşma günüdür. Bir kullanıcı tek bir cesur hamleyle öne çıkmış olabilir; başka bir kullanıcı daha dengeli ve sürdürülebilir bir süreç kurmuş olabilir. İkisi aynı şey değildir.",
+        "Liderlik, ligler ve rozetler öğrenme sinyali gibi okunmalıdır. Sıralama kullanıcıyı platforma geri getirir, ama asıl değer topluluk konuşmasında oluşur. Bu portföy neden iyi davrandı? Hangi risk kontrol edildi? Hangi karar şanstı? Hangi karar tekrar edilebilir bir sürece dayanıyordu?",
+        "Pazar değerlendirmesinde yatırım tavsiyesi verilmez. Kimseye ne alacağı veya satacağı söylenmez. Bunun yerine karar dili konuşulur. “Bu kararı hangi gerekçeyle aldın?” ve “Yanılsaydın ne yapardın?” soruları, haftanın en değerli eğitim sorularıdır.",
+        "Sağlıklı bir Pazar kapanışı, sonraki Pazartesi'nin konusunu da hazırlar. Topluluk hafta içinde en çok nerede zorlandıysa, yeni haftanın yazısı oradan başlayabilir. Böylece blog, eğitim, sanal portföy ve topluluk birbirini besleyen yaşayan bir sistem haline gelir.",
+      ],
+      checklist: [
+        "Liderlikte ilk sıralara değil, karar sürecine bak.",
+        "Ligde bir işlem gerekçesini eğitim amacıyla tartış.",
+        "Gelecek haftanın konusunu en çok karışan soruya göre seç.",
+      ],
+    },
   ] as const;
 }
 
@@ -235,46 +512,6 @@ function getStarterPosts(locale: string) {
       title: "Rotary ligleri nasıl çalışır?",
       excerpt: "Toplulukların eğitim ve ortak değerlendirme etrafında kendi davetli yarışma ritmini nasıl kurabileceğini gösterir.",
       keywords: ["Rotary ligi", "topluluk yarışması", "sanal işlem"],
-    },
-  ] as const;
-}
-
-function getEditorialPillars(locale: string) {
-  if (locale === "en") {
-    return [
-      {
-        eyebrow: "Market reading",
-        title: "Market literacy notes",
-        body: "Explain concepts, indicators, and decision habits with a practical tone that helps members use the platform more consciously.",
-      },
-      {
-        eyebrow: "Community rhythm",
-        title: "Community stories",
-        body: "Highlight how Rotary leagues use the platform, what they learn, and how engagement grows over time.",
-      },
-      {
-        eyebrow: "Platform notes",
-        title: "Platform updates",
-        body: "Use the blog to announce new features, training series, and upcoming competition cycles with a clear CTA.",
-      },
-    ] as const;
-  }
-
-  return [
-    {
-      eyebrow: "Piyasa okuması",
-      title: "Önce sakin kalmak, sonra karar vermek",
-      body: "Kavramları, göstergeleri ve karar alışkanlıklarını yalnızca anlatan değil, günlük kullanıma indiren bir dille ele alır.",
-    },
-    {
-      eyebrow: "Topluluk ritmi",
-      title: "Birlikte öğrenmenin piyasadaki karşılığı",
-      body: "Rotary liglerinde oluşan öğrenme düzenini, kullanıcıların birbirinden nasıl beslendiğini ve katılımın neden büyüdüğünü görünür kılar.",
-    },
-    {
-      eyebrow: "Platform notları",
-      title: "Yeni özellikler ne işe yarıyor?",
-      body: "Eğitim serilerini, yarışma dönemlerini ve platform yeniliklerini sade bir çağrıyla duyurur; kullanıcının nereden başlayacağını netleştirir.",
     },
   ] as const;
 }

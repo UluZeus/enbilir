@@ -6,6 +6,9 @@ type ManagedContentListProps = {
   emptyBody?: string;
   featuredLabel?: string;
   variant?: "grid" | "compact";
+  showBody?: boolean;
+  linkBasePath?: string;
+  linkLabel?: string;
 };
 
 function getVideoEmbedUrl(url: string) {
@@ -73,7 +76,16 @@ function MediaPreview({ item }: { item: PublicManagedContentItem }) {
   return null;
 }
 
-export function ManagedContentList({ items, emptyTitle, emptyBody, featuredLabel = "Featured", variant = "grid" }: ManagedContentListProps) {
+export function ManagedContentList({
+  items,
+  emptyTitle,
+  emptyBody,
+  featuredLabel = "Featured",
+  variant = "grid",
+  showBody = true,
+  linkBasePath,
+  linkLabel = "Detay",
+}: ManagedContentListProps) {
   if (items.length === 0) {
     if (!emptyTitle && !emptyBody) {
       return null;
@@ -98,12 +110,21 @@ export function ManagedContentList({ items, emptyTitle, emptyBody, featuredLabel
             ) : null}
             <h2 className="text-xl font-black text-[#152033]">{item.title}</h2>
             {item.excerpt ? <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{item.excerpt}</p> : null}
-            <div className="mt-3 grid gap-2 text-sm leading-6 text-slate-600">
-              {paragraphs(item.body).map((paragraph, index) => (
-                <p key={`${index}-${paragraph}`}>{paragraph}</p>
-              ))}
-            </div>
-            {item.linkUrl ? (
+            {showBody ? (
+              <div className="mt-3 grid gap-2 text-sm leading-6 text-slate-600">
+                {paragraphs(item.body).map((paragraph, index) => (
+                  <p key={`${index}-${paragraph}`}>{paragraph}</p>
+                ))}
+              </div>
+            ) : null}
+            {linkBasePath ? (
+              <a
+                href={`${linkBasePath}/${item.id}`}
+                className="premium-action mt-4 inline-flex px-4 py-2 text-xs font-black"
+              >
+                {linkLabel}
+              </a>
+            ) : item.linkUrl ? (
               <a
                 href={item.linkUrl}
                 target={item.linkUrl.startsWith("/") ? undefined : "_blank"}
