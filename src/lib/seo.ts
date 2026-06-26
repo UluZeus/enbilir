@@ -133,6 +133,18 @@ const pageSeo = {
         "Financial literacy education with stock market, economy, crypto, technical analysis, risk management, and virtual portfolio practice.",
     },
   },
+  contentHub: {
+    tr: {
+      title: "İçerik Merkezi | Enbilir Blog, Eğitim ve Site Rehberi",
+      description:
+        "Enbilir içerik merkezi; blog yazıları, finansal okuryazarlık eğitimleri ve site kullanım rehberlerini arama, filtreleme ve okuma sırasıyla bir araya getirir.",
+    },
+    en: {
+      title: "Content Hub | Enbilir Blog, Education and Site Guide",
+      description:
+        "The Enbilir content hub brings blog articles, financial-literacy education, and site guides together with search, filters, and a practical reading path.",
+    },
+  },
   leagues: {
     tr: {
       title: "Ligler ve Portföy Yarışmaları | Enbilir",

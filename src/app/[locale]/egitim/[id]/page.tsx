@@ -13,7 +13,7 @@ function paragraphs(body: string) {
     .filter(Boolean);
 }
 
-function getLocalizedBlogIds(id: string) {
+function getLocalizedEducationIds(id: string) {
   const baseId = id.endsWith("-en") ? id.slice(0, -3) : id;
 
   return {
@@ -25,26 +25,26 @@ function getLocalizedBlogIds(id: string) {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const post = await getManagedContentItemById({ id, type: "BLOG", locale });
+  const item = await getManagedContentItemById({ id, type: "EDUCATION", locale });
 
-  if (!post) {
-    return buildPageMetadata({ locale, path: "/blog", page: "blog" });
+  if (!item) {
+    return buildPageMetadata({ locale, path: "/egitim", page: "education" });
   }
 
   const siteUrl = getSiteUrl();
-  const localizedIds = getLocalizedBlogIds(id);
-  const canonical = `/${locale}/blog/${id}`;
-  const description = post.excerpt ?? paragraphs(post.body)[0];
+  const localizedIds = getLocalizedEducationIds(id);
+  const canonical = `/${locale}/egitim/${id}`;
+  const description = item.excerpt ?? paragraphs(item.body)[0];
 
   return {
-    ...(await buildPageMetadata({ locale, path: `/blog/${id}`, page: "blog" })),
-    title: { absolute: `${post.title} | Enbilir Blog` },
+    ...(await buildPageMetadata({ locale, path: `/egitim/${id}`, page: "education" })),
+    title: { absolute: `${item.title} | Enbilir Eğitim` },
     description,
     alternates: {
       canonical,
       languages: {
-        tr: `/tr/blog/${localizedIds.tr}`,
-        en: `/en/blog/${localizedIds.en}`,
+        tr: `/tr/egitim/${localizedIds.tr}`,
+        en: `/en/egitim/${localizedIds.en}`,
       },
     },
     openGraph: {
@@ -52,50 +52,51 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       locale: locale === "tr" ? "tr_TR" : "en_US",
       url: canonical,
       siteName: seoBrand.domain,
-      title: post.title,
+      title: item.title,
       description,
-      publishedTime: post.publishedAt?.toISOString(),
+      publishedTime: item.publishedAt?.toISOString(),
       authors: [seoBrand.founder],
       images: [
         {
           url: `${siteUrl}/logo.png`,
           width: 1200,
           height: 630,
-          alt: `${post.title} | Enbilir Blog`,
+          alt: `${item.title} | Enbilir Eğitim`,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: post.title,
+      title: item.title,
       description,
       images: [`${siteUrl}/logo.png`],
     },
   };
 }
 
-export default async function BlogPostPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
+export default async function EducationDetailPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const post = await getManagedContentItemById({ id, type: "BLOG", locale });
+  const item = await getManagedContentItemById({ id, type: "EDUCATION", locale });
 
-  if (!post) {
+  if (!item) {
     notFound();
   }
 
-  const published = post.publishedAt
-    ? new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "long" }).format(post.publishedAt)
-    : null;
+  const articleParagraphs = paragraphs(item.body);
   const siteUrl = getSiteUrl();
-  const articleParagraphs = paragraphs(post.body);
-  const articleStructuredData = {
+  const published = item.publishedAt
+    ? new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "long" }).format(item.publishedAt)
+    : null;
+  const structuredData = {
     "@context": "https://schema.org",
-    "@type": "Article",
-    headline: post.title,
-    description: post.excerpt ?? articleParagraphs[0],
+    "@type": "LearningResource",
+    headline: item.title,
+    name: item.title,
+    description: item.excerpt ?? articleParagraphs[0],
     inLanguage: locale === "tr" ? "tr-TR" : "en-US",
-    datePublished: post.publishedAt?.toISOString(),
-    dateModified: post.publishedAt?.toISOString(),
+    datePublished: item.publishedAt?.toISOString(),
+    dateModified: item.publishedAt?.toISOString(),
     author: {
       "@type": "Person",
       name: seoBrand.founder,
@@ -108,24 +109,25 @@ export default async function BlogPostPage({ params }: { params: Promise<{ local
         url: `${siteUrl}/logo.png`,
       },
     },
-    mainEntityOfPage: `${siteUrl}/${locale}/blog/${post.id}`,
+    mainEntityOfPage: `${siteUrl}/${locale}/egitim/${item.id}`,
+    educationalLevel: locale === "tr" ? "Finansal okuryazarlık" : "Financial literacy",
   };
 
   return (
     <ContentArticleShell
       locale={locale}
-      backHref={`/${locale}/blog`}
-      backLabel={locale === "tr" ? "Blog yazılarına dön" : "Back to blog"}
-      eyebrow={locale === "tr" ? "Enbilir yazısı" : "Enbilir article"}
-      title={post.title}
-      excerpt={post.excerpt}
+      backHref={`/${locale}/egitim`}
+      backLabel={locale === "tr" ? "Eğitim yazılarına dön" : "Back to education"}
+      eyebrow={locale === "tr" ? "Enbilir eğitim yazısı" : "Enbilir education article"}
+      title={item.title}
+      excerpt={item.excerpt}
       publishedLabel={published}
       paragraphs={articleParagraphs}
     >
       <script
         type="application/ld+json"
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleStructuredData) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
     </ContentArticleShell>
   );

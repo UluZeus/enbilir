@@ -80,13 +80,13 @@ export default async function RegisterPage({
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#bd8c7d]">
               {locale === "tr" ? "30 gün ücretsiz deneme" : "30-day free trial"}
             </p>
-            <h1 className="mt-2 text-2xl font-black text-[#152033]">
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">
               {locale === "tr" ? "Sanal portföyünü hemen aç" : "Open your virtual portfolio now"}
-            </h1>
+            </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               {locale === "tr"
-                ? "Gerçek para riski olmadan işlem yap, liglere katıl, AI makro raporları takip et. Sonrasında 50 TL katkı gönüllülük esaslıdır."
-                : "Trade without real-money risk, join leagues, and follow AI macro reports. The later 50 TL contribution is voluntary."}
+                ? "Gerçek para riski olmadan işlem yap, liglere katıl, AI makro raporları takip et. İlk 30 gün ücretsizdir; sonrasında standart üyelikte 70 TL katkı gönüllü, VIP üyelikte aylık 100 TL ileri AI hizmeti içindir."
+                : "Trade without real-money risk, join leagues, and follow AI macro reports. The first 30 days are free; after that, the 70 TL standard contribution is voluntary, while VIP membership is 100 TL per month for the advanced AI service."}
             </p>
           </div>
           <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />

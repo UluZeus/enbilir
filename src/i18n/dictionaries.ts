@@ -5,6 +5,7 @@ export const dictionaries = {
     brand: "Enbilir",
     nav: {
       home: "Ana sayfa",
+      contentHub: "İçerik Merkezi",
       trade: "İşlem Yap",
       leaderboard: "Liderlik",
       leagues: "Ligler",
@@ -77,6 +78,7 @@ export const dictionaries = {
     brand: "Enbilir",
     nav: {
       home: "Home",
+      contentHub: "Content Hub",
       trade: "Trade",
       leaderboard: "Leaderboard",
       leagues: "Leagues",

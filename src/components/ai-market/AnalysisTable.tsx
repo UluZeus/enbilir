@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   AI_MARKET_FAVORITES_STORAGE_KEY,
@@ -403,6 +404,8 @@ function DesktopResultRows({
 
   const analysis = result.analysis;
   const signal = analysis.signal.signal;
+  const locale = copy.terminal === "AI Trading Terminal" ? "en" : "tr";
+  const tradeHref = `/${locale}/islem-yap?symbol=${encodeURIComponent(analysis.symbol)}&q=${encodeURIComponent(analysis.symbol)}`;
 
   return (
     <>
@@ -410,6 +413,9 @@ function DesktopResultRows({
       <td className="border-b border-slate-100 px-2 py-3 align-top">
         <p className="font-black text-[#152033]">{analysis.symbol}</p>
         <p className="mt-1 text-xs text-slate-500">{analysis.name}</p>
+        <Link href={tradeHref} className="mt-2 inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-black text-[#0f766e]">
+          {locale === "en" ? "Try" : "Dene"}
+        </Link>
       </td>
       <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{formatPrice(analysis.lastPrice)}</td>
       <td className="border-b border-slate-100 px-2 py-3 text-slate-700">{formatNumber(analysis.indicators.rsi, 1)}</td>
@@ -484,6 +490,8 @@ function MobileCard({
 
   const analysis = result.analysis;
   const signal = analysis.signal.signal;
+  const locale = copy.terminal === "AI Trading Terminal" ? "en" : "tr";
+  const tradeHref = `/${locale}/islem-yap?symbol=${encodeURIComponent(analysis.symbol)}&q=${encodeURIComponent(analysis.symbol)}`;
 
   return (
     <div className="rounded-md border border-white/70 bg-white/60 p-3">
@@ -507,6 +515,9 @@ function MobileCard({
       </div>
 
       <p className="mt-3 text-xs leading-5 text-slate-600">{analysis.explanation}</p>
+      <Link href={tradeHref} className="mt-3 inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-[#0f766e]">
+        {locale === "en" ? "Try in virtual portfolio" : "Sanal portföyde dene"}
+      </Link>
       <p className="mt-2 rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1.5 text-xs font-bold leading-5 text-cyan-900">
         {getSignalReadingGuide(signal, copy.terminal === "AI Trading Terminal" ? "en" : "tr")}
       </p>

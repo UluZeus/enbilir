@@ -140,6 +140,7 @@ export function TerminalHeader({
   const intervals = getIntervals(safeLocale);
   const signalText = getSignalLabel(analysis, copy);
   const currentPrice = performance?.price ?? analysis?.lastPrice ?? null;
+  const tradeHref = `/${safeLocale}/islem-yap?symbol=${encodeURIComponent(selectedSymbol)}&q=${encodeURIComponent(selectedSymbol)}`;
 
   return (
     <section className="terminal-header-panel rounded-md border border-slate-800 bg-[#0b111d] shadow-2xl">
@@ -147,7 +148,7 @@ export function TerminalHeader({
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{copy.terminal}</p>
           <div className="mt-2 flex flex-wrap items-end gap-3">
-            <h1 className="text-3xl font-black tracking-normal text-white md:text-4xl">{selectedSymbol}</h1>
+            <p className="text-3xl font-black tracking-normal text-white md:text-4xl">{selectedSymbol}</p>
           </div>
           <p className="mt-1 text-2xl font-black tabular-nums text-white">{currentPrice === null ? "—" : `$${formatPrice(currentPrice)}`}</p>
           <div className="mt-3 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
@@ -172,12 +173,20 @@ export function TerminalHeader({
           />
         </div>
 
-        <Link
-          href={`/${locale}/ai-piyasa-asistani/varlik-yonetimi`}
-          className="rounded-md border border-amber-300/40 bg-amber-300/10 px-4 py-2 text-center text-sm font-black text-amber-100 hover:bg-amber-300/15"
-        >
-          {copy.manageAssets}
-        </Link>
+        <div className="grid gap-2">
+          <Link
+            href={tradeHref}
+            className="rounded-md border border-emerald-300/45 bg-emerald-300/14 px-4 py-2 text-center text-sm font-black text-emerald-100 hover:bg-emerald-300/18"
+          >
+            {safeLocale === "tr" ? "Sanal portföyde dene" : "Try in virtual portfolio"}
+          </Link>
+          <Link
+            href={`/${safeLocale}/ai-piyasa-asistani/varlik-yonetimi`}
+            className="rounded-md border border-amber-300/40 bg-amber-300/10 px-4 py-2 text-center text-sm font-black text-amber-100 hover:bg-amber-300/15"
+          >
+            {copy.manageAssets}
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_150px_minmax(200px,1fr)]">

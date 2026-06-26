@@ -215,6 +215,9 @@ export default async function EducationPage({ params }: { params: Promise<{ loca
         <ManagedContentList
           items={educationItems}
           featuredLabel={locale === "en" ? "Featured" : "Öne çıkan"}
+          showBody={false}
+          linkBasePath={`/${locale}/egitim`}
+          linkLabel={locale === "en" ? "Read lesson" : "Dersi oku"}
         />
       ) : null}
     </div>

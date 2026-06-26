@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { CSSProperties, ReactNode } from "react";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
+import { MobileHeaderMenu } from "@/components/MobileHeaderMenu";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -13,12 +14,10 @@ import { getSiteVisualSettings, isVisualEnabled } from "@/lib/site-visual-settin
 
 const primaryNav = [
   { href: "", label: "home" },
+  { href: "icerik-merkezi", label: "contentHub" },
   { href: "ligler", label: "leagues" },
-  { href: "egitim", label: "education" },
   { href: "liderlik-tablosu", label: "leaderboard" },
   { href: "topluluk", label: "community" },
-  { href: "blog", label: "blog" },
-  { href: "siteyi-anlamak", label: "siteGuide" },
   { href: "iletisim", label: "contact" },
 ] as const;
 
@@ -121,6 +120,33 @@ export async function AppShell({ children, locale }: AppShellProps) {
   const animationsEnabled = isVisualEnabled(visualSettings, "animationsEnabled");
   const card3dEnabled = isVisualEnabled(visualSettings, "card3dEnabled");
   const whatsappUrl = "https://wa.me/905322825555";
+  const macroReportHref = latestMacroReport
+    ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
+    : `/${locale}/ai-piyasa-asistani/raporlar`;
+  const primaryLinks = primaryNav.map((item) => ({
+    href: `/${locale}${item.href ? `/${item.href}` : ""}`,
+    label: dictionary.nav[item.label],
+  }));
+  const mobilePrimaryLinks = [
+    ...primaryLinks,
+    { href: `/${locale}/blog`, label: dictionary.nav.blog },
+    { href: `/${locale}/egitim`, label: dictionary.nav.education },
+    { href: `/${locale}/siteyi-anlamak`, label: dictionary.nav.siteGuide },
+  ];
+  const productLinks: Array<{ href: string; label: string; tone: "trade" | "ai" | "chat" | "macro" | "whatsapp" }> = [
+    ...productNav.map((item) => ({
+      href: `/${locale}/${item.href}`,
+      label: item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label],
+      tone: item.tone,
+    })),
+    { href: `/${locale}/sohbet`, label: dictionary.nav.chat, tone: "chat" },
+    { href: macroReportHref, label: locale === "en" ? "MACRO REPORT" : "MAKRO RAPOR", tone: "macro" },
+    { href: whatsappUrl, label: dictionary.whatsapp, tone: "whatsapp" },
+  ];
+  const accountLinks = accountNav.map((item) => ({
+    href: `/${locale}/${item.href}`,
+    label: dictionary.nav[item.label],
+  }));
   const shellStyle = {
     "--visual-gradient-primary": "#d1bfa7",
     "--visual-gradient-secondary": "#bd8c7d",
@@ -137,7 +163,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
     >
       <AnimatedBackground settings={visualSettings} />
       <header className="premium-site-header sticky top-0 z-30">
-        <div className="premium-finance-topbar">
+        <div className="premium-finance-topbar hidden md:block">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="premium-support-copy flex flex-1 flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-black leading-6 tracking-[0.01em] sm:text-base lg:text-[17px] xl:text-lg">
               <span className="font-black">{ui.appShell.support}</span>
@@ -160,7 +186,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
           </div>
         </div>
 
-        <div className="premium-finance-header mx-auto grid w-full max-w-[92rem] gap-x-4 gap-y-3 px-4 py-3 lg:grid-cols-[178px_minmax(0,1fr)] lg:items-center xl:grid-cols-[190px_minmax(0,1fr)] xl:px-5">
+        <div className="premium-finance-header mx-auto hidden w-full max-w-[92rem] gap-x-4 gap-y-3 px-4 py-3 md:grid lg:grid-cols-[178px_minmax(0,1fr)] lg:items-center xl:grid-cols-[190px_minmax(0,1fr)] xl:px-5">
           <Link href={`/${locale}`} className="premium-brand-lockup flex shrink-0 items-center gap-2.5 lg:row-span-2 lg:self-center">
             <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="premium-brand-mark h-12 w-12 rounded-md xl:h-11 xl:w-11" />
             <span>
@@ -232,11 +258,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
               {dictionary.nav.chat}
             </Link>
             <Link
-              href={
-                latestMacroReport
-                  ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
-                  : `/${locale}/ai-piyasa-asistani/raporlar`
-              }
+              href={macroReportHref}
               className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white"
               style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
             >
@@ -254,6 +276,18 @@ export async function AppShell({ children, locale }: AppShellProps) {
             </a>
           </nav>
         </div>
+        <MobileHeaderMenu
+          locale={locale}
+          brandLine="enbilir.com"
+          academyLabel={ui.appShell.academy}
+          primaryLinks={mobilePrimaryLinks}
+          productLinks={productLinks}
+          accountLinks={accountLinks}
+          userLabel={sessionUser ? `${locale === "tr" ? "Merhaba" : "Hello"}, ${getDisplayName(sessionUser)}` : undefined}
+          logoutLabel={ui.appShell.logout}
+          supportLabel={ui.appShell.support}
+          tagline={ui.appShell.tagline}
+        />
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-5 py-8 pb-24 md:pb-8">{children}</main>
@@ -279,11 +313,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
             {ui.appShell.aiAssistant}
           </Link>
           <Link
-            href={
-              latestMacroReport
-                ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
-                : `/${locale}/ai-piyasa-asistani/raporlar`
-            }
+            href={macroReportHref}
             className="macro-report-nav-link rounded-xl px-3 py-3 text-center text-xs font-black text-white"
           >
             {locale === "tr" ? "Makro" : "Macro"}
