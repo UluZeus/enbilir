@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
+import { joinLeagueAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
 import { getActiveLeagues, getUserLeagues } from "@/lib/leagues";
 import { buildPageMetadata } from "@/lib/seo";
@@ -76,7 +77,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
             </div>
             <div className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
               <p className="text-sm font-black text-[#152033]">{locale === "tr" ? "2. Davet kodu paylaş" : "2. Share invite code"}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{locale === "tr" ? "Üyeleri güvenli biçimde içeri al ve kendi topluluk akışını kur." : "Bring members in securely and build your own community rhythm."}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{locale === "tr" ? "Aktif ligleri görünür kıl; kullanıcılar istedikleri lige tek tıkla katılabilsin." : "Keep active leagues visible so users can join the league they want with one click."}</p>
             </div>
             <div className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
               <p className="text-sm font-black text-[#152033]">{locale === "tr" ? "3. Dönemsel yarışma başlat" : "3. Run seasonal competition"}</p>
@@ -92,7 +93,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
           <div className="mt-4 grid gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
               <p className="text-sm font-black text-white">{locale === "tr" ? "24 üye" : "24 members"}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Haftalık liderlik, aylık görünüm ve davetli üyelik ile kontrollü yarışma alanı." : "A controlled competition area with weekly leadership, monthly visibility, and invite-only participation."}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{locale === "tr" ? "Haftalık liderlik, aylık görünüm ve doğrudan katılım ile canlı yarışma alanı." : "A lively competition area with weekly leadership, monthly visibility, and direct participation."}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
               <p className="text-sm font-black text-white">{locale === "tr" ? "Topluluk ritmi" : "Community rhythm"}</p>
@@ -119,9 +120,8 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
           </p>
         ) : (
           activeLeagues.map((league) => (
-            <Link
+            <article
               key={league.id}
-              href={`/${locale}/ligler/${league.slug}`}
               className="premium-card premium-card--interactive p-5 shadow-sm hover:border-[#f5a623]"
             >
               <div className="flex items-start justify-between gap-4">
@@ -129,7 +129,9 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
                     {copy.leagueTypeLabels[league.type]}
                   </p>
-                  <h3 className="mt-2 text-xl font-black text-[#152033]">{league.name}</h3>
+                  <Link href={`/${locale}/ligler/${league.slug}`} className="mt-2 block text-xl font-black text-[#152033] hover:text-[#0f766e]">
+                    {league.name}
+                  </Link>
                 </div>
                 {userLeagueIds.has(league.id) ? (
                   <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-black uppercase text-emerald-700">
@@ -142,8 +144,24 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
                 )}
               </div>
               {league.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{league.description}</p> : null}
-              <p className="mt-4 text-sm font-black text-slate-700">{copy.members(league._count.memberships)}</p>
-            </Link>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-black text-slate-700">{copy.members(league._count.memberships)}</p>
+                {userLeagueIds.has(league.id) ? (
+                  <Link href={`/${locale}/ligler/${league.slug}`} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-black text-[#152033] hover:border-[#0f766e] hover:text-[#0f766e]">
+                    {locale === "tr" ? "Ligi aç" : "Open league"}
+                  </Link>
+                ) : (
+                  <form action={joinLeagueAction}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="leagueId" value={league.id} />
+                    <input type="hidden" name="redirectTo" value={`/${locale}/ligler/${league.slug}`} />
+                    <button className="premium-cta px-4 py-2 text-sm font-black">
+                      {locale === "tr" ? "Bu lige katıl" : "Join this league"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </article>
           ))
         )}
       </section>
@@ -155,7 +173,7 @@ function getLeagueGrowthLoop(locale: string) {
   if (locale === "en") {
     return [
       { step: "01", title: "Create the club league", body: "Give the community a private space with a clear purpose and league type." },
-      { step: "02", title: "Share the invite code", body: "Bring members in through a simple code instead of manual onboarding." },
+      { step: "02", title: "Open direct participation", body: "Let users join the league they want without waiting for an invite code." },
       { step: "03", title: "Run a weekly ritual", body: "Use education, portfolio review, and macro reports as repeatable anchors." },
       { step: "04", title: "Celebrate progress", body: "Rankings, badges, and league highlights make learning visible." },
     ] as const;
@@ -163,7 +181,7 @@ function getLeagueGrowthLoop(locale: string) {
 
   return [
     { step: "01", title: "Kulüp ligini kur", body: "Topluluğa net amaçlı, türü belli ve güvenli bir özel alan ver." },
-    { step: "02", title: "Davet kodunu paylaş", body: "Üyeleri tek tek anlatmak yerine basit bir kodla içeri al." },
+    { step: "02", title: "Doğrudan katılımı aç", body: "Kullanıcılar davet kodu beklemeden istedikleri lige katılabilsin." },
     { step: "03", title: "Haftalık ritim kur", body: "Eğitim, portföy değerlendirmesi ve makro raporu tekrar eden bağ yap." },
     { step: "04", title: "İlerlemeyi görünür kıl", body: "Sıralama, rozet ve lig özeti öğrenmeyi görünür hale getirir." },
   ] as const;

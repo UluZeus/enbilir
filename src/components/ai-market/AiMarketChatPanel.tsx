@@ -24,31 +24,6 @@ type ChatSource = {
   value: string;
 };
 
-type SpeechRecognitionEventLike = {
-  results: ArrayLike<{
-    isFinal: boolean;
-    0: { transcript: string };
-  }>;
-};
-
-type SpeechRecognitionErrorEventLike = {
-  error?: string;
-};
-
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-  onend: (() => void) | null;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
 type ChatResponse = {
   answer?: string;
   error?: string;
@@ -56,6 +31,11 @@ type ChatResponse = {
   membership?: "STANDARD" | "VIP";
   updatedAt?: string;
   sources?: ChatSource[];
+};
+
+type TranscribeResponse = {
+  text?: string;
+  error?: string;
 };
 
 const quickPrompts = {
@@ -102,10 +82,12 @@ const copy = {
     voiceStart: "Mikrofonla sor",
     voiceStop: "Durdur",
     voiceListening: "Dinliyorum...",
-    voiceUnsupported: "Bu tarayıcı ses tanımayı desteklemiyor. Chrome veya Edge ile deneyin; daha kurumsal çözüm için ayrıca bir konuşma tanıma servisi bağlanabilir.",
+    voiceProcessing: "Sesi yazıya çeviriyorum...",
+    voiceUnsupported: "Bu tarayıcı ses kaydını desteklemiyor. Chrome, Edge veya güncel Safari ile deneyin.",
     voicePermissionDenied: "Mikrofon izni kapalı görünüyor. Adres çubuğundaki kilit simgesinden mikrofon iznini bu site için 'İzin ver' yapıp sayfayı yenileyin.",
     voiceNoSpeech: "Ses algılanamadı. Mikrofon açıkken biraz daha yakından ve net konuşarak tekrar deneyin.",
-    voiceNetworkError: "Tarayıcının ses tanıma servisine ulaşılamadı. İnternet bağlantısını veya Chrome/Edge tarayıcı ayarlarını kontrol edip tekrar deneyin.",
+    voiceNetworkError: "Ses yazıya çevrilemedi. İnternet bağlantısını kontrol edip tekrar deneyin.",
+    voiceHint: "Konuşmayı bitirince Durdur'a basın; yazıya çevrilip sohbete soru olarak eklenecek.",
     voiceSpeakOn: "Sesli yanıt açık",
     voiceSpeakOff: "Sesli yanıt kapalı",
     voiceReplay: "Son yanıtı oku",
@@ -138,10 +120,12 @@ const copy = {
     voiceStart: "Ask by voice",
     voiceStop: "Stop",
     voiceListening: "Listening...",
-    voiceUnsupported: "This browser does not support speech recognition. Try Chrome or Edge; for a more enterprise-grade solution, a speech-to-text service can be connected.",
+    voiceProcessing: "Transcribing your voice...",
+    voiceUnsupported: "This browser does not support audio recording. Try Chrome, Edge, or a current Safari version.",
     voicePermissionDenied: "Microphone permission appears to be blocked. Use the lock icon in the address bar, allow microphone access for this site, then refresh the page.",
     voiceNoSpeech: "No speech was detected. Try again with the microphone enabled and speak a little closer and clearer.",
-    voiceNetworkError: "The browser speech recognition service could not be reached. Check your connection or Chrome/Edge speech settings and try again.",
+    voiceNetworkError: "Voice transcription could not be completed. Check your connection and try again.",
+    voiceHint: "Press Stop when you finish speaking; it will be transcribed and sent as a chat question.",
     voiceSpeakOn: "Voice answer on",
     voiceSpeakOff: "Voice answer off",
     voiceReplay: "Read last answer",
@@ -156,17 +140,22 @@ function formatMessage(content: string) {
   return content.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
 }
 
-function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+function browserSupportsVoiceRecording() {
   if (typeof window === "undefined") {
-    return null;
+    return false;
   }
 
-  const speechWindow = window as unknown as {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  };
+  return Boolean(navigator.mediaDevices && "getUserMedia" in navigator.mediaDevices && "MediaRecorder" in window);
+}
 
-  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+function getPreferredAudioMimeType() {
+  if (typeof window === "undefined" || !("MediaRecorder" in window)) {
+    return "";
+  }
+
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/mpeg"];
+
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
 
 function stopMicrophonePreview(stream: MediaStream) {
@@ -193,21 +182,35 @@ export function AiMarketChatPanel({
   const [mode, setMode] = useState<"openai" | "local" | null>(null);
   const [effectiveTier, setEffectiveTier] = useState<"STANDARD" | "VIP">(membershipTier);
   const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [speakAnswers, setSpeakAnswers] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lastAnswer, setLastAnswer] = useState("");
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
   const [voiceSupported, setVoiceSupported] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setVoiceSupported(Boolean(getSpeechRecognitionConstructor()));
+      setVoiceSupported(browserSupportsVoiceRecording());
     }, 0);
 
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => () => {
+    if (recordingTimerRef.current) {
+      window.clearTimeout(recordingTimerRef.current);
+    }
+    mediaRecorderRef.current?.stop();
+    if (mediaStreamRef.current) {
+      stopMicrophonePreview(mediaStreamRef.current);
+    }
   }, []);
 
   const history = useMemo(
@@ -285,97 +288,121 @@ export function AiMarketChatPanel({
 
   async function requestMicrophoneAccess() {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      return true;
+      return null;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stopMicrophonePreview(stream);
-      return true;
+      return await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       setVoiceError(text.voicePermissionDenied);
-      return false;
+      return null;
     }
-  }
-
-  function getVoiceRecognitionErrorMessage(error?: string) {
-    if (error === "not-allowed" || error === "service-not-allowed") {
-      return text.voicePermissionDenied;
-    }
-
-    if (error === "no-speech" || error === "audio-capture") {
-      return text.voiceNoSpeech;
-    }
-
-    if (error === "network") {
-      return text.voiceNetworkError;
-    }
-
-    return error ? `${text.failure} (${error})` : text.failure;
   }
 
   async function startVoiceQuestion() {
-    const Recognition = getSpeechRecognitionConstructor();
-
-    if (!Recognition) {
+    if (!voiceSupported) {
       setVoiceError(text.voiceUnsupported);
       return;
     }
 
     if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+      mediaRecorderRef.current?.stop();
       return;
     }
 
     setVoiceError(null);
     setVoiceTranscript("");
+    audioChunksRef.current = [];
 
-    const microphoneAllowed = await requestMicrophoneAccess();
+    const stream = await requestMicrophoneAccess();
 
-    if (!microphoneAllowed) {
+    if (!stream) {
       return;
     }
 
-    const recognition = new Recognition();
-    recognition.lang = safeLocale === "tr" ? "tr-TR" : "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.onresult = (event) => {
-      let transcript = "";
-      let finalTranscript = "";
+    const mimeType = getPreferredAudioMimeType();
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    mediaStreamRef.current = stream;
+    mediaRecorderRef.current = recorder;
 
-      for (let index = 0; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        transcript += result[0]?.transcript ?? "";
-        if (result.isFinal) {
-          finalTranscript += result[0]?.transcript ?? "";
-        }
-      }
-
-      const cleanTranscript = transcript.trim();
-      setVoiceTranscript(cleanTranscript);
-      setInput(cleanTranscript);
-
-      if (finalTranscript.trim()) {
-        recognition.stop();
-        setIsListening(false);
-        void ask(finalTranscript.trim(), { speakAnswer: true });
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunksRef.current.push(event.data);
       }
     };
-    recognition.onerror = (event) => {
-      setVoiceError(getVoiceRecognitionErrorMessage(event.error));
+
+    recorder.onerror = () => {
+      setVoiceError(text.voiceNetworkError);
       setIsListening(false);
+      setIsTranscribing(false);
+      stopMicrophonePreview(stream);
     };
-    recognition.onend = () => setIsListening(false);
-    recognitionRef.current = recognition;
-    setIsListening(true);
+
+    recorder.onstop = () => {
+      if (recordingTimerRef.current) {
+        window.clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+
+      const chunks = audioChunksRef.current;
+      const recordedType = recorder.mimeType || mimeType || "audio/webm";
+      const audioBlob = new Blob(chunks, { type: recordedType });
+      stopMicrophonePreview(stream);
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      setIsListening(false);
+
+      if (audioBlob.size < 1200) {
+        setVoiceError(text.voiceNoSpeech);
+        return;
+      }
+
+      void transcribeAndAsk(audioBlob, recordedType);
+    };
 
     try {
-      recognition.start();
+      recorder.start();
+      setIsListening(true);
+      recordingTimerRef.current = window.setTimeout(() => {
+        if (mediaRecorderRef.current?.state === "recording") {
+          mediaRecorderRef.current.stop();
+        }
+      }, 15_000);
     } catch {
+      stopMicrophonePreview(stream);
       setVoiceError(text.voicePermissionDenied);
       setIsListening(false);
+    }
+  }
+
+  async function transcribeAndAsk(audioBlob: Blob, mimeType: string) {
+    setIsTranscribing(true);
+    setVoiceError(null);
+
+    try {
+      const extension = mimeType.includes("mp4") ? "mp4" : mimeType.includes("mpeg") ? "mp3" : "webm";
+      const formData = new FormData();
+      formData.append("locale", safeLocale);
+      formData.append("audio", audioBlob, `question.${extension}`);
+
+      const response = await fetch("/api/ai-market/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json() as TranscribeResponse;
+      const transcript = payload.text?.replace(/\s+/g, " ").trim() ?? "";
+
+      if (!response.ok || !transcript) {
+        throw new Error(payload.error || text.voiceNetworkError);
+      }
+
+      setVoiceTranscript(transcript);
+      setInput(transcript);
+      await ask(transcript, { speakAnswer: true });
+    } catch (transcribeError) {
+      setVoiceError(transcribeError instanceof Error ? transcribeError.message : text.voiceNetworkError);
+    } finally {
+      setIsTranscribing(false);
     }
   }
 
@@ -451,7 +478,7 @@ export function AiMarketChatPanel({
               <button
                 type="button"
                 onClick={() => void startVoiceQuestion()}
-                disabled={!voiceSupported || isSending}
+                disabled={!voiceSupported || isSending || isTranscribing}
                 className={`rounded-md px-4 py-2 text-sm font-black ${
                   isListening
                     ? "border border-rose-200 bg-rose-100 text-rose-800"
@@ -470,6 +497,8 @@ export function AiMarketChatPanel({
               </button>
             </div>
             {isListening ? <p className="mt-2 text-xs font-bold text-cyan-100">{text.voiceListening}</p> : null}
+            {isTranscribing ? <p className="mt-2 text-xs font-bold text-cyan-100">{text.voiceProcessing}</p> : null}
+            {!isListening && !isTranscribing && voiceSupported ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">{text.voiceHint}</p> : null}
             {voiceTranscript ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-200">{voiceTranscript}</p> : null}
             {voiceError || !voiceSupported ? (
               <p className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-5 text-amber-100">

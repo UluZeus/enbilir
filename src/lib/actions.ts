@@ -1229,23 +1229,37 @@ export async function createLeagueAction(formData: FormData) {
 export async function joinLeagueAction(formData: FormData) {
   const locale = formData.get("locale");
   const inviteCode = normalizeText(formData.get("inviteCode")).toUpperCase();
+  const leagueId = normalizeText(formData.get("leagueId"));
+  const leagueSlug = normalizeText(formData.get("leagueSlug"));
+  const redirectTo = normalizeText(formData.get("redirectTo"));
   const sessionUser = await getSessionUser();
 
   if (!sessionUser) {
     redirect(getRedirect(locale, "giris", "Lige katılmak için giriş yapmalısın."));
   }
 
-  if (!inviteCode) {
-    redirect(getRedirect(locale, "panel", "Davet kodu girmelisin."));
+  if (!inviteCode && !leagueId && !leagueSlug) {
+    redirect(getRedirect(locale, "ligler", "Katılmak istediğin ligi seçmelisin."));
   }
 
-  const league = await prisma.league.findUnique({
-    where: { inviteCode },
-    select: { id: true, isActive: true },
-  });
+  const league = inviteCode
+    ? await prisma.league.findUnique({
+        where: { inviteCode },
+        select: { id: true, slug: true, isActive: true },
+      })
+    : await prisma.league.findFirst({
+        where: {
+          isActive: true,
+          OR: [
+            leagueId ? { id: leagueId } : undefined,
+            leagueSlug ? { slug: leagueSlug } : undefined,
+          ].filter((condition): condition is { id: string } | { slug: string } => Boolean(condition)),
+        },
+        select: { id: true, slug: true, isActive: true },
+      });
 
   if (!league || !league.isActive) {
-    redirect(getRedirect(locale, "panel", "Davet kodu geçersiz veya lig aktif değil."));
+    redirect(getRedirect(locale, "ligler", inviteCode ? "Davet kodu geçersiz veya lig aktif değil." : "Lig bulunamadı veya aktif değil."));
   }
 
   const existingMembership = await prisma.leagueMembership.findUnique({
@@ -1259,7 +1273,7 @@ export async function joinLeagueAction(formData: FormData) {
   });
 
   if (existingMembership) {
-    redirect(getRedirect(locale, "panel", "Bu lige zaten üyesin."));
+    redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : getRedirect(locale, `ligler/${league.slug}`, "Bu lige zaten üyesin.").toString());
   }
 
   await prisma.leagueMembership.create({
@@ -1272,7 +1286,7 @@ export async function joinLeagueAction(formData: FormData) {
 
   await awardBadge(sessionUser.id, "FIRST_LEAGUE", { action: "join", leagueId: league.id });
 
-  redirect(getRedirect(locale, "panel"));
+  redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : getRedirect(locale, `ligler/${league.slug}`).toString());
 }
 
 export async function changeLeagueAction(formData: FormData) {

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { LeagueInviteActions } from "@/components/leagues/LeagueInviteActions";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
+import { joinLeagueAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
 import { getLeagueDetail, getLeagueLeaderboard } from "@/lib/leagues";
 import { formatMoney } from "@/lib/portfolio";
@@ -97,11 +98,22 @@ export default async function LeagueDetailPage({
               <p className="mt-3 text-sm leading-6 text-slate-300">
                 {membership
                   ? locale === "tr" ? "Bu ligin içindesin. Panelden portföyünü, rozetlerini ve liglerini birlikte takip edebilirsin." : "You are inside this league. Track your portfolio, badges, and leagues from the dashboard."
-                  : locale === "tr" ? "Bu lige katılmak için kulüp yöneticisinden davet kodu alıp paneldeki davet alanına yaz." : "To join this league, get the invite code from the club owner and enter it in your dashboard."}
+                  : locale === "tr" ? "Bu lige katılmak için davet kodu gerekmez. İstersen hemen katılıp lig sıralamasında yer alabilirsin." : "No invite code is required to join this league. You can join now and appear in the league ranking."}
               </p>
-              <Link href={`/${locale}/panel`} className="premium-cta mt-4 inline-flex px-4 py-2 text-sm font-black">
-                {copy.joinFromPanel}
-              </Link>
+              {membership ? (
+                <Link href={`/${locale}/panel`} className="premium-cta mt-4 inline-flex px-4 py-2 text-sm font-black">
+                  {locale === "tr" ? "Panelime git" : "Go to my panel"}
+                </Link>
+              ) : (
+                <form action={joinLeagueAction} className="mt-4">
+                  <input type="hidden" name="locale" value={locale} />
+                  <input type="hidden" name="leagueId" value={league.id} />
+                  <input type="hidden" name="redirectTo" value={`/${locale}/ligler/${league.slug}`} />
+                  <button className="premium-cta px-4 py-2 text-sm font-black">
+                    {locale === "tr" ? "Bu lige hemen katıl" : "Join this league now"}
+                  </button>
+                </form>
+              )}
             </>
           )}
         </aside>
@@ -180,9 +192,20 @@ export default async function LeagueDetailPage({
         </div>
         <div className="rounded-md bg-[#f8fafc] p-5">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{copy.participation}</p>
-          <Link href={`/${locale}/panel`} className="mt-2 inline-flex rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
-            {copy.joinFromPanel}
-          </Link>
+          {membership ? (
+            <Link href={`/${locale}/panel`} className="mt-2 inline-flex rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
+              {locale === "tr" ? "Panelime git" : "Go to my panel"}
+            </Link>
+          ) : (
+            <form action={joinLeagueAction} className="mt-2">
+              <input type="hidden" name="locale" value={locale} />
+              <input type="hidden" name="leagueId" value={league.id} />
+              <input type="hidden" name="redirectTo" value={`/${locale}/ligler/${league.slug}`} />
+              <button className="rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
+                {locale === "tr" ? "Lige katıl" : "Join league"}
+              </button>
+            </form>
+          )}
         </div>
       </section>
 
