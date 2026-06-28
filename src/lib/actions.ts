@@ -1294,6 +1294,7 @@ export async function joinLeagueAction(formData: FormData) {
   });
 
   if (existingMembership) {
+    revalidateSocialViews(locale);
     redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : getRedirect(locale, `ligler/${league.slug}`, "Bu lige zaten üyesin.").toString());
   }
 
@@ -1306,6 +1307,7 @@ export async function joinLeagueAction(formData: FormData) {
   });
 
   await awardBadge(sessionUser.id, "FIRST_LEAGUE", { action: "join", leagueId: league.id });
+  revalidateSocialViews(locale);
 
   redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : getRedirect(locale, `ligler/${league.slug}`).toString());
 }
