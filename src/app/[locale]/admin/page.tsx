@@ -501,6 +501,8 @@ export default async function AdminPage({
   }
 
   await ensureDefaultBadges();
+  const recentChatCutoff = new Date();
+  recentChatCutoff.setUTCDate(recentChatCutoff.getUTCDate() - 1);
 
   const [
     ads,
@@ -520,6 +522,9 @@ export default async function AdminPage({
     reportEmailEvents,
     leagueJoinedUsers,
     tradedUsers,
+    usersWithoutLeague,
+    chatRoomCount,
+    recentChatMessages,
     chatReports,
   ] = await Promise.all([
     prisma.adPlacement.findMany({ orderBy: [{ slot: "asc" }, { priority: "desc" }, { createdAt: "desc" }] }),
@@ -539,6 +544,9 @@ export default async function AdminPage({
     prisma.aiMarketReportEvent.count({ where: { eventType: "EMAIL_SENT" } }),
     prisma.leagueMembership.findMany({ distinct: ["userId"], select: { userId: true } }),
     prisma.virtualTrade.findMany({ distinct: ["userId"], select: { userId: true } }),
+    prisma.user.count({ where: { leagueMemberships: { none: {} } } }),
+    prisma.chatRoom.count(),
+    prisma.chatMessage.count({ where: { createdAt: { gte: recentChatCutoff }, hiddenAt: null } }),
     prisma.chatMessageReport.findMany({
       where: { status: "OPEN" },
       orderBy: { createdAt: "desc" },
@@ -640,6 +648,32 @@ export default async function AdminPage({
             <AdminMetric label={locale === "tr" ? "PDF indiren" : "PDF downloads"} value={String(reportDownloadedUsers.length)} />
             <AdminMetric label={locale === "tr" ? "Mail logu" : "Email logs"} value={String(reportEmailEvents)} />
             <AdminMetric label={locale === "tr" ? "Son okuma" : "Last read"} value={latestReadEvent ? formatAdminDate(latestReadEvent.createdAt, locale) : "-"} />
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <AdminHealthCard
+              label={locale === "tr" ? "Ligsiz kullanıcı" : "Users without league"}
+              value={String(usersWithoutLeague)}
+              tone={usersWithoutLeague === 0 ? "good" : "warn"}
+              note={locale === "tr" ? "Varsayılan lig kontrolü" : "Default league check"}
+            />
+            <AdminHealthCard
+              label={locale === "tr" ? "Sohbet odası" : "Chat rooms"}
+              value={String(chatRoomCount)}
+              tone={chatRoomCount > 0 ? "good" : "warn"}
+              note={locale === "tr" ? "Genel ve özel odalar" : "General and private rooms"}
+            />
+            <AdminHealthCard
+              label={locale === "tr" ? "24s mesaj" : "24h messages"}
+              value={String(recentChatMessages)}
+              tone="good"
+              note={locale === "tr" ? "Gizlenmemiş mesajlar" : "Visible messages"}
+            />
+            <AdminHealthCard
+              label={locale === "tr" ? "Açık şikayet" : "Open reports"}
+              value={String(chatReports.length)}
+              tone={chatReports.length === 0 ? "good" : "warn"}
+              note={locale === "tr" ? "Moderasyon kuyruğu" : "Moderation queue"}
+            />
           </div>
         </div>
 

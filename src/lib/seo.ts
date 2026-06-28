@@ -43,6 +43,9 @@ export const coreSeoKeywords = [
   "sanal işlem",
   "sanal borsa",
   "yatırım simülasyonu",
+  "sanal portföy hesaplama",
+  "portföy kar zarar takibi",
+  "canlı piyasa verisi",
   "portföy yarışması",
   "borsa yarışması",
   "kripto para eğitimi",
@@ -58,7 +61,11 @@ export const coreSeoKeywords = [
   "Türk lirası",
   "makro ekonomi",
   "makro rapor",
+  "haftalık makro rapor",
+  "günlük piyasa raporu",
   "AI piyasa asistanı",
+  "AI sohbet",
+  "sesli AI asistan",
   "yapay zeka piyasa yorumu",
   "yapay zeka borsa analizi",
   "teknik analiz eğitimi",
@@ -68,6 +75,9 @@ export const coreSeoKeywords = [
   "hacim analizi",
   "Rotary finansal okuryazarlık",
   "Rotary eğitim platformu",
+  "Rotary portföy ligi",
+  "Rotaract portföy ligi",
+  "canlı topluluk sohbeti",
   ...seoBrand.founderAliases,
   ...seoBrand.relatedBrands,
 ];
@@ -89,36 +99,36 @@ const pageSeo = {
     tr: {
       title: "Sanal İşlem Yap | Enbilir Sanal Portföy ve Borsa Simülasyonu",
       description:
-        "Gerçek para riski olmadan sanal alım satım yapın; BIST, Nasdaq, Dow Jones, kripto, döviz, altın ve emtia piyasalarında portföy pratiği kazanın.",
+        "Gerçek para riski olmadan sanal alım satım yapın; BIST, Nasdaq, Dow Jones, kripto, döviz, altın ve emtiada canlı veri, USD karşılık ve portföy kar zarar takibiyle pratik kazanın.",
     },
     en: {
       title: "Virtual Trading | Enbilir Portfolio and Market Simulator",
       description:
-        "Practice virtual trading without real-money risk across BIST, Nasdaq, Dow Jones, crypto, FX, gold, and commodities.",
+        "Practice virtual trading without real-money risk across BIST, Nasdaq, Dow Jones, crypto, FX, gold, and commodities with live data, USD values, and portfolio P/L tracking.",
     },
   },
   ai: {
     tr: {
       title: "AI Piyasa Asistanı | Makro Rapor, Teknik Analiz ve Piyasa Yorumu",
       description:
-        "AI Piyasa Asistanı; grafikler, teknik göstergeler, haber akışı ve makro konjonktür üzerinden borsa, kripto, döviz ve emtia piyasalarını eğitim amaçlı yorumlar.",
+        "AI Piyasa Asistanı; site verisiyle sohbet, sesli soru, grafikler, teknik göstergeler, haber akışı ve makro konjonktür üzerinden piyasaları eğitim amaçlı yorumlar.",
     },
     en: {
       title: "AI Market Assistant | Macro Reports, Technical Analysis and Market Context",
       description:
-        "The AI Market Assistant interprets charts, indicators, news, and macro context for stocks, crypto, FX, and commodities for educational use.",
+        "The AI Market Assistant supports site-data chat, voice questions, charts, indicators, news flow, and macro context for educational market literacy.",
     },
   },
   reports: {
     tr: {
       title: "Makro Raporlar | Enbilir AI Piyasa Asistanı",
       description:
-        "Altın, gümüş, euro, dolar, Türk lirası, BIST 100, Dow Jones, Nasdaq, petrol, enerji, yapay zeka ve global piyasa başlıklarını içeren AI makro raporları.",
+        "Günlük ve pazartesi haftalık AI makro raporları; altın, gümüş, euro, dolar, TL, BIST 100, Dow Jones, Nasdaq, petrol, enerji, yapay zeka ve global piyasaları kapsar.",
     },
     en: {
       title: "Macro Reports | Enbilir AI Market Assistant",
       description:
-        "AI macro reports covering gold, silver, euro, dollar, Turkish lira, BIST 100, Dow Jones, Nasdaq, oil, energy, AI stocks, and global markets.",
+        "Daily and Monday weekly AI macro reports covering gold, silver, euro, dollar, Turkish lira, BIST 100, Dow Jones, Nasdaq, oil, energy, AI stocks, and global markets.",
     },
   },
   education: {
@@ -149,12 +159,12 @@ const pageSeo = {
     tr: {
       title: "Ligler ve Portföy Yarışmaları | Enbilir",
       description:
-        "Rotary, Rotaract, Interact ve özel topluluklar için sanal portföy ligleri, yarışmalar ve finansal okuryazarlık deneyimi.",
+        "ROTARYEN, ROTARACT, SERBEST ve özel topluluklar için davetsiz katılım, çoklu lig üyeliği, haftalık derece ve sanal portföy yarışmaları.",
     },
     en: {
       title: "Leagues and Portfolio Competitions | Enbilir",
       description:
-        "Virtual portfolio leagues, competitions, and market-literacy experiences for Rotary, Rotaract, Interact, and private communities.",
+        "Virtual portfolio leagues with direct joining, multiple memberships, weekly winners, and market-literacy competition for Rotary, Rotaract, and open communities.",
     },
   },
   leaderboard: {
@@ -257,12 +267,12 @@ const pageSeo = {
     tr: {
       title: "Sohbet | Enbilir Canlı Topluluk Odaları",
       description:
-        "Enbilir üyeleri için genel sohbet odası, özel sohbet odaları, çevrimiçi kullanıcı listesi ve saygılı topluluk konuşmaları.",
+        "Enbilir üyeleri için genel sohbet, özel odalar, AI piyasa sohbeti, dosya, resim, video, konum, kişi bilgisi, anket ve saygılı topluluk konuşmaları.",
     },
     en: {
       title: "Chat | Enbilir Live Community Rooms",
       description:
-        "General and private chat rooms for Enbilir members with online user lists and respectful community conversation.",
+        "General and private chat rooms for Enbilir members with AI market chat, files, images, video, location, contact cards, polls, and respectful community conversation.",
     },
   },
   contact: {

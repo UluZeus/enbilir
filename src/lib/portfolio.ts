@@ -43,6 +43,20 @@ export function getSafePortfolioPriceUsd(
   return position.averagePriceUsd;
 }
 
+function getPortfolioPriceStatus(marketItem: MarketItem | undefined) {
+  if (!marketItem) {
+    return {
+      priceSource: "average-cost",
+      dataStatus: "average-cost",
+    };
+  }
+
+  return {
+    priceSource: marketItem.source,
+    dataStatus: marketItem.dataStatus,
+  };
+}
+
 function findMarketItemForPosition(marketItems: MarketItem[], symbol: string) {
   const normalizedSymbol = symbol.trim().toUpperCase();
 
@@ -108,12 +122,15 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
   const enrichedPositions = positions.map((position) => {
     const marketItem = findMarketItemForPosition(liveMarketItems, position.symbol);
     const currentPriceUsd = getSafePortfolioPriceUsd(position, marketItem);
+    const priceStatus = getPortfolioPriceStatus(marketItem);
     const valueUsd = position.quantity * currentPriceUsd;
     const profitLossUsd = valueUsd - position.quantity * position.averagePriceUsd;
 
     return {
       ...position,
       currentPriceUsd,
+      priceSource: priceStatus.priceSource,
+      dataStatus: priceStatus.dataStatus,
       valueUsd,
       profitLossUsd,
     };

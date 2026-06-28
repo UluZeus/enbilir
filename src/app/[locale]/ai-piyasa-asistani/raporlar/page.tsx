@@ -46,6 +46,7 @@ export default async function AiMarketReportsPage({
   const latestReport = reports[0] ?? null;
   const totalAssets = reports.reduce((sum, report) => sum + report.assets.length, 0);
   const averageAssets = reports.length > 0 ? Math.round(totalAssets / reports.length) : 0;
+  const weeklyReports = reports.filter((report) => report.scope === "WEEKLY").length;
 
   return (
     <main className="macro-report-page min-h-screen px-3 py-5 text-white md:px-5">
@@ -77,6 +78,7 @@ export default async function AiMarketReportsPage({
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{isEnglish ? "Current archive" : "Mevcut arşiv"}</p>
               <div className="mt-4 grid gap-3">
                 <ReportMetric label={isEnglish ? "Reports" : "Rapor"} value={String(reports.length)} />
+                <ReportMetric label={isEnglish ? "Weekly" : "Haftalık"} value={String(weeklyReports)} />
                 <ReportMetric label={isEnglish ? "Avg. assets" : "Ort. varlık"} value={String(averageAssets)} />
                 <ReportMetric label={isEnglish ? "Schedule" : "Takvim"} value="07 / 12 / 18 + Mon" />
               </div>
@@ -109,6 +111,9 @@ export default async function AiMarketReportsPage({
                 <span className="rounded-md border border-white/12 bg-white/8 px-3 py-2 text-xs font-black text-slate-200">
                   {new Intl.DateTimeFormat(isEnglish ? "en-US" : "tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(latestReport.generatedAt)}
                 </span>
+                <span className="rounded-md border border-[#d1bfa7]/40 bg-[#d1bfa7]/10 px-3 py-2 text-xs font-black text-[#f3dec0]">
+                  {getReportScopeLabel(latestReport.scope, isEnglish)}
+                </span>
                 <span className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100">
                   {isEnglish ? "Risk context" : latestReport.riskAppetite ?? "Risk modu"}
                 </span>
@@ -134,7 +139,7 @@ export default async function AiMarketReportsPage({
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-                      {new Intl.DateTimeFormat(isEnglish ? "en-US" : "tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(report.generatedAt)} · {report.scope}
+                      {new Intl.DateTimeFormat(isEnglish ? "en-US" : "tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(report.generatedAt)}
                     </p>
                     <h2 className="mt-1 text-lg font-black text-white">
                       {isEnglish ? "Scheduled macro report" : report.marketRegime ?? "Piyasa rejimi"}
@@ -147,7 +152,10 @@ export default async function AiMarketReportsPage({
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs font-black text-slate-300">
-                      {isEnglish ? `${report.assets.length} assets` : `${report.assets.length} varlik`}
+                      {isEnglish ? `${report.assets.length} assets` : `${report.assets.length} varlık`}
+                    </span>
+                    <span className="rounded-md border border-[#d1bfa7]/35 bg-[#d1bfa7]/10 px-2 py-1 text-xs font-black text-[#f3dec0]">
+                      {getReportScopeLabel(report.scope, isEnglish)}
                     </span>
                     <span className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-xs font-black text-emerald-100">
                       {isEnglish ? "Risk context" : report.riskAppetite ?? "Risk modu"}
@@ -166,6 +174,18 @@ export default async function AiMarketReportsPage({
       </div>
     </main>
   );
+}
+
+function getReportScopeLabel(scope: string, isEnglish: boolean) {
+  if (scope === "WEEKLY") {
+    return isEnglish ? "Weekly report" : "Haftalık rapor";
+  }
+
+  if (scope === "USER") {
+    return isEnglish ? "Personal report" : "Kişisel rapor";
+  }
+
+  return isEnglish ? "Daily macro" : "Günlük makro";
 }
 
 function ReportMetric({ label, value }: { label: string; value: string }) {

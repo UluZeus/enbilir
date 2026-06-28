@@ -62,6 +62,48 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
         </div>
       </section>
 
+      <section className="premium-card p-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+              {locale === "tr" ? "Varsayılan lig yapısı" : "Default league structure"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">
+              {locale === "tr" ? "Kullanıcı davet beklemeden kendi topluluğunu seçer." : "Users choose their community without waiting for an invite."}
+            </h2>
+          </div>
+          <p className="max-w-2xl text-sm leading-7 text-slate-600">
+            {locale === "tr"
+              ? "ROTARYEN, ROTARACT ve SERBEST ligleri platformun ana kapılarıdır. Bir kullanıcı isterse birden fazla ligde yer alabilir; sıralamalar ve haftalık başarı duyuruları üyeliklerine göre görünür."
+              : "ROTARYEN, ROTARACT, and OPEN leagues are the main doors of the platform. A user may join more than one league; rankings and weekly highlights follow their memberships."}
+          </p>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          {[
+            {
+              title: "ROTARYEN",
+              body: locale === "tr" ? "Rotary üyeleri için ana yarışma ve öğrenme alanı." : "The main competition and learning area for Rotary members.",
+            },
+            {
+              title: "ROTARACT",
+              body: locale === "tr" ? "Rotaract topluluğunun kendi portföy ritmini kurduğu alan." : "A dedicated space for the Rotaract community's portfolio rhythm.",
+            },
+            {
+              title: locale === "tr" ? "SERBEST" : "OPEN",
+              body: locale === "tr" ? "Finansal okuryazarlığa ilgi duyan herkes için açık alan." : "An open area for anyone interested in market literacy.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-5">
+              <p className="text-lg font-black text-[#152033]">{item.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">
+                {locale === "tr" ? "Tek tıkla katılım" : "One-click join"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="premium-card premium-card--interactive p-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">

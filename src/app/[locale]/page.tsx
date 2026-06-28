@@ -207,6 +207,52 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
       </section>
 
+      <section className="premium-card p-5 md:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+              {locale === "tr" ? "Canlı öğrenme paneli" : "Live learning panel"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">
+              {locale === "tr" ? "Portföy, lig, rapor ve sohbet aynı eğitim akışında birleşir." : "Portfolio, leagues, reports, and chat work as one learning flow."}
+            </h2>
+          </div>
+          <Link href={`/${locale}/siteyi-anlamak`} className="premium-link rounded-md px-4 py-2 text-sm font-black">
+            {locale === "tr" ? "Siteyi anlamaya başla" : "Start with the site guide"}
+          </Link>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          {[
+            {
+              label: locale === "tr" ? "Sanal portföy" : "Virtual portfolio",
+              value: snapshot ? formatMoney(snapshot.totalValueUsd) : locale === "tr" ? "Giriş gerekli" : "Sign-in needed",
+              body: locale === "tr" ? "Nakit ve pozisyon değeri ayrı ayrı kontrol edilir." : "Cash and positions are checked separately.",
+            },
+            {
+              label: locale === "tr" ? "Aktif ligler" : "Active leagues",
+              value: String(activeLeagueHighlights.length),
+              body: locale === "tr" ? "Kullanıcılar davetsiz katılabilir ve birden fazla ligde yer alabilir." : "Users can join directly and belong to multiple leagues.",
+            },
+            {
+              label: locale === "tr" ? "AI rapor ritmi" : "AI report rhythm",
+              value: "07/12/18",
+              body: locale === "tr" ? "Pazartesi ayrıca haftalık geniş rapor üretilir." : "Mondays also include a broader weekly report.",
+            },
+            {
+              label: locale === "tr" ? "Topluluk" : "Community",
+              value: locale === "tr" ? "Canlı" : "Live",
+              body: locale === "tr" ? "Genel sohbet, özel oda, anket ve dosya akışıyla desteklenir." : "General chat, private rooms, polls, and files support discussion.",
+            },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">{item.label}</p>
+              <p className="mt-2 text-xl font-black text-[#152033]">{item.value}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="home-learning-loop premium-card p-5 md:p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -460,6 +506,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                     total={snapshot.totalValueUsd}
                     size="sm"
                     animated
+                    otherLabel={locale === "en" ? "Other" : "Diğer"}
                     labels={{
                       allocation: locale === "en" ? "Weight" : "Ağırlık",
                       profitLoss: locale === "en" ? "P/L" : "K/Z",
@@ -478,6 +525,25 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                       }),
                     ]}
                   />
+                </div>
+                <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#0f766e]">
+                    {locale === "en" ? "Calculation check" : "Hesap kontrolü"}
+                  </p>
+                  <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{locale === "en" ? "Cash" : "Nakit"}</span>
+                      <span className="text-[#152033]">{formatMoney(snapshot.cashValueUsd)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{locale === "en" ? "Positions" : "Pozisyonlar"}</span>
+                      <span className="text-[#152033]">{formatMoney(snapshot.positionsValueUsd)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t border-emerald-100 pt-1 font-black text-[#0f766e]">
+                      <span>{locale === "en" ? "Total" : "Toplam"}</span>
+                      <span>{formatMoney(snapshot.totalValueUsd)}</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-4">
                   <PortfolioBreakdown items={breakdownItems} compact />

@@ -13,6 +13,8 @@ type PortfolioDonutProps = {
   size?: "sm" | "md";
   animated?: boolean;
   showLegend?: boolean;
+  maxLegendItems?: number;
+  otherLabel?: string;
   labels?: {
     allocation: string;
     profitLoss: string;
@@ -50,9 +52,23 @@ export function PortfolioDonut({
   size = "md",
   animated = false,
   showLegend = true,
+  maxLegendItems = 7,
+  otherLabel = "Diğer",
   labels = { allocation: "Ağırlık", profitLoss: "K/Z" },
 }: PortfolioDonutProps) {
   const positiveItems = items.filter((item) => item.value > 0);
+  const visibleItemCount = Math.max(2, maxLegendItems);
+  const displayItems = positiveItems.length > visibleItemCount
+    ? [
+        ...positiveItems.slice(0, visibleItemCount - 1),
+        {
+          label: otherLabel,
+          detail: `${positiveItems.length - visibleItemCount + 1} pozisyon`,
+          value: positiveItems.slice(visibleItemCount - 1).reduce((sum, item) => sum + item.value, 0),
+          profitLossPercent: null,
+        },
+      ]
+    : positiveItems;
   const shellSize = size === "sm" ? "h-32 w-32" : "h-44 w-44";
   const centerSize = size === "sm" ? "h-16 w-16" : "h-24 w-24";
 
@@ -66,7 +82,7 @@ export function PortfolioDonut({
     );
   }
 
-  const gradientStops = positiveItems
+  const gradientStops = displayItems
     .reduce<{ stops: string[]; cumulative: number }>(
       (accumulator, item, index) => {
         const start = accumulator.cumulative;
@@ -95,7 +111,7 @@ export function PortfolioDonut({
       </div>
       {showLegend ? (
         <div className="portfolio-donut-legend grid gap-2">
-          {positiveItems.map((item, index) => {
+          {displayItems.map((item, index) => {
             const profitLossTone =
               typeof item.profitLossPercent === "number"
                 ? item.profitLossPercent >= 0

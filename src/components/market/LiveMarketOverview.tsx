@@ -47,7 +47,27 @@ function buildOverviewSignature(payload: MarketOverviewPayload) {
   ].join("|");
 }
 
-function TrendList({ title, items }: { title: string; items: MarketItem[] }) {
+function getDataStatusLabel(item: MarketItem, locale: string) {
+  if (item.dataStatus === "live") {
+    return locale === "en" ? "Live" : "Canlı";
+  }
+
+  if (item.dataStatus === "close") {
+    return locale === "en" ? "Last close" : "Son kapanış";
+  }
+
+  if (item.dataStatus === "delayed") {
+    return locale === "en" ? "Delayed" : "Gecikmeli";
+  }
+
+  if (item.dataStatus === "representative") {
+    return locale === "en" ? "Representative" : "Temsili";
+  }
+
+  return locale === "en" ? "Model" : "Model";
+}
+
+function TrendList({ title, items, locale }: { title: string; items: MarketItem[]; locale: string }) {
   return (
     <div className="market-trend-list rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
       <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-600">{title}</h3>
@@ -58,6 +78,9 @@ function TrendList({ title, items }: { title: string; items: MarketItem[] }) {
               <p className="market-trend-symbol truncate text-sm font-black text-[#152033]">{item.symbol}</p>
               <p className="market-trend-name truncate text-[11px] font-semibold text-slate-600">{item.name}</p>
               <p className="market-trend-price mt-0.5 text-[11px] font-bold text-slate-600">{formatMarketItemPrice(item)}</p>
+              <span className="mt-1 inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                {getDataStatusLabel(item, locale)}
+              </span>
             </div>
             <div className="shrink-0 text-right">
               <span className={`market-trend-change block text-sm font-black ${item.changePercent >= 0 ? "market-trend-change--up text-emerald-700" : "market-trend-change--down text-red-600"}`}>
@@ -192,8 +215,8 @@ export function LiveMarketOverview({ locale, initialItems, title, panelTitle, he
         </div>
       </div>
 
-      <TrendList title={isEnglish ? "Top 10 gainers" : "En çok yükselen 10"} items={state.topRisers} />
-      <TrendList title={isEnglish ? "Top 10 losers" : "En çok düşen 10"} items={state.topFallers} />
+      <TrendList title={isEnglish ? "Top 10 gainers" : "En çok yükselen 10"} items={state.topRisers} locale={locale} />
+      <TrendList title={isEnglish ? "Top 10 losers" : "En çok düşen 10"} items={state.topFallers} locale={locale} />
     </section>
   );
 }

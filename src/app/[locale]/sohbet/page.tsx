@@ -39,6 +39,31 @@ export default async function ChatPage({
 
   return (
     <div className="grid gap-5">
+      <section className="premium-card p-5 md:p-6">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+              {locale === "tr" ? "Canlı topluluk merkezi" : "Live community center"}
+            </p>
+            <h1 className="mt-2 text-3xl font-black text-[#152033]">
+              {locale === "tr" ? "Genel sohbet, özel odalar ve AI piyasa sohbeti aynı yerde." : "General chat, private rooms, and AI market chat in one place."}
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+              {locale === "tr"
+                ? "Genel sohbet odası doğrudan açılır. Dilersen özel oda oluşturup kodunu arkadaşına iletebilir, dosya, resim, video, konum, kişi bilgisi ve anket paylaşabilirsin. Yazılanlar kullanıcıların kendi görüşüdür; siteyi veya Dr. Hakan Ünsal'ı bağlamaz."
+                : "The general chat room opens directly. You can create a private room, share its code with a friend, and send files, images, videos, location, contact details, or polls. Messages belong to users and do not represent the site or Dr. Hakan Unsal."}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+            <p className="text-sm font-black">{locale === "tr" ? "Kısa topluluk hatırlatması" : "Community reminder"}</p>
+            <p className="mt-2 text-sm leading-6">
+              {locale === "tr"
+                ? "Saygılı dil, kişisel veriye dikkat, yatırım tavsiyesi vermeme ve yanıltıcı bilgi paylaşmama kuralı geçerlidir. Şikayet edilen mesajlar admin panelinden izlenebilir."
+                : "Respectful language, care with personal data, no investment advice, and no misleading information are required. Reported messages can be reviewed from the admin panel."}
+            </p>
+          </div>
+        </div>
+      </section>
       <AiMarketChatPanel
         locale={locale}
         membershipTier={membership?.effectiveTier ?? "STANDARD"}

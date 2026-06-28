@@ -99,7 +99,7 @@ export default async function TradePage({
       <AdBanner ads={topAds} locale={locale} />
       <section className="grid min-w-0 gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
         <aside className="grid min-w-0 content-start gap-5 self-start">
-          <TradePortfolioPanel snapshot={snapshot} copy={copy.trade} />
+          <TradePortfolioPanel snapshot={snapshot} copy={copy.trade} locale={locale} />
           <LiveMarketOverview locale={locale} initialItems={marketItems} title={copy.trade.title} variant="sidebar" />
           <AdBanner ads={sideAds} locale={locale} variant="side" />
         </aside>
@@ -146,7 +146,52 @@ function formatPercent(value: number) {
   return `${value.toFixed(decimals)}%`;
 }
 
-function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot | null; copy: ReturnType<typeof getUiCopy>["trade"] }) {
+function getTradePortfolioText(isEnglish: boolean) {
+  return {
+    formulaTitle: isEnglish ? "Portfolio calculation" : "Portföy hesaplaması",
+    cash: isEnglish ? "Cash" : "Nakit",
+    positions: isEnglish ? "Positions" : "Pozisyonlar",
+    total: isEnglish ? "Total" : "Toplam",
+    dataNote: isEnglish
+      ? "Position prices use live market data when available; otherwise the last safe source or average cost protects the calculation from empty prices."
+      : "Pozisyon fiyatları canlı veri varsa canlı veriden; yoksa son güvenli kaynak veya ortalama maliyet üzerinden hesaplanır. Boş fiyatla portföy şişirilmez.",
+    empty: isEnglish
+      ? "Your portfolio does not have an investment product yet. Asset-level profit/loss will appear here after your first buy."
+      : "Portföyünde henüz yatırım ürünü yok. İlk alımından sonra varlık bazlı kar/zarar burada görünecek.",
+    currentValue: isEnglish ? "Current value" : "Güncel değer",
+    profitLoss: isEnglish ? "Profit / Loss" : "Kar / Zarar",
+    price: isEnglish ? "Price" : "Fiyat",
+  };
+}
+
+function getPositionDataStatusLabel(status: string, isEnglish: boolean) {
+  if (status === "live") {
+    return isEnglish ? "Live price" : "Canlı fiyat";
+  }
+
+  if (status === "close") {
+    return isEnglish ? "Last close" : "Son kapanış";
+  }
+
+  if (status === "delayed") {
+    return isEnglish ? "Delayed data" : "Gecikmeli veri";
+  }
+
+  if (status === "representative") {
+    return isEnglish ? "Representative" : "Temsili";
+  }
+
+  if (status === "average-cost") {
+    return isEnglish ? "Average cost" : "Ortalama maliyet";
+  }
+
+  return isEnglish ? "Checked" : "Kontrollü";
+}
+
+function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSnapshot | null; copy: ReturnType<typeof getUiCopy>["trade"]; locale: string }) {
+  const isEnglish = locale === "en";
+  const panelText = getTradePortfolioText(isEnglish);
+
   if (!snapshot) {
     return (
       <div className="trade-portfolio-panel premium-card p-5 shadow-sm">
@@ -177,6 +222,7 @@ function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot |
             allocation: copy.cash === "Cash" ? "Weight" : "Ağırlık",
             profitLoss: copy.cash === "Cash" ? "P/L" : "K/Z",
           }}
+          otherLabel={isEnglish ? "Other" : "Diğer"}
           items={[
             { label: copy.cash, detail: snapshot.cashCurrency, value: snapshot.cashValueUsd, profitLossPercent: null },
             ...positions.map((position) => {
@@ -193,6 +239,27 @@ function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot |
         />
       </div>
 
+      <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">{panelText.formulaTitle}</p>
+        <div className="mt-3 grid gap-2 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-slate-600">{panelText.cash}</span>
+            <span className="font-black text-[#152033]">{formatMoney(snapshot.cashValueUsd)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-slate-600">{panelText.positions}</span>
+            <span className="font-black text-[#152033]">{formatMoney(snapshot.positionsValueUsd)}</span>
+          </div>
+          <div className="border-t border-emerald-100 pt-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-black text-[#0f766e]">{panelText.total}</span>
+              <span className="font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</span>
+            </div>
+          </div>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-600">{panelText.dataNote}</p>
+      </div>
+
       <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3">
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="font-bold text-slate-600">{copy.remainingCash}</span>
@@ -207,7 +274,7 @@ function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot |
       <div className="mt-4 grid max-h-[560px] gap-3 overflow-auto pr-1">
         {positions.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm leading-6 text-slate-500">
-            Portföyünde henüz yatırım ürünü yok. İlk alımından sonra varlık bazlı kâr/zarar burada görünecek.
+            {panelText.empty}
           </p>
         ) : positions.map((position) => {
           const percent = snapshot.totalValueUsd > 0 ? (position.valueUsd / snapshot.totalValueUsd) * 100 : 0;
@@ -219,21 +286,28 @@ function TradePortfolioPanel({ snapshot, copy }: { snapshot: PortfolioSnapshot |
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-[#152033]">{position.symbol}</p>
                   <p className="truncate text-xs font-semibold text-slate-500">{position.name}</p>
+                  <span className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                    {getPositionDataStatusLabel(position.dataStatus, isEnglish)}
+                  </span>
                 </div>
                 <p className="shrink-0 text-sm font-black text-[#0f766e]">{formatPercent(percent)}</p>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <p className="font-bold text-slate-500">Güncel değer</p>
+                  <p className="font-bold text-slate-500">{panelText.currentValue}</p>
                   <p className="font-black text-[#152033]">{formatMoney(position.valueUsd)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-slate-500">Kar / Zarar</p>
+                  <p className="font-bold text-slate-500">{panelText.profitLoss}</p>
                   <p className={`font-black ${profitTone}`}>
                     {position.profitLossUsd >= 0 ? "+" : ""}
                     {formatMoney(position.profitLossUsd)}
                   </p>
                 </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-500">
+                <span>{panelText.price}</span>
+                <span>{formatMoney(position.currentPriceUsd)}</span>
               </div>
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
