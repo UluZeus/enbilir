@@ -243,7 +243,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
     <div className="trade-portfolio-panel premium-card p-5 shadow-sm">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.totalPortfolio}</p>
       <p className="mt-2 text-3xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
-      <p className={`mt-1 text-sm font-black ${snapshot.profitLossUsd >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+      <p className={`mt-1 text-sm font-black ${snapshot.profitLossUsd >= 0 ? "text-emerald-900" : "text-red-800"}`}>
         {snapshot.profitLossUsd >= 0 ? "+" : ""}
         {formatMoney(snapshot.profitLossUsd)} ({formatSignedPercent(snapshot.profitLossPercent)})
       </p>
@@ -325,7 +325,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
         ) : positions.map((position) => {
           const allocationPercent = snapshot.totalValueUsd > 0 ? (position.valueUsd / snapshot.totalValueUsd) * 100 : 0;
           const profitLossPercent = position.competitionCostUsd > 0 ? (position.profitLossUsd / position.competitionCostUsd) * 100 : null;
-          const profitTone = position.profitLossUsd >= 0 ? "text-emerald-700" : "text-red-600";
+          const profitTone = position.profitLossUsd >= 0 ? "text-emerald-900" : "text-red-800";
 
           return (
             <div key={position.symbol} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">

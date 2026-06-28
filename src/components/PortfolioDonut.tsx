@@ -115,15 +115,9 @@ export function PortfolioDonut({
             const profitLossTone =
               typeof item.profitLossPercent === "number"
                 ? item.profitLossPercent >= 0
-                  ? "text-emerald-700"
-                  : "text-red-600"
+                  ? "text-emerald-900"
+                  : "text-red-800"
                 : "text-slate-500";
-            const profitLossBoxTone =
-              typeof item.profitLossPercent === "number"
-                ? item.profitLossPercent >= 0
-                  ? "bg-emerald-50"
-                  : "bg-red-50"
-                : "bg-slate-50";
 
             return (
               <div key={`${item.label}-${index}`} className="grid gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
@@ -146,7 +140,7 @@ export function PortfolioDonut({
                     <p className="font-bold uppercase tracking-[0.08em] text-slate-500">{labels.allocation}</p>
                     <p className="font-black text-[#152033]">{formatAllocation(item.value, total)}</p>
                   </div>
-                  <div className={`rounded-lg px-2 py-1 text-right ${profitLossBoxTone}`}>
+                  <div className="rounded-lg bg-slate-50 px-2 py-1 text-right">
                     <p className="font-bold uppercase tracking-[0.08em] text-slate-500">{labels.profitLoss}</p>
                     <p className={`font-black ${profitLossTone}`}>{formatProfitLossPercent(item.profitLossPercent)}</p>
                   </div>
