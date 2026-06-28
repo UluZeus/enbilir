@@ -146,32 +146,51 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
           </div>
         </div>
       </section>
-      <section className="mx-auto mb-4 grid max-w-[1600px] gap-3 md:grid-cols-3">
-        {[
-          {
-            title: isEnglish ? "Standard AI chat" : "Standart AI sohbet",
-            body: isEnglish
-              ? "Answers from the site's market data, portfolio context, reports, and educational content. It stays inside Enbilir's own topic area."
-              : "Sitenin piyasa verisi, portföy bağlamı, raporları ve eğitim içerikleri üzerinden cevap verir. Enbilir'in konu alanı içinde kalır.",
-          },
-          {
-            title: isEnglish ? "VIP AI agent" : "VIP AI ajan",
-            body: isEnglish
-              ? "Designed for broader web/news synthesis when the user has an active VIP membership and the external data connectors are available."
-              : "Aktif VIP üyelikte, dış veri bağlantıları uygunsa daha geniş web/haber derlemesi yapacak üst seviye ajan mantığı için ayrılmıştır.",
-          },
-          {
-            title: isEnglish ? "Education first" : "Önce eğitim",
-            body: isEnglish
-              ? "Outputs are market-literacy context, not investment advice or an automatic buy/sell order."
-              : "Üretilen cevaplar yatırım tavsiyesi veya otomatik al/sat emri değil, finansal okuryazarlık bağlamıdır.",
-          },
-        ].map((item) => (
-          <div key={item.title} className="rounded-[1.15rem] border border-white/10 bg-[#07101d] p-4 text-white shadow-xl">
-            <p className="text-sm font-black text-[#d1bfa7]">{item.title}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+      <section className="mx-auto mb-4 max-w-[1600px] rounded-[1.25rem] border border-white/10 bg-[#07101d] p-4 text-white shadow-2xl md:p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">
+              {isEnglish ? "Scope and trust notice" : "Kapsam ve güven bildirimi"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black">
+              {isEnglish ? "The assistant explains what it knows, and where it stops." : "Asistan neyi bildiğini ve nerede durduğunu açık söyler."}
+            </h2>
           </div>
-        ))}
+          <span className="w-fit rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
+            {isEnglish ? "Current tier" : "Mevcut üyelik"}: {membership?.effectiveTier ?? "STANDARD"}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {[
+            {
+              eyebrow: isEnglish ? "Standard" : "Standart",
+              title: isEnglish ? "Site-data AI chat" : "Site verisiyle AI sohbet",
+              body: isEnglish
+                ? "Answers from the site's market data, portfolio context, reports, and educational content. It stays inside Enbilir's own topic area."
+                : "Sitenin piyasa verisi, portföy bağlamı, raporları ve eğitim içerikleri üzerinden cevap verir. Enbilir'in konu alanı içinde kalır.",
+            },
+            {
+              eyebrow: isEnglish ? "VIP" : "VIP",
+              title: isEnglish ? "Broader agent layer" : "Daha geniş ajan katmanı",
+              body: isEnglish
+                ? "Designed for broader web/news synthesis when the user has an active VIP membership and the external data connectors are available."
+                : "Aktif VIP üyelikte, dış veri bağlantıları uygunsa daha geniş web/haber derlemesi yapacak üst seviye ajan mantığı için ayrılmıştır.",
+            },
+            {
+              eyebrow: isEnglish ? "Boundary" : "Sınır",
+              title: isEnglish ? "Education first" : "Önce eğitim",
+              body: isEnglish
+                ? "Outputs are market-literacy context, not investment advice or an automatic buy/sell order."
+                : "Üretilen cevaplar yatırım tavsiyesi veya otomatik al/sat emri değil, finansal okuryazarlık bağlamıdır.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="rounded-[1.15rem] border border-white/10 bg-white/6 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{item.eyebrow}</p>
+              <p className="mt-2 text-sm font-black text-white">{item.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+            </div>
+          ))}
+        </div>
       </section>
       <AiScenarioLab locale={locale} />
       <AiMarketChatPanel

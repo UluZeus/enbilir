@@ -83,23 +83,27 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
             {
               title: "ROTARYEN",
               body: locale === "tr" ? "Rotary üyeleri için ana yarışma ve öğrenme alanı." : "The main competition and learning area for Rotary members.",
+              note: locale === "tr" ? "Rotaryen kullanıcılar için varsayılan başlangıç." : "Default starting point for Rotary users.",
             },
             {
               title: "ROTARACT",
               body: locale === "tr" ? "Rotaract topluluğunun kendi portföy ritmini kurduğu alan." : "A dedicated space for the Rotaract community's portfolio rhythm.",
+              note: locale === "tr" ? "Genç topluluk ritmi ve ayrı sıralama." : "Youth community rhythm and separate ranking.",
             },
             {
               title: locale === "tr" ? "SERBEST" : "OPEN",
               body: locale === "tr" ? "Finansal okuryazarlığa ilgi duyan herkes için açık alan." : "An open area for anyone interested in market literacy.",
+              note: locale === "tr" ? "Davet kodu olmadan herkese açık." : "Open to everyone without an invite code.",
             },
           ].map((item) => (
-            <div key={item.title} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-5">
+            <a key={item.title} href="#aktif-ligler" className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-5 transition hover:border-[#0f766e]/50 hover:bg-white hover:shadow-md">
               <p className="text-lg font-black text-[#152033]">{item.title}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+              <p className="mt-3 text-xs font-bold leading-5 text-slate-500">{item.note}</p>
               <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">
-                {locale === "tr" ? "Tek tıkla katılım" : "One-click join"}
+                {locale === "tr" ? "Aktif ligleri gör" : "View active leagues"}
               </p>
-            </div>
+            </a>
           ))}
         </div>
       </section>
@@ -155,7 +159,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
         ))}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section id="aktif-ligler" className="scroll-mt-28 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {activeLeagues.length === 0 ? (
           <p className="glass-card rounded-lg p-6 text-sm text-slate-600">
             {copy.empty}

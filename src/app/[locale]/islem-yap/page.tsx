@@ -151,6 +151,7 @@ function getTradePortfolioText(isEnglish: boolean) {
     formulaTitle: isEnglish ? "Portfolio calculation" : "Portföy hesaplaması",
     cash: isEnglish ? "Cash" : "Nakit",
     positions: isEnglish ? "Positions" : "Pozisyonlar",
+    positionCount: isEnglish ? "Position count" : "Pozisyon adedi",
     total: isEnglish ? "Total" : "Toplam",
     dataNote: isEnglish
       ? "Position prices use live market data when available; otherwise the last safe source or average cost protects the calculation from empty prices."
@@ -161,6 +162,7 @@ function getTradePortfolioText(isEnglish: boolean) {
     currentValue: isEnglish ? "Current value" : "Güncel değer",
     profitLoss: isEnglish ? "Profit / Loss" : "Kar / Zarar",
     price: isEnglish ? "Price" : "Fiyat",
+    source: isEnglish ? "Source" : "Kaynak",
   };
 }
 
@@ -186,6 +188,26 @@ function getPositionDataStatusLabel(status: string, isEnglish: boolean) {
   }
 
   return isEnglish ? "Checked" : "Kontrollü";
+}
+
+function getPositionSourceLabel(source: string, isEnglish: boolean) {
+  if (source === "yahoo") {
+    return isEnglish ? "Yahoo Finance" : "Yahoo Finance";
+  }
+
+  if (source === "binance") {
+    return isEnglish ? "Binance" : "Binance";
+  }
+
+  if (source === "representative") {
+    return isEnglish ? "Representative feed" : "Temsili veri";
+  }
+
+  if (source === "average-cost") {
+    return isEnglish ? "Average cost fallback" : "Ortalama maliyet yedeği";
+  }
+
+  return isEnglish ? "Fallback feed" : "Yedek veri";
 }
 
 function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSnapshot | null; copy: ReturnType<typeof getUiCopy>["trade"]; locale: string }) {
@@ -250,6 +272,10 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
             <span className="font-bold text-slate-600">{panelText.positions}</span>
             <span className="font-black text-[#152033]">{formatMoney(snapshot.positionsValueUsd)}</span>
           </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-slate-600">{panelText.positionCount}</span>
+            <span className="font-black text-[#152033]">{positions.length}</span>
+          </div>
           <div className="border-t border-emerald-100 pt-2">
             <div className="flex items-center justify-between gap-3">
               <span className="font-black text-[#0f766e]">{panelText.total}</span>
@@ -289,6 +315,9 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
                   <span className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
                     {getPositionDataStatusLabel(position.dataStatus, isEnglish)}
                   </span>
+                  <span className="ml-1 mt-1 inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+                    {getPositionSourceLabel(position.priceSource, isEnglish)}
+                  </span>
                 </div>
                 <p className="shrink-0 text-sm font-black text-[#0f766e]">{formatPercent(percent)}</p>
               </div>
@@ -308,6 +337,10 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
               <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-500">
                 <span>{panelText.price}</span>
                 <span>{formatMoney(position.currentPriceUsd)}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-3 px-2 text-[11px] font-bold text-slate-500">
+                <span>{panelText.source}</span>
+                <span>{getPositionSourceLabel(position.priceSource, isEnglish)}</span>
               </div>
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />

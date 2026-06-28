@@ -67,6 +67,22 @@ function getDataStatusLabel(item: MarketItem, locale: string) {
   return locale === "en" ? "Model" : "Model";
 }
 
+function getSourceLabel(item: MarketItem, locale: string) {
+  if (item.source === "yahoo") {
+    return "Yahoo";
+  }
+
+  if (item.source === "binance") {
+    return "Binance";
+  }
+
+  if (item.source === "representative") {
+    return locale === "en" ? "Representative" : "Temsili";
+  }
+
+  return locale === "en" ? "Fallback" : "Yedek";
+}
+
 function TrendList({ title, items, locale }: { title: string; items: MarketItem[]; locale: string }) {
   return (
     <div className="market-trend-list rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
@@ -78,9 +94,14 @@ function TrendList({ title, items, locale }: { title: string; items: MarketItem[
               <p className="market-trend-symbol truncate text-sm font-black text-[#152033]">{item.symbol}</p>
               <p className="market-trend-name truncate text-[11px] font-semibold text-slate-600">{item.name}</p>
               <p className="market-trend-price mt-0.5 text-[11px] font-bold text-slate-600">{formatMarketItemPrice(item)}</p>
-              <span className="mt-1 inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-                {getDataStatusLabel(item, locale)}
-              </span>
+              <div className="mt-1 flex flex-wrap gap-1">
+                <span className="inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                  {getDataStatusLabel(item, locale)}
+                </span>
+                <span className="inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+                  {getSourceLabel(item, locale)}
+                </span>
+              </div>
             </div>
             <div className="shrink-0 text-right">
               <span className={`market-trend-change block text-sm font-black ${item.changePercent >= 0 ? "market-trend-change--up text-emerald-700" : "market-trend-change--down text-red-600"}`}>

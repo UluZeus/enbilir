@@ -227,28 +227,37 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
               label: locale === "tr" ? "Sanal portföy" : "Virtual portfolio",
               value: snapshot ? formatMoney(snapshot.totalValueUsd) : locale === "tr" ? "Giriş gerekli" : "Sign-in needed",
               body: locale === "tr" ? "Nakit ve pozisyon değeri ayrı ayrı kontrol edilir." : "Cash and positions are checked separately.",
+              href: `/${locale}/islem-yap`,
+              action: locale === "tr" ? "Portföyü aç" : "Open portfolio",
             },
             {
               label: locale === "tr" ? "Aktif ligler" : "Active leagues",
               value: String(activeLeagueHighlights.length),
               body: locale === "tr" ? "Kullanıcılar davetsiz katılabilir ve birden fazla ligde yer alabilir." : "Users can join directly and belong to multiple leagues.",
+              href: `/${locale}/ligler`,
+              action: locale === "tr" ? "Ligleri gör" : "View leagues",
             },
             {
               label: locale === "tr" ? "AI rapor ritmi" : "AI report rhythm",
               value: "07/12/18",
               body: locale === "tr" ? "Pazartesi ayrıca haftalık geniş rapor üretilir." : "Mondays also include a broader weekly report.",
+              href: `/${locale}/ai-piyasa-asistani/raporlar`,
+              action: locale === "tr" ? "Raporlara git" : "Open reports",
             },
             {
               label: locale === "tr" ? "Topluluk" : "Community",
               value: locale === "tr" ? "Canlı" : "Live",
               body: locale === "tr" ? "Genel sohbet, özel oda, anket ve dosya akışıyla desteklenir." : "General chat, private rooms, polls, and files support discussion.",
+              href: `/${locale}/sohbet`,
+              action: locale === "tr" ? "Sohbete gir" : "Open chat",
             },
           ].map((item) => (
-            <div key={item.label} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+            <Link key={item.label} href={item.href} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4 transition hover:border-[#0f766e]/50 hover:bg-white hover:shadow-md">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">{item.label}</p>
               <p className="mt-2 text-xl font-black text-[#152033]">{item.value}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
-            </div>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">{item.action}</p>
+            </Link>
           ))}
         </div>
       </section>
