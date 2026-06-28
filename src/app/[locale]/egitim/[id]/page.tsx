@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ContentArticleShell } from "@/components/content/ContentArticleShell";
 import { getSafeLocale } from "@/i18n/config";
 import { getManagedContentItemById } from "@/lib/managed-content";
-import { buildPageMetadata, seoBrand } from "@/lib/seo";
+import { buildPageMetadata, defaultOpenGraphImage, seoBrand, stringifyJsonLd } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 function paragraphs(body: string) {
@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       authors: [seoBrand.founder],
       images: [
         {
-          url: `${siteUrl}/logo.png`,
+          url: `${siteUrl}${defaultOpenGraphImage}`,
           width: 1200,
           height: 630,
           alt: `${item.title} | Enbilir Eğitim`,
@@ -69,7 +69,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       card: "summary_large_image",
       title: item.title,
       description,
-      images: [`${siteUrl}/logo.png`],
+      images: [`${siteUrl}${defaultOpenGraphImage}`],
     },
   };
 }
@@ -127,7 +127,7 @@ export default async function EducationDetailPage({ params }: { params: Promise<
       <script
         type="application/ld+json"
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }}
       />
     </ContentArticleShell>
   );

@@ -22,7 +22,7 @@ import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
 import { calculateCompetitionProfitLossUsd, calculateCompetitionReturnPercent, formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
-import { buildPageMetadata } from "@/lib/seo";
+import { buildPageMetadata, stringifyJsonLd } from "@/lib/seo";
 import type { DisplayAd } from "@/lib/ads";
 import type { MarketItem } from "@/lib/market-data";
 
@@ -38,19 +38,30 @@ function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
   return result.status === "fulfilled" ? result.value : fallback;
 }
 
+function withSoftTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs = 2500) {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), timeoutMs);
+    }),
+  ]);
+}
+
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const copy = getUiCopy(locale);
   const user = await getSessionUser();
   const fallbackMarketItems = getFallbackMarketItems();
-  const [adsResult, liveItemsResult, announcementsResult] = await Promise.allSettled([
+  const [adsResult, liveItemsResult, announcementsResult, economyHeadlinesResult] = await Promise.allSettled([
     getAds("home_top", locale),
-    getLiveMarketItems(),
+    withSoftTimeout(getLiveMarketItems(), fallbackMarketItems, 2200),
     getManagedContentItems({ type: "ANNOUNCEMENT", locale, limit: 3 }),
+    getEconomyHeadlines(4, locale),
   ]);
   const ads = settledValue<DisplayAd[]>(adsResult, []);
   const liveItems = settledValue<MarketItem[]>(liveItemsResult, fallbackMarketItems);
+  const economyHeadlines = settledValue<Awaited<ReturnType<typeof getEconomyHeadlines>>>(economyHeadlinesResult, []);
   const snapshotResult = user
     ? await Promise.allSettled([getPortfolioSnapshot(user.id, liveItems)]).then((results) => results[0])
     : { status: "fulfilled" as const, value: null };
@@ -59,10 +70,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const [chartPeriodsResult, rankingPeriodsResult, leaderboardHighlightsResult, activeLeagueHighlightsResult] = await Promise.allSettled([
     user && snapshot ? getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd) : Promise.resolve([]),
     user ? getUserRankingPeriods(user.id) : Promise.resolve([]),
-    getLeaderboardHighlights(),
-    getActiveLeagueHighlights(),
+    withSoftTimeout(getLeaderboardHighlights(), []),
+    withSoftTimeout(getActiveLeagueHighlights(), []),
   ]);
-  const economyHeadlines = await getEconomyHeadlines(4, locale);
   const chartPeriods = settledValue<PortfolioPerformancePeriod[]>(chartPeriodsResult, []);
   const rankingPeriods = settledValue<UserRankingPeriod[]>(rankingPeriodsResult, []);
   const leaderboardHighlights = settledValue<LeaderboardHighlight[]>(leaderboardHighlightsResult, []);
@@ -78,11 +88,29 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const goalCards = getGoalCards(locale);
   const knowledgeBlocks = getKnowledgeBlocks(locale);
   const faqItems = getFaqItems(locale);
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    inLanguage: locale === "tr" ? "tr-TR" : "en-US",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
   const heroStats = getHeroStats(locale);
   const learningLoopCards = getLearningLoopCards(locale);
 
   return (
     <div className="home-premium grid gap-6">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: stringifyJsonLd(faqStructuredData) }}
+      />
       <MacroReportTicker locale={locale} />
       <AdBanner ads={ads} locale={locale} />
       <section className="home-premium-hero hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.02fr)_minmax(390px,0.98fr)]">
@@ -95,8 +123,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </div>
           <h1 className="relative mt-4 max-w-5xl text-4xl font-black tracking-normal sm:text-6xl">
             {locale === "tr"
-              ? "Gerçek para riski olmadan piyasa okuryazarlığı, sanal portföy ve AI makro rapor deneyimi"
-              : "Market literacy, virtual portfolios, and AI macro reports without real-money risk"}
+              ? "Rotaryenler için gerçek para riski olmadan piyasa okuryazarlığı, sanal portföy ve AI makro rapor deneyimi"
+              : "Market literacy, virtual portfolios, and AI macro reports for Rotary communities without real-money risk"}
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
             {locale === "tr"

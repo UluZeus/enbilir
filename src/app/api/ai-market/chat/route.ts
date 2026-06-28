@@ -11,6 +11,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
+import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -251,12 +252,30 @@ export async function POST(request: Request) {
       answer = fallbackAnswer;
     }
 
+    const sources = getMarketChatSources(context, locale);
+
+    await recordSiteAnalyticsEvent({
+      eventType: siteAnalyticsEvents.aiChat,
+      userId: sessionUser?.id,
+      sessionKey: clientKey,
+      locale,
+      path: `/${locale}/ai-piyasa-asistani`,
+      request: { headers: request.headers },
+      metadata: {
+        mode,
+        membership: isVip ? "VIP" : "STANDARD",
+        questionLength: question.length,
+        historyLength: history.length,
+        sourcesCount: sources.length,
+      },
+    });
+
     return NextResponse.json({
       answer,
       mode,
       membership: isVip ? "VIP" : "STANDARD",
       updatedAt: context.updatedAt,
-      sources: getMarketChatSources(context, locale),
+      sources,
     });
   } catch (error) {
     return NextResponse.json(

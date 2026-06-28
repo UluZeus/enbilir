@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
-import { coreSeoKeywords, getSeoPage, seoBrand } from "@/lib/seo";
+import { coreSeoKeywords, defaultOpenGraphImage, defaultOpenGraphImageAlt, getSeoPage, seoBrand } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 const manrope = Manrope({
@@ -50,10 +50,10 @@ export const metadata: Metadata = {
     description: homeSeo.description,
     images: [
       {
-        url: "/logo.png",
+        url: defaultOpenGraphImage,
         width: 1200,
         height: 630,
-        alt: "Enbilir finansal okuryazarlık platformu",
+        alt: defaultOpenGraphImageAlt,
       },
     ],
   },
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: homeSeo.title,
     description: homeSeo.description,
-    images: ["/logo.png"],
+    images: [defaultOpenGraphImage],
   },
   robots: {
     index: true,

@@ -9,6 +9,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { prisma } from "@/lib/prisma";
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
+import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import { buildPageMetadata } from "@/lib/seo";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
 
@@ -17,12 +18,59 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  return buildPageMetadata({
+  const baseMetadata = buildPageMetadata({
     locale,
     path: `/ai-piyasa-asistani/raporlar/${id}`,
     page: "reports",
     keywords: ["makro rapor arşivi", "AI rapor detayı", "piyasa raporu PDF"],
   });
+  const report = await prisma.aiMarketReport.findUnique({
+    where: { id },
+    select: {
+      generatedAt: true,
+      scope: true,
+      periodKey: true,
+      macroSummary: true,
+      marketRegime: true,
+      riskAppetite: true,
+    },
+  });
+
+  if (!report) {
+    return baseMetadata;
+  }
+
+  const dateLabel = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "tr-TR", {
+    dateStyle: "medium",
+    timeZone: "Europe/Istanbul",
+  }).format(report.generatedAt);
+  const isWeekly = report.scope === "WEEKLY";
+  const title = locale === "en"
+    ? `${isWeekly ? "Weekly Macro Report" : "Daily Macro Report"} | ${dateLabel} | Enbilir AI Market Assistant`
+    : `${isWeekly ? "Haftalık Makro Rapor" : "Günlük Makro Rapor"} | ${dateLabel} | Enbilir AI Piyasa Asistanı`;
+  const summary = report.macroSummary.replace(/\s+/g, " ").trim();
+  const reportLabel = locale === "en"
+    ? `${report.marketRegime ?? "market regime"}; risk appetite: ${report.riskAppetite ?? "tracked"}`
+    : `${report.marketRegime ?? "piyasa rejimi"}; risk iştahı: ${report.riskAppetite ?? "izleniyor"}`;
+  const description = `${summary.slice(0, 118)}${summary.length > 118 ? "..." : ""} ${reportLabel}.`;
+
+  return {
+    ...baseMetadata,
+    title: { absolute: title },
+    description,
+    openGraph: {
+      ...baseMetadata.openGraph,
+      type: "article",
+      title,
+      description,
+      publishedTime: report.generatedAt.toISOString(),
+    },
+    twitter: {
+      ...baseMetadata.twitter,
+      title,
+      description,
+    },
+  };
 }
 
 const REPORT_PREFACE = {
@@ -309,6 +357,18 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
     userId: user?.id,
     eventType: macroReportEventTypes.read,
     metadata: { locale, source: "report-detail" },
+  });
+  await recordSiteAnalyticsEvent({
+    eventType: siteAnalyticsEvents.macroReportOpen,
+    userId: user?.id,
+    locale,
+    path: `/${locale}/ai-piyasa-asistani/raporlar/${report.id}`,
+    metadata: {
+      reportId: report.id,
+      scope: report.scope,
+      periodKey: report.periodKey,
+      generatedAt: report.generatedAt.toISOString(),
+    },
   });
 
   const takeaways = toStringArray(report.keyTakeaways);

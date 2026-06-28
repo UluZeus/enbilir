@@ -8,6 +8,7 @@ import { joinLeagueAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
 import { getLeagueDetail, getLeagueLeaderboard } from "@/lib/leagues";
 import { formatMoney } from "@/lib/portfolio";
+import { defaultOpenGraphImage } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 export async function generateMetadata({
@@ -46,13 +47,13 @@ export async function generateMetadata({
       title,
       description,
       siteName: "enbilir.com",
-      images: [{ url: "/logo.png", width: 1200, height: 630, alt: title }],
+      images: [{ url: defaultOpenGraphImage, width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: ["/logo.png"],
+      images: [defaultOpenGraphImage],
     },
   };
 }

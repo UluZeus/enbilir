@@ -4,26 +4,19 @@ import { PageHeader } from "@/components/PageHeader";
 import { getSafeLocale } from "@/i18n/config";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/portfolio";
+import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
-  const title = locale === "en" ? "Weekly Leaders Archive | Enbilir" : "Haftalık Liderler Arşivi | Enbilir";
-  const description = locale === "en"
-    ? "Archived weekly and overall virtual portfolio competition leaders on Enbilir."
-    : "Enbilir sanal portföy yarışmasında haftalık ve toplam liderlerin arşivi.";
-
-  return {
-    title,
-    description,
-    alternates: {
-      canonical: `/${locale}/haftalik-liderler`,
-      languages: {
-        tr: "/tr/haftalik-liderler",
-        en: "/en/haftalik-liderler",
-      },
-    },
-  };
+  return buildPageMetadata({
+    locale,
+    path: "/haftalik-liderler",
+    page: "weeklyLeaders",
+    keywords: locale === "tr"
+      ? ["haftalık liderler", "Rotaryen sanal portföy yarışması", "haftalık kazanç liderleri", "toplam portföy liderleri"]
+      : ["weekly leaders", "Rotary virtual portfolio competition", "weekly gain leaders", "overall portfolio leaders"],
+  });
 }
 
 export default async function WeeklyLeadersPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -43,10 +36,10 @@ export default async function WeeklyLeadersPage({ params }: { params: Promise<{ 
   return (
     <div className="grid gap-6">
       <PageHeader
-        title={isEnglish ? "Weekly Leaders Archive" : "Haftalık Liderler Arşivi"}
+        title={isEnglish ? "Weekly Rotary Portfolio Leaders Archive" : "Haftalık Rotaryen Portföy Liderleri Arşivi"}
         description={isEnglish
-          ? "Review the published Monday 07:00 leaderboards for weekly gains and overall portfolio gains."
-          : "Pazartesi 07.00 yayınlanan haftalık kazanç ve toplam portföy liderliklerini geriye dönük inceleyin."}
+          ? "Review the Monday 07:00 leaderboards for weekly gains, overall portfolio gains, and community-based market literacy progress."
+          : "Pazartesi 07.00 yayınlanan haftalık kazanç, toplam portföy liderliği ve topluluk bazlı finansal okuryazarlık ilerlemesini geriye dönük inceleyin."}
         locale={locale}
       />
 

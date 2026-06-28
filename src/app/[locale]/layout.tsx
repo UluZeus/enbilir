@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { getSafeLocale, isLocale } from "@/i18n/config";
-import { buildPageMetadata, buildStructuredData } from "@/lib/seo";
+import { buildPageMetadata, buildStructuredData, stringifyJsonLd } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
@@ -35,7 +35,7 @@ export default async function LocaleLayout({
       <script
         type="application/ld+json"
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }}
       />
       <AppShell locale={locale}>{children}</AppShell>
     </>

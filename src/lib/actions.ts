@@ -11,6 +11,7 @@ import { canAccessAdmin, createSession, destroySession, getDisplayName, getSessi
 import { sendLatestMacroReportEmail } from "@/lib/ai-market/agent/morning-report-email";
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
+import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import { buildEmailVerificationUrl, buildWelcomeVerificationEmail, createEmailVerificationToken } from "@/lib/email-verification";
 import { sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
@@ -349,6 +350,18 @@ export async function registerAction(formData: FormData) {
     redirect(getRedirect(locale, "kayit", error instanceof Error ? error.message : "Doğrulama e-postası gönderilemedi."));
   }
 
+  await recordSiteAnalyticsEvent({
+    eventType: siteAnalyticsEvents.register,
+    userId: user.id,
+    locale: getSafeLocale(String(locale ?? "tr")),
+    path: `/${getSafeLocale(String(locale ?? "tr"))}/kayit`,
+    metadata: {
+      initialLeagueSlug,
+      displayNameMode: safeDisplayNameMode,
+      electronicCommunicationConsent: electronicConsent,
+    },
+  });
+
   redirect(
     getRedirect(
       locale,
@@ -593,6 +606,27 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     await evaluateTradeBadges(userId);
   } catch {
     // Badge calculation is secondary; a completed trade must still return a success state.
+  }
+
+  try {
+    const tradeCount = await prisma.virtualTrade.count({ where: { userId } });
+
+    if (tradeCount === 1) {
+      await recordSiteAnalyticsEvent({
+        eventType: siteAnalyticsEvents.firstTrade,
+        userId,
+        locale: getSafeLocale(String(locale ?? "tr")),
+        path: `/${getSafeLocale(String(locale ?? "tr"))}/islem-yap`,
+        metadata: {
+          symbol,
+          side,
+          amountUsd,
+          market: marketItem.market,
+        },
+      });
+    }
+  } catch {
+    // Analytics must never block a completed virtual trade.
   }
 
   revalidatePortfolioViews(locale);
@@ -1266,7 +1300,7 @@ export async function joinLeagueAction(formData: FormData) {
   const league = inviteCode
     ? await prisma.league.findUnique({
         where: { inviteCode },
-        select: { id: true, slug: true, isActive: true },
+        select: { id: true, slug: true, name: true, type: true, isActive: true },
       })
     : await prisma.league.findFirst({
         where: {
@@ -1276,7 +1310,7 @@ export async function joinLeagueAction(formData: FormData) {
             leagueSlug ? { slug: leagueSlug } : undefined,
           ].filter((condition): condition is { id: string } | { slug: string } => Boolean(condition)),
         },
-        select: { id: true, slug: true, isActive: true },
+        select: { id: true, slug: true, name: true, type: true, isActive: true },
       });
 
   if (!league || !league.isActive) {
@@ -1303,6 +1337,20 @@ export async function joinLeagueAction(formData: FormData) {
       leagueId: league.id,
       userId: sessionUser.id,
       role: "MEMBER",
+    },
+  });
+
+  await recordSiteAnalyticsEvent({
+    eventType: siteAnalyticsEvents.leagueJoin,
+    userId: sessionUser.id,
+    locale: getSafeLocale(String(locale ?? "tr")),
+    path: `/${getSafeLocale(String(locale ?? "tr"))}/ligler/${league.slug}`,
+    metadata: {
+      leagueId: league.id,
+      leagueSlug: league.slug,
+      leagueName: league.name,
+      leagueType: league.type,
+      source: inviteCode ? "invite-code" : "direct-join",
     },
   });
 

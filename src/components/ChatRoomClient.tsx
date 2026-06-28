@@ -524,7 +524,7 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
         <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.eyebrow}</p>
         <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-3xl font-black text-[#152033]">{copy.title}</h1>
+            <h2 className="text-3xl font-black text-[#152033]">{copy.title}</h2>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.intro}</p>
           </div>
           {state ? (

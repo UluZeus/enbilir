@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260628120000_add_weekly_results_and_chat_moderation";
+const prismaSchemaVersion = "20260629103000_add_site_analytics_events";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -53,6 +53,7 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     weeklyCompetitionResultRow?: unknown;
     chatMessageReport?: unknown;
     chatUserBlock?: unknown;
+    siteAnalyticsEvent?: unknown;
   };
 
   return Boolean(
@@ -89,7 +90,8 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.weeklyCompetitionPublication &&
       candidate?.weeklyCompetitionResultRow &&
       candidate?.chatMessageReport &&
-      candidate?.chatUserBlock,
+      candidate?.chatUserBlock &&
+      candidate?.siteAnalyticsEvent,
   );
 }
 

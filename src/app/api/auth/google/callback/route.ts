@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
 import { masterAdminEmail, setSessionCookie } from "@/lib/auth";
+import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import { prisma } from "@/lib/prisma";
 import { ensureVirtualAccount } from "@/lib/portfolio";
 import { getRequestOrigin } from "@/lib/site-url";
@@ -137,6 +138,7 @@ export async function GET(request: NextRequest) {
     const googleUser = await getGoogleUser(request, code);
     const role = googleUser.email === masterAdminEmail ? "MASTER_ADMIN" : "USER";
     const nickname = googleUser.email === masterAdminEmail ? "UluZeus" : null;
+    let createdWithGoogle = false;
     let user = await prisma.user.findFirst({
       where: {
         oauthAccounts: {
@@ -214,6 +216,7 @@ export async function GET(request: NextRequest) {
           },
           select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
         });
+        createdWithGoogle = true;
         await sendGoogleWelcomeEmail({ to: googleUser.email, name: googleUser.name }).catch((error: unknown) => {
           console.error("[google-welcome-email]", error instanceof Error ? error.message : error);
         });
@@ -221,6 +224,20 @@ export async function GET(request: NextRequest) {
     }
 
     await ensureVirtualAccount(user.id);
+
+    if (createdWithGoogle) {
+      await recordSiteAnalyticsEvent({
+        eventType: siteAnalyticsEvents.register,
+        userId: user.id,
+        locale,
+        path: "/api/auth/google/callback",
+        request: { headers: request.headers },
+        metadata: {
+          provider: GOOGLE_PROVIDER,
+          displayNameMode: user.displayNameMode,
+        },
+      });
+    }
 
     const response = NextResponse.redirect(new URL(cookieState.returnTo || `/${locale}/panel`, getRequestOrigin(request)));
     await setSessionCookie(response, user);

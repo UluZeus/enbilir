@@ -30,6 +30,10 @@ type YahooSparkResponse = {
   };
 };
 
+const liveMarketCacheTtlMs = 30_000;
+let liveMarketItemsCache: { items: MarketItem[]; expiresAt: number } | null = null;
+let liveMarketItemsRequest: Promise<MarketItem[]> | null = null;
+
 function liveFetchEnabled() {
   return process.env.ENABLE_LIVE_MARKET_FETCH !== "false";
 }
@@ -321,12 +325,32 @@ export async function getLiveMarketItems(): Promise<MarketItem[]> {
     return fallbackItems;
   }
 
+  const now = Date.now();
+
+  if (liveMarketItemsCache && liveMarketItemsCache.expiresAt > now) {
+    return liveMarketItemsCache.items;
+  }
+
   async function loadItems() {
     return loadQuotedItems(mixedMarketItems);
   }
 
   try {
-    return await Promise.race([loadItems(), timeout(7500, fallbackItems)]);
+    if (!liveMarketItemsRequest) {
+      liveMarketItemsRequest = Promise.race([loadItems(), timeout(7500, fallbackItems)])
+        .then((items) => {
+          liveMarketItemsCache = {
+            items,
+            expiresAt: Date.now() + liveMarketCacheTtlMs,
+          };
+          return items;
+        })
+        .finally(() => {
+          liveMarketItemsRequest = null;
+        });
+    }
+
+    return await liveMarketItemsRequest;
   } catch {
     return fallbackItems;
   }

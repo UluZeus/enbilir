@@ -25,7 +25,7 @@ export const uiCopy = {
       aiAssistant: "AI Asistanı",
       logout: "Çıkış yap",
       footer:
-        "Enbilir gerçek para ile işlem yaptırmaz. Platform sanal portföy yarışması, eğitim ve finansal okuryazarlık amacı taşır; içerikler yatırım danışmanlığı kapsamında değildir.",
+        "Enbilir gerçek para ile işlem yaptırmaz. Platform sanal portföy yarışması, eğitim ve finansal okuryazarlık amacı taşır; içerikler yatırım danışmanlığı kapsamında değildir. Enbilir, Rotary International veya herhangi bir Rotary/Rotaract kulübünün resmi sitesi değildir; topluluklara açık bağımsız bir eğitim platformudur.",
       legalLinks: {
         kvkk: "KVKK Aydınlatma Metni",
         consent: "Açık Rıza Metni",
@@ -36,14 +36,14 @@ export const uiCopy = {
     },
     simplePages: {
       education: {
-        title: "Eğitim",
-        description: "Rotary toplulukları için finansal okuryazarlık ve sanal portföy yönetimi eğitim merkezi.",
-        modules: ["Temel kavramlar", "Risk ve getiri", "Portföy disiplini"],
+        title: "Finansal Okuryazarlık Eğitimi",
+        description: "Rotaryenler, Rotaract üyeleri ve meraklı kullanıcılar için bilanço okuma, finansal tablo analizi, risk yönetimi ve sanal portföy pratiğini birleştiren eğitim merkezi.",
+        modules: ["Bilanço okuma", "Risk ve getiri", "Sanal portföy disiplini"],
         moduleBody: "Bu modüller eğitim sayfasındaki akış içinde ayrıntılı olarak işlenir.",
       },
       blog: {
         title: "Blog",
-        description: "Rotary odaklı finansal okuryazarlık yazıları ve platform duyuruları.",
+        description: "Rotaryen topluluklar için ekonomi, borsa, kripto para, makro rapor, piyasa psikolojisi ve finansal okuryazarlık yazıları.",
         emptyTitle: "İlk içerikler hazırlanıyor",
         emptyBody: "Blog alanı eğitim notları, yarışma duyuruları ve piyasa okuryazarlığı içerikleri için ayrıldı.",
       },
@@ -56,8 +56,8 @@ export const uiCopy = {
       },
     },
     home: {
-      eyebrow: "Rotary toplulukları için sanal portföy yarışması",
-      description: "Gerçek para işlemi olmadan, Rotary topluluklarına özel eğitim, yarışma ve piyasa okuryazarlığı deneyimi sunan dijital platform.",
+      eyebrow: "Rotaryenler için sanal portföy ve finansal okuryazarlık",
+      description: "Gerçek para işlemi olmadan, Rotaryenler, Rotaract üyeleri ve öğrenmeye meraklı topluluklar için sanal portföy, AI piyasa asistanı, makro rapor ve piyasa okuryazarlığı deneyimi sunan dijital platform.",
       trade: "İşlem yap",
       leagues: "Ligleri gör",
       portfolio: "Portföyüm",
@@ -86,13 +86,13 @@ export const uiCopy = {
         YEARLY: "Yıllık",
       },
       marketNews: [
-        "Sanal portföy yarışması canlı piyasa verileriyle güncellenir.",
-        "Risk dağılımı ve nakit tercihi kararlarını panelden takip edebilirsin.",
-        "AI Piyasa Asistanı teknik sinyalleri eğitim amaçlı yorumlar.",
+        "Sanal portföy yarışması canlı piyasa verileriyle güncellenir; borsa, kripto, döviz ve emtia kararları eğitim amacıyla izlenir.",
+        "Risk dağılımı, nakit tercihi ve portföy kar/zarar takibini panelden okuyarak finansal okuryazarlığını güçlendirebilirsin.",
+        "AI Piyasa Asistanı teknik sinyalleri, makro raporu ve piyasa psikolojisini yatırım tavsiyesi vermeden eğitim amaçlı yorumlar.",
       ],
       rotaryNews: [
-        "Rotary, Rotaract ve Interact ligleri doğrudan katılıma açık şekilde yönetilir.",
-        "Lig üyeleri kendi çevreleri içinde sanal portföy rekabeti yapabilir.",
+        "Rotaryen, Rotaract ve Interact ligleri doğrudan katılıma açık şekilde yönetilir.",
+        "Lig üyeleri kendi çevreleri içinde sanal portföy rekabeti yaparak haftalık liderlik tablosunda finansal öğrenme ritmini takip edebilir.",
       ],
     },
     auth: {
@@ -326,7 +326,7 @@ export const uiCopy = {
       aiAssistant: "AI Assistant",
       logout: "Sign out",
       footer:
-        "Enbilir does not process real-money trades. The platform is designed for virtual portfolio competitions, education, and financial literacy; all content is outside the scope of investment advice.",
+        "Enbilir does not process real-money trades. The platform is designed for virtual portfolio competitions, education, and financial literacy; all content is outside the scope of investment advice. Enbilir is not an official website of Rotary International or any Rotary/Rotaract club; it is an independent education platform open to communities.",
       legalLinks: {
         kvkk: "Privacy Notice",
         consent: "Explicit Consent Notice",
@@ -337,14 +337,14 @@ export const uiCopy = {
     },
     simplePages: {
       education: {
-        title: "Education",
-        description: "A calm, structured learning hub for market literacy, virtual portfolio discipline, and AI-supported interpretation.",
-        modules: ["Core concepts", "Risk and return", "Portfolio discipline"],
+        title: "Financial Literacy Education",
+        description: "A structured education hub for Rotarians, Rotaractors, and curious learners covering financial statements, balance-sheet reading, risk management, and virtual portfolio practice.",
+        modules: ["Balance-sheet reading", "Risk and return", "Virtual portfolio discipline"],
         moduleBody: "Each module connects short explanations with portfolio practice, community discussion, and AI-supported interpretation.",
       },
       blog: {
         title: "Blog",
-        description: "Evergreen market literacy essays, community learning notes, and clear platform updates for Enbilir users.",
+        description: "Market literacy essays for Rotary communities covering economy, stocks, crypto, macro reports, risk psychology, and financial literacy.",
         emptyTitle: "First articles are being prepared",
         emptyBody: "This area will host education notes, competition updates, market context, and practical reading material for the community.",
       },
@@ -357,8 +357,8 @@ export const uiCopy = {
       },
     },
     home: {
-      eyebrow: "Virtual portfolio competition for Rotary communities",
-      description: "A digital platform for Rotary communities that combines education, competition, and market literacy without real-money trading.",
+      eyebrow: "Virtual portfolios and financial literacy for Rotary communities",
+      description: "A digital platform for Rotarians, Rotaractors, and curious learning communities combining virtual portfolios, the AI market assistant, macro reports, and market literacy without real-money trading.",
       trade: "Trade",
       leagues: "View leagues",
       portfolio: "My Portfolio",
@@ -387,13 +387,13 @@ export const uiCopy = {
         YEARLY: "Yearly",
       },
       marketNews: [
-        "The virtual portfolio competition is updated with live market data.",
-        "Track risk distribution and cash preferences from your dashboard.",
-        "The AI Market Assistant interprets technical signals for educational use.",
+        "The virtual portfolio competition is updated with live market data across stocks, crypto, FX, and commodities for educational practice.",
+        "Track risk distribution, cash preference, and portfolio profit/loss from your dashboard to strengthen financial literacy.",
+        "The AI Market Assistant explains technical signals, macro reports, and market psychology for education, not investment advice.",
       ],
       rotaryNews: [
-        "Rotary, Rotaract, and Interact leagues are managed with direct joining.",
-        "League members can compete in virtual portfolio rankings within their own community.",
+        "Rotarian, Rotaract, and Interact leagues are managed with direct joining.",
+        "League members can compete in virtual portfolio rankings and follow weekly leaderboards as a community learning rhythm.",
       ],
     },
     auth: {

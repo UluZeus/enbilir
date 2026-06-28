@@ -145,6 +145,7 @@ model User {
   aiMarketReports                  AiMarketReport[]
   aiMarketReportEvents             AiMarketReportEvent[]
   subscriptionEmailLogs            SubscriptionEmailLog[]
+  siteAnalyticsEvents              SiteAnalyticsEvent[]
   createdChatRooms                 ChatRoom[]                   @relation("CreatedChatRooms")
   chatMessages                     ChatMessage[]
   chatPresences                    ChatPresence[]
@@ -615,6 +616,24 @@ model SubscriptionEmailLog {
   @@unique([userId, emailType, periodKey])
   @@index([emailType, periodKey])
   @@index([sentAt])
+}
+
+model SiteAnalyticsEvent {
+  id         String   @id @default(cuid())
+  eventType  String
+  userId     String?
+  sessionKey String?
+  locale     String?
+  path       String?
+  referrer   String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, createdAt])
+  @@index([userId, createdAt])
+  @@index([sessionKey, createdAt])
 }
 
 model ChatRoom {

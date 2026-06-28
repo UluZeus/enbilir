@@ -5,7 +5,7 @@ import { getSiteUrl } from "@/lib/site-url";
 export const seoBrand = {
   siteName: "Enbilir",
   domain: "enbilir.com",
-  legalName: "Enbilir Rotary Piyasa Akademisi",
+  legalName: "Enbilir Piyasa Akademisi",
   founder: "Dr. Hakan Ünsal",
   founderAliases: [
     "Hakan Ünsal",
@@ -14,7 +14,6 @@ export const seoBrand = {
     "bigpegasus",
     "hakanun",
     "unsalhakan",
-    "bigpegasus@gmail.com",
   ],
   relatedBrands: [
     "ikiadam",
@@ -33,6 +32,9 @@ export const seoBrand = {
     "suadiyerotary",
   ],
 };
+
+export const defaultOpenGraphImage = "/og-enbilir.png";
+export const defaultOpenGraphImageAlt = "Enbilir Piyasa Akademisi - sanal portföy, AI makro rapor ve finansal okuryazarlık";
 
 export const coreSeoKeywords = [
   "finansal okuryazarlık",
@@ -77,6 +79,16 @@ export const coreSeoKeywords = [
   "Rotary eğitim platformu",
   "Rotary portföy ligi",
   "Rotaract portföy ligi",
+  "Rotaryen finansal okuryazarlık",
+  "Rotaryen piyasa akademisi",
+  "Rotaryen borsa simülasyonu",
+  "Rotaract finans eğitimi",
+  "finansal tablo okuma",
+  "bilanço okuma eğitimi",
+  "piyasa psikolojisi",
+  "risk yönetimi eğitimi",
+  "haftalık liderlik tablosu",
+  "Rotary topluluk eğitimi",
   "canlı topluluk sohbeti",
   ...seoBrand.founderAliases,
   ...seoBrand.relatedBrands,
@@ -85,14 +97,14 @@ export const coreSeoKeywords = [
 const pageSeo = {
   home: {
     tr: {
-      title: "Enbilir | Sanal Portföy, AI Makro Rapor ve Finansal Okuryazarlık",
+      title: "Enbilir | Rotaryen Sanal Portföy ve AI Makro Rapor",
       description:
-        "Dr. Hakan Ünsal tarafından geliştirilen Enbilir; sanal portföy, AI piyasa asistanı, makro rapor, borsa, kripto ve ekonomi eğitimi odaklı finansal okuryazarlık platformudur.",
+        "Rotaryenler ve Rotaract üyeleri için sanal portföy, AI piyasa asistanı, makro rapor, borsa, kripto ve finansal okuryazarlık eğitimi.",
     },
     en: {
-      title: "Enbilir | Virtual Portfolio, AI Macro Reports and Market Literacy",
+      title: "Enbilir | Rotary Virtual Portfolios and AI Macro Reports",
       description:
-        "Enbilir, created by Dr. Hakan Unsal, combines virtual portfolios, AI market assistant, macro reports, stock market, crypto, and financial literacy education.",
+        "Virtual portfolios, AI market assistant, macro reports, stock market, crypto, and financial literacy education for Rotary and Rotaract communities.",
     },
   },
   trade: {
@@ -133,14 +145,14 @@ const pageSeo = {
   },
   education: {
     tr: {
-      title: "Finansal Okuryazarlık Eğitimi | Enbilir",
+      title: "Finansal Okuryazarlık Eğitimi | Bilanço, Risk, Borsa ve Sanal Portföy",
       description:
-        "Borsa, ekonomi, kripto, teknik analiz, risk yönetimi ve sanal portföy deneyimiyle finansal okuryazarlık eğitimi.",
+        "Rotaryenler için bilanço okuma, finansal tablolar, borsa, kripto, teknik analiz, risk yönetimi ve sanal portföy eğitimi.",
     },
     en: {
-      title: "Financial Literacy Education | Enbilir",
+      title: "Financial Literacy Education | Statements, Risk, Markets and Virtual Portfolios",
       description:
-        "Financial literacy education with stock market, economy, crypto, technical analysis, risk management, and virtual portfolio practice.",
+        "Financial literacy education for Rotary communities with statements, stocks, crypto, technical analysis, risk management, and virtual portfolios.",
     },
   },
   contentHub: {
@@ -277,14 +289,26 @@ const pageSeo = {
   },
   contact: {
     tr: {
-      title: "İletişim | Enbilir",
+      title: "İletişim | Enbilir Piyasa Akademisi Destek ve İş Birliği",
       description:
-        "Enbilir, AI piyasa asistanı, sanal portföy, Rotary ligleri ve finansal okuryazarlık eğitimleri hakkında iletişim.",
+        "Enbilir Piyasa Akademisi, AI piyasa asistanı, sanal portföy, Rotary ligleri, finansal okuryazarlık ve iş birliği için iletişim.",
     },
     en: {
-      title: "Contact | Enbilir",
+      title: "Contact | Enbilir Market Academy Support and Partnerships",
       description:
-        "Contact Enbilir about the AI market assistant, virtual portfolios, Rotary leagues, and financial literacy education.",
+        "Contact Enbilir Market Academy for the AI market assistant, virtual portfolios, Rotary leagues, financial literacy, support, and partnerships.",
+    },
+  },
+  weeklyLeaders: {
+    tr: {
+      title: "Haftalık Liderler Arşivi | Rotaryen Sanal Portföy Yarışması",
+      description:
+        "Pazartesi 07.00 yayınlanan haftalık kazanç liderleri, toplam portföy liderleri, Rotaryen lig performansı ve finansal okuryazarlık arşivi.",
+    },
+    en: {
+      title: "Weekly Leaders Archive | Rotary Virtual Portfolio Competition",
+      description:
+        "Archive of Monday 07:00 weekly gain leaders, overall portfolio leaders, Rotary league performance, and financial-literacy progress.",
     },
   },
   legal: {
@@ -351,10 +375,10 @@ export function buildPageMetadata({
       description: seo.description,
       images: [
         {
-          url: "/logo.png",
+          url: defaultOpenGraphImage,
           width: 1200,
           height: 630,
-          alt: `${seoBrand.domain} - ${seo.title}`,
+          alt: defaultOpenGraphImageAlt,
         },
       ],
     },
@@ -362,7 +386,7 @@ export function buildPageMetadata({
       card: "summary_large_image",
       title: seo.title,
       description: seo.description,
-      images: ["/logo.png"],
+      images: [defaultOpenGraphImage],
     },
   };
 }
@@ -379,7 +403,7 @@ export function buildStructuredData(locale: Locale) {
         "@type": "WebSite",
         "@id": `${siteUrl}/#website`,
         name: seoBrand.siteName,
-        alternateName: [seoBrand.domain, "Enbilir Rotary Piyasa Akademisi", "Enbilir Finansal Okuryazarlık"],
+        alternateName: [seoBrand.domain, "Enbilir Piyasa Akademisi", "Enbilir Finansal Okuryazarlık"],
         url: siteUrl,
         inLanguage: locale === "tr" ? "tr-TR" : "en-US",
         keywords,
@@ -393,9 +417,10 @@ export function buildStructuredData(locale: Locale) {
         "@type": "EducationalOrganization",
         "@id": `${siteUrl}/#organization`,
         name: seoBrand.legalName,
-        alternateName: [seoBrand.siteName, seoBrand.domain, ...seoBrand.relatedBrands],
+        alternateName: [seoBrand.siteName, seoBrand.domain],
         url: siteUrl,
         logo: `${siteUrl}/logo.png`,
+        image: `${siteUrl}${defaultOpenGraphImage}`,
         founder: { "@id": `${siteUrl}/#founder` },
         description: getSeoPage("home", locale).description,
         keywords,
@@ -405,7 +430,7 @@ export function buildStructuredData(locale: Locale) {
         "@id": `${siteUrl}/#founder`,
         name: seoBrand.founder,
         alternateName: seoBrand.founderAliases,
-        email: "bigpegasus@gmail.com",
+        email: "info@ikiadam.com",
         url: homeUrl,
         knowsAbout: [
           "finansal okuryazarlık",
@@ -438,4 +463,8 @@ export function buildStructuredData(locale: Locale) {
       },
     ],
   };
+}
+
+export function stringifyJsonLd(data: unknown) {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
 }
