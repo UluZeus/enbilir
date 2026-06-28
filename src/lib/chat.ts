@@ -158,12 +158,32 @@ export async function getChatRoomState({ user, roomCode }: { user: SessionUser; 
   await markChatPresence({ roomId: room.id, userId: user.id });
 
   const onlineSince = new Date(Date.now() - chatOnlineWindowMs);
+  const blocks = await prisma.chatUserBlock.findMany({
+    where: {
+      OR: [
+        { blockerUserId: user.id },
+        { blockedUserId: user.id },
+      ],
+    },
+    select: { blockerUserId: true, blockedUserId: true },
+  });
+  const blockedUserIds = new Set(
+    blocks.map((block) => block.blockerUserId === user.id ? block.blockedUserId : block.blockerUserId),
+  );
   const [messages, onlinePresences, rooms] = await Promise.all([
     prisma.chatMessage.findMany({
-      where: { roomId: room.id },
+      where: {
+        roomId: room.id,
+        hiddenAt: null,
+        userId: blockedUserIds.size > 0 ? { notIn: Array.from(blockedUserIds) } : undefined,
+      },
       include: {
         user: {
           select: { id: true, name: true, nickname: true, displayNameMode: true },
+        },
+        reports: {
+          where: { reporterId: user.id },
+          select: { id: true },
         },
         pollOptions: {
           orderBy: { sortOrder: "asc" },
@@ -178,7 +198,11 @@ export async function getChatRoomState({ user, roomCode }: { user: SessionUser; 
       take: chatMessageLimit,
     }),
     prisma.chatPresence.findMany({
-      where: { roomId: room.id, lastSeenAt: { gte: onlineSince } },
+      where: {
+        roomId: room.id,
+        lastSeenAt: { gte: onlineSince },
+        userId: blockedUserIds.size > 0 ? { notIn: Array.from(blockedUserIds) } : undefined,
+      },
       include: {
         user: {
           select: { id: true, name: true, nickname: true, displayNameMode: true },
@@ -206,6 +230,8 @@ export async function getChatRoomState({ user, roomCode }: { user: SessionUser; 
           displayName: getChatDisplayName(message.user),
         },
         isMine: message.userId === user.id,
+        reportedByMe: message.reports.length > 0,
+        reportCount: message.reportCount,
         poll: message.type === "POLL"
           ? {
               totalVotes,

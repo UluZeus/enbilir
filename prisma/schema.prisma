@@ -92,58 +92,69 @@ enum ChatMessageType {
   POLL
 }
 
+enum WeeklyCompetitionScope {
+  WEEKLY_GAIN
+  TOTAL_GAIN
+}
+
 enum MembershipTier {
   STANDARD
   VIP
 }
 
 model User {
-  id                                  String    @id @default(cuid())
-  name                                String
-  nickname                            String?
-  displayNameMode                     DisplayNameMode @default(REAL_NAME)
-  email                               String    @unique
-  passwordHash                        String?
-  isActive                            Boolean   @default(false)
-  emailVerifiedAt                     DateTime?
-  emailVerificationTokenHash          String?
-  emailVerificationExpiresAt          DateTime?
-  emailVerificationSentAt             DateTime?
-  role                                Role      @default(USER)
-  membershipTier                      MembershipTier @default(STANDARD)
-  vipStartedAt                        DateTime?
-  vipPaidUntil                        DateTime?
-  vipLastReminderSentAt               DateTime?
-  score                               Int       @default(0)
-  kvkkDisclosureAccepted              Boolean   @default(false)
-  kvkkDisclosureAcceptedAt            DateTime?
-  termsAccepted                       Boolean   @default(false)
-  termsAcceptedAt                     DateTime?
-  noInvestmentAdviceAccepted          Boolean   @default(false)
-  noInvestmentAdviceAcceptedAt        DateTime?
-  electronicCommunicationConsent      Boolean   @default(false)
-  electronicCommunicationConsentAt    DateTime?
-  createdAt                           DateTime  @default(now())
-  updatedAt                           DateTime  @updatedAt
-  virtualAccount                      VirtualAccount?
-  positions                           PortfolioPosition[]
-  trades                              VirtualTrade[]
-  sentFriendRequests                  FriendRequest[] @relation("SentFriendRequests")
-  receivedFriendRequests              FriendRequest[] @relation("ReceivedFriendRequests")
-  createdLeagues                      League[] @relation("CreatedLeagues")
-  leagueMemberships                   LeagueMembership[]
-  badges                              UserBadge[]
-  achievementEvents                   AchievementEvent[]
-  portfolioSnapshots                  PortfolioSnapshot[]
-  oauthAccounts                       OAuthAccount[]
-  aiMarketFavorites                   AiMarketFavorite[]
-  aiMarketReports                     AiMarketReport[]
-  aiMarketReportEvents                AiMarketReportEvent[]
-  subscriptionEmailLogs               SubscriptionEmailLog[]
-  createdChatRooms                    ChatRoom[] @relation("CreatedChatRooms")
-  chatMessages                        ChatMessage[]
-  chatPresences                       ChatPresence[]
-  chatPollVotes                       ChatPollVote[]
+  id                               String                       @id @default(cuid())
+  name                             String
+  nickname                         String?
+  displayNameMode                  DisplayNameMode              @default(REAL_NAME)
+  email                            String                       @unique
+  passwordHash                     String?
+  isActive                         Boolean                      @default(false)
+  emailVerifiedAt                  DateTime?
+  emailVerificationTokenHash       String?
+  emailVerificationExpiresAt       DateTime?
+  emailVerificationSentAt          DateTime?
+  role                             Role                         @default(USER)
+  membershipTier                   MembershipTier               @default(STANDARD)
+  vipStartedAt                     DateTime?
+  vipPaidUntil                     DateTime?
+  vipLastReminderSentAt            DateTime?
+  score                            Int                          @default(0)
+  kvkkDisclosureAccepted           Boolean                      @default(false)
+  kvkkDisclosureAcceptedAt         DateTime?
+  termsAccepted                    Boolean                      @default(false)
+  termsAcceptedAt                  DateTime?
+  noInvestmentAdviceAccepted       Boolean                      @default(false)
+  noInvestmentAdviceAcceptedAt     DateTime?
+  electronicCommunicationConsent   Boolean                      @default(false)
+  electronicCommunicationConsentAt DateTime?
+  createdAt                        DateTime                     @default(now())
+  updatedAt                        DateTime                     @updatedAt
+  virtualAccount                   VirtualAccount?
+  positions                        PortfolioPosition[]
+  trades                           VirtualTrade[]
+  sentFriendRequests               FriendRequest[]              @relation("SentFriendRequests")
+  receivedFriendRequests           FriendRequest[]              @relation("ReceivedFriendRequests")
+  createdLeagues                   League[]                     @relation("CreatedLeagues")
+  leagueMemberships                LeagueMembership[]
+  badges                           UserBadge[]
+  achievementEvents                AchievementEvent[]
+  portfolioSnapshots               PortfolioSnapshot[]
+  oauthAccounts                    OAuthAccount[]
+  aiMarketFavorites                AiMarketFavorite[]
+  aiMarketReports                  AiMarketReport[]
+  aiMarketReportEvents             AiMarketReportEvent[]
+  subscriptionEmailLogs            SubscriptionEmailLog[]
+  createdChatRooms                 ChatRoom[]                   @relation("CreatedChatRooms")
+  chatMessages                     ChatMessage[]
+  chatPresences                    ChatPresence[]
+  chatPollVotes                    ChatPollVote[]
+  weeklyPortfolioBaselines         WeeklyPortfolioBaseline[]
+  weeklyCompetitionRows            WeeklyCompetitionResultRow[]
+  reportedChatMessages             ChatMessageReport[]          @relation("ChatMessageReportsByReporter")
+  hiddenChatMessages               ChatMessage[]                @relation("HiddenChatMessages")
+  blockedChatUsers                 ChatUserBlock[]              @relation("ChatUserBlocksByBlocker")
+  blockedByChatUsers               ChatUserBlock[]              @relation("ChatUserBlocksByBlocked")
 }
 
 model OAuthAccount {
@@ -172,21 +183,21 @@ model BlogPost {
 }
 
 model AdPlacement {
-  id              String   @id @default(cuid())
-  slot            String
-  title           String
-  body            String
-  imageUrl        String?
-  videoUrl        String?
-  linkUrl         String?
-  linkLabel       String?
-  isActive        Boolean  @default(true)
-  displaySeconds  Int      @default(8)
-  priority        Int      @default(0)
-  startsAt        DateTime?
-  endsAt          DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  slot           String
+  title          String
+  body           String
+  imageUrl       String?
+  videoUrl       String?
+  linkUrl        String?
+  linkLabel      String?
+  isActive       Boolean   @default(true)
+  displaySeconds Int       @default(8)
+  priority       Int       @default(0)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([slot, isActive, priority])
 }
@@ -237,16 +248,16 @@ model SiteVisualSetting {
 }
 
 model VirtualAccount {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  cashMode           CashMode @default(USD)
-  cashAmount         Float    @default(1000000)
-  baseCurrency       String   @default("USD")
-  dailyRepoRate      Float    @default(0.00125)
-  repoLastAccruedAt  DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  cashMode          CashMode  @default(USD)
+  cashAmount        Float     @default(1000000)
+  baseCurrency      String    @default("USD")
+  dailyRepoRate     Float     @default(0.00125)
+  repoLastAccruedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PortfolioPosition {
@@ -265,32 +276,32 @@ model PortfolioPosition {
 }
 
 model VirtualTrade {
-  id          String    @id @default(cuid())
-  userId      String
-  symbol      String
-  name        String
-  market      String
-  side        TradeSide
-  quantity    Float
-  priceUsd    Float
-  totalUsd    Float
-  reason      String?
-  createdAt   DateTime  @default(now())
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  userId    String
+  symbol    String
+  name      String
+  market    String
+  side      TradeSide
+  quantity  Float
+  priceUsd  Float
+  totalUsd  Float
+  reason    String?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
 
 model FriendRequest {
-  id          String              @id @default(cuid())
-  pairKey     String              @unique
-  senderId    String
-  receiverId  String
-  status      FriendRequestStatus @default(PENDING)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  sender      User                @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver    User                @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  id         String              @id @default(cuid())
+  pairKey    String              @unique
+  senderId   String
+  receiverId String
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  sender     User                @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User                @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@index([senderId, status])
   @@index([receiverId, status])
@@ -315,13 +326,13 @@ model League {
 }
 
 model LeagueMembership {
-  id        String     @id @default(cuid())
-  leagueId  String
-  userId    String
-  role      LeagueRole @default(MEMBER)
-  joinedAt  DateTime   @default(now())
-  league    League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       String     @id @default(cuid())
+  leagueId String
+  userId   String
+  role     LeagueRole @default(MEMBER)
+  joinedAt DateTime   @default(now())
+  league   League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([leagueId, userId])
   @@index([userId])
@@ -398,25 +409,72 @@ model PortfolioSnapshot {
   @@index([userId])
 }
 
+model WeeklyPortfolioBaseline {
+  id                String   @id @default(cuid())
+  periodKey         String
+  userId            String
+  portfolioValueUsd Float
+  capturedAt        DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([periodKey, userId])
+  @@index([capturedAt])
+  @@index([userId])
+}
+
+model WeeklyCompetitionPublication {
+  id          String                       @id @default(cuid())
+  periodKey   String                       @unique
+  startsAt    DateTime
+  endsAt      DateTime
+  publishedAt DateTime
+  note        String?
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
+  rows        WeeklyCompetitionResultRow[]
+
+  @@index([publishedAt])
+  @@index([startsAt, endsAt])
+}
+
+model WeeklyCompetitionResultRow {
+  id            String                       @id @default(cuid())
+  publicationId String
+  scope         WeeklyCompetitionScope
+  userId        String
+  displayName   String
+  valueUsd      Float
+  returnPercent Float
+  rank          Int
+  createdAt     DateTime                     @default(now())
+  publication   WeeklyCompetitionPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  user          User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, scope, userId])
+  @@unique([publicationId, scope, rank])
+  @@index([scope, rank])
+  @@index([userId, scope])
+}
+
 model AiSignalLog {
-  id                  String               @id @default(cuid())
-  createdAt           DateTime             @default(now())
-  symbol              String
-  displayName         String?
-  exchange            String?
-  interval            String
-  signalType          String
-  recommendationText  String?
-  confidence          Float?
-  riskScore           Float?
-  opportunityScore    Float?
-  priceAtSignal       Float?
-  currency            String?
-  source              String?
-  reason              String?
-  indicatorsSnapshot  Json?
-  rawPayload          Json?
-  evaluations         AiSignalEvaluation[]
+  id                 String               @id @default(cuid())
+  createdAt          DateTime             @default(now())
+  symbol             String
+  displayName        String?
+  exchange           String?
+  interval           String
+  signalType         String
+  recommendationText String?
+  confidence         Float?
+  riskScore          Float?
+  opportunityScore   Float?
+  priceAtSignal      Float?
+  currency           String?
+  source             String?
+  reason             String?
+  indicatorsSnapshot Json?
+  rawPayload         Json?
+  evaluations        AiSignalEvaluation[]
 
   @@index([createdAt])
   @@index([symbol, interval, signalType, createdAt])
@@ -424,17 +482,17 @@ model AiSignalLog {
 }
 
 model AiSignalEvaluation {
-  id                  String      @id @default(cuid())
-  signalLogId         String
-  signalLog           AiSignalLog @relation(fields: [signalLogId], references: [id], onDelete: Cascade)
-  horizon             String
-  evaluatedAt         DateTime    @default(now())
-  priceAtEvaluation   Float?
-  priceChangePercent  Float?
-  directionCorrect    Boolean?
-  score               Float?
-  resultLabel         String?
-  status              String?
+  id                 String      @id @default(cuid())
+  signalLogId        String
+  signalLog          AiSignalLog @relation(fields: [signalLogId], references: [id], onDelete: Cascade)
+  horizon            String
+  evaluatedAt        DateTime    @default(now())
+  priceAtEvaluation  Float?
+  priceChangePercent Float?
+  directionCorrect   Boolean?
+  score              Float?
+  resultLabel        String?
+  status             String?
 
   @@unique([signalLogId, horizon])
   @@index([horizon, evaluatedAt])
@@ -442,43 +500,43 @@ model AiSignalEvaluation {
 }
 
 model AiMarketFavorite {
-  id         String   @id @default(cuid())
-  userId     String
-  symbol     String
+  id          String   @id @default(cuid())
+  userId      String
+  symbol      String
   displayName String?
-  assetClass String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetClass  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, symbol])
   @@index([userId, createdAt])
 }
 
 model AiMarketReport {
-  id                 String               @id @default(cuid())
-  userId             String?
-  periodKey          String
-  scope              String               @default("GLOBAL")
-  status             String               @default("COMPLETED")
-  model              String?
-  generatedAt        DateTime             @default(now())
-  macroSummary       String
-  marketRegime       String?
-  riskAppetite       String?
-  keyTakeaways       Json
-  requiredCoverage   Json
-  newsSummary        String?
-  dataSnapshot       Json?
-  rawAiPayload       Json?
-  fallbackUsed       Boolean              @default(false)
-  disclaimer         String
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  user               User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
-  assets             AiMarketReportAsset[]
-  newsItems          AiMarketReportNewsItem[]
-  events             AiMarketReportEvent[]
+  id               String                   @id @default(cuid())
+  userId           String?
+  periodKey        String
+  scope            String                   @default("GLOBAL")
+  status           String                   @default("COMPLETED")
+  model            String?
+  generatedAt      DateTime                 @default(now())
+  macroSummary     String
+  marketRegime     String?
+  riskAppetite     String?
+  keyTakeaways     Json
+  requiredCoverage Json
+  newsSummary      String?
+  dataSnapshot     Json?
+  rawAiPayload     Json?
+  fallbackUsed     Boolean                  @default(false)
+  disclaimer       String
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  user             User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assets           AiMarketReportAsset[]
+  newsItems        AiMarketReportNewsItem[]
+  events           AiMarketReportEvent[]
 
   @@unique([userId, periodKey, scope])
   @@index([generatedAt])
@@ -543,16 +601,16 @@ model AiMarketReportNewsItem {
 }
 
 model SubscriptionEmailLog {
-  id           String   @id @default(cuid())
-  userId       String
-  email        String
-  emailType    String
-  periodKey    String
-  subject      String
-  sentAt       DateTime @default(now())
-  metadata     Json?
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  userId    String
+  email     String
+  emailType String
+  periodKey String
+  subject   String
+  sentAt    DateTime @default(now())
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, emailType, periodKey])
   @@index([emailType, periodKey])
@@ -576,21 +634,28 @@ model ChatRoom {
 }
 
 model ChatMessage {
-  id          String          @id @default(cuid())
-  roomId      String
-  userId      String
-  type        ChatMessageType @default(TEXT)
-  body        String
-  attachment  Json?
-  createdAt   DateTime        @default(now())
-  room        ChatRoom        @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pollOptions ChatPollOption[]
-  pollVotes   ChatPollVote[]
+  id             String              @id @default(cuid())
+  roomId         String
+  userId         String
+  type           ChatMessageType     @default(TEXT)
+  body           String
+  attachment     Json?
+  hiddenAt       DateTime?
+  hiddenReason   String?
+  hiddenByUserId String?
+  reportCount    Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  room           ChatRoom            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hiddenBy       User?               @relation("HiddenChatMessages", fields: [hiddenByUserId], references: [id], onDelete: SetNull)
+  pollOptions    ChatPollOption[]
+  pollVotes      ChatPollVote[]
+  reports        ChatMessageReport[]
 
   @@index([roomId, createdAt])
   @@index([userId, createdAt])
   @@index([type, createdAt])
+  @@index([hiddenAt])
 }
 
 model ChatPresence {
@@ -630,4 +695,32 @@ model ChatPollVote {
   @@unique([messageId, userId])
   @@index([optionId])
   @@index([userId, createdAt])
+}
+
+model ChatMessageReport {
+  id         String      @id @default(cuid())
+  messageId  String
+  reporterId String
+  reason     String
+  status     String      @default("OPEN")
+  createdAt  DateTime    @default(now())
+  resolvedAt DateTime?
+  message    ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporter   User        @relation("ChatMessageReportsByReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, reporterId])
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+}
+
+model ChatUserBlock {
+  id            String   @id @default(cuid())
+  blockerUserId String
+  blockedUserId String
+  createdAt     DateTime @default(now())
+  blocker       User     @relation("ChatUserBlocksByBlocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked       User     @relation("ChatUserBlocksByBlocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockedUserId])
 }

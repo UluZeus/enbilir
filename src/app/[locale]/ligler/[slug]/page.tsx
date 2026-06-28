@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { LeagueInviteActions } from "@/components/leagues/LeagueInviteActions";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -8,6 +9,53 @@ import { getSessionUser } from "@/lib/auth";
 import { getLeagueDetail, getLeagueLeaderboard } from "@/lib/leagues";
 import { formatMoney } from "@/lib/portfolio";
 import { getSiteUrl } from "@/lib/site-url";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>;
+}): Promise<Metadata> {
+  const { locale: rawLocale, slug } = await params;
+  const locale = getSafeLocale(rawLocale);
+  const league = await getLeagueDetail(slug);
+  const title = league
+    ? locale === "en"
+      ? `${league.name} League | Enbilir Portfolio Competition`
+      : `${league.name} Ligi | Enbilir Portföy Yarışması`
+    : locale === "en"
+      ? "League | Enbilir"
+      : "Lig | Enbilir";
+  const description = league?.description || (locale === "en"
+    ? "Join Enbilir leagues directly and follow virtual portfolio rankings with market-literacy context."
+    : "Enbilir liglerine doğrudan katılın ve sanal portföy sıralamalarını finansal okuryazarlık bağlamıyla takip edin.");
+  const path = `/${locale}/ligler/${slug}`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: path,
+      languages: {
+        tr: `/tr/ligler/${slug}`,
+        en: `/en/ligler/${slug}`,
+      },
+    },
+    openGraph: {
+      type: "website",
+      url: path,
+      title,
+      description,
+      siteName: "enbilir.com",
+      images: [{ url: "/logo.png", width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: ["/logo.png"],
+    },
+  };
+}
 
 export default async function LeagueDetailPage({
   params,
@@ -26,15 +74,58 @@ export default async function LeagueDetailPage({
 
   const membership = user ? league.memberships.find((item) => item.userId === user.id) : null;
   const leaderboard = await getLeagueLeaderboard(league.id, user?.id);
-  const inviteUrl = `${getSiteUrl()}/${locale}/panel`;
+  const inviteUrl = `${getSiteUrl()}/${locale}/ligler/${league.slug}`;
+  const siteUrl = getSiteUrl();
+  const leagueUrl = `${siteUrl}/${locale}/ligler/${league.slug}`;
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: locale === "en" ? "Home" : "Ana sayfa",
+            item: `${siteUrl}/${locale}`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: locale === "en" ? "Leagues" : "Ligler",
+            item: `${siteUrl}/${locale}/ligler`,
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: league.name,
+            item: leagueUrl,
+          },
+        ],
+      },
+      {
+        "@type": "CollectionPage",
+        name: `${league.name} ${locale === "en" ? "League" : "Ligi"}`,
+        url: leagueUrl,
+        description: league.description ?? (locale === "en" ? "Enbilir virtual portfolio league." : "Enbilir sanal portföy ligi."),
+        inLanguage: locale === "en" ? "en-US" : "tr-TR",
+        isPartOf: {
+          "@type": "WebSite",
+          name: "Enbilir",
+          url: siteUrl,
+        },
+      },
+    ],
+  };
   const sortedMemberships = [...league.memberships].sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime());
   const recentMembers = sortedMemberships.slice(0, 5);
   const ownerTasks = locale === "tr"
-    ? ["Haftalık eğitim başlığını belirle", "Cuma günü ilk 5 portföyü değerlendir", "Yeni gelenlere davet kodunu ve eğitim akışını hatırlat"]
-    : ["Set the weekly learning topic", "Review the top 5 portfolios on Friday", "Remind new members of the invite code and learning flow"];
+    ? ["Haftalık eğitim başlığını belirle", "Cuma günü ilk 5 portföyü değerlendir", "Yeni gelenlere lig sayfasını ve eğitim akışını hatırlat"]
+    : ["Set the weekly learning topic", "Review the top 5 portfolios on Friday", "Remind new members of the league page and learning flow"];
 
   return (
     <div className="growth-page grid gap-6">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       <section className="league-detail-hero rounded-[1.6rem] border border-[#d9a441]/30 bg-[#101827] p-6 text-white shadow-sm">
         <Link href={`/${locale}/ligler`} className="text-sm font-bold text-[#f5a623] hover:text-[#ffd36b]">
           {copy.back}
@@ -50,7 +141,6 @@ export default async function LeagueDetailPage({
           <div className="rounded-lg border border-white/10 bg-black/25 p-5">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{copy.memberCount}</p>
             <p className="mt-2 text-3xl font-black text-[#f5a623]">{league._count.memberships}</p>
-            {membership?.role === "OWNER" ? <p className="mt-2 text-xs text-slate-300">{copy.inviteCode}: {league.inviteCode}</p> : null}
           </div>
         </div>
       </section>
@@ -61,12 +151,12 @@ export default async function LeagueDetailPage({
             {locale === "tr" ? "Kulüp büyüme akışı" : "Club growth flow"}
           </p>
           <h2 className="mt-2 text-2xl font-black text-[#152033]">
-            {locale === "tr" ? "Bu lig sadece sıralama değil; davet, eğitim ve tekrar eden değerlendirme alanı." : "This league is more than ranking; it is an invite, learning, and recurring review space."}
+            {locale === "tr" ? "Bu lig sadece sıralama değil; katılım, eğitim ve tekrar eden değerlendirme alanı." : "This league is more than ranking; it is a participation, learning, and recurring review space."}
           </h2>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {(locale === "tr"
-              ? ["Davet kodunu paylaş", "Haftalık eğitim notu belirle", "Cuma lig özetini tartış"]
-              : ["Share the invite code", "Set a weekly learning note", "Discuss the Friday league summary"]
+              ? ["Lig bağlantısını paylaş", "Haftalık eğitim notu belirle", "Cuma lig özetini tartış"]
+              : ["Share the league link", "Set a weekly learning note", "Discuss the Friday league summary"]
             ).map((item, index) => (
               <div key={item} className="rounded-2xl border border-[#d1bfa7]/35 bg-[#fffaf6]/80 p-4">
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">0{index + 1}</p>
@@ -78,19 +168,18 @@ export default async function LeagueDetailPage({
 
         <aside className="premium-card premium-card--dark p-5">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
-            {membership?.role === "OWNER" ? copy.inviteCode : locale === "tr" ? "Katılım" : "Participation"}
+            {membership?.role === "OWNER" ? locale === "tr" ? "Paylaşım" : "Sharing" : locale === "tr" ? "Katılım" : "Participation"}
           </p>
           {membership?.role === "OWNER" ? (
             <>
-              <p className="mt-3 rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-2xl font-black tracking-[0.18em] text-white">{league.inviteCode}</p>
               <p className="mt-3 text-sm leading-6 text-slate-300">
                 {locale === "tr"
-                  ? "Bu kodu kulüp üyelerine gönder. Üyeler paneldeki davet kodu alanına yazarak lige katılır."
-                  : "Send this code to club members. They can join from the dashboard invite-code field."}
+                  ? "Bu lig doğrudan katılıma açıktır. İstersen bağlantıyı paylaşarak üyelerin bu sayfadan tek tıkla katılmasını sağlayabilirsin."
+                  : "This league is open to direct joining. You can share the link so members can join from this page with one click."}
               </p>
               <p className="mt-3 rounded-lg border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300">{inviteUrl}</p>
               <div className="mt-3">
-                <LeagueInviteActions inviteCode={league.inviteCode} inviteUrl={inviteUrl} leagueName={league.name} locale={locale} />
+                <LeagueInviteActions inviteUrl={inviteUrl} leagueName={league.name} locale={locale} />
               </div>
             </>
           ) : (
@@ -126,11 +215,11 @@ export default async function LeagueDetailPage({
               {locale === "tr" ? "Lig Yönetici Paneli" : "League Manager Panel"}
             </p>
             <h2 className="mt-2 text-2xl font-black text-white">{league.name}</h2>
-            <p className="mt-3 rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-xl font-black tracking-[0.16em] text-white">
-              {league.inviteCode}
+            <p className="mt-3 break-all rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm font-black text-white">
+              {inviteUrl}
             </p>
             <div className="mt-3">
-              <LeagueInviteActions inviteCode={league.inviteCode} inviteUrl={inviteUrl} leagueName={league.name} locale={locale} />
+              <LeagueInviteActions inviteUrl={inviteUrl} leagueName={league.name} locale={locale} />
             </div>
           </div>
 

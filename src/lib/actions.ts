@@ -19,6 +19,7 @@ import { getLiveMarketItem } from "@/lib/live-market";
 import { cashToUsd, ensureVirtualAccount, getSafePortfolioPriceUsd, usdToCash } from "@/lib/portfolio";
 import type { CashMode, CompetitionPeriodType, DisplayNameMode, LeagueType, TradeSide } from "@/generated/prisma/enums";
 import { getFriendPairKey } from "@/lib/friends";
+import { ensureDefaultLeagues, isDefaultLeagueSlug } from "@/lib/default-leagues";
 import { getUniqueInviteCode, getUniqueLeagueSlug, leagueTypes } from "@/lib/leagues";
 import { awardBadge, evaluateTradeBadges } from "@/lib/badges";
 import { awardLeaderBadgesForActivePeriods, competitionPeriodTypes } from "@/lib/competition-periods";
@@ -255,6 +256,7 @@ export async function registerAction(formData: FormData) {
   const requestedNickname = normalizeText(formData.get("nickname"));
   const displayNameMode = String(formData.get("displayNameMode") ?? "REAL_NAME") as DisplayNameMode;
   const password = String(formData.get("password") ?? "");
+  const initialLeagueSlug = normalizeText(formData.get("initialLeagueSlug")).toLowerCase();
   const kvkkAccepted = formData.get("kvkkAccepted") === "on";
   const termsAccepted = formData.get("termsAccepted") === "on";
   const noAdviceAccepted = formData.get("noAdviceAccepted") === "on";
@@ -266,6 +268,10 @@ export async function registerAction(formData: FormData) {
 
   if (!kvkkAccepted || !termsAccepted || !noAdviceAccepted) {
     redirect(getRedirect(locale, "kayit", "Zorunlu onay kutularını işaretlemelisiniz."));
+  }
+
+  if (!initialLeagueSlug || !isDefaultLeagueSlug(initialLeagueSlug)) {
+    redirect(getRedirect(locale, "kayit", "Kayıt için ROTARYEN, ROTARACT veya SERBEST liglerinden birini seçmelisiniz."));
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -314,6 +320,21 @@ export async function registerAction(formData: FormData) {
   });
 
   try {
+    const defaultLeagues = await ensureDefaultLeagues({ ownerUserId: user.id });
+    const selectedLeague = defaultLeagues.find((league) => league.slug === initialLeagueSlug);
+
+    if (!selectedLeague) {
+      throw new Error("Seçilen lig şu anda hazırlanamadı. Lütfen biraz sonra tekrar deneyin.");
+    }
+
+    await prisma.leagueMembership.create({
+      data: {
+        leagueId: selectedLeague.id,
+        userId: user.id,
+        role: "MEMBER",
+      },
+    });
+
     const verificationUrl = buildEmailVerificationUrl(token, getSafeLocale(String(locale ?? "tr")));
     const { subject, text, html } = buildWelcomeVerificationEmail({ name, verificationUrl });
 
@@ -1335,4 +1356,42 @@ export async function sendLatestMacroReportEmailAction(formData: FormData) {
   }
 
   redirect(getRedirect(locale, "ai-piyasa-asistani/raporlar", undefined, "En son makro rapor e-posta adresine gönderildi."));
+}
+
+export async function hideReportedChatMessageAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const messageId = normalizeText(formData.get("messageId"));
+  const sessionUser = await requireAdminSession(locale);
+
+  if (!messageId) {
+    redirect(getRedirect(locale, "admin", "Gizlenecek mesaj bulunamadı."));
+  }
+
+  const message = await prisma.chatMessage.findUnique({
+    where: { id: messageId },
+    select: { id: true },
+  });
+
+  if (!message) {
+    redirect(getRedirect(locale, "admin", "Mesaj bulunamadı."));
+  }
+
+  await prisma.chatMessage.update({
+    where: { id: messageId },
+    data: {
+      hiddenAt: new Date(),
+      hiddenByUserId: sessionUser.id,
+      hiddenReason: "Admin moderasyonu ile gizlendi.",
+    },
+  });
+  await prisma.chatMessageReport.updateMany({
+    where: { messageId, status: "OPEN" },
+    data: {
+      status: "RESOLVED_HIDDEN",
+      resolvedAt: new Date(),
+    },
+  });
+
+  revalidatePath(`/${getSafeLocale(String(locale ?? "tr"))}/admin`);
+  redirect(getRedirect(locale, "admin", undefined, "Sohbet mesajı gizlendi."));
 }

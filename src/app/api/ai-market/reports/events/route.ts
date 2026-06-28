@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const report = await prisma.aiMarketReport.findFirst({
       where: {
         id: reportId,
-        OR: user ? [{ userId: user.id }, { scope: "GLOBAL" }] : [{ scope: "GLOBAL" }],
+        OR: user ? [{ userId: user.id }, { scope: { in: ["GLOBAL", "WEEKLY"] } }] : [{ scope: { in: ["GLOBAL", "WEEKLY"] } }],
       },
       select: { id: true },
     });

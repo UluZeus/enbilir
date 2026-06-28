@@ -43,6 +43,12 @@ export function getSafePortfolioPriceUsd(
   return position.averagePriceUsd;
 }
 
+function findMarketItemForPosition(marketItems: MarketItem[], symbol: string) {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+
+  return marketItems.find((item) => item.symbol.trim().toUpperCase() === normalizedSymbol);
+}
+
 export async function ensureVirtualAccount(userId: string) {
   const account = await prisma.virtualAccount.findUnique({ where: { userId } });
 
@@ -100,7 +106,7 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
   });
 
   const enrichedPositions = positions.map((position) => {
-    const marketItem = liveMarketItems.find((item) => item.symbol === position.symbol);
+    const marketItem = findMarketItemForPosition(liveMarketItems, position.symbol);
     const currentPriceUsd = getSafePortfolioPriceUsd(position, marketItem);
     const valueUsd = position.quantity * currentPriceUsd;
     const profitLossUsd = valueUsd - position.quantity * position.averagePriceUsd;

@@ -18,6 +18,8 @@ export type AgentReportDraft = {
   }>;
 };
 
+export type AgentReportMode = "DAILY" | "WEEKLY";
+
 const DEFAULT_MODEL = "gpt-4.1-mini";
 
 function numberText(value: number | null | undefined) {
@@ -47,14 +49,28 @@ function compactAsset(asset: AgentAssetAnalysis) {
   };
 }
 
-function getPrompt(assets: AgentAssetAnalysis[], news: AgentNewsItem[]) {
+function getPrompt(assets: AgentAssetAnalysis[], news: AgentNewsItem[], mode: AgentReportMode) {
+  const weeklyInstructions = mode === "WEEKLY"
+    ? [
+        "Bu rapor PAZARTESI HAFTALIK RAPORUDUR; gunluk rapordan daha genis perspektifli olmalidir.",
+        "macroSummary alani 1000-1400 kelime araliginda, 7-10 akici paragraf halinde yazilmalidir.",
+        "Gecen haftada olanlari ve icinde bulunulan haftada beklenen ana makro basliklari birlikte degerlendir.",
+        "Gecen hafta: merkez bankalari, faiz, tahvil faizleri, dolar endeksi, kur, emtia, enerji, BIST, ABD endeksleri, teknoloji/AI hisseleri ve Asya piyasalarinda neyin one ciktigini ozetle.",
+        "Bu hafta: izlenecek veri takvimi, merkez bankasi konusmalari/kararlari, enflasyon-buyume-istihdam verileri, bilanço/haber akisi, enerji/emtia ve kur riskleri icin senaryolar yaz.",
+        "Raporun sonunda yatirim tavsiyesi vermeden; bu hafta hangi sorularla piyasaya bakilmasi gerektigini egitici bir cercevede anlat.",
+        "newsSummary alani 220-320 kelime olmali ve gecen haftanin haber ozetini bu haftanin beklentileriyle baglamalidir.",
+      ]
+    : [
+        "macroSummary alani daha kapsamli olmali: yaklasik bir A4 sayfaya yakin, 500-700 kelime, 4-6 akici paragraf halinde makro konjonktur yorumu yaz.",
+        "newsSummary alani 120-180 kelime olmali; haber akisini merkez bankalari, enerji, emtia, kur, ABD teknoloji hisseleri ve Asya piyasalari baglaminda toparla.",
+      ];
+
   return [
     "Sen Enbilir icin calisan profesyonel bir piyasa arastirma ajanisin.",
     "Dil: Turkce. Uslup: net, ihtiyatli, egitici. Yatirim tavsiyesi verme.",
     "Gorev: Teknik veriler, haber basliklari ve makro konjonkturu birlikte yorumlayarak planli makro piyasa raporu uret.",
     "Sinyal dilini Turkcelestir: BUY yerine AL, STRONG_BUY yerine GUCLU AL, SELL yerine SAT, WATCH yerine IZLE, HOLD yerine BEKLE, AVOID yerine UZAK DUR, TAKE_PROFIT yerine KAR REALIZASYONU IZLE, NO_TRADE yerine ISLEM YOK yaz.",
-    "macroSummary alani daha kapsamli olmali: yaklasik bir A4 sayfaya yakin, 500-700 kelime, 4-6 akici paragraf halinde makro konjonktur yorumu yaz.",
-    "newsSummary alani 120-180 kelime olmali; haber akisini merkez bankalari, enerji, emtia, kur, ABD teknoloji hisseleri ve Asya piyasalari baglaminda toparla.",
+    ...weeklyInstructions,
     "Her varlik icin technicalCommentary, macroCommentary ve newsCommentary alanlarini kisa not gibi degil, 60-100 kelimelik egitici yorumlar halinde yaz.",
     `Zorunlu kapsam: ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")}.`,
     "Her zorunlu kapsam basligi raporda temsil edilmeli. Favori varliklar icin tek tek yorum yap.",
@@ -77,6 +93,7 @@ function getPrompt(assets: AgentAssetAnalysis[], news: AgentNewsItem[]) {
           },
         ],
       },
+      reportMode: mode,
       assets: assets.map(compactAsset),
       news: news.slice(0, 24),
     }),
@@ -113,7 +130,7 @@ function isReportDraft(value: unknown): value is AgentReportDraft {
   );
 }
 
-export async function generateAiReportDraft(assets: AgentAssetAnalysis[], news: AgentNewsItem[]) {
+export async function generateAiReportDraft(assets: AgentAssetAnalysis[], news: AgentNewsItem[], mode: AgentReportMode = "DAILY") {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -129,7 +146,7 @@ export async function generateAiReportDraft(assets: AgentAssetAnalysis[], news: 
     },
     body: JSON.stringify({
       model,
-      input: getPrompt(assets, news),
+      input: getPrompt(assets, news, mode),
       temperature: 0.2,
       max_output_tokens: 9000,
     }),

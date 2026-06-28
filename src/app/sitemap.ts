@@ -13,6 +13,7 @@ const staticRoutes = [
   { path: "/giris", frequency: "weekly", priority: 0.58 },
   { path: "/ligler", frequency: "daily", priority: 0.86 },
   { path: "/liderlik-tablosu", frequency: "daily", priority: 0.8 },
+  { path: "/haftalik-liderler", frequency: "weekly", priority: 0.76 },
   { path: "/topluluk", frequency: "weekly", priority: 0.76 },
   { path: "/sohbet", frequency: "daily", priority: 0.74 },
   { path: "/icerik-merkezi", frequency: "weekly", priority: 0.9 },
@@ -36,10 +37,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { id: true, type: true, locale: true, updatedAt: true, publishedAt: true },
   });
   const latestReports = await prisma.aiMarketReport.findMany({
-    where: { scope: "GLOBAL", status: "COMPLETED" },
+    where: { scope: { in: ["GLOBAL", "WEEKLY"] }, status: "COMPLETED" },
     orderBy: { generatedAt: "desc" },
     take: 50,
     select: { id: true, updatedAt: true, generatedAt: true },
+  });
+  const activeLeagues = await prisma.league.findMany({
+    where: { isActive: true },
+    orderBy: { updatedAt: "desc" },
+    select: { slug: true, updatedAt: true, createdAt: true },
   });
 
   const staticItems = ["tr", "en"].flatMap((locale) =>
@@ -96,5 +102,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   );
 
-  return [...staticItems, ...contentItems, ...reportItems];
+  const leagueItems = ["tr", "en"].flatMap((locale) =>
+    activeLeagues.map((league) => ({
+      url: `${siteUrl}/${locale}/ligler/${league.slug}`,
+      lastModified: league.updatedAt ?? league.createdAt,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+      alternates: {
+        languages: {
+          tr: `${siteUrl}/tr/ligler/${league.slug}`,
+          en: `${siteUrl}/en/ligler/${league.slug}`,
+        },
+      },
+    })),
+  );
+
+  return [...staticItems, ...contentItems, ...reportItems, ...leagueItems];
 }

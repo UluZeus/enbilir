@@ -36,6 +36,14 @@ function formatProfitLossPercent(value: number | null | undefined) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`;
 }
 
+function formatUsd(value: number) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 export function PortfolioDonut({
   items,
   total,
@@ -97,16 +105,19 @@ export function PortfolioDonut({
 
             return (
               <div key={`${item.label}-${index}`} className="grid gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span
-                    aria-hidden="true"
-                    className="h-3 w-3 shrink-0 rounded-full shadow-sm"
-                    style={{ backgroundColor: getDonutColor(index) }}
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-black text-[#152033]">{item.label}</p>
-                    {item.detail ? <p className="truncate text-[10px] font-bold text-slate-500">{item.detail}</p> : null}
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="h-3 w-3 shrink-0 rounded-full shadow-sm"
+                      style={{ backgroundColor: getDonutColor(index) }}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-black text-[#152033]">{item.label}</p>
+                      {item.detail ? <p className="truncate text-[10px] font-bold text-slate-500">{item.detail}</p> : null}
+                    </div>
                   </div>
+                  <p className="shrink-0 text-right text-[11px] font-black text-[#0f766e]">{formatUsd(item.value)}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div className="rounded-lg bg-slate-50 px-2 py-1">

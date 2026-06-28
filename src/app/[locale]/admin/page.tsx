@@ -7,6 +7,7 @@ import {
   awardLeaderBadgesAction,
   createAdPlacementAction,
   createCompetitionPeriodAction,
+  hideReportedChatMessageAction,
   toggleAdPlacementAction,
   toggleBadgeAction,
   toggleCompetitionPeriodAction,
@@ -312,6 +313,12 @@ function formatAdminDate(value: Date, locale: "tr" | "en") {
   }).format(value);
 }
 
+function formatAdminUser(user: { name: string; nickname: string | null; displayNameMode: string; email?: string }) {
+  const visibleName = user.displayNameMode === "NICKNAME" && user.nickname ? user.nickname : user.name;
+
+  return user.email ? `${visibleName} (${user.email})` : visibleName;
+}
+
 type AdminCopy = ReturnType<typeof getAdminCopy>;
 
 function AdminField({ label, children }: { label: string; children: ReactNode }) {
@@ -513,6 +520,7 @@ export default async function AdminPage({
     reportEmailEvents,
     leagueJoinedUsers,
     tradedUsers,
+    chatReports,
   ] = await Promise.all([
     prisma.adPlacement.findMany({ orderBy: [{ slot: "asc" }, { priority: "desc" }, { createdAt: "desc" }] }),
     prisma.managedContentItem.findMany({ orderBy: [{ type: "asc" }, { locale: "asc" }, { sortOrder: "desc" }, { createdAt: "desc" }] }),
@@ -531,6 +539,24 @@ export default async function AdminPage({
     prisma.aiMarketReportEvent.count({ where: { eventType: "EMAIL_SENT" } }),
     prisma.leagueMembership.findMany({ distinct: ["userId"], select: { userId: true } }),
     prisma.virtualTrade.findMany({ distinct: ["userId"], select: { userId: true } }),
+    prisma.chatMessageReport.findMany({
+      where: { status: "OPEN" },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      include: {
+        reporter: { select: { name: true, nickname: true, displayNameMode: true, email: true } },
+        message: {
+          select: {
+            id: true,
+            body: true,
+            reportCount: true,
+            createdAt: true,
+            user: { select: { name: true, nickname: true, displayNameMode: true, email: true } },
+            room: { select: { name: true, code: true } },
+          },
+        },
+      },
+    }),
   ]);
   const activeAds = ads.filter((ad) => ad.isActive).length;
   const publishedItems = managedItems.filter((item) => item.isActive).length;
@@ -631,6 +657,57 @@ export default async function AdminPage({
           </div>
         </div>
       </section>
+
+      <section className="premium-card p-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
+              {locale === "tr" ? "Sohbet moderasyonu" : "Chat moderation"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">
+              {locale === "tr" ? "Açık sohbet şikayetleri" : "Open chat reports"}
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-slate-600">
+              {locale === "tr"
+                ? "Kullanıcıların şikayet ettiği mesajları buradan takip edebilir, gerekli gördüğün mesajı gizleyebilirsin."
+                : "Review user-reported messages here and hide a message when needed."}
+            </p>
+          </div>
+          <AdminMetric label={locale === "tr" ? "Açık şikayet" : "Open reports"} value={String(chatReports.length)} />
+        </div>
+        <div className="mt-5 grid gap-3">
+          {chatReports.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">{copy.noRecords}</p>
+          ) : (
+            chatReports.map((report) => (
+              <div key={report.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
+                      {report.message.room.name} · {report.message.room.code}
+                    </p>
+                    <p className="mt-2 text-sm font-black text-[#152033]">
+                      {locale === "tr" ? "Mesaj sahibi" : "Author"}: {formatAdminUser(report.message.user)}
+                    </p>
+                    <p className="mt-2 rounded-lg bg-white p-3 text-sm leading-6 text-slate-700">{report.message.body}</p>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      {locale === "tr" ? "Şikayet eden" : "Reporter"}: {formatAdminUser(report.reporter)} · {report.reason} · {formatAdminDate(report.createdAt, locale)}
+                    </p>
+                  </div>
+                  <form action={hideReportedChatMessageAction} className="shrink-0">
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="messageId" value={report.message.id} />
+                    <button className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 hover:border-red-400">
+                      {locale === "tr" ? "Mesajı gizle" : "Hide message"}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
       <section className="premium-card p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>

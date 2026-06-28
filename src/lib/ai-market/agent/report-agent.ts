@@ -1,5 +1,5 @@
 import { AI_MARKET_AGENT_INTERVAL, analyzeAgentAssets, type AgentAssetAnalysis } from "@/lib/ai-market/agent/analysis";
-import { generateAiReportDraft, type AgentReportDraft } from "@/lib/ai-market/agent/llm";
+import { generateAiReportDraft, type AgentReportDraft, type AgentReportMode } from "@/lib/ai-market/agent/llm";
 import { REQUIRED_MACRO_COVERAGE_LABELS } from "@/lib/ai-market/agent/macro-coverage";
 import { collectAgentNews, type AgentNewsItem } from "@/lib/ai-market/agent/news";
 import { DEFAULT_AI_MARKET_FAVORITES } from "@/lib/ai-market/favorite-defaults";
@@ -11,6 +11,7 @@ import { Prisma } from "@/generated/prisma/client";
 export type RunAiMarketAgentOptions = {
   userId?: string | null;
   force?: boolean;
+  reportMode?: AgentReportMode;
 };
 
 function getPeriodKey(date = new Date()) {
@@ -20,6 +21,48 @@ function getPeriodKey(date = new Date()) {
   const hour = String(date.getUTCHours()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hour}:00Z`;
+}
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+function getIstanbulCalendarParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    timeZone: "Europe/Istanbul",
+  }).formatToParts(date);
+
+  return {
+    year: Number(parts.find((part) => part.type === "year")?.value ?? "1970"),
+    month: Number(parts.find((part) => part.type === "month")?.value ?? "1"),
+    day: Number(parts.find((part) => part.type === "day")?.value ?? "1"),
+    weekday: parts.find((part) => part.type === "weekday")?.value ?? "Mon",
+  };
+}
+
+function formatDateKey(date: Date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function getWeeklyPeriod(date = new Date()) {
+  const parts = getIstanbulCalendarParts(date);
+  const localDayUtc = Date.UTC(parts.year, parts.month - 1, parts.day);
+  const weekdayIndex: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+  const daysSinceMonday = (weekdayIndex[parts.weekday] ?? 1) - 1;
+  const currentMonday = new Date(localDayUtc - daysSinceMonday * DAY_MS);
+  const previousMonday = new Date(currentMonday.getTime() - 7 * DAY_MS);
+  const previousSunday = new Date(currentMonday.getTime() - DAY_MS);
+  const currentSunday = new Date(currentMonday.getTime() + 6 * DAY_MS);
+
+  return {
+    periodKey: `WEEKLY-${formatDateKey(currentMonday)}`,
+    previousWeekStart: formatDateKey(previousMonday),
+    previousWeekEnd: formatDateKey(previousSunday),
+    currentWeekStart: formatDateKey(currentMonday),
+    currentWeekEnd: formatDateKey(currentSunday),
+  };
 }
 
 function formatPercent(value: number | null | undefined) {
@@ -57,10 +100,11 @@ function localizeSignalText(value: string) {
     .replace(/\bAVOID\b/g, "UZAK DUR");
 }
 
-function expandMacroSummary(summary: string, assets: AgentAssetAnalysis[], news: AgentNewsItem[]) {
+function expandMacroSummary(summary: string, assets: AgentAssetAnalysis[], news: AgentNewsItem[], reportMode: AgentReportMode) {
   const wordCount = summary.split(/\s+/).filter(Boolean).length;
+  const minimumWords = reportMode === "WEEKLY" ? 900 : 450;
 
-  if (wordCount >= 450) {
+  if (wordCount >= minimumWords) {
     return summary;
   }
 
@@ -71,13 +115,23 @@ function expandMacroSummary(summary: string, assets: AgentAssetAnalysis[], news:
       : "Son teknik kesitte belirgin bir hareket ayrismasi sinirli kaliyor.";
   const newsText = news.slice(0, 3).map((item) => `${item.source} kaynakli ${item.category} basligi`).join(", ");
 
-  return [
+  const expanded = [
     summary,
     moverText,
     "Bu raporda altin, gumus, paladyum ve Brent petrol emtia enflasyonu, sanayi talebi ve guvenli liman davranisi icin birlikte okunmaktadir. Dolar/TL, euro/TL ve euro/dolar paritesi kur geciskenligi, global dolar likiditesi ve yerel fiyatlama davranisi acisindan ana referans noktalaridir. BIST 100, Dow Jones ve Nasdaq ise yerel ve kuresel risk istahinin farkli katmanlarini gosterir; Dow Jones daha genis ekonomik donguye, Nasdaq ise buyume, yariletken ve yapay zeka temalarina daha hassas tepki verir.",
     "Enerji hisseleri petrol ve dogalgaz maliyetleriyle, nukleer enerji hisseleri uzun vadeli enerji guvenligi ve altyapi yatirimlariyla, yapay zeka hisseleri ise sermaye piyasalarindaki buyume istahi ve teknoloji carpanlariyla birlikte degerlendirilmelidir. Cin, Japonya ve Uzak Dogu endeksleri kuresel tedarik zinciri, ihracat talebi, yari iletken akisi ve Asya kaynakli risklerin erken sinyali olabilir. Bu nedenle rapordaki teknik gostergeler yalnizca fiyat grafigi degil, daha genis sermaye akimi ve haber rejiminin bir parcasi olarak okunmalidir.",
     `Haber tarafinda ${newsText || "ana makro haber basliklari"} takip edilmektedir. Haber akisi kuvvetliyse AL veya SAT sinyalleri daha hizli teyit ya da iptal gorebilir; haber akisi zayifsa hacim, RSI, MACD, Ichimoku ve trend davranisi daha belirleyici hale gelir. Tek bir varliktaki sinyal, karar almak icin yeterli degildir; portfoy riski, vade, likidite, haber akisi ve makro rejim birlikte ele alinmalidir. Bu raporun ana amaci yonlendirmek degil, piyasanin hangi basliklar etrafinda dusunulmesi gerektigini sistemli bicimde gostermektir.`,
-  ].join(" ");
+  ];
+
+  if (reportMode === "WEEKLY") {
+    expanded.push(
+      "Haftalik raporda gecen haftanin fiyat davranisi kadar, bu haftanin veri takvimi ve haber riski de ayni onemde ele alinmalidir. Onceki haftada olusan trendin kalici olup olmadigi; merkez bankasi mesajlari, tahvil faizleri, dolar endeksi, petrol ve degerli metallerin birlikte verdigi sinyalle test edilir. Yeni haftaya girerken piyasada ilk sorulacak soru, fiyatlarin hangi beklentiyi zaten satin aldigi ve hangi verinin bu beklentiyi bozabilecegidir.",
+      "Bu hafta icin en saglikli okuma, tek bir varliga odaklanmak yerine uc katmanli dusunmektir: birinci katmanda faiz ve dolar likiditesi, ikinci katmanda enerji ve emtia maliyetleri, ucuncu katmanda hisse senedi risk istahi yer alir. Bu uc katman ayni yonde hareket ediyorsa trendin gucu artar; birbirinden ayrisiyorsa pozisyon buyuklugu, vade ve risk kontrolu daha onemli hale gelir. Bu nedenle haftalik rapor, kullaniciya kesin cevap vermekten cok, hafta boyunca hangi sorulari takip edecegini gosteren bir piyasa haritasi olarak okunmalidir.",
+      "Ozellikle pazartesi sabahi olusan ilk fiyatlamalar haftanin tamamini temsil etmeyebilir. Sali ve carsamba gunleri aciklanacak veri veya konusmalar, persembe-cuma tarafinda portfoylerin haftalik kapanis davranisini degistirebilir. Bu nedenle raporda yer alan sinyaller gun icinde takip edilen haber akisiyle birlikte yeniden yorumlanmali; guclu gorunen sinyal bile hacim, volatilite ve makro haber teyidi olmadan tek basina karar sebebi yapilmamalidir.",
+    );
+  }
+
+  return expanded.join(" ");
 }
 
 function getTopMovers(assets: AgentAssetAnalysis[]) {
@@ -87,7 +141,7 @@ function getTopMovers(assets: AgentAssetAnalysis[]) {
     .slice(0, 5);
 }
 
-function buildFallbackDraft(assets: AgentAssetAnalysis[], news: AgentNewsItem[]): AgentReportDraft {
+function buildFallbackDraft(assets: AgentAssetAnalysis[], news: AgentNewsItem[], reportMode: AgentReportMode): AgentReportDraft {
   const successful = assets.filter((asset) => asset.analysis);
   const topMovers = getTopMovers(successful);
   const riskScores = successful.map((asset) => asset.analysis?.risk.score ?? 0);
@@ -95,15 +149,25 @@ function buildFallbackDraft(assets: AgentAssetAnalysis[], news: AgentNewsItem[])
   const bullishCount = successful.filter((asset) => ["BUY", "STRONG_BUY"].includes(asset.analysis?.signal.signal ?? "")).length;
   const bearishCount = successful.filter((asset) => ["SELL", "AVOID"].includes(asset.analysis?.signal.signal ?? "")).length;
 
+  const macroSummary = [
+    "Planli makro ajan raporu teknik gostergeler, haber akisi ve zorunlu makro varlik sepetiyle olusturuldu. Kuresel piyasalarda ana belirleyici basliklar merkez bankalarinin faiz patikasi, dolar likiditesi, enerji fiyatlari ve teknoloji hisselerindeki risk istahi olmaya devam ediyor.",
+    `Kapsamda ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")} basliklari yer aliyor.`,
+    `Ortalama risk skoru ${averageRisk.toFixed(0)}/100 seviyesinde; ${bullishCount} varlik pozitif, ${bearishCount} varlik negatif sinyal tarafinda.`,
+    "Altin, gumus ve paladyum reel faiz beklentisi ile sanayi talebi arasinda okunurken; Brent petrol enerji maliyeti, enflasyon baskisi ve enerji hisselerinin nakit akisi beklentileri icin kritik gosterge olmaya devam ediyor. Dolar/TL ve Euro/TL yerel varlik fiyatlamalarinda ana geciskenlik kanali olarak izlenmeli. BIST 100 tarafinda banka, sanayi ve ihracatci sirketlerin kur/faiz dengesine verdigi tepki onemli. ABD tarafinda Dow Jones daha genis ekonomik donguye, Nasdaq ise yapay zeka ve buyume temasina hassas. Cin, Japonya ve Uzak Dogu borsalari kuresel tedarik zinciri, yariletken talebi ve Asya risk istahi hakkinda erken sinyal verebilir. Bu nedenle rapordaki teknik sinyaller tek basina degil, haber akisi ve makro rejimle birlikte degerlendirilmelidir.",
+    "Bu raporda teknik sinyallerin yanina portfoy davranisi acisindan da ikinci bir okuma eklenmelidir. Risk istahi guclendiginde buyume hisseleri, yapay zeka temasi ve Nasdaq benzeri endeksler daha hizli toparlanabilir; riskten kacis arttiginda altin, dolar likiditesi ve savunmaci sektorler daha fazla izlenir. Enerji tarafinda Brent petrolun yonu hem enflasyon beklentileri hem de enerji sirketlerinin nakit akisi icin belirleyicidir. Nukleer enerji temasi ise kisa vadeli fiyat hareketinden cok enerji guvenligi, uzun vadeli kapasite yatirimi ve kamu politikasi beklentileriyle birlikte okunmalidir.",
+    "Asya piyasalarindaki hareketler raporun erken uyari katmanidir. Cin tarafinda buyume, kredi genislemesi ve gayrimenkul hassasiyeti; Japonya tarafinda yen, faiz farki ve ihracatci sirketlerin rekabet gucu; Uzak Dogu genelinde ise teknoloji tedarik zinciri ve yari iletken talebi izlenmelidir. Bu basliklar ABD ve Avrupa seanslarina gecmeden once risk algisini sekillendirebilir. Bu nedenle raporda yer alan AL, SAT veya IZLE ifadeleri yalnizca teknik bir sonuc degil, daha genis makro resmin icinde anlam kazanan egitsel sinyallerdir.",
+  ];
+
+  if (reportMode === "WEEKLY") {
+    macroSummary.push(
+      "Bu pazartesi haftalik raporu, yalnizca o gunun anlik fiyatlarini degil, onceki haftanin piyasa hafizasini ve yeni haftanin olasi katalizorlerini birlikte okumak icin hazirlandi. Onceki haftada olusan hareketlerin kalici sayilabilmesi icin tahvil faizleri, dolar endeksi, enerji fiyatlari ve ana hisse endekslerinde benzer bir teyit aranmalidir. Bir varlik tek basina guclu gorunurken diger risk gostergeleri ayni yonde degilse, piyasada henuz net bir rejim degisiminden soz etmek erken olabilir.",
+      "Icinde bulunulan haftada veri takvimi, merkez bankasi konusmalari, enflasyon ve buyume basliklari, enerji haberleri, jeopolitik riskler ve bilanco/haber akisi birlikte izlenmelidir. Haftanin basinda piyasa genellikle beklentiyi fiyatlar; haftanin ortasinda gelen veri bu beklentiyi test eder; haftanin sonunda ise portfoyler kapanis riskini azaltmak ya da pozisyonu tasimak arasinda karar verir. Bu nedenle haftalik raporun ana faydasi, kullaniciya tek bir cevap vermek degil, hafta boyunca hangi sorularla piyasaya bakacagini gostermektir.",
+      "Bu hafta kullanicinin kendine sorabilecegi temel sorular sunlardir: Dolar likiditesi riskli varliklari destekliyor mu, yoksa guvenli liman talebi mi one cikiyor? Petrol ve emtia tarafindaki hareket enflasyon beklentisini yeniden yukari tasiyor mu? BIST ve ABD endeksleri ayni risk istahini mi anlatiyor, yoksa yerel/kuresel ayrisma mi var? Teknoloji ve yapay zeka temasi genis piyasanin onunde mi, arkasinda mi? Bu sorular netlesmeden tek bir sinyale fazla anlam yuklemek dogru olmaz.",
+    );
+  }
+
   return {
-    macroSummary: [
-      "Planli makro ajan raporu teknik gostergeler, haber akisi ve zorunlu makro varlik sepetiyle olusturuldu. Kuresel piyasalarda ana belirleyici basliklar merkez bankalarinin faiz patikasi, dolar likiditesi, enerji fiyatlari ve teknoloji hisselerindeki risk istahi olmaya devam ediyor.",
-      `Kapsamda ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")} basliklari yer aliyor.`,
-      `Ortalama risk skoru ${averageRisk.toFixed(0)}/100 seviyesinde; ${bullishCount} varlik pozitif, ${bearishCount} varlik negatif sinyal tarafinda.`,
-      "Altin, gumus ve paladyum reel faiz beklentisi ile sanayi talebi arasinda okunurken; Brent petrol enerji maliyeti, enflasyon baskisi ve enerji hisselerinin nakit akisi beklentileri icin kritik gosterge olmaya devam ediyor. Dolar/TL ve Euro/TL yerel varlik fiyatlamalarinda ana geciskenlik kanali olarak izlenmeli. BIST 100 tarafinda banka, sanayi ve ihracatci sirketlerin kur/faiz dengesine verdigi tepki onemli. ABD tarafinda Dow Jones daha genis ekonomik donguye, Nasdaq ise yapay zeka ve buyume temasina hassas. Cin, Japonya ve Uzak Dogu borsalari kuresel tedarik zinciri, yariletken talebi ve Asya risk istahi hakkinda erken sinyal verebilir. Bu nedenle rapordaki teknik sinyaller tek basina degil, haber akisi ve makro rejimle birlikte degerlendirilmelidir.",
-      "Bu raporda teknik sinyallerin yanina portfoy davranisi acisindan da ikinci bir okuma eklenmelidir. Risk istahi guclendiginde buyume hisseleri, yapay zeka temasi ve Nasdaq benzeri endeksler daha hizli toparlanabilir; riskten kacis arttiginda altin, dolar likiditesi ve savunmaci sektorler daha fazla izlenir. Enerji tarafinda Brent petrolun yonu hem enflasyon beklentileri hem de enerji sirketlerinin nakit akisi icin belirleyicidir. Nukleer enerji temasi ise kisa vadeli fiyat hareketinden cok enerji guvenligi, uzun vadeli kapasite yatirimi ve kamu politikasi beklentileriyle birlikte okunmalidir.",
-      "Asya piyasalarindaki hareketler raporun erken uyari katmanidir. Cin tarafinda buyume, kredi genislemesi ve gayrimenkul hassasiyeti; Japonya tarafinda yen, faiz farki ve ihracatci sirketlerin rekabet gucu; Uzak Dogu genelinde ise teknoloji tedarik zinciri ve yari iletken talebi izlenmelidir. Bu basliklar ABD ve Avrupa seanslarina gecmeden once risk algisini sekillendirebilir. Bu nedenle raporda yer alan AL, SAT veya IZLE ifadeleri yalnizca teknik bir sonuc degil, daha genis makro resmin icinde anlam kazanan egitsel sinyallerdir.",
-    ].join(" "),
+    macroSummary: macroSummary.join(" "),
     marketRegime: averageRisk >= 70 ? "Yuksek oynaklik / temkinli rejim" : averageRisk >= 45 ? "Dengeli ama secici risk rejimi" : "Daha sakin risk rejimi",
     riskAppetite: bullishCount > bearishCount ? "Risk istahi secici bicimde pozitif" : bearishCount > bullishCount ? "Risk istahi zayif ve savunmaci" : "Risk istahi dengeli",
     keyTakeaways: [
@@ -166,13 +230,16 @@ async function getFavoriteSymbols(userId?: string | null) {
 }
 
 export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
-  const periodKey = getPeriodKey();
-  const scope = options.userId ? "USER" : "GLOBAL";
+  const reportMode = options.reportMode ?? "DAILY";
+  const weeklyPeriod = reportMode === "WEEKLY" ? getWeeklyPeriod() : null;
+  const periodKey = weeklyPeriod?.periodKey ?? getPeriodKey();
+  const scope = reportMode === "WEEKLY" ? "WEEKLY" : options.userId ? "USER" : "GLOBAL";
+  const userId = scope === "USER" ? options.userId ?? null : null;
   const existing = await prisma.aiMarketReport.findFirst({
     where: {
       periodKey,
       scope,
-      userId: options.userId ?? null,
+      userId,
     },
     select: { id: true },
   });
@@ -186,15 +253,17 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
     };
   }
 
-  const favorites = await getFavoriteSymbols(options.userId);
-  const [assets, news] = await Promise.all([analyzeAgentAssets(favorites), collectAgentNews()]);
+  const favorites = await getFavoriteSymbols(userId);
+  const newsLookbackDays = reportMode === "WEEKLY" ? 7 : 1;
+  const newsLimit = reportMode === "WEEKLY" ? 48 : 30;
+  const [assets, news] = await Promise.all([analyzeAgentAssets(favorites), collectAgentNews(newsLimit, newsLookbackDays)]);
   let fallbackUsed = false;
   let model: string | null = null;
   let rawAiPayload: unknown = null;
   let draft: AgentReportDraft;
 
   try {
-    const aiResult = await generateAiReportDraft(assets, news);
+    const aiResult = await generateAiReportDraft(assets, news, reportMode);
 
     if (aiResult) {
       draft = aiResult.draft;
@@ -202,12 +271,12 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
       rawAiPayload = aiResult.rawPayload;
     } else {
       fallbackUsed = true;
-      draft = buildFallbackDraft(assets, news);
+      draft = buildFallbackDraft(assets, news, reportMode);
     }
   } catch (error) {
     fallbackUsed = true;
     rawAiPayload = { error: error instanceof Error ? error.message : "AI raporu uretilemedi." };
-    draft = buildFallbackDraft(assets, news);
+    draft = buildFallbackDraft(assets, news, reportMode);
   }
 
   if (existing && options.force) {
@@ -216,17 +285,20 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
 
   const report = await prisma.aiMarketReport.create({
     data: {
-      userId: options.userId ?? null,
+      userId,
       periodKey,
       scope,
       model,
-      macroSummary: expandMacroSummary(draft.macroSummary, assets, news),
+      macroSummary: expandMacroSummary(draft.macroSummary, assets, news, reportMode),
       marketRegime: draft.marketRegime,
       riskAppetite: draft.riskAppetite,
       keyTakeaways: draft.keyTakeaways,
       requiredCoverage: REQUIRED_MACRO_COVERAGE_LABELS,
       newsSummary: draft.newsSummary,
       dataSnapshot: {
+        reportMode,
+        newsLookbackDays,
+        weeklyPeriod,
         favoriteSymbols: favorites,
         analyzedSymbols: assets.map((asset) => asset.symbol),
         failures: assets.filter((asset) => asset.error).map((asset) => ({ symbol: asset.symbol, error: asset.error })),

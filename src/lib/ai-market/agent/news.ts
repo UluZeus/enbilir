@@ -95,8 +95,11 @@ async function fetchFeed(category: string, query: string): Promise<AgentNewsItem
   }).filter((item) => item.title && item.link);
 }
 
-export async function collectAgentNews(limit = 30) {
-  const settled = await Promise.allSettled(NEWS_FEEDS.map((feed) => fetchFeed(feed.category, feed.query)));
+export async function collectAgentNews(limit = 30, lookbackDays = 1) {
+  const safeLookbackDays = Math.min(Math.max(Math.round(lookbackDays), 1), 14);
+  const settled = await Promise.allSettled(
+    NEWS_FEEDS.map((feed) => fetchFeed(feed.category, feed.query.replace(/when:\d+d/g, `when:${safeLookbackDays}d`))),
+  );
   const byTitle = new Map<string, AgentNewsItem>();
 
   for (const result of settled) {

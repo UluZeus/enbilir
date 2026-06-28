@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { sendMorningMacroReportEmails } from "@/lib/ai-market/agent/morning-report-email";
+import { sendMorningMacroReportEmails, sendWeeklyMacroReportEmails } from "@/lib/ai-market/agent/morning-report-email";
 import { runAiMarketAgent } from "@/lib/ai-market/agent/report-agent";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const REPORT_SCHEDULE_TIME_ZONE = "Europe/Istanbul";
 const REPORT_SCHEDULE_MINUTE = 0;
@@ -50,6 +50,13 @@ function isMorningReportTime(date = new Date()) {
   return hour === 7 && minute === REPORT_SCHEDULE_MINUTE;
 }
 
+function isMondayInIstanbul(date = new Date()) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    timeZone: REPORT_SCHEDULE_TIME_ZONE,
+  }).format(date) === "Mon";
+}
+
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Yetkisiz ajan tetikleme istegi." }, { status: 401 });
@@ -80,16 +87,32 @@ export async function POST(request: Request) {
   const globalReport = await runAiMarketAgent({ force });
   const userReports = await Promise.allSettled(users.map((user) => runAiMarketAgent({ userId: user.id, force })));
   let morningEmailResult: Awaited<ReturnType<typeof sendMorningMacroReportEmails>> | null = null;
+  let weeklyReport: Awaited<ReturnType<typeof runAiMarketAgent>> | null = null;
+  let weeklyEmailResult: Awaited<ReturnType<typeof sendWeeklyMacroReportEmails>> | null = null;
 
-  if (!globalReport.reused && isMorningReportTime(triggeredAt)) {
+  if (isMorningReportTime(triggeredAt)) {
     const recipients = await prisma.user.findMany({
       where: { isActive: true },
       select: { id: true, email: true, name: true },
     });
-    morningEmailResult = await sendMorningMacroReportEmails({
-      reportId: globalReport.reportId,
-      recipients,
-    });
+
+    if (!globalReport.reused) {
+      morningEmailResult = await sendMorningMacroReportEmails({
+        reportId: globalReport.reportId,
+        recipients,
+      });
+    }
+
+    if (isMondayInIstanbul(triggeredAt)) {
+      weeklyReport = await runAiMarketAgent({ force, reportMode: "WEEKLY" });
+
+      if (!weeklyReport.reused) {
+        weeklyEmailResult = await sendWeeklyMacroReportEmails({
+          reportId: weeklyReport.reportId,
+          recipients,
+        });
+      }
+    }
   }
 
   return NextResponse.json({
@@ -97,6 +120,8 @@ export async function POST(request: Request) {
     scheduled: true,
     globalReport,
     morningEmailResult,
+    weeklyReport,
+    weeklyEmailResult,
     userReports: userReports.map((result, index) =>
       result.status === "fulfilled"
         ? { userId: users[index].id, ...result.value }

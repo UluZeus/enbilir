@@ -91,7 +91,7 @@ export const uiCopy = {
         "AI Piyasa Asistanı teknik sinyalleri eğitim amaçlı yorumlar.",
       ],
       rotaryNews: [
-        "Rotary, Rotaract ve Interact ligleri davet koduyla yönetilir.",
+        "Rotary, Rotaract ve Interact ligleri doğrudan katılıma açık şekilde yönetilir.",
         "Lig üyeleri kendi çevreleri içinde sanal portföy rekabeti yapabilir.",
       ],
     },
@@ -392,7 +392,7 @@ export const uiCopy = {
         "The AI Market Assistant interprets technical signals for educational use.",
       ],
       rotaryNews: [
-        "Rotary, Rotaract, and Interact leagues are managed with invite codes.",
+        "Rotary, Rotaract, and Interact leagues are managed with direct joining.",
         "League members can compete in virtual portfolio rankings within their own community.",
       ],
     },

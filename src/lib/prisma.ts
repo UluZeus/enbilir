@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260626233000_add_membership_tiers";
+const prismaSchemaVersion = "20260628120000_add_weekly_results_and_chat_moderation";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -48,6 +48,11 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     chatPresence?: unknown;
     chatPollOption?: unknown;
     chatPollVote?: unknown;
+    weeklyPortfolioBaseline?: unknown;
+    weeklyCompetitionPublication?: unknown;
+    weeklyCompetitionResultRow?: unknown;
+    chatMessageReport?: unknown;
+    chatUserBlock?: unknown;
   };
 
   return Boolean(
@@ -79,7 +84,12 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.chatMessage &&
       candidate?.chatPresence &&
       candidate?.chatPollOption &&
-      candidate?.chatPollVote,
+      candidate?.chatPollVote &&
+      candidate?.weeklyPortfolioBaseline &&
+      candidate?.weeklyCompetitionPublication &&
+      candidate?.weeklyCompetitionResultRow &&
+      candidate?.chatMessageReport &&
+      candidate?.chatUserBlock,
   );
 }
 

@@ -7,7 +7,6 @@ import { getDictionary } from "@/i18n/dictionaries";
 import { getUiCopy } from "@/i18n/ui-copy";
 import {
   createLeagueAction,
-  joinLeagueAction,
   logoutAction,
   sendFriendRequestAction,
   updateProfileDisplayAction,
@@ -54,7 +53,7 @@ function getPanelCopy(locale: "tr" | "en") {
         notEarned: "Not earned yet",
         leagueSystem: "League system",
         myLeagues: "My leagues",
-        leaguesBody: "Create a league for Rotary, Rotaract, Interact, or private groups; build your own competition community with an invite code.",
+        leaguesBody: "Create a league for Rotary, Rotaract, Interact, or private groups; build your own competition community with direct participation.",
         createLeague: "Create new league",
         leagueName: "League name",
         leagueNamePlaceholder: "Example: Rotary Istanbul Portfolio League",
@@ -62,9 +61,7 @@ function getPanelCopy(locale: "tr" | "en") {
         description: "Description",
         descriptionPlaceholder: "League purpose, participation scope, or club note",
         createLeagueButton: "Create league",
-        joinByInvite: "Join with invite code",
-        inviteCode: "Invite code",
-        invitePlaceholder: "Example: A7K9P2XM",
+        joinByInvite: "Join from active leagues",
         joinLeague: "Join league",
         joinedLeagues: "Your leagues",
         allLeagues: "All leagues",
@@ -121,7 +118,7 @@ function getPanelCopy(locale: "tr" | "en") {
         notEarned: "Henüz kazanılmadı",
         leagueSystem: "Lig sistemi",
         myLeagues: "Liglerim",
-        leaguesBody: "Rotary, Rotaract, Interact veya özel gruplar için lig oluştur; davet koduyla kendi yarışma çevreni kur.",
+        leaguesBody: "Rotary, Rotaract, Interact veya özel gruplar için lig oluştur; doğrudan katılımla kendi yarışma çevreni kur.",
         createLeague: "Yeni lig oluştur",
         leagueName: "Lig adı",
         leagueNamePlaceholder: "Örn. Rotary İstanbul Portföy Ligi",
@@ -129,9 +126,7 @@ function getPanelCopy(locale: "tr" | "en") {
         description: "Açıklama",
         descriptionPlaceholder: "Lig amacı, katılım kapsamı veya kulüp notu",
         createLeagueButton: "Lig oluştur",
-        joinByInvite: "Davet kodu ile katıl",
-        inviteCode: "Davet kodu",
-        invitePlaceholder: "Örn. A7K9P2XM",
+        joinByInvite: "Aktif liglerden katıl",
         joinLeague: "Lige katıl",
         joinedLeagues: "Üye olduğun ligler",
         allLeagues: "Tüm ligler",
@@ -236,7 +231,7 @@ export default async function DashboardPage({
   const ownedLeague = userLeagues.find((membership) => membership.role === "OWNER");
   const earnedBadges = badges.filter((badge) => badge.earnedAt).length;
   const panelGrowthActions = getPanelGrowthActions(locale, Boolean(ownedLeague), userLeagues.length > 0);
-  const inviteUrl = `${getSiteUrl()}/${locale}/panel`;
+  const inviteUrl = ownedLeague ? `${getSiteUrl()}/${locale}/ligler/${ownedLeague.league.slug}` : `${getSiteUrl()}/${locale}/ligler`;
   const onboardingItems = getOnboardingChecklist(locale, {
     profileComplete: Boolean(user.name.trim() && (user.nickname?.trim() || user.displayNameMode === "REAL_NAME")),
     firstTradeComplete: tradeCount > 0,
@@ -324,20 +319,20 @@ export default async function DashboardPage({
               {locale === "tr" ? "Büyüme merkezi" : "Growth center"}
             </p>
             <h2 className="mt-2 text-3xl font-black md:text-4xl">
-              {locale === "tr" ? "Kulübünü davet et, öğrenme ritmini kur, ilerlemeyi görünür yap." : "Invite your club, build a learning rhythm, and make progress visible."}
+              {locale === "tr" ? "Kulübünü lige çağır, öğrenme ritmini kur, ilerlemeyi görünür yap." : "Bring your club into the league, build a learning rhythm, and make progress visible."}
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
               {locale === "tr"
-                ? "Panel, yalnızca hesap ekranı değil; lig kurma, davet kodu paylaşma, eğitim akışını başlatma ve AI raporlarla haftalık değerlendirme yapma merkezidir."
-                : "The dashboard is not only an account page; it is where users create leagues, share invite codes, start the learning flow, and review AI reports weekly."}
+                ? "Panel, yalnızca hesap ekranı değil; lig kurma, lig bağlantısı paylaşma, eğitim akışını başlatma ve AI raporlarla haftalık değerlendirme yapma merkezidir."
+                : "The dashboard is not only an account page; it is where users create leagues, share league links, start the learning flow, and review AI reports weekly."}
             </p>
             {ownedLeague ? (
               <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{locale === "tr" ? "Paylaşılacak davet kodu" : "Invite code to share"}</p>
-                <p className="mt-2 text-2xl font-black tracking-[0.18em] text-white">{ownedLeague.league.inviteCode}</p>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{locale === "tr" ? "Paylaşılacak lig bağlantısı" : "League link to share"}</p>
+                <p className="mt-2 break-all text-sm font-black text-white">{inviteUrl}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">{ownedLeague.league.name}</p>
                 <div className="mt-3">
-                  <LeagueInviteActions inviteCode={ownedLeague.league.inviteCode} inviteUrl={inviteUrl} leagueName={ownedLeague.league.name} locale={locale} />
+                  <LeagueInviteActions inviteUrl={inviteUrl} leagueName={ownedLeague.league.name} locale={locale} />
                 </div>
               </div>
             ) : null}
@@ -735,15 +730,17 @@ export default async function DashboardPage({
           </form>
 
           <div className="grid content-start gap-5">
-            <form action={joinLeagueAction} className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-              <input type="hidden" name="locale" value={locale} />
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
               <h3 className="text-lg font-black text-white">{copy.joinByInvite}</h3>
-              <label className="mt-4 grid gap-2 text-sm font-bold text-slate-200">
-                {copy.inviteCode}
-                <input name="inviteCode" placeholder={copy.invitePlaceholder} className="rounded-md border border-white/10 bg-black/30 px-4 py-3 font-normal uppercase text-white outline-none focus:border-[#f5a623]" />
-              </label>
-              <button className="premium-link mt-4 w-full rounded-md px-5 py-3 text-sm font-black">{copy.joinLeague}</button>
-            </form>
+              <p className="mt-3 text-sm leading-6 text-slate-300">
+                {locale === "tr"
+                  ? "Artık davet kodu gerekmez. Aktif ligleri açıp istediğin lige doğrudan katılabilirsin."
+                  : "Invite codes are no longer required. Open active leagues and join the league you prefer directly."}
+              </p>
+              <Link href={`/${locale}/ligler`} className="premium-link mt-4 inline-flex w-full justify-center rounded-md px-5 py-3 text-sm font-black">
+                {copy.joinLeague}
+              </Link>
+            </div>
 
             <div className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
               <div className="flex items-center justify-between gap-3">
@@ -765,7 +762,6 @@ export default async function DashboardPage({
                         <div className="shrink-0 text-left sm:text-right">
                           <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">{membership.role}</p>
                           <p className="mt-1 text-sm font-black text-white">{membership.league._count.memberships} {copy.members}</p>
-                          {membership.role === "OWNER" ? <p className="mt-1 text-xs text-slate-300">{copy.code}: {membership.league.inviteCode}</p> : null}
                         </div>
                       </div>
                     </Link>
@@ -859,7 +855,7 @@ function getOnboardingChecklist(
       },
       {
         title: "Join a league",
-        body: "Use an invite code or create a club league to learn with others.",
+        body: "Join an active league or create a club league to learn with others.",
         href: "/en/panel#league-system",
         done: state.leagueJoined,
       },
@@ -887,7 +883,7 @@ function getOnboardingChecklist(
     },
     {
       title: "Bir lige katıl",
-      body: "Davet kodu kullan veya kulübün için özel bir lig oluştur.",
+      body: "Aktif bir lige katıl veya kulübün için özel bir lig oluştur.",
       href: "/tr/panel#league-system",
       done: state.leagueJoined,
     },
@@ -907,13 +903,13 @@ function getPanelGrowthActions(locale: "tr" | "en", hasOwnedLeague: boolean, has
         href: "/en/ligler",
         kicker: "League",
         title: hasLeague ? "Review your league" : "Join a league",
-        body: hasLeague ? "Open league standings and compare the learning rhythm." : "Use an invite code or find an active league.",
+        body: hasLeague ? "Open league standings and compare the learning rhythm." : "Find an active league and join directly.",
       },
       {
         href: "/en/panel#league-system",
-        kicker: "Invite",
-        title: hasOwnedLeague ? "Share your code" : "Create a club league",
-        body: hasOwnedLeague ? "Bring members in from the code area below." : "Start a private space for your community.",
+        kicker: "Share",
+        title: hasOwnedLeague ? "Share your league link" : "Create a club league",
+        body: hasOwnedLeague ? "Bring members in from the league link below." : "Start a focused space for your community.",
       },
       {
         href: "/en/egitim",
@@ -935,13 +931,13 @@ function getPanelGrowthActions(locale: "tr" | "en", hasOwnedLeague: boolean, has
       href: "/tr/ligler",
       kicker: "Lig",
       title: hasLeague ? "Ligini incele" : "Bir lige katıl",
-      body: hasLeague ? "Lig sıralamasını ve öğrenme ritmini aç." : "Davet kodu kullan veya aktif ligleri incele.",
+      body: hasLeague ? "Lig sıralamasını ve öğrenme ritmini aç." : "Aktif ligleri incele ve doğrudan katıl.",
     },
     {
       href: "/tr/panel#league-system",
-      kicker: "Davet",
-      title: hasOwnedLeague ? "Kodunu paylaş" : "Kulüp ligi kur",
-      body: hasOwnedLeague ? "Aşağıdaki kod alanından üyeleri davet et." : "Topluluğun için özel bir alan başlat.",
+      kicker: "Paylaş",
+      title: hasOwnedLeague ? "Lig bağlantını paylaş" : "Kulüp ligi kur",
+      body: hasOwnedLeague ? "Aşağıdaki bağlantıdan üyeleri lige çağır." : "Topluluğun için odaklı bir alan başlat.",
     },
     {
       href: "/tr/egitim",

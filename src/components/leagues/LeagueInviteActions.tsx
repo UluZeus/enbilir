@@ -3,25 +3,24 @@
 import { useState } from "react";
 
 type LeagueInviteActionsProps = {
-  inviteCode: string;
   inviteUrl: string;
   leagueName: string;
   locale: "tr" | "en";
 };
 
-export function LeagueInviteActions({ inviteCode, inviteUrl, leagueName, locale }: LeagueInviteActionsProps) {
+export function LeagueInviteActions({ inviteUrl, leagueName, locale }: LeagueInviteActionsProps) {
   const [copied, setCopied] = useState(false);
   const isEnglish = locale === "en";
   const shareText = isEnglish
-    ? `Join ${leagueName} on Enbilir with invite code ${inviteCode}: ${inviteUrl}`
-    : `Enbilir'de ${leagueName} ligine davet kodu ile katılabilirsin: ${inviteCode}. Bağlantı: ${inviteUrl}`;
-  const mailSubject = encodeURIComponent(isEnglish ? `Enbilir league invite: ${leagueName}` : `Enbilir lig daveti: ${leagueName}`);
+    ? `Join the ${leagueName} league on Enbilir: ${inviteUrl}`
+    : `Enbilir'de ${leagueName} ligine doğrudan katılabilirsin. Bağlantı: ${inviteUrl}`;
+  const mailSubject = encodeURIComponent(isEnglish ? `Enbilir league link: ${leagueName}` : `Enbilir lig bağlantısı: ${leagueName}`);
   const mailBody = encodeURIComponent(shareText);
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
   async function copyInvite() {
     try {
-      await navigator.clipboard.writeText(`${inviteCode} - ${inviteUrl}`);
+      await navigator.clipboard.writeText(inviteUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2200);
     } catch {

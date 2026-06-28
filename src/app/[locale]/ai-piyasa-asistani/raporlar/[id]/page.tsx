@@ -292,7 +292,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   const report = await prisma.aiMarketReport.findFirst({
     where: {
       id,
-      OR: user ? [{ userId: user.id }, { scope: "GLOBAL" }] : [{ scope: "GLOBAL" }],
+      OR: user ? [{ userId: user.id }, { scope: { in: ["GLOBAL", "WEEKLY"] } }] : [{ scope: { in: ["GLOBAL", "WEEKLY"] } }],
     },
     include: {
       assets: { orderBy: [{ category: "asc" }, { symbol: "asc" }] },
@@ -316,6 +316,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   const chartAssets = report.assets.filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length).slice(0, 6);
   const isEnglish = locale === "en";
   const dashboardStats = getReportDashboardStats(report.assets);
+  const isWeeklyReport = report.scope === "WEEKLY";
 
   if (isEnglish) {
     return (
@@ -331,7 +332,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
                     <p className="text-sm font-bold text-slate-500">Prepared by the scheduled AI agent trained for Enbilir.</p>
                   </div>
                 </div>
-                <h1 className="mt-2 text-3xl font-black text-[#111827] md:text-5xl">Scheduled Macro Report</h1>
+                <h1 className="mt-2 text-3xl font-black text-[#111827] md:text-5xl">{isWeeklyReport ? "Scheduled Weekly Macro Report" : "Scheduled Macro Report"}</h1>
                 <p className="mt-2 text-sm font-bold text-slate-500">
                   {new Intl.DateTimeFormat("en-US", { dateStyle: "full", timeStyle: "short" }).format(report.generatedAt)} · {report.scope}
                 </p>
@@ -360,7 +361,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
                 <div className="mt-3 grid gap-2">
                   <Info label="Assets covered" value={`${report.assets.length} assets`} />
                   <Info label="Model" value={report.model ?? (report.fallbackUsed ? "Rule-based fallback" : "-")} />
-                  <Info label="Period" value="1 hour" />
+                  <Info label="Period" value={isWeeklyReport ? "Weekly" : "1 hour"} />
                 </div>
               </aside>
             </div>
@@ -515,7 +516,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
                 <Info label="Risk iştahı" value={report.riskAppetite ?? "-"} />
                 <Info label="Model" value={report.model ?? (report.fallbackUsed ? "Kurallı fallback" : "-")} />
                 <Info label="Kapsam" value={`${report.assets.length} varlık`} />
-                <Info label="Periyot" value="1 saat" />
+                <Info label="Periyot" value={isWeeklyReport ? "Haftalık" : "1 saat"} />
               </div>
             </aside>
           </div>

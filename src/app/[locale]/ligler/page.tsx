@@ -76,7 +76,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
               <p className="mt-2 text-sm leading-6 text-slate-600">{locale === "tr" ? "Rotary, Rotaract, Interact veya özel grup türü seç." : "Choose Rotary, Rotaract, Interact, or a private group type."}</p>
             </div>
             <div className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
-              <p className="text-sm font-black text-[#152033]">{locale === "tr" ? "2. Davet kodu paylaş" : "2. Share invite code"}</p>
+              <p className="text-sm font-black text-[#152033]">{locale === "tr" ? "2. Doğrudan katılımı aç" : "2. Enable direct joining"}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">{locale === "tr" ? "Aktif ligleri görünür kıl; kullanıcılar istedikleri lige tek tıkla katılabilsin." : "Keep active leagues visible so users can join the league they want with one click."}</p>
             </div>
             <div className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
@@ -172,7 +172,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
 function getLeagueGrowthLoop(locale: string) {
   if (locale === "en") {
     return [
-      { step: "01", title: "Create the club league", body: "Give the community a private space with a clear purpose and league type." },
+      { step: "01", title: "Create the club league", body: "Give the community a focused space with a clear purpose and league type." },
       { step: "02", title: "Open direct participation", body: "Let users join the league they want without waiting for an invite code." },
       { step: "03", title: "Run a weekly ritual", body: "Use education, portfolio review, and macro reports as repeatable anchors." },
       { step: "04", title: "Celebrate progress", body: "Rankings, badges, and league highlights make learning visible." },
@@ -180,7 +180,7 @@ function getLeagueGrowthLoop(locale: string) {
   }
 
   return [
-    { step: "01", title: "Kulüp ligini kur", body: "Topluluğa net amaçlı, türü belli ve güvenli bir özel alan ver." },
+    { step: "01", title: "Kulüp ligini kur", body: "Topluluğa net amaçlı, türü belli ve düzenli bir yarışma alanı ver." },
     { step: "02", title: "Doğrudan katılımı aç", body: "Kullanıcılar davet kodu beklemeden istedikleri lige katılabilsin." },
     { step: "03", title: "Haftalık ritim kur", body: "Eğitim, portföy değerlendirmesi ve makro raporu tekrar eden bağ yap." },
     { step: "04", title: "İlerlemeyi görünür kıl", body: "Sıralama, rozet ve lig özeti öğrenmeyi görünür hale getirir." },

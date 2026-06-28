@@ -2,15 +2,19 @@ import Link from "next/link";
 import Image from "next/image";
 import type { CSSProperties, ReactNode } from "react";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
+import { LeagueRequiredGate } from "@/components/LeagueRequiredGate";
 import { MobileHeaderMenu } from "@/components/MobileHeaderMenu";
+import { WeeklyWinnersModal } from "@/components/WeeklyWinnersModal";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { logoutAction } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
+import { getDefaultLeagueOptions } from "@/lib/default-leagues";
 import { prisma } from "@/lib/prisma";
 import { getSiteVisualSettings, isVisualEnabled } from "@/lib/site-visual-settings";
+import { getWeeklyCompetitionSummary } from "@/lib/weekly-competition-summary";
 
 const primaryNav = [
   { href: "", label: "home" },
@@ -111,12 +115,17 @@ export async function AppShell({ children, locale }: AppShellProps) {
   const dictionary = getDictionary(locale);
   const ui = getUiCopy(locale);
   const sessionUser = await getSessionUser();
-  const latestMacroReport = await prisma.aiMarketReport.findFirst({
-    where: { scope: "GLOBAL" },
-    orderBy: { generatedAt: "desc" },
-    select: { id: true },
-  });
-  const visualSettings = await getSiteVisualSettings();
+  const [latestMacroReport, visualSettings, defaultLeagueOptions, weeklySummary, userLeagueCount] = await Promise.all([
+    prisma.aiMarketReport.findFirst({
+      where: { scope: "GLOBAL" },
+      orderBy: { generatedAt: "desc" },
+      select: { id: true },
+    }),
+    getSiteVisualSettings(),
+    getDefaultLeagueOptions(locale),
+    getWeeklyCompetitionSummary(locale, sessionUser?.id),
+    sessionUser ? prisma.leagueMembership.count({ where: { userId: sessionUser.id } }) : Promise.resolve(null),
+  ]);
   const animationsEnabled = isVisualEnabled(visualSettings, "animationsEnabled");
   const card3dEnabled = isVisualEnabled(visualSettings, "card3dEnabled");
   const whatsappUrl = "https://wa.me/905322825555";
@@ -162,6 +171,8 @@ export async function AppShell({ children, locale }: AppShellProps) {
       style={shellStyle}
     >
       <AnimatedBackground settings={visualSettings} />
+      {sessionUser && userLeagueCount === 0 ? <LeagueRequiredGate locale={locale} leagues={defaultLeagueOptions} /> : null}
+      <WeeklyWinnersModal locale={locale} isSignedIn={Boolean(sessionUser)} summary={weeklySummary} />
       <header className="premium-site-header sticky top-0 z-30">
         <div className="premium-finance-topbar hidden md:block">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">

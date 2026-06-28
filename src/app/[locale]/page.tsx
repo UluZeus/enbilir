@@ -44,14 +44,16 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const copy = getUiCopy(locale);
   const user = await getSessionUser();
   const fallbackMarketItems = getFallbackMarketItems();
-  const [adsResult, liveItemsResult, snapshotResult, announcementsResult] = await Promise.allSettled([
+  const [adsResult, liveItemsResult, announcementsResult] = await Promise.allSettled([
     getAds("home_top", locale),
     getLiveMarketItems(),
-    user ? getPortfolioSnapshot(user.id, fallbackMarketItems) : Promise.resolve(null),
     getManagedContentItems({ type: "ANNOUNCEMENT", locale, limit: 3 }),
   ]);
   const ads = settledValue<DisplayAd[]>(adsResult, []);
   const liveItems = settledValue<MarketItem[]>(liveItemsResult, fallbackMarketItems);
+  const snapshotResult = user
+    ? await Promise.allSettled([getPortfolioSnapshot(user.id, liveItems)]).then((results) => results[0])
+    : { status: "fulfilled" as const, value: null };
   const snapshot = settledValue<Awaited<ReturnType<typeof getPortfolioSnapshot>> | null>(snapshotResult, null);
   const announcements = settledValue<PublicManagedContentItem[]>(announcementsResult, []);
   const [chartPeriodsResult, rankingPeriodsResult, leaderboardHighlightsResult, activeLeagueHighlightsResult] = await Promise.allSettled([
@@ -725,7 +727,7 @@ function getHowItWorksSteps(locale: string) {
     { step: "1", title: "Ücretsiz kayıt ol", body: "Dakikalar içinde hesabını oluştur ve platforma tek profil ile giriş yap." },
     { step: "2", title: "Sanal bakiyeni al", body: "Simüle edilmiş bakiye ile finansal risk almadan portföyünü şekillendirmeye başla." },
     { step: "3", title: "İşlem yap", body: "Al, sat ve kararlarının sıralama ile performansına nasıl yansıdığını gör." },
-    { step: "4", title: "Ligde yarış", body: "Kulübüne katıl, arkadaşlarını davet et ve kendi topluluğunda ilerlemeyi karşılaştır." },
+    { step: "4", title: "Ligde yarış", body: "Kulübüne katıl, lig bağlantını paylaş ve kendi topluluğunda ilerlemeyi karşılaştır." },
     { step: "5", title: "AI asistanla analiz et", body: "Radar, göstergeler ve özetler ile piyasa hareketini okuryazarlığa dönüştür." },
   ] as const;
 }
@@ -734,14 +736,14 @@ function getStoryBlocks(locale: string) {
   if (locale === "en") {
     return [
       { eyebrow: "Today", title: "What can you learn today?", body: "Spot trend shifts, compare risk and confidence, and understand why a signal looks strong or weak." },
-      { eyebrow: "League", title: "Which league can you compete in today?", body: "Rotary, Rotaract, Interact, or a private invite-only group can all become active learning arenas." },
+      { eyebrow: "League", title: "Which league can you compete in today?", body: "Rotary, Rotaract, Interact, or focused community leagues can all become active learning arenas." },
       { eyebrow: "AI", title: "What does the assistant see today?", body: "The assistant surfaces movement, explains the context, and helps your community discuss decisions more clearly." },
     ] as const;
   }
 
   return [
     { eyebrow: "Bugün", title: "Bugün ne öğrenebilirsin?", body: "Trend değişimini fark et, risk ve güven ilişkisini kıyasla, bir sinyalin neden güçlü ya da zayıf göründüğünü anla." },
-    { eyebrow: "Lig", title: "Bugün hangi ligde yarışabilirsin?", body: "Rotary, Rotaract, Interact veya özel davetli gruplar öğrenmenin sosyal ve canlı alanına dönüşebilir." },
+    { eyebrow: "Lig", title: "Bugün hangi ligde yarışabilirsin?", body: "Rotary, Rotaract, Interact veya özel topluluk ligleri öğrenmenin sosyal ve canlı alanına dönüşebilir." },
     { eyebrow: "AI", title: "AI asistan bugün ne görüyor?", body: "Asistan hareketi yüzeye çıkarır, bağlamı açıklar ve topluluğun kararları daha net tartışmasına yardım eder." },
   ] as const;
 }
@@ -906,7 +908,7 @@ function getCommunitySteps(locale: string) {
       {
         title: "Create the league",
         metric: "Step 1",
-        body: "Define a Rotary-focused league and bring members in with invite codes and clear roles.",
+        body: "Define a Rotary-focused league and bring members in with direct joining and clear roles.",
       },
       {
         title: "Learn with scenarios",
@@ -925,7 +927,7 @@ function getCommunitySteps(locale: string) {
     {
       title: "Ligi kur",
       metric: "Adım 1",
-      body: "Rotary odağında bir lig tanımla; davet kodu ve rol netliğiyle üyeleri güvenli biçimde içeri al.",
+      body: "Rotary odağında bir lig tanımla; doğrudan katılım ve rol netliğiyle üyeleri güvenli biçimde içeri al.",
     },
     {
       title: "Senaryolarla öğret",

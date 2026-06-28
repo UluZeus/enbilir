@@ -30,6 +30,8 @@ type ChatMessage = {
       votedByMe: boolean;
     }>;
   };
+  reportedByMe: boolean;
+  reportCount: number;
 };
 
 type OnlineUser = {
@@ -117,6 +119,11 @@ function getCopy(locale: string) {
       locationFallback: "Location",
       openMap: "Open in map",
       uploadError: "File could not be uploaded.",
+      report: "Report",
+      reported: "Reported",
+      blockUser: "Block",
+      blocked: "Blocked",
+      reportReason: "Reported for community review.",
     };
   }
 
@@ -177,6 +184,11 @@ function getCopy(locale: string) {
     locationFallback: "Konum",
     openMap: "Haritada aç",
     uploadError: "Dosya yüklenemedi.",
+    report: "Şikayet et",
+    reported: "Şikayet edildi",
+    blockUser: "Engelle",
+    blocked: "Engellendi",
+    reportReason: "Topluluk incelemesi için şikayet edildi.",
   };
 }
 
@@ -449,6 +461,44 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
     setError("");
   }
 
+  async function reportMessage(messageId: string) {
+    const response = await fetch("/api/chat/messages/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId, reason: copy.reportReason }),
+    });
+    const payload = await response.json() as ChatState & { error?: string };
+
+    if (!response.ok) {
+      setError(payload.error || copy.error);
+      return;
+    }
+
+    setState(payload);
+    setError("");
+  }
+
+  async function blockUser(userId: string) {
+    if (!state) {
+      return;
+    }
+
+    const response = await fetch("/api/chat/users/block", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, roomCode: state.room.code }),
+    });
+    const payload = await response.json() as ChatState & { error?: string };
+
+    if (!response.ok) {
+      setError(payload.error || copy.error);
+      return;
+    }
+
+    setState(payload);
+    setError("");
+  }
+
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     setSelectedFile(event.target.files?.[0] ?? null);
   }
@@ -624,6 +674,25 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
                   </div>
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{item.body}</p>
                   <MessageAttachment message={item} copy={copy} onVote={(optionId) => void votePoll(item.id, optionId)} />
+                  {!item.isMine ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void reportMessage(item.id)}
+                        disabled={item.reportedByMe}
+                        className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-800 disabled:opacity-60"
+                      >
+                        {item.reportedByMe ? copy.reported : copy.report}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void blockUser(item.author.id)}
+                        className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-black text-red-700"
+                      >
+                        {copy.blockUser}
+                      </button>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -704,6 +773,15 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
                     </p>
                     <p className="text-xs text-slate-500">{formatTime(user.lastSeenAt, locale)}</p>
                   </div>
+                  {!user.isMe ? (
+                    <button
+                      type="button"
+                      onClick={() => void blockUser(user.id)}
+                      className="ml-auto rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-black text-red-700"
+                    >
+                      {copy.blockUser}
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>

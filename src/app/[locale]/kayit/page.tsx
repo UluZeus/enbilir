@@ -6,6 +6,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { registerAction } from "@/lib/actions";
+import { getDefaultLeagueOptions } from "@/lib/default-leagues";
 import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -30,6 +31,7 @@ export default async function RegisterPage({
   const devLoginHref = `/api/auth/dev-login?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/panel`)}`;
   const benefits = getRegisterBenefits(locale);
   const timeline = getRegisterTimeline(locale);
+  const defaultLeagues = await getDefaultLeagueOptions(locale);
 
   return (
     <div className="grid gap-6">
@@ -113,6 +115,29 @@ export default async function RegisterPage({
           <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.fullName}<input name="name" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
           <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.nickname}<input name="nickname" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
           <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.displayName}<select name="displayNameMode" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]"><option value="REAL_NAME">{copy.showRealName}</option><option value="NICKNAME">{copy.showNickname}</option></select></label>
+          <label className="grid gap-2 text-sm font-bold text-slate-700">
+            {locale === "tr" ? "Başlangıç ligi" : "Starting league"}
+            <select
+              name="initialLeagueSlug"
+              required
+              defaultValue=""
+              className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
+            >
+              <option value="" disabled>
+                {locale === "tr" ? "Lütfen bir lig seçin" : "Please choose a league"}
+              </option>
+              {defaultLeagues.map((league) => (
+                <option key={league.slug} value={league.slug}>
+                  {league.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-semibold leading-5 text-slate-500">
+              {locale === "tr"
+                ? "Sisteme girerken en az bir lig seçimi zorunludur. Daha sonra diğer liglere de katılabilirsin."
+                : "Choosing at least one league is required when entering the system. You may join additional leagues later."}
+            </span>
+          </label>
           <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.email}<input name="email" type="email" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
           <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.password}<input name="password" type="password" minLength={8} className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
           <label className="flex gap-3 text-sm text-slate-700"><input name="kvkkAccepted" type="checkbox" /> <span><Link href={`/${locale}/kvkk`} className="font-bold text-[#0f766e]">{locale === "tr" ? "KVKK Aydınlatma Metni" : "Privacy Notice"}</Link>{locale === "tr" ? "’ni okudum." : " read and understood."}</span></label>
@@ -145,7 +170,7 @@ function getRegisterBenefits(locale: string) {
       },
       {
         title: "League-specific motivation",
-        body: "Each Rotary community can build its own rhythm with rankings, invite-only participation, and shared progress.",
+        body: "Each Rotary community can build its own rhythm with rankings, direct participation, and shared progress.",
       },
       {
         title: "A modern AI companion",
@@ -161,7 +186,7 @@ function getRegisterBenefits(locale: string) {
     },
     {
       title: "Lige özel motivasyon",
-      body: "Her Rotary topluluğu sıralama, davetli katılım ve ortak ilerleme üzerinden kendi ritmini kurabilir.",
+      body: "Her Rotary topluluğu sıralama, doğrudan katılım ve ortak ilerleme üzerinden kendi ritmini kurabilir.",
     },
     {
       title: "Modern bir AI yardımcı",
