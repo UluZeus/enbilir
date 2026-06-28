@@ -146,6 +146,14 @@ function formatPercent(value: number) {
   return `${value.toFixed(decimals)}%`;
 }
 
+function formatSignedPercent(value: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  return `${value >= 0 ? "+" : ""}${formatPercent(value)}`;
+}
+
 function getTradePortfolioText(isEnglish: boolean) {
   return {
     formulaTitle: isEnglish ? "Portfolio calculation" : "Portföy hesaplaması",
@@ -163,6 +171,8 @@ function getTradePortfolioText(isEnglish: boolean) {
       : "Portföyünde henüz yatırım ürünü yok. İlk alımından sonra varlık bazlı kar/zarar burada görünecek.",
     currentValue: isEnglish ? "Current value" : "Güncel değer",
     profitLoss: isEnglish ? "Profit / Loss" : "Kar / Zarar",
+    profitLossPercent: isEnglish ? "P/L %" : "K/Z %",
+    allocation: isEnglish ? "Weight" : "Ağırlık",
     price: isEnglish ? "Price" : "Fiyat",
     source: isEnglish ? "Source" : "Kaynak",
   };
@@ -235,7 +245,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
       <p className="mt-2 text-3xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
       <p className={`mt-1 text-sm font-black ${snapshot.profitLossUsd >= 0 ? "text-emerald-700" : "text-red-600"}`}>
         {snapshot.profitLossUsd >= 0 ? "+" : ""}
-        {formatMoney(snapshot.profitLossUsd)}
+        {formatMoney(snapshot.profitLossUsd)} ({formatSignedPercent(snapshot.profitLossPercent)})
       </p>
 
       <div className="mt-5">
@@ -313,7 +323,8 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
             {panelText.empty}
           </p>
         ) : positions.map((position) => {
-          const percent = snapshot.totalValueUsd > 0 ? (position.valueUsd / snapshot.totalValueUsd) * 100 : 0;
+          const allocationPercent = snapshot.totalValueUsd > 0 ? (position.valueUsd / snapshot.totalValueUsd) * 100 : 0;
+          const profitLossPercent = position.competitionCostUsd > 0 ? (position.profitLossUsd / position.competitionCostUsd) * 100 : null;
           const profitTone = position.profitLossUsd >= 0 ? "text-emerald-700" : "text-red-600";
 
           return (
@@ -329,7 +340,10 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
                     {getPositionSourceLabel(position.priceSource, isEnglish)}
                   </span>
                 </div>
-                <p className="shrink-0 text-sm font-black text-[#0f766e]">{formatPercent(percent)}</p>
+                <div className="shrink-0 text-right">
+                  <p className={`text-sm font-black ${profitTone}`}>{formatSignedPercent(profitLossPercent)}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{panelText.profitLossPercent}</p>
+                </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
@@ -352,8 +366,12 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
                 <span>{panelText.source}</span>
                 <span>{getPositionSourceLabel(position.priceSource, isEnglish)}</span>
               </div>
+              <div className="mt-1 flex items-center justify-between gap-3 px-2 text-[11px] font-bold text-slate-500">
+                <span>{panelText.allocation}</span>
+                <span>{formatPercent(allocationPercent)}</span>
+              </div>
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, Math.max(0, allocationPercent))}%` }} />
               </div>
             </div>
           );
