@@ -1388,6 +1388,24 @@ textarea::placeholder {
   color: rgb(110 104 101 / 62%);
 }
 
+.portfolio-profit-text,
+.visual-shell .portfolio-profit-text,
+.premium-card .portfolio-profit-text {
+  color: #064e3b !important;
+}
+
+.portfolio-loss-text,
+.visual-shell .portfolio-loss-text,
+.premium-card .portfolio-loss-text {
+  color: #991b1b !important;
+}
+
+.portfolio-neutral-text,
+.visual-shell .portfolio-neutral-text,
+.premium-card .portfolio-neutral-text {
+  color: #64748b !important;
+}
+
 @media (max-width: 1024px) {
   .premium-main-nav,
   .premium-secondary-nav {

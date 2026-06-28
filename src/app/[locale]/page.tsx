@@ -544,10 +544,6 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                       <span>{locale === "en" ? "P/L base" : "K/Z bazı"}</span>
                       <span className="text-[#152033]">{formatMoney(snapshot.initialCapitalUsd)}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{locale === "en" ? "Trading power" : "İşlem gücü"}</span>
-                      <span className="text-[#152033]">{formatMoney(snapshot.totalTradingPowerUsd)}</span>
-                    </div>
                     <div className="flex items-center justify-between gap-3 border-t border-emerald-100 pt-1">
                       <span>{locale === "en" ? "Cash" : "Nakit"}</span>
                       <span className="text-[#152033]">{formatMoney(snapshot.cashValueUsd)}</span>
@@ -585,7 +581,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="font-black text-[#152033]">{copy.home.periodLabels[period.key]}</p>
                   <div className="text-right">
-                    <p className={period.change === null ? "font-black text-slate-500" : period.change >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>
+                    <p className={period.change === null ? "font-black portfolio-neutral-text" : period.change >= 0 ? "font-black portfolio-profit-text" : "font-black portfolio-loss-text"}>
                       {period.change === null ? "-" : formatPercent(period.change)}
                     </p>
                     {period.source === "modeled" ? <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{copy.home.modeled}</p> : null}
@@ -699,6 +695,20 @@ function ShowcaseListCard({
   items: { title: string; value: string; meta: string }[];
   emptyLabel: string;
 }) {
+  const getValueToneClass = (value: string) => {
+    const trimmedValue = value.trim();
+
+    if (trimmedValue.startsWith("-")) {
+      return "portfolio-loss-text";
+    }
+
+    if (trimmedValue.startsWith("+")) {
+      return "portfolio-profit-text";
+    }
+
+    return "text-[#0f766e]";
+  };
+
   return (
     <div className="min-w-0 rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
       <p className="text-sm font-black text-[#152033]">{title}</p>
@@ -713,7 +723,7 @@ function ShowcaseListCard({
                 <p className="break-words text-sm font-black text-[#152033]">{item.title}</p>
                 <p className="mt-1 break-words text-xs text-slate-500">{item.meta}</p>
               </div>
-              <p className="min-w-0 max-w-[45%] break-words text-right text-sm font-black text-[#0f766e]">{item.value}</p>
+              <p className={`min-w-0 max-w-[45%] break-words text-right text-sm font-black ${getValueToneClass(item.value)}`}>{item.value}</p>
             </div>
           ))
         )}

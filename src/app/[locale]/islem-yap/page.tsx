@@ -162,11 +162,18 @@ function getProfitLossColor(value: number | null) {
   return value >= 0 ? "#064e3b" : "#991b1b";
 }
 
+function getProfitLossToneClass(value: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "portfolio-neutral-text";
+  }
+
+  return value >= 0 ? "portfolio-profit-text" : "portfolio-loss-text";
+}
+
 function getTradePortfolioText(isEnglish: boolean) {
   return {
     formulaTitle: isEnglish ? "Portfolio calculation" : "Portföy hesaplaması",
     performanceBase: isEnglish ? "P/L base" : "K/Z bazı",
-    tradingPower: isEnglish ? "Trading power" : "İşlem gücü",
     cash: isEnglish ? "Cash" : "Nakit",
     positions: isEnglish ? "Positions" : "Pozisyonlar",
     positionCount: isEnglish ? "Position count" : "Pozisyon adedi",
@@ -251,7 +258,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
     <div className="trade-portfolio-panel premium-card p-5 shadow-sm">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.totalPortfolio}</p>
       <p className="mt-2 text-3xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
-      <p className="mt-1 text-sm font-black" style={{ color: getProfitLossColor(snapshot.profitLossUsd) }}>
+      <p className={`mt-1 text-sm font-black ${getProfitLossToneClass(snapshot.profitLossUsd)}`} style={{ color: getProfitLossColor(snapshot.profitLossUsd) }}>
         {snapshot.profitLossUsd >= 0 ? "+" : ""}
         {formatMoney(snapshot.profitLossUsd)} ({formatSignedPercent(snapshot.profitLossPercent)})
       </p>
@@ -287,10 +294,6 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
           <div className="flex items-center justify-between gap-3">
             <span className="font-bold text-slate-600">{panelText.performanceBase}</span>
             <span className="font-black text-[#152033]">{formatMoney(snapshot.initialCapitalUsd)}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="font-bold text-slate-600">{panelText.tradingPower}</span>
-            <span className="font-black text-[#152033]">{formatMoney(snapshot.totalTradingPowerUsd)}</span>
           </div>
           <div className="flex items-center justify-between gap-3">
             <span className="font-bold text-slate-600">{panelText.cash}</span>
@@ -349,7 +352,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
                   </span>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-sm font-black" style={{ color: getProfitLossColor(profitLossPercent) }}>{formatSignedPercent(profitLossPercent)}</p>
+                  <p className={`text-sm font-black ${getProfitLossToneClass(profitLossPercent)}`} style={{ color: getProfitLossColor(profitLossPercent) }}>{formatSignedPercent(profitLossPercent)}</p>
                   <p className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{panelText.profitLossPercent}</p>
                 </div>
               </div>
@@ -360,7 +363,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-slate-500">{panelText.profitLoss}</p>
-                  <p className="font-black" style={{ color: profitColor }}>
+                  <p className={`font-black ${getProfitLossToneClass(position.profitLossUsd)}`} style={{ color: profitColor }}>
                     {position.profitLossUsd >= 0 ? "+" : ""}
                     {formatMoney(position.profitLossUsd)}
                   </p>

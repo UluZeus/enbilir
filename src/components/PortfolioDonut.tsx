@@ -54,6 +54,14 @@ function getProfitLossColor(value: number | null | undefined) {
   return value >= 0 ? "#064e3b" : "#991b1b";
 }
 
+function getProfitLossToneClass(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "portfolio-neutral-text";
+  }
+
+  return value >= 0 ? "portfolio-profit-text" : "portfolio-loss-text";
+}
+
 export function PortfolioDonut({
   items,
   total,
@@ -145,7 +153,7 @@ export function PortfolioDonut({
                   </div>
                   <div className="rounded-lg bg-slate-50 px-2 py-1 text-right">
                     <p className="font-bold uppercase tracking-[0.08em] text-slate-500">{labels.profitLoss}</p>
-                    <p className="font-black" style={{ color: profitLossColor }}>{formatProfitLossPercent(item.profitLossPercent)}</p>
+                    <p className={`font-black ${getProfitLossToneClass(item.profitLossPercent)}`} style={{ color: profitLossColor }}>{formatProfitLossPercent(item.profitLossPercent)}</p>
                   </div>
                 </div>
               </div>
