@@ -46,6 +46,14 @@ function formatUsd(value: number) {
   }).format(value);
 }
 
+function getProfitLossColor(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "#64748b";
+  }
+
+  return value >= 0 ? "#064e3b" : "#991b1b";
+}
+
 export function PortfolioDonut({
   items,
   total,
@@ -112,12 +120,7 @@ export function PortfolioDonut({
       {showLegend ? (
         <div className="portfolio-donut-legend grid gap-2">
           {displayItems.map((item, index) => {
-            const profitLossTone =
-              typeof item.profitLossPercent === "number"
-                ? item.profitLossPercent >= 0
-                  ? "text-emerald-900"
-                  : "text-red-800"
-                : "text-slate-500";
+            const profitLossColor = getProfitLossColor(item.profitLossPercent);
 
             return (
               <div key={`${item.label}-${index}`} className="grid gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
@@ -142,7 +145,7 @@ export function PortfolioDonut({
                   </div>
                   <div className="rounded-lg bg-slate-50 px-2 py-1 text-right">
                     <p className="font-bold uppercase tracking-[0.08em] text-slate-500">{labels.profitLoss}</p>
-                    <p className={`font-black ${profitLossTone}`}>{formatProfitLossPercent(item.profitLossPercent)}</p>
+                    <p className="font-black" style={{ color: profitLossColor }}>{formatProfitLossPercent(item.profitLossPercent)}</p>
                   </div>
                 </div>
               </div>
