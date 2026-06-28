@@ -1,6 +1,6 @@
 import { getDisplayName } from "@/lib/auth";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
-import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
+import { calculateCompetitionProfitLossUsd, calculateCompetitionReturnPercent, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import type { LeagueType } from "@/generated/prisma/enums";
 
@@ -147,8 +147,8 @@ export async function getLeagueLeaderboard(leagueId: string, currentUserId?: str
         displayName: getDisplayName(membership.user),
         role: membership.role,
         totalValueUsd: snapshot.totalValueUsd,
-        profitLossUsd: snapshot.totalValueUsd - initialCashUsd,
-        profitLossPercent: ((snapshot.totalValueUsd - initialCashUsd) / initialCashUsd) * 100,
+        profitLossUsd: calculateCompetitionProfitLossUsd(snapshot.totalValueUsd),
+        profitLossPercent: calculateCompetitionReturnPercent(snapshot.totalValueUsd),
       };
     }),
   );

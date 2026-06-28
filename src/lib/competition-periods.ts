@@ -2,7 +2,7 @@ import { getDisplayName } from "@/lib/auth";
 import { awardBadge } from "@/lib/badges";
 import { getAcceptedFriendIds } from "@/lib/friends";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
-import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
+import { calculateCompetitionReturnPercent, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import type { CompetitionPeriodType } from "@/generated/prisma/enums";
 
@@ -139,7 +139,7 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
         portfolioValueUsd: snapshot.totalValueUsd,
         cashUsd: snapshot.cashValueUsd,
         positionsValueUsd: snapshot.positionsValueUsd,
-        returnPercent: ((snapshot.totalValueUsd - initialCashUsd) / initialCashUsd) * 100,
+        returnPercent: calculateCompetitionReturnPercent(snapshot.totalValueUsd),
         rank: 0,
         source: "live" as const,
       };

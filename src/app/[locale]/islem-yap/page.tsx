@@ -149,6 +149,8 @@ function formatPercent(value: number) {
 function getTradePortfolioText(isEnglish: boolean) {
   return {
     formulaTitle: isEnglish ? "Portfolio calculation" : "Portföy hesaplaması",
+    performanceBase: isEnglish ? "P/L base" : "K/Z bazı",
+    tradingPower: isEnglish ? "Trading power" : "İşlem gücü",
     cash: isEnglish ? "Cash" : "Nakit",
     positions: isEnglish ? "Positions" : "Pozisyonlar",
     positionCount: isEnglish ? "Position count" : "Pozisyon adedi",
@@ -248,7 +250,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
           items={[
             { label: copy.cash, detail: snapshot.cashCurrency, value: snapshot.cashValueUsd, profitLossPercent: null },
             ...positions.map((position) => {
-              const costUsd = position.quantity * position.averagePriceUsd;
+              const costUsd = position.competitionCostUsd;
 
               return {
                 label: position.symbol,
@@ -264,6 +266,14 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
       <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
         <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">{panelText.formulaTitle}</p>
         <div className="mt-3 grid gap-2 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-slate-600">{panelText.performanceBase}</span>
+            <span className="font-black text-[#152033]">{formatMoney(snapshot.initialCapitalUsd)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-slate-600">{panelText.tradingPower}</span>
+            <span className="font-black text-[#152033]">{formatMoney(snapshot.totalTradingPowerUsd)}</span>
+          </div>
           <div className="flex items-center justify-between gap-3">
             <span className="font-bold text-slate-600">{panelText.cash}</span>
             <span className="font-black text-[#152033]">{formatMoney(snapshot.cashValueUsd)}</span>

@@ -5,7 +5,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { getDisplayName } from "@/lib/auth";
 import { getBadgeDashboard } from "@/lib/badges";
 import { calculatePortfolioHealth } from "@/lib/portfolio-health";
-import { formatMoney, getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
+import { calculateCompetitionReturnPercent, formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -46,7 +46,7 @@ export default async function CommunityProfilePage({ params }: { params: Promise
   const displayName = getDisplayName(user);
   const earnedBadges = badges.filter((badge) => badge.earnedAt);
   const health = calculatePortfolioHealth({ snapshot, tradeCount, tradeNoteCount });
-  const returnPercent = ((snapshot.totalValueUsd - initialCashUsd) / initialCashUsd) * 100;
+  const returnPercent = calculateCompetitionReturnPercent(snapshot.totalValueUsd);
   const isEnglish = locale === "en";
 
   return (

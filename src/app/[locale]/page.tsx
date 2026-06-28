@@ -20,7 +20,7 @@ import { getUserRankingPeriods } from "@/lib/leaderboard";
 import { getManagedContentItems, type PublicManagedContentItem } from "@/lib/managed-content";
 import { getPortfolioBreakdownItems } from "@/lib/portfolio-breakdown";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
-import { formatMoney, getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
+import { calculateCompetitionProfitLossUsd, calculateCompetitionReturnPercent, formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
 import type { DisplayAd } from "@/lib/ads";
@@ -523,7 +523,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                     items={[
                       { label: copy.trade.cash, detail: snapshot.cashCurrency, value: snapshot.cashValueUsd, profitLossPercent: null },
                       ...snapshot.positions.map((position) => {
-                        const costUsd = position.quantity * position.averagePriceUsd;
+                        const costUsd = position.competitionCostUsd;
 
                         return {
                           label: position.symbol,
@@ -541,6 +541,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                   </p>
                   <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
                     <div className="flex items-center justify-between gap-3">
+                      <span>{locale === "en" ? "P/L base" : "K/Z bazı"}</span>
+                      <span className="text-[#152033]">{formatMoney(snapshot.initialCapitalUsd)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{locale === "en" ? "Trading power" : "İşlem gücü"}</span>
+                      <span className="text-[#152033]">{formatMoney(snapshot.totalTradingPowerUsd)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t border-emerald-100 pt-1">
                       <span>{locale === "en" ? "Cash" : "Nakit"}</span>
                       <span className="text-[#152033]">{formatMoney(snapshot.cashValueUsd)}</span>
                     </div>
@@ -650,8 +658,8 @@ async function getLeaderboardHighlights(): Promise<LeaderboardHighlight[]> {
       return {
         displayName: getDisplayName(candidate),
         totalValueUsd: snapshot.totalValueUsd,
-        profitLossUsd: snapshot.totalValueUsd - initialCashUsd,
-        profitLossPercent: ((snapshot.totalValueUsd - initialCashUsd) / initialCashUsd) * 100,
+        profitLossUsd: calculateCompetitionProfitLossUsd(snapshot.totalValueUsd),
+        profitLossPercent: calculateCompetitionReturnPercent(snapshot.totalValueUsd),
       };
     }),
   );

@@ -1,5 +1,5 @@
 import { getCompetitionRankingsForUser } from "@/lib/competition-periods";
-import { initialCashUsd } from "@/lib/portfolio";
+import { calculateCompetitionReturnPercent } from "@/lib/portfolio";
 
 const periodMultipliers = [
   { label: "Haftalık", multiplier: 0.22 },
@@ -14,7 +14,7 @@ export async function getUserRankingPeriods(userId: string) {
 }
 
 export function getPortfolioChartPeriods(totalValueUsd: number) {
-  const performancePercent = ((totalValueUsd - initialCashUsd) / initialCashUsd) * 100;
+  const performancePercent = calculateCompetitionReturnPercent(totalValueUsd);
 
   return periodMultipliers.map((period) => {
     const change = performancePercent * period.multiplier;

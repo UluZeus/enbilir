@@ -1,5 +1,5 @@
 import { getPeriodLeaderboard, type PeriodLeaderboardRow } from "@/lib/competition-periods";
-import { initialCashUsd } from "@/lib/portfolio";
+import { calculateCompetitionReturnPercent } from "@/lib/portfolio";
 import type { CompetitionPeriodType } from "@/generated/prisma/enums";
 
 export type PortfolioPeriodKey = "DAILY" | CompetitionPeriodType;
@@ -46,16 +46,16 @@ function createPoints(change: number, key: PortfolioPeriodKey) {
   ];
 }
 
-function calculateReturnPercent(currentValue: number, baselineValue: number) {
-  if (!Number.isFinite(currentValue) || !Number.isFinite(baselineValue) || baselineValue <= 0) {
+function calculateReturnPercent(currentValue: number) {
+  if (!Number.isFinite(currentValue)) {
     return null;
   }
 
-  return ((currentValue - baselineValue) / baselineValue) * 100;
+  return calculateCompetitionReturnPercent(currentValue);
 }
 
 function getModeledChange(totalValueUsd: number) {
-  return calculateReturnPercent(totalValueUsd, initialCashUsd);
+  return calculateReturnPercent(totalValueUsd);
 }
 
 function getSnapshotChange(row: PeriodLeaderboardRow | undefined, totalValueUsd: number) {
@@ -63,7 +63,7 @@ function getSnapshotChange(row: PeriodLeaderboardRow | undefined, totalValueUsd:
     return getModeledChange(totalValueUsd);
   }
 
-  return row.source === "snapshot" ? calculateReturnPercent(row.portfolioValueUsd, initialCashUsd) : getModeledChange(totalValueUsd);
+  return row.source === "snapshot" ? calculateReturnPercent(row.portfolioValueUsd) : getModeledChange(totalValueUsd);
 }
 
 export async function getPortfolioPerformancePeriods(userId: string, totalValueUsd: number): Promise<PortfolioPerformancePeriod[]> {

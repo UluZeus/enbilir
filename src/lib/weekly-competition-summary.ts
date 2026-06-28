@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { getDisplayName } from "@/lib/auth";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
-import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
+import { calculateCompetitionProfitLossUsd, calculateCompetitionReturnPercent, getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 
 type RankedSummaryRow = {
@@ -137,13 +137,13 @@ const getCachedWeeklyCompetitionRows = unstable_cache(
       await Promise.all(
         users.map(async (user) => {
           const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
-          const profitUsd = snapshot.totalValueUsd - initialCashUsd;
+          const profitUsd = calculateCompetitionProfitLossUsd(snapshot.totalValueUsd);
 
           return {
             userId: user.id,
             displayName: getDisplayName(user),
             valueUsd: profitUsd,
-            returnPercent: (profitUsd / initialCashUsd) * 100,
+            returnPercent: calculateCompetitionReturnPercent(snapshot.totalValueUsd),
           };
         }),
       ),
