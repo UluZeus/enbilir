@@ -93,8 +93,8 @@ export function WeeklyWinnersModal({ locale, isSignedIn, summary }: WeeklyWinner
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-950/48 px-4 pb-6 pt-[calc(env(safe-area-inset-top)+5.5rem)] backdrop-blur-sm md:items-center md:py-8">
-      <section className="relative max-h-[calc(100dvh-7rem)] w-full max-w-4xl overflow-auto rounded-[1.25rem] border border-white/70 bg-white p-5 shadow-2xl md:max-h-[88vh] sm:p-6">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-950/48 px-4 pb-6 pt-[calc(env(safe-area-inset-top)+5.5rem)] backdrop-blur-sm md:pb-8 md:pt-[calc(env(safe-area-inset-top)+13.5rem)]">
+      <section className="relative max-h-[calc(100dvh-7rem)] w-full max-w-4xl overflow-auto rounded-[1.25rem] border border-white/70 bg-white p-5 shadow-2xl md:max-h-[calc(100dvh-15.5rem)] sm:p-6">
         <button
           type="button"
           onClick={close}
