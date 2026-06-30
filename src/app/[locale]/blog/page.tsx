@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ManagedContentList } from "@/components/ManagedContentList";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getManagedContentItems } from "@/lib/managed-content";
@@ -99,24 +100,31 @@ export default async function BlogPage({
   return (
     <div className="grid gap-6">
       <section className="premium-card premium-card--interactive p-6">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir reading room" : "Enbilir okuma alanı"}</p>
-        <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
-        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {categoryOptions.map(([code, label]) => (
-            <Link
-              key={code}
-              href={code === "ALL" ? `/${locale}/blog` : `/${locale}/blog?kategori=${code}`}
-              aria-current={selectedCategory === code ? "page" : undefined}
-              className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
-                selectedCategory === code
-                  ? "border-[#0f766e] bg-[#0f766e] text-white"
-                  : "border-slate-200 bg-white/80 text-slate-700 hover:border-[#0f766e] hover:text-[#0f766e]"
-              }`}
-            >
-              {label}
-            </Link>
-          ))}
+        <div className="site-page-hero-grid">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir reading room" : "Enbilir okuma alanı"}</p>
+            <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
+            <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {categoryOptions.map(([code, label]) => (
+                <Link
+                  key={code}
+                  href={code === "ALL" ? `/${locale}/blog` : `/${locale}/blog?kategori=${code}`}
+                  aria-current={selectedCategory === code ? "page" : undefined}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                    selectedCategory === code
+                      ? "border-[#0f766e] bg-[#0f766e] text-white"
+                      : "border-slate-200 bg-white/80 text-slate-700 hover:border-[#0f766e] hover:text-[#0f766e]"
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="site-page-hero-motion">
+            <SiteMotion variant={selectedCategory === "CRYPTO" ? "crypto" : selectedCategory === "MACRO" ? "macro" : selectedCategory === "COMMUNITY" ? "community" : "trend"} />
+          </div>
         </div>
       </section>
       {selectedCategory === "COMMUNITY" ? (

@@ -5,6 +5,7 @@ import { AdBanner } from "@/components/AdBanner";
 import { FormMessage } from "@/components/FormMessage";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
 import { LiveMarketOverview } from "@/components/market/LiveMarketOverview";
+import { SiteMotion } from "@/components/SiteMotion";
 import { TradeTicketForm } from "@/components/TradeTicketForm";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -106,8 +107,15 @@ export default async function TradePage({
 
         <div className="grid min-w-0 gap-5">
           <div className="trade-ticket-panel premium-card rounded-2xl p-6 shadow-sm">
-            <h1 className="text-2xl font-black text-[#152033]">{copy.trade.title}</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{copy.trade.description}</p>
+            <div className="site-page-hero-grid site-page-hero-grid--compact">
+              <div>
+                <h1 className="text-2xl font-black text-[#152033]">{copy.trade.title}</h1>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{copy.trade.description}</p>
+              </div>
+              <div className="site-page-hero-motion">
+                <SiteMotion variant="bars" />
+              </div>
+            </div>
             <TradeTicketForm
               key={`${initialCategory}:${initialSymbol ?? ""}:${initialSearch}`}
               locale={locale}

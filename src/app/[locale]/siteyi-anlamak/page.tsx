@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getSiteGuideArticles } from "@/lib/site-guide-content";
 import { buildPageMetadata } from "@/lib/seo";
@@ -17,17 +18,24 @@ export default async function SiteGuidePage({ params }: { params: Promise<{ loca
   return (
     <div className="grid gap-6">
       <section className="premium-card premium-card--interactive p-6">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-          {locale === "tr" ? "Siteyi Anlamak" : "Understanding the Site"}
-        </p>
-        <h1 className="mt-2 max-w-4xl text-3xl font-black leading-tight text-[#152033] md:text-4xl">
-          {locale === "tr" ? "Bu siteden en çok nasıl yararlanırsınız öğrenmek için önce bu yazıları okuyunuz." : "Read these notes first to get the most value from this site."}
-        </h1>
-        <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
-          {locale === "tr"
-            ? "Bu bölüm blogdan ayrıdır. Buradaki yazılar, Enbilir'i bir web sayfası olarak değil; eğitim, sanal portföy, topluluk ve AI destekli piyasa okuryazarlığı sistemi olarak kullanmanız için hazırlanmıştır."
-            : "This area is separate from the blog. These notes explain how to use Enbilir as a learning system built around education, virtual portfolios, community rhythm, and AI-supported market literacy."}
-        </p>
+        <div className="site-page-hero-grid">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+              {locale === "tr" ? "Siteyi Anlamak" : "Understanding the Site"}
+            </p>
+            <h1 className="mt-2 max-w-4xl text-3xl font-black leading-tight text-[#152033] md:text-4xl">
+              {locale === "tr" ? "Bu siteden en çok nasıl yararlanırsınız öğrenmek için önce bu yazıları okuyunuz." : "Read these notes first to get the most value from this site."}
+            </h1>
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
+              {locale === "tr"
+                ? "Bu bölüm blogdan ayrıdır. Buradaki yazılar, Enbilir'i bir web sayfası olarak değil; eğitim, sanal portföy, topluluk ve AI destekli piyasa okuryazarlığı sistemi olarak kullanmanız için hazırlanmıştır."
+                : "This area is separate from the blog. These notes explain how to use Enbilir as a learning system built around education, virtual portfolios, community rhythm, and AI-supported market literacy."}
+            </p>
+          </div>
+          <div className="site-page-hero-motion">
+            <SiteMotion variant="path" />
+          </div>
+        </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

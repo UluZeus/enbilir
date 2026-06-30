@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SiteMotion, type SiteMotionVariant } from "@/components/SiteMotion";
 
 type ContentArticleShellProps = {
   locale: string;
@@ -41,27 +42,35 @@ export function ContentArticleShell({
   const readingMinutes = estimateReadingMinutes(paragraphs);
   const markers = getSectionMarkers(paragraphs);
   const isEnglish = locale === "en";
+  const motionVariant = getArticleMotionVariant(`${eyebrow} ${title}`);
 
   return (
     <article className="content-article-shell grid gap-6">
       {children}
       <section className="content-article-hero premium-card premium-card--interactive p-6 md:p-8">
-        <Link href={backHref} className="text-sm font-black text-[#0f766e] hover:text-[#0b5f59]">
-          {backLabel}
-        </Link>
-        <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{eyebrow}</p>
-        <h1 className="mt-2 max-w-5xl text-3xl font-black leading-tight text-[#152033] md:text-5xl">{title}</h1>
-        {excerpt ? <p className="mt-4 max-w-4xl text-base font-bold leading-8 text-slate-600">{excerpt}</p> : null}
-        <div className="mt-5 flex flex-wrap gap-2 text-xs font-black text-slate-600">
-          <span className="rounded-full border border-[#d1bfa7]/70 bg-[#fffaf6] px-3 py-1.5">
-            {readingMinutes} {isEnglish ? "min read" : "dk okuma"}
-          </span>
-          {publishedLabel ? (
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">{publishedLabel}</span>
-          ) : null}
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[#0f766e]">
-            {isEnglish ? "Educational content" : "Eğitim amaçlı içerik"}
-          </span>
+        <div className="content-article-hero-grid">
+          <div>
+            <Link href={backHref} className="text-sm font-black text-[#0f766e] hover:text-[#0b5f59]">
+              {backLabel}
+            </Link>
+            <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{eyebrow}</p>
+            <h1 className="mt-2 max-w-5xl text-3xl font-black leading-tight text-[#152033] md:text-5xl">{title}</h1>
+            {excerpt ? <p className="mt-4 max-w-4xl text-base font-bold leading-8 text-slate-600">{excerpt}</p> : null}
+            <div className="mt-5 flex flex-wrap gap-2 text-xs font-black text-slate-600">
+              <span className="rounded-full border border-[#d1bfa7]/70 bg-[#fffaf6] px-3 py-1.5">
+                {readingMinutes} {isEnglish ? "min read" : "dk okuma"}
+              </span>
+              {publishedLabel ? (
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">{publishedLabel}</span>
+              ) : null}
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[#0f766e]">
+                {isEnglish ? "Educational content" : "Eğitim amaçlı içerik"}
+              </span>
+            </div>
+          </div>
+          <div className="content-article-motion">
+            <SiteMotion variant={motionVariant} />
+          </div>
         </div>
       </section>
 
@@ -104,4 +113,17 @@ export function ContentArticleShell({
       </section>
     </article>
   );
+}
+
+function getArticleMotionVariant(text: string): SiteMotionVariant {
+  const normalized = text.toLocaleLowerCase("tr-TR");
+
+  if (normalized.includes("kripto") || normalized.includes("crypto") || normalized.includes("bitcoin")) return "crypto";
+  if (normalized.includes("makro") || normalized.includes("dolar") || normalized.includes("rezerv")) return "macro";
+  if (normalized.includes("bilanço") || normalized.includes("finansal tablo")) return "compare";
+  if (normalized.includes("risk") || normalized.includes("psikoloji")) return "pulse";
+  if (normalized.includes("topluluk") || normalized.includes("lig")) return "community";
+  if (normalized.includes("site")) return "path";
+
+  return "trend";
 }

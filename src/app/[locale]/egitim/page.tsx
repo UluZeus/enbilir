@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { EducationProgressTracker } from "@/components/education/EducationProgressTracker";
 import { ManagedContentList } from "@/components/ManagedContentList";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getManagedContentItems } from "@/lib/managed-content";
@@ -64,15 +65,22 @@ export default async function EducationPage({ params }: { params: Promise<{ loca
   return (
     <div className="grid gap-6">
       <section className="premium-card premium-card--interactive p-6">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir learning library" : "Enbilir eğitim kütüphanesi"}</p>
-        <h1 className="mt-2 text-3xl font-black text-[#152033]">{pageCopy.title}</h1>
-        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{pageCopy.description}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {pageCopy.modules.map((module) => (
-            <span key={module} className="rounded-full border border-[#d1bfa7] bg-[#fffaf6] px-3 py-1 text-xs font-black text-[#49494b]">
-              {module}
-            </span>
-          ))}
+        <div className="site-page-hero-grid">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir learning library" : "Enbilir eğitim kütüphanesi"}</p>
+            <h1 className="mt-2 text-3xl font-black text-[#152033]">{pageCopy.title}</h1>
+            <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{pageCopy.description}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {pageCopy.modules.map((module) => (
+                <span key={module} className="rounded-full border border-[#d1bfa7] bg-[#fffaf6] px-3 py-1 text-xs font-black text-[#49494b]">
+                  {module}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="site-page-hero-motion">
+            <SiteMotion variant="path" />
+          </div>
         </div>
       </section>
       <section className="education-growth-path rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">

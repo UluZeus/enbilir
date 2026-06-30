@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { LeagueRequiredGate } from "@/components/LeagueRequiredGate";
 import { MobileHeaderMenu } from "@/components/MobileHeaderMenu";
+import { SiteMotion } from "@/components/SiteMotion";
 import { WeeklyWinnersModal } from "@/components/WeeklyWinnersModal";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
@@ -167,13 +168,18 @@ export async function AppShell({ children, locale }: AppShellProps) {
 
   return (
     <div
-      className={`visual-shell ${animationsEnabled ? "" : "visual-motion-off"} ${card3dEnabled ? "" : "visual-card3d-off"}`}
+      className={`visual-shell site-modern-academy ${animationsEnabled ? "" : "visual-motion-off"} ${card3dEnabled ? "" : "visual-card3d-off"}`}
       style={shellStyle}
     >
       <AnimatedBackground settings={visualSettings} />
+      <div className="site-ambient-layer" aria-hidden="true">
+        <SiteMotion variant="macro" className="site-ambient-motion site-ambient-motion--one" />
+        <SiteMotion variant="network" className="site-ambient-motion site-ambient-motion--two" />
+        <SiteMotion variant="trend" className="site-ambient-motion site-ambient-motion--three" />
+      </div>
       {sessionUser && userLeagueCount === 0 ? <LeagueRequiredGate locale={locale} leagues={defaultLeagueOptions} /> : null}
       <WeeklyWinnersModal locale={locale} isSignedIn={Boolean(sessionUser)} summary={weeklySummary} />
-      <header className="premium-site-header sticky top-0 z-30">
+      <header className="premium-site-header premium-site-header--advanced sticky top-0 z-30">
         <div className="premium-finance-topbar hidden md:block">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="premium-support-copy flex flex-1 flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-black leading-6 tracking-[0.01em] sm:text-base lg:text-[17px] xl:text-lg">
@@ -181,6 +187,9 @@ export async function AppShell({ children, locale }: AppShellProps) {
               <span className="font-black">{ui.appShell.tagline}</span>
             </div>
             <div className="flex shrink-0 items-center justify-end gap-2">
+              <span className="premium-topbar-signal hidden items-center gap-2 rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.12em] xl:inline-flex">
+                {locale === "tr" ? "Canlı öğrenme" : "Live learning"}
+              </span>
               {locales.map((language) => (
                 <Link
                   key={language}
@@ -214,6 +223,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
                     key={item.href}
                     href={`/${locale}${item.href ? `/${item.href}` : ""}`}
                     className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
+                    data-nav-key={item.label}
                   >
                     {item.label === "community" ? <CommunityIcon /> : null}
                     {dictionary.nav[item.label]}
@@ -243,7 +253,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
                   <Link
                     key={item.href}
                     href={`/${locale}/${item.href}`}
-                    className="premium-account-link shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur 2xl:px-3 2xl:py-2"
+                    className={`premium-account-link ${item.label === "register" ? "premium-account-link--cta" : ""} shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur 2xl:px-3 2xl:py-2`}
                   >
                     {dictionary.nav[item.label]}
                   </Link>
@@ -258,21 +268,27 @@ export async function AppShell({ children, locale }: AppShellProps) {
                 key={item.href}
                 href={`/${locale}/${item.href}`}
                 className={`premium-product-nav premium-product-nav--${item.tone} inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black`}
+                data-product-tone={item.tone}
               >
+                <span className="premium-product-nav-orb" aria-hidden="true" />
                 {item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label]}
               </Link>
             ))}
             <Link
               href={`/${locale}/sohbet`}
               className="premium-product-nav premium-product-nav--chat inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black"
+              data-product-tone="chat"
             >
+              <span className="premium-product-nav-orb" aria-hidden="true" />
               {dictionary.nav.chat}
             </Link>
             <Link
               href={macroReportHref}
               className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white"
               style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
+              data-product-tone="macro"
             >
+              <span className="premium-product-nav-orb" aria-hidden="true" />
               {locale === "en" ? "MACRO REPORT" : "MAKRO RAPOR"}
             </Link>
             <a

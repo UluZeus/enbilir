@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { joinLeagueAction } from "@/lib/actions";
@@ -52,6 +53,9 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
+            <div className="site-hero-motion-tile sm:col-span-2">
+              <SiteMotion variant="community" />
+            </div>
             {growthStats.map((stat) => (
               <div key={stat.label} className="growth-stat-card rounded-2xl border border-white/10 bg-white/8 p-4">
                 <p className="text-3xl font-black text-white">{stat.value}</p>

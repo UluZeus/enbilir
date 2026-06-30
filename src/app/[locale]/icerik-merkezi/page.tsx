@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ContentHubExplorer, type ContentHubItem } from "@/components/content/ContentHubExplorer";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getManagedContentItems } from "@/lib/managed-content";
 import { getSiteGuideArticles } from "@/lib/site-guide-content";
@@ -61,17 +62,24 @@ export default async function ContentHubPage({ params }: { params: Promise<{ loc
   return (
     <div className="grid gap-6">
       <section className="content-hub-hero premium-card premium-card--interactive p-6 md:p-8">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-          {isEnglish ? "Content center" : "İçerik merkezi"}
-        </p>
-        <h1 className="mt-2 max-w-5xl text-3xl font-black leading-tight text-[#152033] md:text-5xl">
-          {isEnglish ? "One library for learning the site, the markets, and the portfolio flow." : "Siteyi, piyasayı ve portföy akışını öğrenmek için tek kütüphane."}
-        </h1>
-        <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600 md:text-base md:leading-8">
-          {isEnglish
-            ? "Search across blog articles, education notes, and site guides. Start with the guide, move into the learning notes, then test the idea in the virtual portfolio and review it with AI."
-            : "Blog yazıları, eğitim notları ve site kullanım rehberleri burada birlikte aranır. Önce rehberden başlayın, eğitim yazılarıyla derinleşin, sonra fikri sanal portföyde deneyip AI ile gözden geçirin."}
-        </p>
+        <div className="site-page-hero-grid">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+              {isEnglish ? "Content center" : "İçerik merkezi"}
+            </p>
+            <h1 className="mt-2 max-w-5xl text-3xl font-black leading-tight text-[#152033] md:text-5xl">
+              {isEnglish ? "One library for learning the site, the markets, and the portfolio flow." : "Siteyi, piyasayı ve portföy akışını öğrenmek için tek kütüphane."}
+            </h1>
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600 md:text-base md:leading-8">
+              {isEnglish
+                ? "Search across blog articles, education notes, and site guides. Start with the guide, move into the learning notes, then test the idea in the virtual portfolio and review it with AI."
+                : "Blog yazıları, eğitim notları ve site kullanım rehberleri burada birlikte aranır. Önce rehberden başlayın, eğitim yazılarıyla derinleşin, sonra fikri sanal portföyde deneyip AI ile gözden geçirin."}
+            </p>
+          </div>
+          <div className="site-page-hero-motion">
+            <SiteMotion variant="network" />
+          </div>
+        </div>
       </section>
 
       <ContentHubExplorer locale={locale} items={items} />

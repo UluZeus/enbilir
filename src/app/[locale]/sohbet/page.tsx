@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AiMarketChatPanel } from "@/components/ai-market/AiMarketChatPanel";
 import { ChatRoomClient } from "@/components/ChatRoomClient";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getSessionUser } from "@/lib/auth";
 import { generalChatRoomCode, getChatRoomState, normalizeRoomCode } from "@/lib/chat";
@@ -54,13 +55,16 @@ export default async function ChatPage({
                 : "The general chat room opens directly. You can create a private room, share its code with a friend, and send files, images, videos, location, contact details, or polls. Messages belong to users and do not represent the site or Dr. Hakan Unsal."}
             </p>
           </div>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
-            <p className="text-sm font-black">{locale === "tr" ? "Kısa topluluk hatırlatması" : "Community reminder"}</p>
-            <p className="mt-2 text-sm leading-6">
-              {locale === "tr"
-                ? "Saygılı dil, kişisel veriye dikkat, yatırım tavsiyesi vermeme ve yanıltıcı bilgi paylaşmama kuralı geçerlidir. Şikayet edilen mesajlar admin panelinden izlenebilir."
-                : "Respectful language, care with personal data, no investment advice, and no misleading information are required. Reported messages can be reviewed from the admin panel."}
-            </p>
+          <div className="site-page-side-motion">
+            <SiteMotion variant="network" />
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+              <p className="text-sm font-black">{locale === "tr" ? "Kısa topluluk hatırlatması" : "Community reminder"}</p>
+              <p className="mt-2 text-sm leading-6">
+                {locale === "tr"
+                  ? "Saygılı dil, kişisel veriye dikkat, yatırım tavsiyesi vermeme ve yanıltıcı bilgi paylaşmama kuralı geçerlidir. Şikayet edilen mesajlar admin panelinden izlenebilir."
+                  : "Respectful language, care with personal data, no investment advice, and no misleading information are required. Reported messages can be reviewed from the admin panel."}
+              </p>
+            </div>
           </div>
         </div>
       </section>

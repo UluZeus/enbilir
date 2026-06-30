@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { FormMessage } from "@/components/FormMessage";
+import { SiteMotion } from "@/components/SiteMotion";
 import { removeCommunityFriendAction, sendCommunityFriendRequestAction } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
 import { getFriendPairKey } from "@/lib/friends";
@@ -140,7 +141,7 @@ export default async function CommunityPage({
       <FormMessage message={query.error} />
 
       <section className="glass-card rounded-lg p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
           <form className="grid gap-2 sm:min-w-[360px]">
             <label className="text-sm font-black text-[#152033]" htmlFor="community-search">
               {copy.community.searchLabel}
@@ -156,9 +157,12 @@ export default async function CommunityPage({
               <button className="premium-action px-4 py-3 text-sm font-black">{copy.common.search}</button>
             </div>
           </form>
-          <div className="grid gap-1 text-sm text-slate-600">
-            <p className="font-bold text-[#152033]">{copy.community.listedUsers(rows.length)}</p>
-            <p>{copy.community.authNote}</p>
+          <div className="site-page-side-motion">
+            <SiteMotion variant="community" />
+            <div className="grid gap-1 text-sm text-slate-600">
+              <p className="font-bold text-[#152033]">{copy.community.listedUsers(rows.length)}</p>
+              <p>{copy.community.authNote}</p>
+            </div>
           </div>
         </div>
       </section>

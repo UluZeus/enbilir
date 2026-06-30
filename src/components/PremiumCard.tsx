@@ -1,9 +1,11 @@
 import type { HTMLAttributes, ReactNode } from "react";
+import { SiteMotion, type SiteMotionVariant } from "@/components/SiteMotion";
 
 type PremiumCardProps = {
   children: ReactNode;
   interactive?: boolean;
   dark?: boolean;
+  motion?: SiteMotionVariant | false;
   className?: string;
 } & HTMLAttributes<HTMLDivElement>;
 
@@ -11,6 +13,7 @@ export function PremiumCard({
   children,
   interactive = false,
   dark = false,
+  motion,
   className = "",
   ...props
 }: PremiumCardProps) {
@@ -25,6 +28,7 @@ export function PremiumCard({
 
   return (
     <div className={classes} {...props}>
+      {motion !== false ? <SiteMotion variant={motion ?? (dark ? "pulse" : "trend")} className="premium-card-motion-corner" /> : null}
       {children}
     </div>
   );

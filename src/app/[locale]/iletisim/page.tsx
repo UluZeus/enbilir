@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ManagedContentList } from "@/components/ManagedContentList";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getManagedContentItems } from "@/lib/managed-content";
@@ -20,9 +21,16 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
   return (
     <div className="grid gap-6">
       <section className="premium-card premium-card--interactive p-6">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir support" : "Enbilir destek"}</p>
-        <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
-        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
+        <div className="site-page-hero-grid">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir support" : "Enbilir destek"}</p>
+            <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
+            <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
+          </div>
+          <div className="site-page-hero-motion">
+            <SiteMotion variant="dollar" />
+          </div>
+        </div>
       </section>
       <ManagedContentList
         items={contactItems}

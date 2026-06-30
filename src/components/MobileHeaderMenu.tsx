@@ -41,10 +41,10 @@ export function MobileHeaderMenu({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="mobile-site-header border-b border-[#d1bfa7]/30 bg-[#fffaf6]/92 px-4 py-3 shadow-lg backdrop-blur-xl md:hidden">
+    <div className="mobile-site-header mobile-site-header--advanced border-b border-[#d1bfa7]/30 bg-[#fffaf6]/92 px-4 py-3 shadow-lg backdrop-blur-xl md:hidden">
       <div className="flex items-center justify-between gap-3">
         <Link href={`/${locale}`} className="flex min-w-0 items-center gap-2.5" onClick={() => setIsOpen(false)}>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d1bfa7]/50 bg-white shadow-sm">
+          <span className="mobile-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d1bfa7]/50 bg-white shadow-sm">
             <Image src="/logo.svg" alt="Enbilir logo" width={32} height={32} className="h-8 w-8" />
           </span>
           <span className="min-w-0">
@@ -72,7 +72,7 @@ export function MobileHeaderMenu({
             aria-label={isOpen ? "Menüyü kapat" : "Menüyü aç"}
             aria-expanded={isOpen}
             onClick={() => setIsOpen((current) => !current)}
-            className="mobile-menu-button inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#d1bfa7]/60 bg-white text-[#152033] shadow-sm"
+            className="mobile-menu-button mobile-menu-button--advanced inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#d1bfa7]/60 bg-white text-[#152033] shadow-sm"
           >
             <span className="grid gap-1.5">
               <span className={`block h-0.5 w-5 rounded-full bg-current transition ${isOpen ? "translate-y-2 rotate-45" : ""}`} />
@@ -150,6 +150,7 @@ function MobileMenuLink({ item, wide = false, onClick }: { item: HeaderLink; wid
     <Link
       href={item.href}
       onClick={onClick}
+      data-tone={item.tone ?? "default"}
       className={`rounded-xl border px-3 py-2 text-sm font-black shadow-sm ${toneClass} ${wide ? "block" : ""}`}
     >
       {item.label}

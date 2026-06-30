@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { AiMarketChatPanel } from "@/components/ai-market/AiMarketChatPanel";
 import { AiScenarioLab } from "@/components/ai-market/AiScenarioLab";
 import { MarketAssistantDashboard } from "@/components/ai-market/MarketAssistantDashboard";
+import { SiteMotion } from "@/components/SiteMotion";
 import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -44,15 +45,22 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
     <div className="ai-premium-page min-h-screen px-3 py-4 md:px-5">
       <section className="ai-command-center mx-auto mb-4 grid max-w-[1600px] gap-4 lg:grid-cols-[minmax(0,1fr)_390px]">
         <div className="ai-command-hero rounded-[1.7rem] border border-slate-800 bg-[#07101d] p-5 text-white shadow-2xl md:p-6">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d1bfa7]">
-            {locale === "tr" ? "AI rehberi" : "AI guide"}
-          </p>
-          <h1 className="mt-2 max-w-4xl text-3xl font-black md:text-5xl">{copy.terminal}</h1>
-          <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300 md:text-base md:leading-8">
-            {locale === "tr"
-              ? "Bu ekran sinyal kovalamak için değil, piyasa davranışını yorumlamayı öğrenmek için tasarlandı. Teknik veri, haber akışı, favori varlıklar ve planlı makro raporları aynı masaya koyarak daha bilinçli bir piyasa okuryazarlığı ritmi kurar."
-              : "This screen is designed to learn how to interpret market behavior, not to chase signals. It brings technical data, news flow, favorite assets, and scheduled macro reports into one disciplined market-literacy rhythm."}
-          </p>
+          <div className="site-page-hero-grid">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d1bfa7]">
+                {locale === "tr" ? "AI rehberi" : "AI guide"}
+              </p>
+              <h1 className="mt-2 max-w-4xl text-3xl font-black md:text-5xl">{copy.terminal}</h1>
+              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300 md:text-base md:leading-8">
+                {locale === "tr"
+                  ? "Bu ekran sinyal kovalamak için değil, piyasa davranışını yorumlamayı öğrenmek için tasarlandı. Teknik veri, haber akışı, favori varlıklar ve planlı makro raporları aynı masaya koyarak daha bilinçli bir piyasa okuryazarlığı ritmi kurar."
+                  : "This screen is designed to learn how to interpret market behavior, not to chase signals. It brings technical data, news flow, favorite assets, and scheduled macro reports into one disciplined market-literacy rhythm."}
+              </p>
+            </div>
+            <div className="site-page-hero-motion site-page-hero-motion--dark">
+              <SiteMotion variant="pulse" />
+            </div>
+          </div>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {commandMetrics.map((item) => (
               <div key={item.label} className="ai-command-metric rounded-2xl border border-white/10 bg-white/6 p-4">

@@ -1,8 +1,20 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { AdBanner } from "@/components/AdBanner";
 import { ManagedContentList } from "@/components/ManagedContentList";
 import { MacroReportTicker } from "@/components/ai-market/MacroReportTicker";
+import {
+  HomeAcademyMotion,
+  HomeAiPulseCore,
+  HomeFeatureMotion,
+  HomeHeroDataFlow,
+  HomeInsightSignal,
+  HomeMiniLoop,
+  HomeMotionCue,
+  HomeShaderBackdrop,
+  HomeTimelinePulse,
+} from "@/components/home/HomeMotion";
 import { MiniLineChart } from "@/components/MiniLineChart";
 import { LiveMarketOverview } from "@/components/market/LiveMarketOverview";
 import { PortfolioBreakdown } from "@/components/PortfolioBreakdown";
@@ -79,7 +91,6 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const activeLeagueHighlights = settledValue<LeagueHighlight[]>(activeLeagueHighlightsResult, []);
   const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
   const strategicCards = getStrategicCards(locale);
-  const communitySteps = getCommunitySteps(locale);
   const trustHighlights = getTrustHighlights(locale);
   const spotlightMetrics = getSpotlightMetrics(locale);
   const valueProps = getValueProps(locale);
@@ -103,36 +114,155 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   };
   const heroStats = getHeroStats(locale);
   const learningLoopCards = getLearningLoopCards(locale);
+  const modernTrustItems = [
+    {
+      icon: "USD",
+      title: locale === "tr" ? "Sanal portföy" : "Virtual portfolio",
+      body: locale === "tr" ? "Başlangıç bakiyesiyle piyasayı güvenli biçimde dene." : "Practice with a safe starting balance.",
+    },
+    {
+      icon: "0",
+      title: locale === "tr" ? "Gerçek para yok" : "No real money",
+      body: locale === "tr" ? "Alım satım kararları eğitim amaçlı simülasyonda kalır." : "Trading decisions stay inside an educational simulation.",
+    },
+    {
+      icon: "AI",
+      title: locale === "tr" ? "AI destekli öğrenme" : "AI-supported learning",
+      body: locale === "tr" ? "Makro rapor ve asistan piyasa dilini sadeleştirir." : "Reports and assistant simplify market context.",
+    },
+    {
+      icon: "!",
+      title: locale === "tr" ? "Yatırım tavsiyesi değildir" : "Not investment advice",
+      body: locale === "tr" ? "Amaç karar baskısı değil, finansal okuryazarlık kalitesidir." : "The aim is literacy, not investment pressure.",
+    },
+  ] as const;
+  const modernHowSteps = [
+    {
+      step: "1",
+      title: locale === "tr" ? "Kayıt ol" : "Register",
+      body: locale === "tr" ? "Akademiye katıl ve sanal bakiyeni hemen al." : "Join the academy and receive your virtual balance.",
+    },
+    {
+      step: "2",
+      title: locale === "tr" ? "Analiz et" : "Analyze",
+      body: locale === "tr" ? "AI asistanı, makro raporları ve canlı veriyi birlikte oku." : "Read AI context, macro reports, and live data together.",
+    },
+    {
+      step: "3",
+      title: locale === "tr" ? "Sanal işlem yap" : "Trade virtually",
+      body: locale === "tr" ? "Risk almadan stratejini test et ve gerekçeni yaz." : "Test your strategy without risk and write the reason.",
+    },
+    {
+      step: "4",
+      title: locale === "tr" ? "Yarış ve öğren" : "Compete and learn",
+      body: locale === "tr" ? "Liglerde ilerle, liderliği izle ve kararlarını geliştir." : "Join leagues, follow rankings, and improve decisions.",
+    },
+  ] as const;
+  const academyContentCards = [
+    {
+      level: locale === "tr" ? "Başlangıç" : "Beginner",
+      title: locale === "tr" ? "Finansal okuryazarlık 101" : "Financial literacy 101",
+      body: locale === "tr" ? "Varlık sınıfları, risk, getiri ve portföy mantığını sade bir dille öğren." : "Learn asset classes, risk, return, and portfolio logic clearly.",
+      href: `/${locale}/egitim`,
+      tone: "blue",
+    },
+    {
+      level: locale === "tr" ? "Orta seviye" : "Intermediate",
+      title: locale === "tr" ? "Makro analiz ve rapor okuma" : "Macro analysis and reports",
+      body: locale === "tr" ? "Merkez bankaları, dolar, altın, borsa ve kripto ilişkisini bağlam içinde oku." : "Read central banks, dollar, gold, stocks, and crypto in context.",
+      href: `/${locale}/ai-piyasa-asistani/raporlar`,
+      tone: "gold",
+    },
+    {
+      level: locale === "tr" ? "İleri seviye" : "Advanced",
+      title: locale === "tr" ? "AI ile karar pratiği" : "Decision practice with AI",
+      body: locale === "tr" ? "Sinyali emir gibi değil, düşünme çerçevesi gibi kullanmayı öğren." : "Use signals as a thinking frame, not as direct orders.",
+      href: `/${locale}/ai-piyasa-asistani`,
+      tone: "teal",
+    },
+  ] as const;
+  const portfolioReturnPercent = snapshot ? calculateCompetitionReturnPercent(snapshot.totalValueUsd) : null;
+  const liveLearningItems = [
+    {
+      label: locale === "tr" ? "Sanal portföy" : "Virtual portfolio",
+      value: snapshot ? formatMoney(snapshot.totalValueUsd) : locale === "tr" ? "Giriş gerekli" : "Sign-in needed",
+      body: locale === "tr" ? "Nakit, pozisyon ve kâr/zarar aynı görünümde izlenir." : "Cash, positions, and P/L are tracked in one view.",
+      href: `/${locale}/islem-yap`,
+      action: locale === "tr" ? "Portföyü aç" : "Open portfolio",
+      tone: "portfolio",
+      progress: snapshot ? Math.min(Math.max(50 + (portfolioReturnPercent ?? 0) * 3, 12), 92) : 38,
+    },
+    {
+      label: locale === "tr" ? "Aktif ligler" : "Active leagues",
+      value: String(activeLeagueHighlights.length),
+      body: locale === "tr" ? "Davetsiz katılım ve çoklu lig desteğiyle sosyal öğrenme akışı kurulur." : "Direct joining and multi-league support create social learning momentum.",
+      href: `/${locale}/ligler`,
+      action: locale === "tr" ? "Ligleri gör" : "View leagues",
+      tone: "league",
+      progress: Math.min(Math.max(activeLeagueHighlights.length * 18, 24), 88),
+    },
+    {
+      label: locale === "tr" ? "AI rapor ritmi" : "AI report rhythm",
+      value: "07/12/18",
+      body: locale === "tr" ? "Günlük ritim ve pazartesi geniş rapor ayrı çerçeve verir." : "Daily rhythm and Monday deep reports give separate context.",
+      href: `/${locale}/ai-piyasa-asistani/raporlar`,
+      action: locale === "tr" ? "Raporlara git" : "Open reports",
+      tone: "ai",
+      progress: 72,
+    },
+    {
+      label: locale === "tr" ? "Topluluk" : "Community",
+      value: locale === "tr" ? "Canlı" : "Live",
+      body: locale === "tr" ? "Sohbet, özel oda, anket ve dosya akışı tartışmayı canlı tutar." : "Chat, private rooms, polls, and files keep discussion alive.",
+      href: `/${locale}/sohbet`,
+      action: locale === "tr" ? "Sohbete gir" : "Open chat",
+      tone: "community",
+      progress: 64,
+    },
+  ] as const;
+  const featureVisualCards = valueProps.map((item, index) => ({
+    ...item,
+    tone: ["portfolio", "market", "community"][index] ?? "portfolio",
+    metric: index === 0 ? "$1M" : index === 1 ? "30s" : locale === "tr" ? "Lig" : "League",
+  }));
+  const vividFeatureCards = getVividFeatureCards(locale);
+  const communityTags = locale === "tr"
+    ? ["#SanalPortföy", "#MakroRapor", "#FinansalOkuryazarlık", "#Ligler", "#AIAsistan"]
+    : ["#VirtualPortfolio", "#MacroReports", "#FinancialLiteracy", "#Leagues", "#AIAssistant"];
+  const terminalStatusTags = locale === "tr"
+    ? ["Risk: kontrollü", "Likidite: izleniyor", "Terminal v1.0"]
+    : ["Risk: controlled", "Liquidity: monitored", "Terminal v1.0"];
 
   return (
-    <div className="home-premium grid gap-6">
+    <div className="home-premium home-modern-academy home-stitch-academy grid gap-6">
+      <HomeShaderBackdrop />
       <script
         type="application/ld+json"
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: stringifyJsonLd(faqStructuredData) }}
       />
-      <MacroReportTicker locale={locale} />
-      <AdBanner ads={ads} locale={locale} />
-      <section className="home-premium-hero hero-visual grid gap-6 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1.02fr)_minmax(390px,0.98fr)]">
+      <section className="home-premium-hero home-modern-hero hero-visual grid gap-8 p-6 text-white sm:p-8 xl:grid-cols-[minmax(0,1fr)_minmax(390px,0.95fr)]">
         <div className="home-hero-copy">
           <div className="home-hero-eyebrow-row flex flex-wrap items-center gap-2">
-            <p className="home-hero-pill text-xs font-black uppercase tracking-[0.18em]">{copy.home.eyebrow}</p>
+            <p className="home-hero-pill text-xs font-black uppercase tracking-[0.18em]">
+              {locale === "tr" ? "Yapay zeka destekli piyasa akademisi" : "AI-supported market academy"}
+            </p>
             <p className="home-hero-pill home-hero-pill--live text-xs font-black uppercase tracking-[0.18em]">
               {locale === "tr" ? "Canlı piyasa + AI yorum" : "Live market + AI commentary"}
             </p>
           </div>
-          <h1 className="relative mt-4 max-w-5xl text-4xl font-black tracking-normal sm:text-6xl">
+          <h1 className="relative mt-5 max-w-5xl text-4xl font-black tracking-normal sm:text-6xl">
             {locale === "tr"
-              ? "Rotaryenler için gerçek para riski olmadan piyasa okuryazarlığı, sanal portföy ve AI makro rapor deneyimi"
-              : "Market literacy, virtual portfolios, and AI macro reports for Rotary communities without real-money risk"}
+              ? "Gerçek para riske atmadan piyasayı öğren"
+              : "Learn the market without risking real money"}
           </h1>
-          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
+          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300 md:text-lg">
             {locale === "tr"
-              ? "Enbilir; meraklı kullanıcılar, Rotaryenler ve finansal okuryazarlığını geliştirmek isteyen topluluklar için sanal işlem, lig rekabeti, canlı piyasa verisi ve Dr. Hakan Ünsal'ın eğittiği AI ajan yorumlarını tek güvenli öğrenme akışında birleştirir."
-              : "Enbilir brings virtual trading, league competition, live market data, and AI-agent commentary trained by Dr. Hakan Unsal into one safe learning flow for curious users and community-led financial literacy."}
+              ? "Enbilir; sanal portföy yarışması, AI piyasa asistanı, makro raporlar ve finansal okuryazarlık içerikleriyle piyasayı daha bilinçli okumayı öğreten modern bir piyasa akademisidir."
+              : "Enbilir is a modern market academy combining virtual portfolio competitions, an AI market assistant, macro reports, and financial-literacy content."}
           </p>
           <div className="relative mt-6 flex flex-wrap gap-3">
-            <Link href={`/${locale}/kayit`} className="premium-cta px-5 py-3 text-sm font-black">
+            <Link href={`/${locale}/kayit`} className="premium-cta home-modern-cta px-5 py-3 text-sm font-black">
               {locale === "tr" ? "30 gün ücretsiz başla" : "Start 30 days free"}
             </Link>
             <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="premium-link rounded-md px-5 py-3 text-sm font-black">
@@ -144,7 +274,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {heroStats.map((stat) => (
-              <div key={stat.label} className="home-premium-stat rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur">
+              <div key={stat.label} className="home-premium-stat home-modern-stat rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur">
                 <p className="text-2xl font-black text-white">{stat.value}</p>
                 <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">{stat.label}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">{stat.body}</p>
@@ -153,94 +283,272 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </div>
         </div>
 
-        <div className="grid gap-4 self-start">
-          <div className="home-command-center rounded-[1.75rem] border border-white/12 bg-[#07111f]/88 p-5 shadow-2xl">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
-                  {locale === "tr" ? "Canlı öğrenme terminali" : "Live learning terminal"}
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-white">
-                  {locale === "tr" ? "Piyasa ritmini tek ekranda oku" : "Read market rhythm on one screen"}
-                </h2>
+        <div className="home-modern-visual relative min-h-[520px] self-center">
+          <div className="home-orbit-ring" aria-hidden="true" />
+          <HomeHeroDataFlow />
+          <div className="home-terminal-window">
+            <div className="home-terminal-topline">
+              <span />
+              <span />
+              <span />
+              <strong>{locale === "tr" ? "Canlı öğrenme terminali" : "Live learning terminal"}</strong>
+            </div>
+            <div className="home-terminal-grid">
+              <div className="home-terminal-cell home-terminal-cell--portfolio">
+                <p>{locale === "tr" ? "Sanal portföy" : "Virtual portfolio"}</p>
+                <strong>{snapshot ? formatMoney(snapshot.totalValueUsd) : "$1,000,000"}</strong>
+                <span className={snapshot && snapshot.profitLossUsd < 0 ? "portfolio-loss-text" : "portfolio-profit-text"}>
+                  {snapshot ? formatPercent(calculateCompetitionReturnPercent(snapshot.totalValueUsd), true) : "+0.00%"}
+                </span>
               </div>
-              <span className="home-live-badge rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em]">
-                {locale === "tr" ? "Aktif" : "Live"}
+              <div className="home-terminal-cell">
+                <p>{locale === "tr" ? "Makro rapor" : "Macro report"}</p>
+                <div className="home-terminal-lines" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+              <div className="home-terminal-cell home-terminal-cell--ai">
+                <span className="home-terminal-ai-mark">AI</span>
+                <div>
+                  <p>{locale === "tr" ? "AI Asistanı" : "AI Assistant"}</p>
+                  <strong>
+                    {locale === "tr"
+                      ? "Tek sinyale değil; veri, rapor ve risk dengesine bak."
+                      : "Do not rely on one signal; read data, reports, and risk balance together."}
+                  </strong>
+                </div>
+              </div>
+              <div className="home-terminal-status-row">
+                {terminalStatusTags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="home-floating-card home-floating-card--portfolio">
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-sm font-bold text-slate-300">{locale === "tr" ? "Sanal Portföyüm" : "My Virtual Portfolio"}</span>
+              <span className={snapshot && snapshot.profitLossUsd < 0 ? "portfolio-loss-text font-black" : "portfolio-profit-text font-black"}>
+                {snapshot ? formatPercent(calculateCompetitionReturnPercent(snapshot.totalValueUsd), true) : "+0.00%"}
               </span>
             </div>
-            <div className="home-terminal-chart mt-5" aria-hidden="true">
-              <span className="home-terminal-line home-terminal-line--one" />
-              <span className="home-terminal-line home-terminal-line--two" />
-              <span className="home-terminal-line home-terminal-line--three" />
-              <span className="home-terminal-candle home-terminal-candle--one" />
-              <span className="home-terminal-candle home-terminal-candle--two" />
-              <span className="home-terminal-candle home-terminal-candle--three" />
+            <p className="mt-4 text-3xl font-black text-white">{snapshot ? formatMoney(snapshot.totalValueUsd) : "$1,000,000"}</p>
+            <div className="home-modern-spark mt-5" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+          <div className="home-floating-card home-floating-card--ai">
+            <div className="flex items-center gap-3">
+              <span className="home-ai-dot">AI</span>
+              <div>
+                <p className="text-sm font-black text-white">{locale === "tr" ? "AI Asistan" : "AI Assistant"}</p>
+                <p className="text-xs text-slate-300">{locale === "tr" ? "Canlı/cache veriyle yorum" : "Live/cache data context"}</p>
+              </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-slate-300">
               {locale === "tr"
-                ? "Sanal işlem, lig rekabeti, makro rapor ve AI açıklamalarını tek öğrenme panelinde birleştirir."
-                : "Combines virtual trading, league competition, macro reports, and AI explanations in one learning panel."}
+                ? "Makro veriler ışığında bu hafta risk iştahı, nakit oranı ve sektör rotasyonu birlikte izlenmeli."
+                : "This week, risk appetite, cash balance, and sector rotation should be read together."}
             </p>
-            <div className="mt-4 grid gap-3">
-              {communitySteps.map((step) => (
-                <div key={step.title} className="rounded-2xl border border-white/8 bg-white/6 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-sm font-black text-white">{step.title}</h2>
-                    <span className="rounded-full border border-emerald-400/30 bg-emerald-400/12 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-200">
-                      {step.metric}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{step.body}</p>
+            <div className="mt-4 flex gap-2" aria-hidden="true">
+              <span className="h-1.5 w-16 rounded-full bg-[#98cbff]" />
+              <span className="h-1.5 w-10 rounded-full bg-white/15" />
+            </div>
+          </div>
+          <div className="home-floating-card home-floating-card--leader">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{locale === "tr" ? "Liderlik Tablosu" : "Leaderboard"}</p>
+            <div className="mt-3 grid gap-2">
+              {(leaderboardHighlights.length ? leaderboardHighlights.slice(0, 2) : [
+                { displayName: locale === "tr" ? "İlk kullanıcı" : "First user", totalValueUsd: 1000000 },
+                { displayName: locale === "tr" ? "Yeni lig" : "New league", totalValueUsd: 1000000 },
+              ]).map((item, index) => (
+                <div key={`${item.displayName}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate text-white/90">{index + 1}. {item.displayName}</span>
+                  <span className="font-black text-[#62fae3]">{formatMoney(item.totalValueUsd)}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-            {strategicCards.map((card) => (
-              <div key={card.title} className="home-product-card rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">{card.eyebrow}</p>
-                <h2 className="mt-2 text-lg font-black text-white">{card.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{card.body}</p>
+          <div className="home-floating-card home-floating-card--progress">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#f9bd22]">{locale === "tr" ? "Eğitim ilerlemesi" : "Learning progress"}</p>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/12">
+              <span className="block h-full w-2/3 rounded-full bg-[#f9bd22]" />
+            </div>
+            <p className="mt-3 text-xs text-slate-300">{locale === "tr" ? "Modül 4: Makro Analiz" : "Module 4: Macro analysis"}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="home-trust-ribbon home-modern-trust grid gap-3 md:grid-cols-4">
+        {modernTrustItems.map((item) => (
+          <div key={item.title} className="home-ribbon-item">
+            <span className="home-ribbon-icon">{item.icon}</span>
+            <div>
+              <p className="font-black">{item.title}</p>
+              <p>{item.body}</p>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <MacroReportTicker locale={locale} />
+      <AdBanner ads={ads} locale={locale} />
+
+      <section className="home-vivid-feature-section">
+        <div className="home-vivid-section-head">
+          <div className="home-section-kicker home-section-kicker--dark home-section-kicker--center">
+            <HomeMotionCue variant="line" />
+            <p>{locale === "tr" ? "Finansal analiz için tam donanım" : "A complete toolkit for market literacy"}</p>
+          </div>
+          <h2>
+            {locale === "tr"
+              ? "Sanal portföy, AI, makro rapor, lig ve eğitim aynı ekranda çalışır."
+              : "Virtual portfolio, AI, macro reports, leagues, and education work together."}
+          </h2>
+        </div>
+        <div className="home-vivid-feature-grid">
+          {vividFeatureCards.map((card, index) => (
+            <Link key={card.title} href={card.href} className="home-vivid-feature-card">
+              <span className={`home-vivid-feature-icon home-vivid-feature-icon--${index + 1}`} aria-hidden="true">
+                {card.icon}
+              </span>
+              <h3>{card.title}</h3>
+              <p>{card.body}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-modern-steps py-3">
+        <div className="mb-6 text-center">
+          <div className="home-section-kicker home-section-kicker--center">
+            <HomeMotionCue variant="line" />
+            <p>{locale === "tr" ? "Nasıl çalışır?" : "How it works"}</p>
+          </div>
+          <h2 className="mt-2 text-3xl font-black text-[#152033]">
+            {locale === "tr" ? "Piyasayı 4 adımda deneyimle" : "Experience markets in 4 steps"}
+          </h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          {modernHowSteps.map((step) => (
+            <div key={step.step} className="home-modern-step-card">
+              <span className="home-modern-step-icon">{step.step}</span>
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-ai-showcase grid gap-8 p-6 md:p-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="home-ai-visual" aria-hidden="true">
+          <div className="home-ai-screen">
+            <div className="home-ai-screen-top">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="home-ai-screen-grid">
+              <div className="home-ai-chart">
+                <HomeAiPulseCore />
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="home-ai-chat-lines">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col justify-center gap-5">
+          <div className="home-section-kicker home-section-kicker--dark">
+            <HomeMotionCue variant="ai" />
+            <p>{locale === "tr" ? "AI strateji ortağın" : "Your AI strategy partner"}</p>
+          </div>
+          <h2 className="text-3xl font-black text-white md:text-4xl">
+            {locale === "tr" ? "Veri karmaşasını eğitim diline çeviren asistan" : "An assistant that turns market noise into learning language"}
+          </h2>
+          <div className="home-ai-insight-box rounded-r-xl border-l-4 border-[#62fae3] bg-[#62fae3]/8 p-5">
+            <HomeInsightSignal />
+            <p className="text-lg font-black leading-8 text-white">
+              {locale === "tr"
+                ? "AI Asistanı piyasayı tek başına değil, sistemli düşünmen için var."
+                : "The AI Assistant exists to help you think systematically, not to replace judgment."}
+            </p>
+          </div>
+          <p className="text-base leading-8 text-slate-300">
+            {locale === "tr"
+              ? "Enbilir AI; canlı/cache piyasa verilerini, makro raporları, teknik sinyalleri ve eğitim içeriklerini birlikte okuyarak karar gerekçeni güçlendirmene yardım eder."
+              : "Enbilir AI reads live/cache market data, macro reports, technical signals, and education content together to strengthen your decision reasoning."}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {strategicCards.map((card, index) => (
+              <div key={card.title} className="home-ai-mini-card home-ai-mini-card--motion">
+                <HomeMiniLoop tone={["community", "education", "momentum"][index] ?? "momentum"} />
+                <p>{card.eyebrow}</p>
+                <h3>{card.title}</h3>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="home-trust-ribbon grid gap-3 md:grid-cols-3">
-        <div className="home-ribbon-item">
-          <span className="home-ribbon-icon">01</span>
-          <div>
-            <p className="font-black">{locale === "tr" ? "Gerçek para riski yok" : "No real-money risk"}</p>
-            <p>{locale === "tr" ? "Alım satım eğitim amaçlı sanal portföye yazılır." : "Trades are written to an educational virtual portfolio."}</p>
+      <section className="home-modern-content-grid grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="home-macro-card p-5 md:p-6">
+          <div className="home-section-kicker home-section-kicker--dark home-section-kicker--amber">
+            <HomeMotionCue variant="globe" />
+            <p>{locale === "tr" ? "Makro rapor takvimi" : "Macro report calendar"}</p>
+          </div>
+          <h2 className="mt-2 text-3xl font-black text-white">
+            {locale === "tr" ? "Piyasa ritmini raporlarla yakala" : "Catch the market rhythm through reports"}
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            {locale === "tr"
+              ? "Günlük raporlar hızlı çerçeve, pazartesi haftalık rapor ise daha geniş perspektif verir."
+              : "Daily reports give quick context; Monday weekly reports give a broader perspective."}
+          </p>
+          <div className="mt-5 grid gap-3">
+            {[
+              { time: "07:00", title: locale === "tr" ? "Sabah piyasa çerçevesi" : "Morning market frame" },
+              { time: "12:00", title: locale === "tr" ? "Gün ortası güncellemesi" : "Midday update" },
+              { time: locale === "tr" ? "Pazartesi" : "Monday", title: locale === "tr" ? "Haftalık geniş makro rapor" : "Weekly broad macro report" },
+            ].map((item) => (
+              <Link key={`${item.time}-${item.title}`} href={`/${locale}/ai-piyasa-asistani/raporlar`} className="home-macro-row">
+                <span>{item.time}</span>
+                <HomeTimelinePulse />
+                <strong>{item.title}</strong>
+              </Link>
+            ))}
           </div>
         </div>
-        <div className="home-ribbon-item">
-          <span className="home-ribbon-icon">AI</span>
-          <div>
-            <p className="font-black">{locale === "tr" ? "AI makro rapor ritmi" : "AI macro report rhythm"}</p>
-            <p>{locale === "tr" ? "Gün içinde 07.00, 12.00 ve 18.00 çerçevesi." : "Daily 07:00, 12:00, and 18:00 market frames."}</p>
-          </div>
-        </div>
-        <div className="home-ribbon-item">
-          <span className="home-ribbon-icon">30</span>
-          <div>
-            <p className="font-black">{locale === "tr" ? "30 gün ücretsiz dene" : "Try 30 days free"}</p>
-            <p>
-              {locale === "tr"
-                ? "Sonrasında standart 70 TL gönüllü katkı veya 100 TL VIP üyelik seçeneği."
-                : "Then choose optional 70 TL standard support or 100 TL VIP membership."}
-            </p>
-          </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {academyContentCards.map((card) => (
+            <Link key={card.title} href={card.href} className={`home-academy-card home-academy-card--${card.tone}`}>
+              <HomeAcademyMotion tone={card.tone} />
+              <p className="home-academy-level">{card.level}</p>
+              <h3>{card.title}</h3>
+              <p>{card.body}</p>
+            </Link>
+          ))}
         </div>
       </section>
 
-      <section className="premium-card p-5 md:p-6">
+      <section className="home-learning-dashboard premium-card p-5 md:p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-              {locale === "tr" ? "Canlı öğrenme paneli" : "Live learning panel"}
-            </p>
+            <div className="home-section-kicker">
+              <HomeMotionCue variant="radar" />
+              <p>{locale === "tr" ? "Canlı öğrenme paneli" : "Live learning panel"}</p>
+            </div>
             <h2 className="mt-2 text-2xl font-black text-[#152033]">
               {locale === "tr" ? "Portföy, lig, rapor ve sohbet aynı eğitim akışında birleşir." : "Portfolio, leagues, reports, and chat work as one learning flow."}
             </h2>
@@ -250,40 +558,20 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </Link>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-4">
-          {[
-            {
-              label: locale === "tr" ? "Sanal portföy" : "Virtual portfolio",
-              value: snapshot ? formatMoney(snapshot.totalValueUsd) : locale === "tr" ? "Giriş gerekli" : "Sign-in needed",
-              body: locale === "tr" ? "Nakit ve pozisyon değeri ayrı ayrı kontrol edilir." : "Cash and positions are checked separately.",
-              href: `/${locale}/islem-yap`,
-              action: locale === "tr" ? "Portföyü aç" : "Open portfolio",
-            },
-            {
-              label: locale === "tr" ? "Aktif ligler" : "Active leagues",
-              value: String(activeLeagueHighlights.length),
-              body: locale === "tr" ? "Kullanıcılar davetsiz katılabilir ve birden fazla ligde yer alabilir." : "Users can join directly and belong to multiple leagues.",
-              href: `/${locale}/ligler`,
-              action: locale === "tr" ? "Ligleri gör" : "View leagues",
-            },
-            {
-              label: locale === "tr" ? "AI rapor ritmi" : "AI report rhythm",
-              value: "07/12/18",
-              body: locale === "tr" ? "Pazartesi ayrıca haftalık geniş rapor üretilir." : "Mondays also include a broader weekly report.",
-              href: `/${locale}/ai-piyasa-asistani/raporlar`,
-              action: locale === "tr" ? "Raporlara git" : "Open reports",
-            },
-            {
-              label: locale === "tr" ? "Topluluk" : "Community",
-              value: locale === "tr" ? "Canlı" : "Live",
-              body: locale === "tr" ? "Genel sohbet, özel oda, anket ve dosya akışıyla desteklenir." : "General chat, private rooms, polls, and files support discussion.",
-              href: `/${locale}/sohbet`,
-              action: locale === "tr" ? "Sohbete gir" : "Open chat",
-            },
-          ].map((item) => (
-            <Link key={item.label} href={item.href} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4 transition hover:border-[#0f766e]/50 hover:bg-white hover:shadow-md">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">{item.label}</p>
-              <p className="mt-2 text-xl font-black text-[#152033]">{item.value}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+          {liveLearningItems.map((item) => (
+            <Link key={item.label} href={item.href} className={`home-live-panel-card home-live-panel-card--${item.tone}`}>
+              <div className="home-live-panel-top">
+                <span className="home-live-panel-icon" aria-hidden="true" />
+                <p>{item.label}</p>
+              </div>
+              <div className="mt-4 flex items-end justify-between gap-3">
+                <p className="home-live-panel-value">{item.value}</p>
+                <span className="home-live-panel-pulse" aria-hidden="true" />
+              </div>
+              <div className="home-live-panel-track" aria-hidden="true">
+                <span style={{ width: `${item.progress}%` }} />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{item.body}</p>
               <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">{item.action}</p>
             </Link>
           ))}
@@ -322,22 +610,29 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        {valueProps.map((item) => (
-          <PremiumCard key={item.title} interactive className="p-5">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{item.eyebrow}</p>
-            <h2 className="mt-2 text-2xl font-black text-[#152033]">{item.title}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
-          </PremiumCard>
+      <section className="home-feature-grid grid gap-4 md:grid-cols-3">
+        {featureVisualCards.map((item) => (
+          <Link key={item.title} href={item.tone === "portfolio" ? `/${locale}/islem-yap` : item.tone === "market" ? `/${locale}/ai-piyasa-asistani` : `/${locale}/ligler`} className={`home-feature-card home-feature-card--${item.tone}`}>
+            <HomeFeatureMotion tone={item.tone} />
+            <div className="home-feature-body">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{item.eyebrow}</p>
+              <div className="mt-3 flex items-start justify-between gap-4">
+                <h2 className="text-2xl font-black text-[#152033]">{item.title}</h2>
+                <span className="home-feature-metric">{item.metric}</span>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+            </div>
+          </Link>
         ))}
       </section>
 
-      <PremiumCard interactive className="p-5 sm:p-6">
+      <PremiumCard interactive className="home-flow-dashboard p-5 sm:p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-              {locale === "tr" ? "Nasıl çalışır?" : "How it works"}
-            </p>
+            <div className="home-section-kicker">
+              <HomeMotionCue variant="line" />
+              <p>{locale === "tr" ? "Nasıl çalışır?" : "How it works"}</p>
+            </div>
             <h2 className="mt-2 text-2xl font-black text-[#152033]">
               {locale === "tr" ? "İlk 5 saniyede akışı anlayıp hemen başlayabil." : "Understand the full flow in 5 seconds and start immediately."}
             </h2>
@@ -348,10 +643,13 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-5">
           {howItWorksSteps.map((step) => (
-            <div key={step.title} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#101827] text-xs font-black text-[#f5a623]">
-                {step.step}
-              </span>
+            <div key={step.title} className="home-flow-step">
+              <span className="home-flow-index">{step.step}</span>
+              <div className="home-flow-spark" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
               <h3 className="mt-3 text-lg font-black text-[#152033]">{step.title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">{step.body}</p>
             </div>
@@ -375,33 +673,31 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <PremiumCard interactive className="p-5">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-            {locale === "tr" ? "Neden çekici?" : "Why it is compelling"}
-          </p>
+          <div className="home-section-kicker">
+            <HomeMotionCue variant="signal" />
+            <p>{locale === "tr" ? "Neden çekici?" : "Why it is compelling"}</p>
+          </div>
           <h2 className="mt-2 text-2xl font-black text-[#152033]">
             {locale === "tr" ? "Yarışma, eğitim ve aidiyet duygusunu tek akışta birleştirir." : "It combines competition, education, and community belonging in one flow."}
           </h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
-            {spotlightMetrics.map((metric) => (
-              <div key={metric.label} className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
-                <p className="text-3xl font-black text-[#152033]">{metric.value}</p>
-                <p className="mt-2 text-sm font-black text-[#0f766e]">{metric.label}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{metric.body}</p>
-              </div>
+            {spotlightMetrics.map((metric, index) => (
+              <MetricVisualCard key={metric.label} metric={metric} index={index} />
             ))}
           </div>
         </PremiumCard>
 
         <PremiumCard interactive className="p-5">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-            {locale === "tr" ? "Güven katmanı" : "Trust layer"}
-          </p>
+          <div className="home-section-kicker">
+            <HomeMotionCue variant="shield" />
+            <p>{locale === "tr" ? "Güven katmanı" : "Trust layer"}</p>
+          </div>
           <h2 className="mt-2 text-2xl font-black text-[#152033]">
             {locale === "tr" ? "Platform karar baskısını değil, öğrenme kalitesini artırır." : "The platform improves learning quality, not decision pressure."}
           </h2>
           <div className="mt-5 grid gap-3">
             {trustHighlights.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+              <div key={item.title} className="home-trust-stack-item rounded-2xl border border-slate-200 bg-white/80 p-4">
                 <p className="text-sm font-black text-[#152033]">{item.title}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
               </div>
@@ -414,9 +710,10 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <PremiumCard interactive className="p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-                {locale === "tr" ? "Rekabet ve oyunlaştırma" : "Competition and gamification"}
-              </p>
+              <div className="home-section-kicker">
+                <HomeMotionCue variant="signal" />
+                <p>{locale === "tr" ? "Rekabet ve oyunlaştırma" : "Competition and gamification"}</p>
+              </div>
               <h2 className="mt-2 text-2xl font-black text-[#152033]">
                 {locale === "tr" ? "Liderlik, lig ve rozet görünürlüğü ile geri dönüş motivasyonu kur." : "Create return motivation with visible leaderboards, leagues, and badges."}
               </h2>
@@ -460,20 +757,24 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </PremiumCard>
 
         <PremiumCard interactive className="p-5">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-            {locale === "tr" ? "Hedefler ve rozetler" : "Goals and badges"}
-          </p>
+          <div className="home-section-kicker">
+            <HomeMotionCue variant="badge" />
+            <p>{locale === "tr" ? "Hedefler ve rozetler" : "Goals and badges"}</p>
+          </div>
           <h2 className="mt-2 text-2xl font-black text-[#152033]">
             {locale === "tr" ? "Kullanıcıya net hedef ver, ilerlemeyi görünür yap." : "Give the user clear goals and make progress visible."}
           </h2>
           <div className="mt-5 grid gap-3">
-            {goalCards.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-slate-200 bg-white/85 p-4">
+            {goalCards.map((item, index) => (
+              <div key={item.title} className="home-goal-card rounded-2xl border border-slate-200 bg-white/85 p-4">
                 <div className="flex items-start gap-3">
-                  <span className="text-2xl text-[#f5a623]">{item.icon}</span>
+                  <span className="home-goal-icon text-2xl text-[#f5a623]">{item.icon}</span>
                   <div>
                     <p className="text-sm font-black text-[#152033]">{item.title}</p>
                     <p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p>
+                    <div className="home-goal-track" aria-hidden="true">
+                      <span style={{ width: `${58 + index * 9}%` }} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -484,7 +785,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
       <section className="grid gap-4 md:grid-cols-3">
         {storyBlocks.map((item) => (
-          <PremiumCard key={item.title} interactive className="p-5">
+          <PremiumCard key={item.title} interactive className="home-story-card p-5">
+            <div className="home-story-visual" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{item.eyebrow}</p>
             <h2 className="mt-2 text-xl font-black text-[#152033]">{item.title}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
@@ -492,17 +798,59 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         ))}
       </section>
 
+      <section className="home-vivid-community-section">
+        <div className="home-vivid-community-copy">
+          <div className="home-section-kicker home-section-kicker--dark">
+            <HomeMotionCue variant="badge" />
+            <p>{locale === "tr" ? "Topluluk ve lig deneyimi" : "Community and league experience"}</p>
+          </div>
+          <h2>
+            {locale === "tr"
+              ? "Tek başına öğrenme değil, birlikte gelişen piyasa okuryazarlığı."
+              : "Not isolated learning, but market literacy that improves together."}
+          </h2>
+          <p>
+            {locale === "tr"
+              ? "Sohbet odaları, ligler, arkadaş sıralamaları ve haftalık liderler; kullanıcıyı platforma geri getiren sosyal öğrenme ritmini kurar."
+              : "Chat rooms, leagues, friend rankings, and weekly leaders create the social learning rhythm that brings users back."}
+          </p>
+          <div className="home-vivid-community-tags">
+            {communityTags.map((tag) => <span key={tag}>{tag}</span>)}
+          </div>
+        </div>
+        <div className="home-vivid-community-panel">
+          <div className="home-vivid-community-wave" aria-hidden="true" />
+          <p>{locale === "tr" ? "Aktif lig görünümü" : "Active league view"}</p>
+          <div className="home-vivid-community-list">
+            {(activeLeagueHighlights.length ? activeLeagueHighlights.slice(0, 4) : [
+              { name: "ROTARYEN", typeLabel: "ROTARY", memberCount: 0 },
+              { name: "ROTARACT", typeLabel: "ROTARACT", memberCount: 0 },
+              { name: locale === "tr" ? "SERBEST" : "PUBLIC", typeLabel: "GENERAL", memberCount: 0 },
+            ]).map((league) => (
+              <div key={league.name}>
+                <span>{league.name}</span>
+                <strong>{locale === "tr" ? `${league.memberCount} üye` : `${league.memberCount} members`}</strong>
+              </div>
+            ))}
+          </div>
+          <Link href={`/${locale}/ligler`} className="home-vivid-community-link">
+            {locale === "tr" ? "Liglere git" : "Open leagues"}
+          </Link>
+        </div>
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <PremiumCard interactive className="p-5">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-            {locale === "tr" ? "Okuma Alanı" : "Reading area"}
-          </p>
+          <div className="home-section-kicker">
+            <HomeMotionCue variant="line" />
+            <p>{locale === "tr" ? "Okuma Alanı" : "Reading area"}</p>
+          </div>
           <h2 className="mt-2 text-2xl font-black text-[#152033]">
             {locale === "tr" ? "Platformu kullanmadan önce bilinmesi gereken temel çerçeve" : "The essential framework to know before using the platform"}
           </h2>
           <div className="mt-5 grid gap-4">
             {knowledgeBlocks.map((item) => (
-              <article key={item.title} className="rounded-2xl bg-[#f8fafc] p-5 ring-1 ring-slate-200/70">
+              <article key={item.title} className="home-reading-card rounded-2xl bg-[#f8fafc] p-5 ring-1 ring-slate-200/70">
                 <h3 className="text-lg font-black text-[#152033]">{item.title}</h3>
                 <div className="mt-3 grid gap-3 text-sm leading-7 text-slate-600">
                   {item.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
@@ -513,15 +861,16 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </PremiumCard>
 
         <PremiumCard interactive className="p-5">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
-            {locale === "tr" ? "Sık Sorulanlar" : "Frequently asked"}
-          </p>
+          <div className="home-section-kicker">
+            <HomeMotionCue variant="ai" />
+            <p>{locale === "tr" ? "Sık Sorulanlar" : "Frequently asked"}</p>
+          </div>
           <h2 className="mt-2 text-2xl font-black text-[#152033]">
             {locale === "tr" ? "İlk ziyaretçinin en hızlı sorduğu sorular" : "The questions a first-time visitor asks most quickly"}
           </h2>
           <div className="mt-5 grid gap-3">
             {faqItems.map((item) => (
-              <details key={item.question} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <details key={item.question} className="home-faq-card rounded-2xl border border-slate-200 bg-white p-4">
                 <summary className="cursor-pointer text-sm font-black text-[#152033]">{item.question}</summary>
                 <p className="mt-3 text-sm leading-7 text-slate-600">{item.answer}</p>
               </details>
@@ -530,11 +879,39 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </PremiumCard>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[260px_1fr_1fr_1fr]">
+      <section className="home-vivid-final-cta">
+        <div className="home-vivid-final-glow" aria-hidden="true" />
+        <h2>
+          {locale === "tr"
+            ? "Geleceğin finansal dünyasına bugünden hazırlan."
+            : "Prepare for the financial world of tomorrow today."}
+        </h2>
+        <p>
+          {locale === "tr"
+            ? "Ücretsiz kaydol, sanal bakiyeni al, AI asistanla düşünme biçimini geliştir ve liglerde kendini dene."
+            : "Register for free, receive your virtual balance, improve your thinking with the AI assistant, and test yourself in leagues."}
+        </p>
+        <div>
+          <Link href={`/${locale}/kayit`} className="home-vivid-final-primary">
+            {locale === "tr" ? "Ücretsiz kayıt ol" : "Register for free"}
+          </Link>
+          <Link href={`/${locale}/ai-piyasa-asistani/raporlar`} className="home-vivid-final-secondary">
+            {locale === "tr" ? "Makro raporları incele" : "Explore macro reports"}
+          </Link>
+        </div>
+      </section>
+
+      <section className="home-data-deck grid gap-5 xl:grid-cols-[280px_1fr_1fr_1fr]">
         <div className="grid gap-4">
-          <PremiumCard interactive className="p-4">
-            <h2 className="text-lg font-black text-[#152033]">{copy.home.portfolio}</h2>
-            <p className="mt-3 text-2xl font-black text-[#0f766e]">{snapshot ? formatMoney(snapshot.totalValueUsd) : "-"}</p>
+          <PremiumCard interactive className="home-portfolio-data-card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="home-data-eyebrow">{locale === "tr" ? "Sanal varlık görünümü" : "Virtual asset view"}</p>
+                <h2 className="mt-1 text-lg font-black text-[#152033]">{copy.home.portfolio}</h2>
+              </div>
+              <HomeMotionCue variant="radar" />
+            </div>
+            <p className="home-data-value mt-3 text-2xl font-black text-[#0f766e]">{snapshot ? formatMoney(snapshot.totalValueUsd) : "-"}</p>
             <p className="mt-1 text-sm text-slate-500">{copy.home.portfolioBody}</p>
             {snapshot ? (
               <>
@@ -563,7 +940,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                     ]}
                   />
                 </div>
-                <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+                <div className="home-calculation-card mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#0f766e]">
                     {locale === "en" ? "Calculation check" : "Hesap kontrolü"}
                   </p>
@@ -599,35 +976,58 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </PremiumCard>
         </div>
 
-        <PremiumCard interactive className="p-5">
-          <h2 className="text-lg font-black text-[#152033]">{copy.home.portfolioChange}</h2>
+        <PremiumCard interactive className="home-change-data-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="home-data-eyebrow">{locale === "tr" ? "Trend önizleme" : "Trend preview"}</p>
+              <h2 className="mt-1 text-lg font-black text-[#152033]">{copy.home.portfolioChange}</h2>
+            </div>
+            <HomeMotionCue variant="signal" />
+          </div>
           <div className="mt-4 grid gap-4">
             {chartPeriods.length === 0 ? (
               <p className="text-sm text-slate-500">{user ? copy.home.noEnoughData : copy.home.chartLogin}</p>
-            ) : chartPeriods.map((period) => (
-              <div key={period.label} className="rounded-md bg-[#f8fafc] p-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="font-black text-[#152033]">{copy.home.periodLabels[period.key]}</p>
-                  <div className="text-right">
-                    <p className={period.change === null ? "font-black portfolio-neutral-text" : period.change >= 0 ? "font-black portfolio-profit-text" : "font-black portfolio-loss-text"}>
-                      {period.change === null ? "-" : formatPercent(period.change)}
-                    </p>
-                    {period.source === "modeled" ? <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{copy.home.modeled}</p> : null}
+            ) : chartPeriods.map((period) => {
+              const hasTrendData = period.change !== null && period.points.length >= 2;
+
+              return (
+                <div key={period.label} className="home-period-card rounded-md bg-[#f8fafc] p-4">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="font-black text-[#152033]">{copy.home.periodLabels[period.key]}</p>
+                    <div className="text-right">
+                      <p className={period.change === null ? "font-black portfolio-neutral-text" : period.change >= 0 ? "font-black portfolio-profit-text" : "font-black portfolio-loss-text"}>
+                        {hasTrendData && period.change !== null ? formatPercent(period.change) : "-"}
+                      </p>
+                      {!hasTrendData ? <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{copy.home.historyPending}</p> : null}
+                    </div>
                   </div>
+                  {hasTrendData ? (
+                    <MiniLineChart points={period.points} />
+                  ) : (
+                    <div className="home-period-empty" role="status">
+                      <span aria-hidden="true" />
+                      <p>{copy.home.historyPendingBody}</p>
+                    </div>
+                  )}
                 </div>
-                <MiniLineChart points={period.points} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </PremiumCard>
 
-        <PremiumCard interactive className="p-5">
-          <h2 className="text-lg font-black text-[#152033]">{copy.home.rankings}</h2>
+        <PremiumCard interactive className="home-ranking-data-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="home-data-eyebrow">{locale === "tr" ? "Topluluk konumu" : "Community position"}</p>
+              <h2 className="mt-1 text-lg font-black text-[#152033]">{copy.home.rankings}</h2>
+            </div>
+            <HomeMotionCue variant="badge" />
+          </div>
           <div className="mt-4 grid gap-3">
             {rankingPeriods.length === 0 ? (
               <p className="text-sm text-slate-500">{user ? copy.home.noEnoughData : copy.home.rankingLogin}</p>
             ) : rankingPeriods.map((period) => (
-              <div key={period.label} className="rounded-md bg-[#f8fafc] p-4">
+              <div key={period.label} className="home-ranking-period-card rounded-md bg-[#f8fafc] p-4">
                 <p className="font-black text-[#152033]">{translateRankingPeriod(period.label, copy.home.periodLabels)}</p>
                 <p className="mt-1 text-sm text-slate-600">{copy.home.overall}: {period.overall}/{period.totalUsers}</p>
                 <p className="mt-1 text-sm text-slate-600">
@@ -738,15 +1138,20 @@ function ShowcaseListCard({
   };
 
   return (
-    <div className="min-w-0 rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
-      <p className="text-sm font-black text-[#152033]">{title}</p>
-      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{caption}</p>
+    <div className="home-showcase-list-card min-w-0 rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-[#152033]">{title}</p>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{caption}</p>
+        </div>
+        <span className="home-showcase-signal" aria-hidden="true" />
+      </div>
       <div className="mt-4 grid gap-3">
         {items.length === 0 ? (
           <p className="text-sm text-slate-500">{emptyLabel}</p>
         ) : (
           items.map((item, index) => (
-            <div key={`${item.title}-${index}`} className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-white p-3">
+            <div key={`${item.title}-${index}`} className="home-showcase-row flex min-w-0 items-center justify-between gap-3 rounded-xl bg-white p-3">
               <div className="min-w-0 flex-1">
                 <p className="break-words text-sm font-black text-[#152033]">{item.title}</p>
                 <p className="mt-1 break-words text-xs text-slate-500">{item.meta}</p>
@@ -755,6 +1160,33 @@ function ShowcaseListCard({
             </div>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+function MetricVisualCard({
+  metric,
+  index,
+}: {
+  metric: { value: string; label: string; body: string };
+  index: number;
+}) {
+  const progress = [78, 66, 52][index] ?? 60;
+
+  return (
+    <div className={`home-metric-visual-card home-metric-visual-card--${index + 1}`}>
+      <div className="home-metric-ring" style={{ "--metric-progress": `${progress}%` } as CSSProperties}>
+        <span>{metric.value}</span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-black text-[#0f766e]">{metric.label}</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{metric.body}</p>
+        <div className="home-metric-spark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
       </div>
     </div>
   );
@@ -794,6 +1226,88 @@ function getHeroStats(locale: string) {
     { value: "0", label: "Gerçek para riski", body: "Karar pratiğini simülasyon öncelikli güvenli alanda yap." },
     { value: "3", label: "Günlük makro rapor", body: "Sabah, öğlen ve akşam piyasa ritmini takip et." },
     { value: "7/24", label: "Öğrenme zemini", body: "Piyasa verisi, sıralama ve AI bağlamına her dönüşünde ulaş." },
+  ] as const;
+}
+
+function getVividFeatureCards(locale: string) {
+  if (locale === "en") {
+    return [
+      {
+        icon: "01",
+        title: "Virtual portfolio competition",
+        body: "Practice on real market data with zero real-money risk and make your learning process visible.",
+        href: `/${locale}/islem-yap`,
+      },
+      {
+        icon: "AI",
+        title: "AI Market Assistant",
+        body: "Turn complex market data into a calmer educational reading frame before acting.",
+        href: `/${locale}/ai-piyasa-asistani`,
+      },
+      {
+        icon: "07",
+        title: "Daily macro reports",
+        body: "Follow morning, midday, and evening market context without drowning in noise.",
+        href: `/${locale}/ai-piyasa-asistani/raporlar`,
+      },
+      {
+        icon: "LG",
+        title: "Leagues and leadership",
+        body: "Compete with your community and compare portfolio discipline through transparent rankings.",
+        href: `/${locale}/ligler`,
+      },
+      {
+        icon: "ED",
+        title: "Financial literacy",
+        body: "Build the habit of reading risk, balance sheets, macro data, crypto, and asset allocation.",
+        href: `/${locale}/egitim`,
+      },
+      {
+        icon: "CM",
+        title: "Community learning",
+        body: "Use chat, rooms, polls, and shared discussion to keep market learning social.",
+        href: `/${locale}/sohbet`,
+      },
+    ] as const;
+  }
+
+  return [
+    {
+      icon: "01",
+      title: "Sanal Portföy Yarışması",
+      body: "Gerçek piyasa verileriyle sıfır gerçek para riski alarak işlem pratiği yap, öğrenme sürecini görünür kıl.",
+      href: `/${locale}/islem-yap`,
+    },
+    {
+      icon: "AI",
+      title: "AI Piyasa Asistanı",
+      body: "Karmaşık piyasa verilerini, karar almadan önce daha sakin bir eğitim çerçevesine dönüştür.",
+      href: `/${locale}/ai-piyasa-asistani`,
+    },
+    {
+      icon: "07",
+      title: "Günlük Makro Raporlar",
+      body: "Sabah, gün ortası ve akşam piyasa bağlamını gürültüye boğulmadan takip et.",
+      href: `/${locale}/ai-piyasa-asistani/raporlar`,
+    },
+    {
+      icon: "LG",
+      title: "Ligler ve Liderlik",
+      body: "Topluluğunla yarış, portföy disiplinini şeffaf sıralamalar üzerinden karşılaştır.",
+      href: `/${locale}/ligler`,
+    },
+    {
+      icon: "ED",
+      title: "Finansal Okuryazarlık",
+      body: "Risk, bilanço, makro veri, kripto ve portföy dağılımı okuma alışkanlığı kazan.",
+      href: `/${locale}/egitim`,
+    },
+    {
+      icon: "CM",
+      title: "Topluluk Öğrenmesi",
+      body: "Sohbet, özel oda, anket ve ortak tartışmalarla piyasa öğrenmesini sosyal hale getir.",
+      href: `/${locale}/sohbet`,
+    },
   ] as const;
 }
 
@@ -1023,46 +1537,6 @@ function getStrategicCards(locale: string) {
   ] as const;
 }
 
-function getCommunitySteps(locale: string) {
-  if (locale === "en") {
-    return [
-      {
-        title: "Create the league",
-        metric: "Step 1",
-        body: "Define a Rotary-focused league and bring members in with direct joining and clear roles.",
-      },
-      {
-        title: "Learn with scenarios",
-        metric: "Step 2",
-        body: "Use the education pages, AI insights, and portfolio flow to turn market movements into repeatable learning moments.",
-      },
-      {
-        title: "Keep members engaged",
-        metric: "Step 3",
-        body: "Announcements, rankings, and weekly portfolio changes create a social rhythm people want to return to.",
-      },
-    ] as const;
-  }
-
-  return [
-    {
-      title: "Ligi kur",
-      metric: "Adım 1",
-      body: "Rotary odağında bir lig tanımla; doğrudan katılım ve rol netliğiyle üyeleri güvenli biçimde içeri al.",
-    },
-    {
-      title: "Senaryolarla öğret",
-      metric: "Adım 2",
-      body: "Eğitim sayfaları, AI içgörüleri ve portföy akışı ile piyasa hareketlerini tekrarlanabilir öğrenme anlarına dönüştür.",
-    },
-    {
-      title: "Katılımı diri tut",
-      metric: "Adım 3",
-      body: "Duyurular, sıralamalar ve haftalık portföy değişimi kullanıcıların geri dönmek isteyeceği sosyal bir ritim kurar.",
-    },
-  ] as const;
-}
-
 function getTrustHighlights(locale: string) {
   if (locale === "en") {
     return [
@@ -1199,10 +1673,15 @@ function formatPercent(value: number, signed = false) {
 
 function NewsList({ title, items }: { title: string; items: readonly string[] }) {
   return (
-    <PremiumCard interactive className="p-5">
-      <h2 className="text-lg font-black text-[#152033]">{title}</h2>
+    <PremiumCard interactive className="home-news-card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-lg font-black text-[#152033]">{title}</h2>
+        <HomeMotionCue variant="line" />
+      </div>
       <div className="mt-4 grid gap-3">
-        {items.map((item) => <p key={item} className="text-sm leading-6 text-slate-600">{item}</p>)}
+        {items.map((item) => (
+          <p key={item} className="home-news-row text-sm leading-6 text-slate-600">{item}</p>
+        ))}
       </div>
     </PremiumCard>
   );
