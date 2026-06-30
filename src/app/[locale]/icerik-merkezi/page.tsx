@@ -24,6 +24,21 @@ export default async function ContentHubPage({ params }: { params: Promise<{ loc
   const dateFormatter = new Intl.DateTimeFormat(isEnglish ? "en-US" : "tr-TR", { dateStyle: "medium" });
 
   const items: ContentHubItem[] = [
+    {
+      id: "tool-risk-appetite-test",
+      kind: "SITE_GUIDE" as const,
+      kindLabel: isEnglish ? "Risk Test" : "Risk Testi",
+      href: `/${locale}/risk-istahi-testi`,
+      title: isEnglish ? "Risk Appetite Test" : "Risk İştahı Testi",
+      excerpt: isEnglish
+        ? "Discover your risk profile across uncertainty, loss tolerance, stocks, crypto, FX, and gold decisions."
+        : "Belirsizlik, kayıp toleransı, borsa, kripto, döviz ve altın kararlarında risk profilini keşfet.",
+      body: isEnglish
+        ? "The 35-question Risk Appetite Test analyzes your risk appetite for education and awareness so you can use the virtual portfolio experience more consciously."
+        : "35 soruluk Risk İştahı Testi, sanal portföy deneyimini daha bilinçli kullanman için risk iştahını eğitim amaçlı analiz eder.",
+      featured: true,
+      publishedLabel: null,
+    },
     ...siteGuideArticles.map((article) => ({
       id: `site-${article.id}`,
       kind: "SITE_GUIDE" as const,

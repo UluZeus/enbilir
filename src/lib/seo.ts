@@ -245,6 +245,18 @@ const pageSeo = {
         "The Enbilir content hub brings blog articles, financial-literacy education, and site guides together with search, filters, and a practical reading path.",
     },
   },
+  riskTest: {
+    tr: {
+      title: "Risk İştahı Testi | Enbilir Sanal Portföy Risk Profili",
+      description:
+        "35 soruluk Risk İştahı Testi ile piyasalarda belirsizlik, kayıp, borsa, kripto, döviz, altın ve sanal portföy kararlarına yaklaşımınızı eğitim amacıyla keşfedin.",
+    },
+    en: {
+      title: "Risk Appetite Test | Enbilir Virtual Portfolio Risk Profile",
+      description:
+        "Explore your risk appetite across uncertainty, losses, stocks, crypto, FX, gold, and virtual portfolio decisions with an educational Enbilir test.",
+    },
+  },
   leagues: {
     tr: {
       title: "Ligler ve Portföy Yarışmaları | Enbilir",

@@ -33,6 +33,7 @@ const accountNav = [
 
 const productNav = [
   { href: "islem-yap", label: "trade", tone: "trade" },
+  { href: "risk-istahi-testi", label: "riskTest", tone: "trade" },
   { href: "ai-piyasa-asistani", label: "ai", tone: "ai" },
 ] as const;
 
