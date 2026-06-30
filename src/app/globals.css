@@ -10,6 +10,8 @@
 :root {
   --background: #f6f1ed;
   --foreground: #49494b;
+  --off-white: #fffaf6;
+  --off-white-soft: #f8efe7;
   --rose-gold: #bd8c7d;
   --soft-gold: #d1bfa7;
   --silver: #8e8e90;
@@ -417,13 +419,75 @@ textarea::placeholder {
 .premium-card--dark :where(p, li, span),
 .premium-dark :where(p, li, span),
 .hero-visual :where(p, li, span) {
-  color: rgb(255 250 246 / 78%);
+  color: var(--off-white);
 }
 
 .premium-card--dark :where(.text-slate-400, .text-slate-500, .text-slate-600),
 .premium-dark :where(.text-slate-400, .text-slate-500, .text-slate-600),
 .hero-visual :where(.text-slate-400, .text-slate-500, .text-slate-600) {
-  color: rgb(255 250 246 / 68%) !important;
+  color: var(--off-white) !important;
+}
+
+.visual-shell
+  :where(
+    .premium-card--dark,
+    .premium-dark,
+    .hero-visual,
+    .home-premium-hero,
+    .market-news-panel,
+    .macro-report-hero,
+    .macro-empty-state,
+    .risk-print-hide,
+    .ai-scenario-lab,
+    .ai-scenario-card,
+    .ai-market-chat-panel,
+    .terminal-header-panel,
+    .terminal-header-metric,
+    .terminal-header-status,
+    .education-growth-path,
+    .panel-growth-command,
+    .admin-growth-command,
+    .league-detail-hero,
+    [class*="bg-[#101827]"],
+    [class*="bg-[#08111f]"],
+    [class*="bg-[#030711]"],
+    [class*="bg-slate-950"],
+    [class*="bg-slate-900"],
+    [class*="bg-black/"]
+  )
+  :where(.text-white, .text-white\/90, .text-slate-100, .text-slate-200, .text-slate-300, .text-slate-400, .text-stone-200, .text-stone-300) {
+  color: var(--off-white) !important;
+}
+
+.visual-shell
+  :where(
+    .premium-card--dark,
+    .premium-dark,
+    .hero-visual,
+    .home-premium-hero,
+    .market-news-panel,
+    .macro-report-hero,
+    .macro-empty-state,
+    .risk-print-hide,
+    .ai-scenario-lab,
+    .ai-scenario-card,
+    .ai-market-chat-panel,
+    .terminal-header-panel,
+    .terminal-header-metric,
+    .terminal-header-status,
+    .education-growth-path,
+    .panel-growth-command,
+    .admin-growth-command,
+    .league-detail-hero,
+    [class*="bg-[#101827]"],
+    [class*="bg-[#08111f]"],
+    [class*="bg-[#030711]"],
+    [class*="bg-slate-950"],
+    [class*="bg-slate-900"],
+    [class*="bg-black/"]
+  )
+  :where(.text-slate-500, .text-slate-600) {
+  color: var(--off-white-soft) !important;
 }
 
 .premium-cta,
@@ -6005,6 +6069,45 @@ body:has(.site-modern-academy) .mobile-menu-button--advanced {
 .ai-market-chat-panel :where(.bg-cyan-100, .bg-emerald-100, .text-slate-950) {
   color: #06111f !important;
   text-shadow: none !important;
+}
+
+/* Final contrast pass: keep muted text on dark surfaces as solid off-white. */
+.usage-guide-welcome-modal :where(h2, p, button) {
+  color: var(--off-white) !important;
+}
+
+.visual-shell
+  :where(
+    .premium-card--dark,
+    .premium-dark,
+    .hero-visual,
+    .home-premium-hero,
+    .market-news-panel,
+    .macro-report-hero,
+    .macro-empty-state,
+    .risk-print-hide,
+    .ai-command-hero,
+    .ai-command-metric,
+    .ai-scenario-lab,
+    .ai-scenario-card,
+    .ai-market-chat-panel,
+    .terminal-header-panel,
+    .terminal-header-metric,
+    .terminal-header-status,
+    .education-growth-path,
+    .panel-growth-command,
+    .admin-growth-command,
+    .league-detail-hero,
+    [class*="bg-[#101827]"],
+    [class*="bg-[#08111f]"],
+    [class*="bg-[#030711]"],
+    [class*="bg-slate-950"],
+    [class*="bg-slate-900"],
+    [class*="bg-black/"]
+  )
+  :where(.text-white, .text-white\/90, .text-slate-100, .text-slate-200, .text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600, .text-stone-200, .text-stone-300) {
+  color: var(--off-white) !important;
+  opacity: 1 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
