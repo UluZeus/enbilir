@@ -59,7 +59,7 @@ export default async function AiMarketReportsPage({
               <h1 className="mt-2 text-3xl font-black md:text-5xl">{isEnglish ? "Daily and weekly macro reports" : "Günlük ve haftalık makro raporlar"}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300 md:text-base md:leading-8">
                 {isEnglish
-                  ? "The AI agent reads macro conditions, news flow, technical context, and favorite assets at 07:00, 12:00, and 18:00 Türkiye time. On Mondays it also publishes a broader weekly report that reviews the previous week and frames the week ahead."
+                  ? "The AI agent reads macro conditions, news flow, technical context, and favorite assets at 07:00, 12:00, and 18:00 Turkey time. On Mondays it also publishes a broader weekly report that reviews the previous week and frames the week ahead."
                   : "AI ajanı Türkiye saatiyle 07.00, 12.00 ve 18.00'de makro konjonktürü, haber akışını, teknik bağlamı ve favori varlıkları birlikte okur. Pazartesi günleri ayrıca önceki haftayı ve içinde bulunulan haftayı daha geniş perspektifle anlatan haftalık rapor yayınlar."}
               </p>
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">

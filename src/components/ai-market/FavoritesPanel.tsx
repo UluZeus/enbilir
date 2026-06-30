@@ -5,6 +5,7 @@ import { getUiCopy } from "@/i18n/ui-copy";
 import { getAssetUniverseItem, STATIC_ASSET_UNIVERSE } from "@/lib/ai-market/asset-universe";
 import { AI_MARKET_FAVORITES_STORAGE_KEY, DEFAULT_AI_MARKET_FAVORITES } from "@/lib/ai-market/favorite-defaults";
 import type { AssetClass, WatchSymbol } from "@/lib/ai-market/types";
+import { localizeMarketText } from "@/lib/market-data";
 
 export { AI_MARKET_FAVORITES_STORAGE_KEY, DEFAULT_AI_MARKET_FAVORITES };
 
@@ -89,7 +90,10 @@ export function FavoritesPanel({
   const supportedSymbols = new Set(symbols.map((item) => item.symbol));
   const groupedFavorites = favoriteGroupsLocalized.map((group) => ({
     ...group,
-    assets: favorites.map((symbol) => getKnownAsset(symbol, symbols)).filter((asset) => asset.assetClass === group.key),
+    assets: favorites
+      .map((symbol) => getKnownAsset(symbol, symbols))
+      .filter((asset) => asset.assetClass === group.key)
+      .map((asset) => ({ ...asset, name: localizeMarketText(asset.name, safeLocale) })),
   }));
 
   return (

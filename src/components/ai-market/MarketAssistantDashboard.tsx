@@ -106,10 +106,11 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
       symbol: effectiveSelectedSymbol,
       exchange,
       interval,
+      locale: safeLocale,
     });
 
     return `/api/ai-market/analyze?${params.toString()}`;
-  }, [effectiveSelectedSymbol, exchange, interval]);
+  }, [effectiveSelectedSymbol, exchange, interval, safeLocale]);
 
   const performanceRequestUrl = useMemo(() => {
     const params = new URLSearchParams({

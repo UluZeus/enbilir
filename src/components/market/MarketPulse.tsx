@@ -1,4 +1,4 @@
-import { formatMarketItemPrice, type MarketItem } from "@/lib/market-data";
+import { formatMarketItemPrice, localizeMarketItem, type MarketItem } from "@/lib/market-data";
 
 type MarketPulseProps = {
   locale: string;
@@ -13,25 +13,27 @@ function formatUpdatedCount(value: number, locale: string) {
 }
 
 function TrendRow({ label, item, locale }: { label: string; item: MarketItem | undefined; locale: string }) {
+  const localizedItem = item ? localizeMarketItem(item, locale) : undefined;
+
   return (
     <div className="rounded-2xl border border-white/60 bg-white/80 p-4 shadow-sm backdrop-blur">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      {item ? (
+      {localizedItem ? (
         <div className="mt-2 grid gap-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-black text-[#152033]">{item.symbol}</p>
-              <p className="truncate text-xs font-semibold text-slate-500">{item.name}</p>
-              <p className="mt-1 text-[11px] font-bold text-slate-500">{formatMarketItemPrice(item)}</p>
+              <p className="truncate text-sm font-black text-[#152033]">{localizedItem.symbol}</p>
+              <p className="truncate text-xs font-semibold text-slate-500">{localizedItem.name}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-500">{formatMarketItemPrice(localizedItem)}</p>
             </div>
-            <p className={`shrink-0 text-sm font-black ${item.changePercent >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-              {item.changePercent >= 0 ? "+" : ""}
-              {item.changePercent.toFixed(2)}%
+            <p className={`shrink-0 text-sm font-black ${localizedItem.changePercent >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+              {localizedItem.changePercent >= 0 ? "+" : ""}
+              {localizedItem.changePercent.toFixed(2)}%
             </p>
           </div>
           <div className="flex items-center justify-between gap-3 text-xs font-semibold text-slate-500">
-            <span>{item.market}</span>
-            <span>{formatMarketItemPrice(item)}</span>
+            <span>{localizedItem.market}</span>
+            <span>{formatMarketItemPrice(localizedItem)}</span>
           </div>
         </div>
       ) : (

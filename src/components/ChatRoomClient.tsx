@@ -199,6 +199,22 @@ function formatTime(value: string, locale: string) {
   }).format(new Date(value));
 }
 
+function getRoomDisplayName(room: Pick<ChatRoom, "code" | "name" | "type">, locale: string) {
+  if (locale !== "en") {
+    return room.name;
+  }
+
+  if (room.type === "GENERAL" || room.code === "genel" || room.name === "Genel Sohbet") {
+    return "General Chat";
+  }
+
+  if (room.name.endsWith(" Sohbet")) {
+    return `${room.name.slice(0, -" Sohbet".length)} Chat`;
+  }
+
+  return room.name;
+}
+
 export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCode, initialState }: ChatRoomClientProps) {
   const copy = useMemo(() => getCopy(locale), [locale]);
   const [state, setState] = useState<ChatState | null>(initialState);
@@ -530,7 +546,7 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
           {state ? (
             <div className="rounded-lg border border-slate-200 bg-[#f8fafc] px-4 py-3 text-sm">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{copy.currentRoom}</p>
-              <p className="mt-1 font-black text-[#152033]">{state.room.name}</p>
+              <p className="mt-1 font-black text-[#152033]">{getRoomDisplayName(state.room, locale)}</p>
             </div>
           ) : null}
         </div>
@@ -567,7 +583,7 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
                         : "border-slate-200 bg-white text-[#152033] hover:border-[#0f766e]"
                     }`}
                   >
-                    {room.name}
+                    {getRoomDisplayName(room, locale)}
                   </button>
                 ))}
               </div>
@@ -616,7 +632,7 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
                           : "border-slate-200 bg-white text-[#152033] hover:border-[#152033]"
                       }`}
                     >
-                      <span className="block truncate">{room.name}</span>
+                      <span className="block truncate">{getRoomDisplayName(room, locale)}</span>
                       <span className="mt-1 block text-xs font-semibold opacity-75">{room.code}</span>
                     </button>
                   ))}
@@ -630,7 +646,7 @@ export function ChatRoomClient({ locale, authenticated, loginHref, initialRoomCo
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-black text-[#152033]">{state?.room.name ?? copy.loading}</h2>
+                    <h2 className="text-xl font-black text-[#152033]">{state ? getRoomDisplayName(state.room, locale) : copy.loading}</h2>
                     {state ? (
                       <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-200">
                         {state.room.type === "PRIVATE" ? copy.privateBadge : copy.generalBadge}

@@ -26,6 +26,7 @@ import { getAds } from "@/lib/ads";
 import { getSessionUser } from "@/lib/auth";
 import { getDisplayName } from "@/lib/auth";
 import { defaultBadges } from "@/lib/badges";
+import { getLeagueNameForLocale } from "@/lib/default-leagues";
 import { getEconomyHeadlines } from "@/lib/economy-news";
 import { getFallbackMarketItems, getLiveMarketItems, getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getUserRankingPeriods } from "@/lib/leaderboard";
@@ -36,7 +37,7 @@ import { calculateCompetitionProfitLossUsd, calculateCompetitionReturnPercent, f
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata, stringifyJsonLd } from "@/lib/seo";
 import type { DisplayAd } from "@/lib/ads";
-import type { MarketItem } from "@/lib/market-data";
+import { localizeMarketText, type MarketItem } from "@/lib/market-data";
 
 type UserRankingPeriod = Awaited<ReturnType<typeof getUserRankingPeriods>>[number];
 
@@ -89,7 +90,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const rankingPeriods = settledValue<UserRankingPeriod[]>(rankingPeriodsResult, []);
   const leaderboardHighlights = settledValue<LeaderboardHighlight[]>(leaderboardHighlightsResult, []);
   const activeLeagueHighlights = settledValue<LeagueHighlight[]>(activeLeagueHighlightsResult, []);
-  const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot) : [];
+  const breakdownItems = snapshot ? getPortfolioBreakdownItems(snapshot, locale) : [];
   const strategicCards = getStrategicCards(locale);
   const trustHighlights = getTrustHighlights(locale);
   const spotlightMetrics = getSpotlightMetrics(locale);
@@ -747,7 +748,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
               title={locale === "tr" ? "En aktif ligler" : "Most active leagues"}
               caption={locale === "tr" ? "Üye sayısına göre" : "By member count"}
               items={activeLeagueHighlights.slice(0, 3).map((item) => ({
-                title: item.name,
+                title: getLeagueNameForLocale(item.name, item.slug, locale),
                 value: locale === "tr" ? `${item.memberCount} üye` : `${item.memberCount} members`,
                 meta: formatLeagueTypeLabel(item.typeLabel, locale),
               }))}
@@ -823,12 +824,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           <p>{locale === "tr" ? "Aktif lig görünümü" : "Active league view"}</p>
           <div className="home-vivid-community-list">
             {(activeLeagueHighlights.length ? activeLeagueHighlights.slice(0, 4) : [
-              { name: "ROTARYEN", typeLabel: "ROTARY", memberCount: 0 },
-              { name: "ROTARACT", typeLabel: "ROTARACT", memberCount: 0 },
-              { name: locale === "tr" ? "SERBEST" : "PUBLIC", typeLabel: "GENERAL", memberCount: 0 },
+              { name: "ROTARYEN", slug: "rotaryen", typeLabel: "ROTARY", memberCount: 0 },
+              { name: "ROTARACT", slug: "rotaract", typeLabel: "ROTARACT", memberCount: 0 },
+              { name: locale === "tr" ? "SERBEST" : "PUBLIC", slug: "serbest", typeLabel: "GENERAL", memberCount: 0 },
             ]).map((league) => (
               <div key={league.name}>
-                <span>{league.name}</span>
+                <span>{getLeagueNameForLocale(league.name, league.slug, locale)}</span>
                 <strong>{locale === "tr" ? `${league.memberCount} üye` : `${league.memberCount} members`}</strong>
               </div>
             ))}
@@ -932,7 +933,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
                         return {
                           label: position.symbol,
-                          detail: position.name,
+                          detail: localizeMarketText(position.name, locale),
                           value: position.valueUsd,
                           profitLossPercent: costUsd > 0 ? (position.profitLossUsd / costUsd) * 100 : null,
                         };
@@ -964,7 +965,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                   </div>
                 </div>
                 <div className="mt-4">
-                  <PortfolioBreakdown items={breakdownItems} compact />
+                  <PortfolioBreakdown items={breakdownItems} compact locale={locale} />
                 </div>
                 <PerformanceBadges periods={chartPeriods} copy={copy.home} />
               </>
@@ -1056,6 +1057,7 @@ type LeaderboardHighlight = {
 
 type LeagueHighlight = {
   name: string;
+  slug: string;
   typeLabel: string;
   memberCount: number;
 };
@@ -1107,6 +1109,7 @@ async function getActiveLeagueHighlights(): Promise<LeagueHighlight[]> {
     .slice(0, 5)
     .map((league) => ({
       name: league.name,
+      slug: league.slug,
       typeLabel: league.type,
       memberCount: league._count.memberships,
     }));

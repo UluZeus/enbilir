@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getSafeLocale, type Locale } from "@/i18n/config";
+import { localizeAiRecommendation } from "@/lib/ai-market/localization";
 import type { WatchSymbol } from "@/lib/ai-market/types";
 
 type PerformanceSignal = {
@@ -246,7 +247,7 @@ function BarList({ rows }: { rows: Breakdown[] }) {
   );
 }
 
-function SignalTable({ title, signals, copy }: { title: string; signals: PerformanceSignal[]; copy: PerformanceCopy }) {
+function SignalTable({ title, signals, copy, locale }: { title: string; signals: PerformanceSignal[]; copy: PerformanceCopy; locale: Locale }) {
   return (
     <section className="rounded-md border border-slate-800 bg-[#080d16] p-3">
       <h2 className="text-base font-black text-white">{title}</h2>
@@ -273,7 +274,7 @@ function SignalTable({ title, signals, copy }: { title: string; signals: Perform
                 <td className="px-3 py-3">{new Date(signal.createdAt).toLocaleString()}</td>
                 <td className="px-3 py-3 font-black text-white">{signal.symbol}</td>
                 <td className="px-3 py-3">{signal.interval}</td>
-                <td className="px-3 py-3">{signal.recommendationText ?? signal.signalType}</td>
+                <td className="px-3 py-3">{localizeAiRecommendation(signal.recommendationText, locale) ?? signal.signalType}</td>
                 <td className="px-3 py-3">{formatNumber(signal.priceAtSignal)}</td>
                 <td className="px-3 py-3">{formatNumber(signal.evaluation?.priceAtEvaluation)}</td>
                 <td className={`px-3 py-3 font-black ${resultClass(signal)}`}>{formatNumber(signal.evaluation?.priceChangePercent, "%")}</td>
@@ -411,11 +412,11 @@ export function AiSignalPerformanceDashboard({ locale, symbols }: Props) {
             </section>
 
             <section className="grid gap-4 xl:grid-cols-2">
-              <SignalTable title={copy.bestTen} signals={data.bestSignals} copy={copy} />
-              <SignalTable title={copy.worstTen} signals={data.worstSignals} copy={copy} />
+              <SignalTable title={copy.bestTen} signals={data.bestSignals} copy={copy} locale={safeLocale} />
+              <SignalTable title={copy.worstTen} signals={data.worstSignals} copy={copy} locale={safeLocale} />
             </section>
 
-            <SignalTable title={copy.table} signals={data.recentSignals} copy={copy} />
+            <SignalTable title={copy.table} signals={data.recentSignals} copy={copy} locale={safeLocale} />
           </>
         ) : null}
 

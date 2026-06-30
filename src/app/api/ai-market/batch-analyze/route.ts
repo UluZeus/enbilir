@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAssetUniverseItem } from "@/lib/ai-market/asset-universe";
 import { fetchBinanceCandles } from "@/lib/ai-market/binance-public";
-import { AI_MARKET_DISCLAIMER, buildExplanation } from "@/lib/ai-market/explanation-engine";
+import { buildExplanation, getAiMarketDisclaimer } from "@/lib/ai-market/explanation-engine";
 import { fetchGateCandles } from "@/lib/ai-market/gate-public";
 import { calculateIndicators, calculateTechnicalSeries } from "@/lib/ai-market/indicators";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
@@ -30,6 +30,7 @@ type BatchAnalyzeBody = {
   symbols?: unknown;
   exchange?: unknown;
   interval?: unknown;
+  locale?: unknown;
 };
 
 type BatchAnalyzeSuccess = {
@@ -56,6 +57,10 @@ function normalizeExchange(value: unknown): MarketExchange {
 
 function normalizeInterval(value: unknown) {
   return typeof value === "string" && allowedIntervals.has(value) ? value : "1h";
+}
+
+function normalizeLocale(value: unknown): "tr" | "en" {
+  return value === "en" ? "en" : "tr";
 }
 
 function normalizeSymbols(value: unknown) {
@@ -145,6 +150,7 @@ function buildAnalysis(
   exchange: MarketExchange,
   interval: string,
   candles: Candle[],
+  locale: "tr" | "en",
 ): BatchAnalyzeSuccess["analysis"] {
   const indicators = calculateIndicators(candles);
   const signal = analyzeSignal(candles, indicators);
@@ -168,19 +174,19 @@ function buildAnalysis(
   return {
     ...base,
     technicalSeries: calculateTechnicalSeries(candles, 100),
-    explanation: buildExplanation(base),
-    disclaimer: AI_MARKET_DISCLAIMER,
+    explanation: buildExplanation(base, locale),
+    disclaimer: getAiMarketDisclaimer(locale),
   };
 }
 
-async function analyzeOne(symbolValue: string, exchange: MarketExchange, interval: string): Promise<BatchAnalyzeSuccess | BatchAnalyzeFailure> {
+async function analyzeOne(symbolValue: string, exchange: MarketExchange, interval: string, locale: "tr" | "en"): Promise<BatchAnalyzeSuccess | BatchAnalyzeFailure> {
   const symbol = getBatchSymbol(symbolValue);
 
   if (!symbol) {
     return {
       symbol: symbolValue,
       ok: false,
-      error: "Gecersiz veya desteklenmeyen sembol.",
+      error: locale === "en" ? "Invalid or unsupported symbol." : "Gecersiz veya desteklenmeyen sembol.",
     };
   }
 
@@ -191,20 +197,20 @@ async function analyzeOne(symbolValue: string, exchange: MarketExchange, interva
       return {
         symbol: symbol.symbol,
         ok: false,
-        error: "Analiz icin yeterli public mum verisi bulunamadi.",
+        error: locale === "en" ? "Not enough public candle data for analysis." : "Analiz icin yeterli public mum verisi bulunamadi.",
       };
     }
 
     return {
       symbol: symbol.symbol,
       ok: true,
-      analysis: buildAnalysis(symbol, dataExchange, interval, candles),
+      analysis: buildAnalysis(symbol, dataExchange, interval, candles, locale),
     };
   } catch (error) {
     return {
       symbol: symbol.symbol,
       ok: false,
-      error: error instanceof Error ? error.message : "Public piyasa verisi alinamadi.",
+      error: error instanceof Error ? error.message : locale === "en" ? "Public market data could not be loaded." : "Public piyasa verisi alinamadi.",
     };
   }
 }
@@ -228,7 +234,8 @@ export async function POST(request: Request) {
   const symbols = normalizedSymbols.slice(0, MAX_BATCH_SYMBOLS);
   const exchange = normalizeExchange(body.exchange);
   const interval = normalizeInterval(body.interval);
-  const results = await Promise.all(symbols.map((symbol) => analyzeOne(symbol, exchange, interval)));
+  const locale = normalizeLocale(body.locale);
+  const results = await Promise.all(symbols.map((symbol) => analyzeOne(symbol, exchange, interval, locale)));
 
   await Promise.all(
     results.map((result) => {

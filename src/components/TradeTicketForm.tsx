@@ -7,7 +7,7 @@ import { TechnicalIndicatorCharts } from "@/components/ai-market/TechnicalIndica
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import type { MarketAnalysis } from "@/lib/ai-market/types";
-import { formatMarketItemPrice, type MarketItem } from "@/lib/market-data";
+import { formatMarketItemPrice, localizeMarketItems, type MarketItem } from "@/lib/market-data";
 import type { TradeActionState, tradeAction } from "@/lib/actions";
 import { getTradeAnalysisTarget } from "@/lib/trade-watch";
 
@@ -139,20 +139,21 @@ export function TradeTicketForm({
   const safeLocale = getSafeLocale(locale);
   const copy = getUiCopy(safeLocale).trade;
   const [state, formAction] = useActionState<TradeActionState, FormData>(action, { ok: false, message: "" });
+  const localizedInitialItems = useMemo(() => localizeMarketItems(marketItems, safeLocale), [marketItems, safeLocale]);
   const [query, setQuery] = useState(initialSearch);
   const category = initialCategory;
-  const [liveItems, setLiveItems] = useState<MarketItem[]>(marketItems);
+  const [liveItems, setLiveItems] = useState<MarketItem[]>(localizedInitialItems);
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<string | null>(null);
   const [selectedSymbol] = useState<string>(() => {
     const normalizedSymbol = initialSymbol?.trim().toUpperCase() ?? "";
-    if (normalizedSymbol && marketItems.some((item) => item.symbol.toUpperCase() === normalizedSymbol)) {
+    if (normalizedSymbol && localizedInitialItems.some((item) => item.symbol.toUpperCase() === normalizedSymbol)) {
       return normalizedSymbol;
     }
 
-    return marketItems[0]?.symbol ?? "";
+    return localizedInitialItems[0]?.symbol ?? "";
   });
   const [analysisState, setAnalysisState] = useState<AnalysisState>({ status: "idle", analysis: null, error: null });
-  const liveSignatureRef = useRef(buildMarketSignature(marketItems));
+  const liveSignatureRef = useRef(buildMarketSignature(localizedInitialItems));
   const filteredItems = useMemo(() => filterMarketItems(liveItems, category, query), [category, liveItems, query]);
   const selectedItem = useMemo(() => {
     return filteredItems.find((item) => item.symbol === selectedSymbol) ?? filteredItems[0] ?? null;
@@ -192,7 +193,7 @@ export function TradeTicketForm({
           return;
         }
 
-        const nextItems = payload.items.length > 0 ? payload.items : marketItems;
+        const nextItems = localizeMarketItems(payload.items.length > 0 ? payload.items : marketItems, safeLocale);
         const nextSignature = buildMarketSignature(nextItems);
 
         if (nextSignature !== liveSignatureRef.current) {
@@ -203,7 +204,7 @@ export function TradeTicketForm({
         setLiveUpdatedAt(payload.updatedAt ?? null);
       } catch {
         if (active && !requestController.signal.aborted) {
-          setLiveItems((current) => (current.length > 0 ? current : marketItems));
+          setLiveItems((current) => (current.length > 0 ? current : localizedInitialItems));
         }
       }
     }
@@ -216,7 +217,7 @@ export function TradeTicketForm({
       controller?.abort();
       window.clearInterval(refreshId);
     };
-  }, [copy.marketDataUnavailable, marketItems]);
+  }, [copy.marketDataUnavailable, localizedInitialItems, marketItems, safeLocale]);
 
   const analysisTarget = useMemo(() => {
     if (!selectedItemSymbol) {
@@ -339,7 +340,7 @@ export function TradeTicketForm({
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{copy.description}</p>
           </div>
           <div className="grid gap-1 text-left text-xs font-bold text-slate-500 lg:text-right">
-            <p>Son güncelleme</p>
+            <p>{safeLocale === "en" ? "Last update" : "Son güncelleme"}</p>
             <p className="text-sm font-black text-[#152033]">{formatUpdatedAt(liveUpdatedAt, safeLocale)}</p>
           </div>
         </div>
@@ -368,7 +369,7 @@ export function TradeTicketForm({
               </p>
             </div>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
-              30 saniye canlı tarama
+              {safeLocale === "en" ? "30-second live scan" : "30 saniye canlı tarama"}
             </div>
           </div>
 
@@ -446,9 +447,9 @@ export function TradeTicketForm({
         </label>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <TrendBadge label="Görüntülenen" value={String(filteredItems.length)} tone="slate" />
-          <TrendBadge label="Alım / Satım" value="Aktif" tone="green" />
-          <TrendBadge label="Yenileme" value="30 saniye" tone="slate" />
+          <TrendBadge label={safeLocale === "en" ? "Displayed" : "Görüntülenen"} value={String(filteredItems.length)} tone="slate" />
+          <TrendBadge label={safeLocale === "en" ? "Buy / Sell" : "Alım / Satım"} value={safeLocale === "en" ? "Active" : "Aktif"} tone="green" />
+          <TrendBadge label={safeLocale === "en" ? "Refresh" : "Yenileme"} value={safeLocale === "en" ? "30 sec" : "30 saniye"} tone="slate" />
         </div>
       </form>
 
@@ -468,7 +469,7 @@ export function TradeTicketForm({
           <input type="hidden" name="symbol" value={effectiveSelectedSymbol} />
           <div className="flex justify-end">
             <button type="submit" className="rounded-md border border-[#0f766e] bg-[#0f766e] px-4 py-2 text-sm font-black text-white shadow-sm">
-              Ara
+              {safeLocale === "en" ? "Search" : "Ara"}
             </button>
           </div>
         </form>
@@ -529,10 +530,10 @@ export function TradeTicketForm({
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <TrendBadge label="Sembol" value={effectiveSelectedItem.symbol} tone="slate" />
-              <TrendBadge label="Kategori" value={copy.categoryLabels[effectiveSelectedItem.category]} tone="slate" />
-              <TrendBadge label="Piyasa" value={effectiveSelectedItem.market} tone="slate" />
-              <TrendBadge label="Durum" value={copy.statusLabels[effectiveSelectedItem.dataStatus]} tone={effectiveSelectedItem.dataStatus === "live" ? "green" : "slate"} />
+              <TrendBadge label={safeLocale === "en" ? "Symbol" : "Sembol"} value={effectiveSelectedItem.symbol} tone="slate" />
+              <TrendBadge label={safeLocale === "en" ? "Category" : "Kategori"} value={copy.categoryLabels[effectiveSelectedItem.category]} tone="slate" />
+              <TrendBadge label={safeLocale === "en" ? "Market" : "Piyasa"} value={effectiveSelectedItem.market} tone="slate" />
+              <TrendBadge label={safeLocale === "en" ? "Status" : "Durum"} value={copy.statusLabels[effectiveSelectedItem.dataStatus]} tone={effectiveSelectedItem.dataStatus === "live" ? "green" : "slate"} />
             </div>
 
             {analysisState.analysis?.technicalSeries ? (

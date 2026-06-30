@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EconomyHeadline } from "@/lib/economy-news";
-import { formatMarketItemPrice, type MarketItem } from "@/lib/market-data";
+import { formatMarketItemPrice, localizeMarketItem, type MarketItem } from "@/lib/market-data";
 
 type MarketOverviewPayload = {
   updatedAt: string;
@@ -84,11 +84,13 @@ function getSourceLabel(item: MarketItem, locale: string) {
 }
 
 function TrendList({ title, items, locale }: { title: string; items: MarketItem[]; locale: string }) {
+  const localizedItems = items.map((item) => localizeMarketItem(item, locale));
+
   return (
     <div className="market-trend-list rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
       <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-600">{title}</h3>
       <div className="mt-3 grid gap-2">
-        {items.map((item) => (
+        {localizedItems.map((item) => (
           <div key={item.symbol} className="market-trend-row flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
             <div className="min-w-0">
               <p className="market-trend-symbol truncate text-sm font-black text-[#152033]">{item.symbol}</p>
@@ -206,7 +208,7 @@ export function LiveMarketOverview({ locale, initialItems, title, panelTitle, he
         <p className="mt-4 text-xs font-semibold text-slate-400">
           {isEnglish ? "Last update" : "Son güncelleme"}: {formatUpdatedAt(state.updatedAt, locale)}
         </p>
-        {state.error ? <p className="mt-2 text-xs font-bold text-amber-300">{state.error}</p> : null}
+        {state.error ? <p className="mt-2 text-xs font-bold text-amber-300">{isEnglish ? "Market summary could not be loaded." : state.error}</p> : null}
         <div className="mt-5 border-t border-white/10 pt-4">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#f5a623]">
             {isEnglish ? "Important economy headlines" : "Öne çıkan ekonomi başlıkları"}

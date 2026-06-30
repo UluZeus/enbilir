@@ -5946,6 +5946,67 @@ body:has(.site-modern-academy) .mobile-menu-button--advanced {
   }
 }
 
+/* Keep AI dark panels readable after translucent utility cards are treated as dark surfaces. */
+.ai-command-hero,
+.ai-command-metric,
+.ai-scenario-lab,
+.ai-scenario-card,
+.ai-market-chat-panel,
+.ai-market-chat-panel :where(aside, [class*="bg-slate-9"], [class*="bg-slate-950"], [class*="bg-white/"]) {
+  color: #fffaf0 !important;
+}
+
+.ai-command-hero :where(h1, h2, h3, h4, strong, .font-black, .text-white, .text-slate-100, .text-slate-200),
+.ai-command-metric :where(h1, h2, h3, h4, strong, .font-black, .text-white, .text-slate-100, .text-slate-200),
+.ai-scenario-lab :where(h1, h2, h3, h4, strong, .font-black, .text-white, .text-slate-100, .text-slate-200),
+.ai-scenario-card :where(h1, h2, h3, h4, strong, .font-black, .text-white, .text-slate-100, .text-slate-200),
+.ai-market-chat-panel :where(h1, h2, h3, h4, strong, .font-black, .text-white, .text-slate-100, .text-slate-200) {
+  color: #fffaf0 !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 34%);
+}
+
+.ai-command-hero :where(p, li, label, small, .text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600),
+.ai-command-metric :where(p, li, label, small, .text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600),
+.ai-scenario-lab :where(p, li, label, small, .text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600),
+.ai-scenario-card :where(p, li, label, small, .text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600),
+.ai-market-chat-panel :where(p, li, label, small, .text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600) {
+  color: rgb(255 250 240 / 88%) !important;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 28%);
+}
+
+.ai-command-hero :where(p.font-black, span.font-black, .text-white.font-black),
+.ai-command-metric :where(p.font-black, span.font-black, .text-white.font-black),
+.ai-scenario-lab :where(p.font-black, span.font-black, .text-white.font-black),
+.ai-scenario-card :where(p.font-black, span.font-black, .text-white.font-black),
+.ai-market-chat-panel :where(p.font-black, span.font-black, .text-white.font-black) {
+  color: #fffaf0 !important;
+}
+
+.ai-command-hero :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.ai-scenario-lab :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]),
+.ai-market-chat-panel :where(.text-\[\#d1bfa7\], .text-\[\#f5a623\]) {
+  color: #ead8bd !important;
+}
+
+.ai-scenario-lab :where(textarea, input),
+.ai-market-chat-panel :where(textarea, input) {
+  border-color: rgb(152 203 255 / 24%) !important;
+  background: rgb(5 11 24 / 92%) !important;
+  color: #fffaf0 !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+.ai-scenario-lab :where(textarea, input)::placeholder,
+.ai-market-chat-panel :where(textarea, input)::placeholder {
+  color: rgb(255 250 240 / 58%) !important;
+}
+
+.ai-scenario-lab :where(.bg-cyan-100, .bg-emerald-100, .text-slate-950),
+.ai-market-chat-panel :where(.bg-cyan-100, .bg-emerald-100, .text-slate-950) {
+  color: #06111f !important;
+  text-shadow: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .site-motion *,
   .site-ambient-motion,

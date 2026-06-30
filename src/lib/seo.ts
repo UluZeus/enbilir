@@ -36,7 +36,7 @@ export const seoBrand = {
 export const defaultOpenGraphImage = "/og-enbilir.png";
 export const defaultOpenGraphImageAlt = "Enbilir Piyasa Akademisi - sanal portföy, AI makro rapor ve finansal okuryazarlık";
 
-export const coreSeoKeywords = [
+export const coreSeoKeywordsTr = [
   "finansal okuryazarlık",
   "piyasa okuryazarlığı",
   "borsa eğitimi",
@@ -93,6 +93,84 @@ export const coreSeoKeywords = [
   ...seoBrand.founderAliases,
   ...seoBrand.relatedBrands,
 ];
+
+export const coreSeoKeywordsEn = [
+  "financial literacy",
+  "market literacy",
+  "stock market education",
+  "economics education",
+  "virtual portfolio",
+  "virtual trading",
+  "stock market simulator",
+  "investment simulation",
+  "virtual portfolio calculation",
+  "portfolio profit loss tracking",
+  "live market data",
+  "portfolio competition",
+  "stock market competition",
+  "crypto education",
+  "crypto market analysis",
+  "BIST 100",
+  "Borsa Istanbul",
+  "Nasdaq",
+  "Dow Jones",
+  "gold",
+  "silver",
+  "dollar",
+  "euro",
+  "Turkish lira",
+  "macroeconomics",
+  "macro report",
+  "weekly macro report",
+  "daily market report",
+  "AI market assistant",
+  "AI chat",
+  "voice AI assistant",
+  "artificial intelligence market commentary",
+  "AI stock market analysis",
+  "technical analysis education",
+  "MACD",
+  "RSI",
+  "Ichimoku",
+  "volume analysis",
+  "Rotary financial literacy",
+  "Rotary education platform",
+  "Rotary portfolio league",
+  "Rotaract portfolio league",
+  "Rotarian financial literacy",
+  "Rotarian market academy",
+  "Rotarian stock market simulator",
+  "Rotaract finance education",
+  "financial statement reading",
+  "balance sheet reading education",
+  "market psychology",
+  "risk management education",
+  "weekly leaderboard",
+  "Rotary community learning",
+  "live community chat",
+  ...seoBrand.founderAliases,
+  ...seoBrand.relatedBrands,
+];
+
+export const coreSeoKeywords = coreSeoKeywordsTr;
+
+function getCoreSeoKeywords(locale: Locale) {
+  return locale === "en" ? coreSeoKeywordsEn : coreSeoKeywordsTr;
+}
+
+function getSeoLegalName(locale: Locale) {
+  return locale === "en" ? "Enbilir Market Academy" : seoBrand.legalName;
+}
+
+function getSeoFounderName(locale: Locale) {
+  return locale === "en" ? "Dr. Hakan Unsal" : seoBrand.founder;
+}
+
+function getDefaultOpenGraphImageAlt(locale: Locale) {
+  return locale === "en"
+    ? "Enbilir Market Academy - virtual portfolios, AI macro reports, and financial literacy"
+    : defaultOpenGraphImageAlt;
+}
 
 const pageSeo = {
   home: {
@@ -347,7 +425,7 @@ export function buildPageMetadata({
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const canonical = `/${locale}${normalizedPath === "/" ? "" : normalizedPath}`;
   const alternatePath = normalizedPath === "/" ? "" : normalizedPath;
-  const allKeywords = Array.from(new Set([...coreSeoKeywords, ...keywords]));
+  const allKeywords = Array.from(new Set([...getCoreSeoKeywords(locale), ...keywords]));
 
   return {
     title: {
@@ -355,9 +433,9 @@ export function buildPageMetadata({
     },
     description: seo.description,
     keywords: allKeywords,
-    authors: [{ name: seoBrand.founder, url: siteUrl }],
-    creator: seoBrand.founder,
-    publisher: seoBrand.legalName,
+    authors: [{ name: getSeoFounderName(locale), url: siteUrl }],
+    creator: getSeoFounderName(locale),
+    publisher: getSeoLegalName(locale),
     category: "education, finance, market literacy",
     alternates: {
       canonical,
@@ -378,7 +456,7 @@ export function buildPageMetadata({
           url: defaultOpenGraphImage,
           width: 1200,
           height: 630,
-          alt: defaultOpenGraphImageAlt,
+          alt: getDefaultOpenGraphImageAlt(locale),
         },
       ],
     },
@@ -394,7 +472,32 @@ export function buildPageMetadata({
 export function buildStructuredData(locale: Locale) {
   const siteUrl = getSiteUrl();
   const homeUrl = `${siteUrl}/${locale}`;
-  const keywords = coreSeoKeywords.join(", ");
+  const keywords = getCoreSeoKeywords(locale).join(", ");
+  const organizationName = getSeoLegalName(locale);
+  const websiteAlternateNames = locale === "en"
+    ? [seoBrand.domain, "Enbilir Market Academy", "Enbilir Financial Literacy"]
+    : [seoBrand.domain, "Enbilir Piyasa Akademisi", "Enbilir Finansal Okuryazarlık"];
+  const founderKnowsAbout = locale === "en"
+    ? [
+        "financial literacy",
+        "economics",
+        "stock markets",
+        "cryptocurrency",
+        "AI market assistant",
+        "Rotary",
+        "education technology",
+        "virtual portfolios",
+      ]
+    : [
+        "finansal okuryazarlık",
+        "ekonomi",
+        "borsa",
+        "kripto para",
+        "AI piyasa asistanı",
+        "Rotary",
+        "eğitim teknolojileri",
+        "sanal portföy",
+      ];
 
   return {
     "@context": "https://schema.org",
@@ -403,7 +506,7 @@ export function buildStructuredData(locale: Locale) {
         "@type": "WebSite",
         "@id": `${siteUrl}/#website`,
         name: seoBrand.siteName,
-        alternateName: [seoBrand.domain, "Enbilir Piyasa Akademisi", "Enbilir Finansal Okuryazarlık"],
+        alternateName: websiteAlternateNames,
         url: siteUrl,
         inLanguage: locale === "tr" ? "tr-TR" : "en-US",
         keywords,
@@ -416,7 +519,7 @@ export function buildStructuredData(locale: Locale) {
       {
         "@type": "EducationalOrganization",
         "@id": `${siteUrl}/#organization`,
-        name: seoBrand.legalName,
+        name: organizationName,
         alternateName: [seoBrand.siteName, seoBrand.domain],
         url: siteUrl,
         logo: `${siteUrl}/logo.png`,
@@ -428,20 +531,11 @@ export function buildStructuredData(locale: Locale) {
       {
         "@type": "Person",
         "@id": `${siteUrl}/#founder`,
-        name: seoBrand.founder,
+        name: getSeoFounderName(locale),
         alternateName: seoBrand.founderAliases,
         email: "info@ikiadam.com",
         url: homeUrl,
-        knowsAbout: [
-          "finansal okuryazarlık",
-          "ekonomi",
-          "borsa",
-          "kripto para",
-          "AI piyasa asistanı",
-          "Rotary",
-          "eğitim teknolojileri",
-          "sanal portföy",
-        ],
+        knowsAbout: founderKnowsAbout,
         affiliation: { "@id": `${siteUrl}/#organization` },
       },
       {

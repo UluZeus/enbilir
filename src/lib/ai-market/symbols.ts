@@ -98,6 +98,23 @@ export const AI_MARKET_SYMBOLS: WatchSymbol[] = [
   },
 ];
 
+const ENGLISH_SYMBOL_NAMES: Record<string, string> = {
+  XAUUSD: "Gold ounce",
+  XAGUSD: "Silver ounce",
+  USDTRY: "USD/TRY",
+};
+
+export function getLocalizedAiMarketSymbols(locale: string): WatchSymbol[] {
+  if (locale !== "en") {
+    return AI_MARKET_SYMBOLS;
+  }
+
+  return AI_MARKET_SYMBOLS.map((item) => ({
+    ...item,
+    name: ENGLISH_SYMBOL_NAMES[item.symbol] ?? item.name,
+  }));
+}
+
 export function getWatchSymbol(symbolValue: string | null) {
   const normalized = (symbolValue ?? "").toUpperCase();
 

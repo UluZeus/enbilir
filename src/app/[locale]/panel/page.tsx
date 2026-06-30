@@ -677,7 +677,7 @@ export default async function DashboardPage({
                 <div className="flex items-start justify-between gap-3">
                   <span className={earned ? "text-3xl text-[#f5a623]" : "text-3xl text-slate-500"}>{badge.icon}</span>
                   <span className="rounded-md bg-black/25 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
-                    {badge.category}
+                    {formatBadgeCategory(badge.category, locale)}
                   </span>
                 </div>
                 <h3 className={earned ? "mt-4 font-black text-white" : "mt-4 font-black text-slate-400"}>
@@ -1007,6 +1007,28 @@ function getLearningMetrics(
     { label: "Okunan rapor", value: String(values.reportReadCount) },
     { label: "Rozet", value: `${values.earnedBadges}/${values.totalBadges}` },
   ];
+}
+
+function formatBadgeCategory(category: string, locale: "tr" | "en") {
+  if (locale !== "en") {
+    return category;
+  }
+
+  const labels: Record<string, string> = {
+    Başlangıç: "Start",
+    Baslangic: "Start",
+    Sosyal: "Social",
+    Lig: "League",
+    Liderlik: "Leadership",
+    Strateji: "Strategy",
+    Piyasa: "Market",
+    Portföy: "Portfolio",
+    Portfoy: "Portfolio",
+    Öğrenme: "Learning",
+    Ogrenme: "Learning",
+  };
+
+  return labels[category] ?? category;
 }
 
 function getWeeklyMissions(

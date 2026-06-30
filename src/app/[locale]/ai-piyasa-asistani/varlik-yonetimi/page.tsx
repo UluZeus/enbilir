@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AssetManagementDashboard } from "@/components/ai-market/AssetManagementDashboard";
 import { getSafeLocale } from "@/i18n/config";
-import { AI_MARKET_SYMBOLS } from "@/lib/ai-market/symbols";
+import { getLocalizedAiMarketSymbols } from "@/lib/ai-market/symbols";
 import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -14,5 +14,5 @@ export default async function AiMarketAssetManagementPage({ params }: { params: 
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
 
-  return <AssetManagementDashboard locale={locale} symbols={AI_MARKET_SYMBOLS} />;
+  return <AssetManagementDashboard locale={locale} symbols={getLocalizedAiMarketSymbols(locale)} />;
 }

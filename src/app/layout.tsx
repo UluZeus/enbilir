@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 import { coreSeoKeywords, defaultOpenGraphImage, defaultOpenGraphImageAlt, getSeoPage, seoBrand } from "@/lib/seo";
@@ -76,13 +77,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get("x-enbilir-pathname") ?? "";
+  const locale = pathname.startsWith("/en") ? "en" : "tr";
+
   return (
-    <html lang="tr" className={`${manrope.variable} ${fraunces.variable} h-full antialiased`}>
+    <html lang={locale} className={`${manrope.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[#f6f1ed] text-[#49494b] selection:bg-[#bd8c7d]/25 selection:text-[#49494b]">
         {children}
       </body>

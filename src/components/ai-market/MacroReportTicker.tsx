@@ -47,7 +47,7 @@ export function MacroReportTicker({ variant = "light", locale = "tr" }: { varian
         }).format(nextReportTime);
 
         return locale === "en"
-          ? `The next macro report prepared by Dr. Hakan Ünsal will be ready in ${countdown}. The next report is scheduled for ${nextReportLabel} Türkiye time. The comments and views here are not investment advice; they reflect Dr. Hakan Ünsal's personal views. Market data may be delayed, incomplete, or inaccurate, so independent verification is always useful.`
+          ? `The next macro report prepared by Dr. Hakan Unsal will be ready in ${countdown}. The next report is scheduled for ${nextReportLabel} Turkey time. The comments and views here are not investment advice; they reflect Dr. Hakan Unsal's personal views. Market data may be delayed, incomplete, or inaccurate, so independent verification is always useful.`
           : `Dr. Hakan Ünsal'ın hazırladığı yeni makro raporun hazırlanmasına ${countdown} kaldı. Sıradaki rapor Türkiye saatiyle ${nextReportLabel}. Buradaki yorumlar ve tavsiyeler asla yatırım tavsiyesi niteliğinde olmayıp Dr. Hakan Ünsal'ın kendi bilgisiyle oluşturduğu yorumlarıdır. Piyasa verileri gecikmeli, eksik veya hatalı olabilir; karar almadan önce bağımsız kaynaklarla doğrulama yapılmalıdır.`;
       })()
     : locale === "en"

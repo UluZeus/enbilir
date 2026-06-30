@@ -28,6 +28,87 @@ export type MarketItem = {
   changePercent: number;
 };
 
+const ENGLISH_MARKET_LABELS: Record<string, string> = {
+  "Dolar TL": "US dollar / Turkish lira",
+  "Euro TL": "Euro / Turkish lira",
+  "Sterlin TL": "British pound / Turkish lira",
+  "Frank TL": "Swiss franc / Turkish lira",
+  "Euro Dolar": "Euro / US dollar",
+  "Sterlin Dolar": "British pound / US dollar",
+  "Dolar Yen": "US dollar / Japanese yen",
+  "Dolar Frank": "US dollar / Swiss franc",
+  "Avustralya Doları": "Australian dollar",
+  "Dolar Kanada Doları": "US dollar / Canadian dollar",
+  "Altın Ons": "Gold ounce",
+  "Gümüş Ons": "Silver ounce",
+  "Kapalı Çarşı Gram Altın (USD)": "Grand Bazaar gram gold (USD)",
+  "Kapalı Çarşı Gram Gümüş (USD)": "Grand Bazaar gram silver (USD)",
+  "Ons Altin": "Gold ounce",
+  "Ons Gumus": "Silver ounce",
+  "Altin vadeli": "Gold futures",
+  "Gumus vadeli": "Silver futures",
+  Bakır: "Copper",
+  Bakir: "Copper",
+  Bronz: "Bronze",
+  Paladyum: "Palladium",
+  Platin: "Platinum",
+  "Ham Petrol": "Crude oil",
+  "Brent Petrol": "Brent crude",
+  Doğalgaz: "Natural gas",
+  Dogalgaz: "Natural gas",
+  "Dolar/TL": "USD/TRY",
+  "Euro/TL": "EUR/TRY",
+  "Dolar Endeksi": "Dollar Index",
+  "Türkiye Hazine Bonosu 1 Ay": "Turkey Treasury bill 1 month",
+  "Türkiye Hazine Bonosu 3 Ay": "Turkey Treasury bill 3 months",
+  "Türkiye Hazine Bonosu 6 Ay": "Turkey Treasury bill 6 months",
+  "Türkiye Tahvili 1 Yıl": "Turkey bond 1 year",
+  "Türkiye Tahvili 3 Yıl": "Turkey bond 3 years",
+  "Türkiye Tahvili 5 Yıl": "Turkey bond 5 years",
+  "Türkiye Tahvili 10 Yıl": "Turkey bond 10 years",
+  "ABD T-Bill 1 Ay": "US T-bill 1 month",
+  "ABD T-Bill 3 Ay": "US T-bill 3 months",
+  "ABD T-Bill 6 Ay": "US T-bill 6 months",
+  "ABD Tahvili 1 Yıl": "US Treasury 1 year",
+  "ABD Tahvili 3 Yıl": "US Treasury 3 years",
+  "ABD Tahvili 5 Yıl": "US Treasury 5 years",
+  "ABD Tahvili 10 Yıl": "US Treasury 10 years",
+  "Türkiye Eurobond Kısa Vade": "Turkey Eurobond short term",
+  "Türkiye Eurobond Orta Vade": "Turkey Eurobond medium term",
+  "Türkiye Eurobond Uzun Vade": "Turkey Eurobond long term",
+  "S&P 500 Endeksi": "S&P 500 Index",
+  "Dow Jones Endeksi": "Dow Jones Index",
+  Kripto: "Crypto",
+  "Majör Döviz": "Major FX",
+  Emtia: "Commodities",
+  "Kapalı Çarşı": "Grand Bazaar",
+  "Türkiye Tahvil/Bono": "Turkey bonds/bills",
+  "ABD Tahvil": "US bonds",
+  Endeks: "Index",
+  "Nasdaq Hisse": "Nasdaq stocks",
+  "Dow Jones Hisse": "Dow Jones stocks",
+};
+
+export function localizeMarketText(value: string, locale: string) {
+  return locale === "en" ? ENGLISH_MARKET_LABELS[value] ?? value : value;
+}
+
+export function localizeMarketItem(item: MarketItem, locale: string): MarketItem {
+  if (locale !== "en") {
+    return item;
+  }
+
+  return {
+    ...item,
+    name: localizeMarketText(item.name, locale),
+    market: localizeMarketText(item.market, locale),
+  };
+}
+
+export function localizeMarketItems(items: MarketItem[], locale: string) {
+  return locale === "en" ? items.map((item) => localizeMarketItem(item, locale)) : items;
+}
+
 type MarketSeed = Omit<MarketItem, "price" | "priceUsd" | "changePercent" | "dataStatus" | "source"> & {
   priceUsd: number;
   changePercent: number;

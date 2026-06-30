@@ -5,6 +5,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { joinLeagueAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
+import { getDefaultLeagueDescription, getLeagueNameForLocale, isDefaultLeagueSlug } from "@/lib/default-leagues";
 import { getActiveLeagues, getUserLeagues } from "@/lib/leagues";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -169,7 +170,11 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
             {copy.empty}
           </p>
         ) : (
-          activeLeagues.map((league) => (
+          activeLeagues.map((league) => {
+            const leagueDescription = getLeagueDescriptionForLocale(league.slug, league.description, locale);
+            const leagueName = getLeagueNameForLocale(league.name, league.slug, locale);
+
+            return (
             <article
               key={league.id}
               className="premium-card premium-card--interactive p-5 shadow-sm hover:border-[#f5a623]"
@@ -180,7 +185,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
                     {copy.leagueTypeLabels[league.type]}
                   </p>
                   <Link href={`/${locale}/ligler/${league.slug}`} className="mt-2 block text-xl font-black text-[#152033] hover:text-[#0f766e]">
-                    {league.name}
+                    {leagueName}
                   </Link>
                 </div>
                 {userLeagueIds.has(league.id) ? (
@@ -193,7 +198,7 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
                   </span>
                 )}
               </div>
-              {league.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{league.description}</p> : null}
+              {leagueDescription ? <p className="mt-3 text-sm leading-6 text-slate-600">{leagueDescription}</p> : null}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm font-black text-slate-700">{copy.members(league._count.memberships)}</p>
                 {userLeagueIds.has(league.id) ? (
@@ -212,11 +217,32 @@ export default async function LeaguesPage({ params }: { params: Promise<{ locale
                 )}
               </div>
             </article>
-          ))
+            );
+          })
         )}
       </section>
     </div>
   );
+}
+
+function getLeagueDescriptionForLocale(slug: string, description: string | null, locale: "tr" | "en") {
+  if (locale === "tr") {
+    return description;
+  }
+
+  if (isDefaultLeagueSlug(slug)) {
+    return getDefaultLeagueDescription(slug, "en");
+  }
+
+  if (description && !looksTurkish(description)) {
+    return description;
+  }
+
+  return "Community-created league. The league owner can add an English description from the dashboard.";
+}
+
+function looksTurkish(value: string) {
+  return /[çğıöşüÇĞİÖŞÜ]|\b(ve|için|ile|kullanıcı|portföy|yarışma|finansal|okuryazarlık|lig|üyeler|katılım)\b/i.test(value);
 }
 
 function getLeagueGrowthLoop(locale: string) {

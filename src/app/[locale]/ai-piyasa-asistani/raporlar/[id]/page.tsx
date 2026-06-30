@@ -22,7 +22,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     locale,
     path: `/ai-piyasa-asistani/raporlar/${id}`,
     page: "reports",
-    keywords: ["makro rapor arşivi", "AI rapor detayı", "piyasa raporu PDF"],
+    keywords: locale === "en"
+      ? ["macro report archive", "AI report detail", "market report PDF", "AI market assistant report"]
+      : ["makro rapor arşivi", "AI rapor detayı", "piyasa raporu PDF"],
   });
   const report = await prisma.aiMarketReport.findUnique({
     where: { id },
@@ -49,10 +51,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     ? `${isWeekly ? "Weekly Macro Report" : "Daily Macro Report"} | ${dateLabel} | Enbilir AI Market Assistant`
     : `${isWeekly ? "Haftalık Makro Rapor" : "Günlük Makro Rapor"} | ${dateLabel} | Enbilir AI Piyasa Asistanı`;
   const summary = report.macroSummary.replace(/\s+/g, " ").trim();
-  const reportLabel = locale === "en"
-    ? `${report.marketRegime ?? "market regime"}; risk appetite: ${report.riskAppetite ?? "tracked"}`
-    : `${report.marketRegime ?? "piyasa rejimi"}; risk iştahı: ${report.riskAppetite ?? "izleniyor"}`;
-  const description = `${summary.slice(0, 118)}${summary.length > 118 ? "..." : ""} ${reportLabel}.`;
+  const reportLabel = `${report.marketRegime ?? "piyasa rejimi"}; risk iştahı: ${report.riskAppetite ?? "izleniyor"}`;
+  const description = locale === "en"
+    ? `${isWeekly ? "Weekly" : "Daily"} Enbilir AI macro report covering market frame, watched assets, technical signals, risk context, and public-news sources for educational review.`
+    : `${summary.slice(0, 118)}${summary.length > 118 ? "..." : ""} ${reportLabel}.`;
 
   return {
     ...baseMetadata,
@@ -138,6 +140,38 @@ function formatSignal(value: string | null, locale = "tr") {
   };
 
   return value ? labels[locale === "en" ? "en" : "tr"][value] ?? value : "-";
+}
+
+function localizeMarketLabel(value: string, locale: "tr" | "en") {
+  if (locale !== "en") {
+    return value;
+  }
+
+  const labels: Record<string, string> = {
+    "Ons Altın": "Gold ounce",
+    "Ons altın": "Gold ounce",
+    "Ons Altin": "Gold ounce",
+    "Ons altin": "Gold ounce",
+    "Altın Ons": "Gold ounce",
+    "Altin Ons": "Gold ounce",
+    "Ons Gümüş": "Silver ounce",
+    "Ons gümüş": "Silver ounce",
+    "Ons Gumus": "Silver ounce",
+    "Ons gumus": "Silver ounce",
+    "Gümüş Ons": "Silver ounce",
+    "Gumus Ons": "Silver ounce",
+    "Dolar/TL": "USD/TRY",
+    "Euro/TL": "EUR/TRY",
+    "Paladyum": "Palladium",
+    "Bakir": "Copper",
+    "Petrol": "Oil",
+    "Dogalgaz": "Natural gas",
+    "Emtia": "Commodities",
+    "Kapalı Çarşı": "Grand Bazaar",
+    "Türkiye Tahvil/Bono": "Turkey bonds/bills",
+  };
+
+  return labels[value] ?? value;
 }
 
 function getReportDashboardStats(assets: ReportAssetSummary[]) {
@@ -375,6 +409,12 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   const requiredCoverage = toStringArray(report.requiredCoverage);
   const chartAssets = report.assets.filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length).slice(0, 6);
   const isEnglish = locale === "en";
+  const localizedAssets = report.assets.map((asset) => ({
+    ...asset,
+    displayName: localizeMarketLabel(asset.displayName, locale),
+    assetClass: localizeMarketLabel(asset.assetClass, locale),
+    category: asset.category ? localizeMarketLabel(asset.category, locale) : asset.category,
+  }));
   const dashboardStats = getReportDashboardStats(report.assets);
   const isWeeklyReport = report.scope === "WEEKLY";
 
@@ -419,7 +459,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
               <aside className="report-screen-card rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Report frame</p>
                 <div className="mt-3 grid gap-2">
-                  <Info label="Assets covered" value={`${report.assets.length} assets`} />
+                  <Info label="Assets covered" value={`${localizedAssets.length} assets`} />
                   <Info label="Model" value={report.model ?? (report.fallbackUsed ? "Rule-based fallback" : "-")} />
                   <Info label="Period" value={isWeeklyReport ? "Weekly" : "1 hour"} />
                 </div>
@@ -435,7 +475,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
               </div>
             ) : null}
 
-            <ReportVisualDashboard locale="en" stats={dashboardStats} riskAppetite={report.riskAppetite} marketRegime={report.marketRegime} />
+            <ReportVisualDashboard locale="en" stats={getReportDashboardStats(localizedAssets)} riskAppetite={report.riskAppetite} marketRegime={report.marketRegime} />
 
             {requiredCoverage.length > 0 ? (
               <div className="mt-5 rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
@@ -453,7 +493,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
               <h2 className="mt-1 text-2xl font-black">Favorites and macro basket</h2>
             </div>
             <div className="mt-4 grid gap-3">
-              {report.assets.map((asset) => (
+              {localizedAssets.map((asset) => (
                 <div key={asset.id} className="report-asset-card rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -734,6 +774,8 @@ function ReportVisualDashboard({
   const isEnglish = locale === "en";
   const riskTone = stats.averageRisk >= 70 ? "bg-red-50 text-red-700 border-red-200" : stats.averageRisk >= 45 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
   const signalEntries = Object.entries(stats.signalCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const marketFrame = isEnglish ? "Stored macro frame" : marketRegime ?? "Etiket yok";
+  const riskFrame = isEnglish ? "Risk context summarized for educational review" : riskAppetite ?? "Risk iştahı etiketi yok";
 
   return (
     <section className="report-visual-dashboard screen-only mt-5 rounded-[1.25rem] border border-slate-200 bg-white/86 p-4 shadow-sm">
@@ -754,8 +796,8 @@ function ReportVisualDashboard({
       <div className="mt-4 grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{isEnglish ? "Market frame" : "Piyasa çerçevesi"}</p>
-          <p className="mt-3 text-lg font-black text-[#152033]">{marketRegime ?? (isEnglish ? "Not labeled" : "Etiket yok")}</p>
-          <p className="mt-2 text-sm font-semibold text-slate-600">{riskAppetite ?? (isEnglish ? "Risk appetite not labeled" : "Risk iştahı etiketi yok")}</p>
+          <p className="mt-3 text-lg font-black text-[#152033]">{marketFrame}</p>
+          <p className="mt-2 text-sm font-semibold text-slate-600">{riskFrame}</p>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
             <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, Math.max(0, stats.averageRisk))}%` }} />
           </div>

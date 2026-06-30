@@ -16,7 +16,7 @@ import { getFallbackMarketItems, getLiveMarketItems } from "@/lib/live-market";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { buildPageMetadata } from "@/lib/seo";
 import type { DisplayAd } from "@/lib/ads";
-import type { MarketItem } from "@/lib/market-data";
+import { localizeMarketText, type MarketItem } from "@/lib/market-data";
 
 type PortfolioSnapshot = Awaited<ReturnType<typeof getPortfolioSnapshot>>;
 type TradeCategory = MarketItem["category"] | "ALL";
@@ -287,7 +287,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
 
               return {
                 label: position.symbol,
-                detail: position.name,
+                detail: localizeMarketText(position.name, locale),
                 value: position.valueUsd,
                 profitLossPercent: costUsd > 0 ? (position.profitLossUsd / costUsd) * 100 : null,
               };
@@ -351,7 +351,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-[#152033]">{position.symbol}</p>
-                  <p className="truncate text-xs font-semibold text-slate-500">{position.name}</p>
+                  <p className="truncate text-xs font-semibold text-slate-500">{localizeMarketText(position.name, locale)}</p>
                   <span className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
                     {getPositionDataStatusLabel(position.dataStatus, isEnglish)}
                   </span>

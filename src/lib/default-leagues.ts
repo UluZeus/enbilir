@@ -54,6 +54,34 @@ export function getDefaultLeagueDescription(slug: string, locale: "tr" | "en") {
   return locale === "en" ? definition.descriptionEn : definition.descriptionTr;
 }
 
+export function getLeagueNameForLocale(name: string, slug: string, locale: "tr" | "en") {
+  if (locale === "tr") {
+    return name;
+  }
+
+  const explicitNames: Record<string, string> = {
+    "Rotary Ligi": "Rotary League",
+    "Rotaract Ligi": "Rotaract League",
+    "Serbest Lig": "Public League",
+    SERBEST: "PUBLIC",
+  };
+  const defaultDefinition = defaultLeagueDefinitions.find((league) => league.slug === slug);
+
+  if (defaultDefinition?.slug === "serbest") {
+    return "PUBLIC";
+  }
+
+  if (explicitNames[name]) {
+    return explicitNames[name];
+  }
+
+  if (name.endsWith(" Ligi")) {
+    return `${name.slice(0, -" Ligi".length)} League`;
+  }
+
+  return name;
+}
+
 async function getDefaultLeagueOwnerId(ownerUserId?: string) {
   if (ownerUserId) {
     return ownerUserId;

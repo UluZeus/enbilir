@@ -1,5 +1,6 @@
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
+import { localizeAiMarketText } from "@/lib/ai-market/localization";
 import type { MarketAnalysis } from "@/lib/ai-market/types";
 
 type AiInsightPanelProps = {
@@ -8,9 +9,10 @@ type AiInsightPanelProps = {
 };
 
 export function AiInsightPanel({ locale, analysis }: AiInsightPanelProps) {
-  const copy = getUiCopy(getSafeLocale(locale)).ai;
-  const reasons = analysis?.signal.reasons ?? [];
-  const riskReasons = analysis?.risk.reasons ?? [];
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale).ai;
+  const reasons = (analysis?.signal.reasons ?? []).map((reason) => localizeAiMarketText(reason, safeLocale));
+  const riskReasons = (analysis?.risk.reasons ?? []).map((reason) => localizeAiMarketText(reason, safeLocale));
 
   return (
     <section className="rounded-md border border-slate-800 bg-[#0b111d] p-4 shadow-xl">
@@ -25,7 +27,7 @@ export function AiInsightPanel({ locale, analysis }: AiInsightPanelProps) {
       </div>
 
       <p className="mt-4 text-sm leading-6 text-slate-300">
-        {analysis?.explanation ?? copy.decisionPlaceholder}
+        {analysis ? localizeAiMarketText(analysis.explanation, safeLocale) : copy.decisionPlaceholder}
       </p>
 
       <div className="mt-4 grid gap-2 lg:grid-cols-2">

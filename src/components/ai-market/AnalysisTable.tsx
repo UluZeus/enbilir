@@ -12,6 +12,7 @@ import { TopOpportunitiesPanel } from "@/components/ai-market/TopOpportunitiesPa
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import type { TechnicalSeries } from "@/lib/ai-market/indicators";
+import { getRiskLabel, localizeAiMarketText } from "@/lib/ai-market/localization";
 import { getSignalReadingGuide } from "@/lib/ai-market/signal-reading-guide";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
@@ -247,6 +248,7 @@ export function AnalysisTable({ locale, interval = FALLBACK_INTERVAL }: Analysis
             symbols: favorites.slice(0, MAX_FAVORITES),
             exchange: DEFAULT_EXCHANGE,
             interval,
+            locale: safeLocale,
           }),
         });
 
@@ -274,7 +276,7 @@ export function AnalysisTable({ locale, interval = FALLBACK_INTERVAL }: Analysis
     loadBatchAnalysis();
 
     return () => controller.abort();
-  }, [favoriteAnalysisFetchError, favoriteAnalysisLoadError, favorites, interval, refreshTick]);
+  }, [favoriteAnalysisFetchError, favoriteAnalysisLoadError, favorites, interval, refreshTick, safeLocale]);
 
   const results = favorites.length === 0 ? [] : (state.response?.results ?? []);
   const successfulAnalyses = results.filter((result): result is BatchSuccess => result.ok).map((result) => result.analysis);
@@ -422,7 +424,7 @@ function DesktopResultRows({
       <td className="border-b border-slate-100 px-2 py-3 text-slate-700">{formatNumber(analysis.indicators.macd.histogram, 3)}</td>
       <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{getTrend(analysis, copy)}</td>
       <td className={`border-b border-slate-100 px-2 py-3 font-black ${getRiskClass(analysis.risk.level)}`}>
-        {analysis.risk.level} · {analysis.risk.score}
+        {getRiskLabel(analysis.risk.level, locale)} · {analysis.risk.score}
       </td>
       <td className="border-b border-slate-100 px-2 py-3 font-bold text-slate-700">{analysis.signal.confidence}%</td>
       <td className="border-b border-slate-100 px-2 py-3">
@@ -432,7 +434,7 @@ function DesktopResultRows({
       </td>
       <td className="border-b border-slate-100 px-2 py-3 text-xs leading-5 text-slate-600">
         <span className="block overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-          {analysis.explanation}
+          {localizeAiMarketText(analysis.explanation, locale)}
         </span>
         <span className="mt-2 block rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1.5 text-[11px] font-bold leading-4 text-cyan-900">
           {getSignalReadingGuide(signal, copy.terminal === "AI Trading Terminal" ? "en" : "tr")}
@@ -510,11 +512,11 @@ function MobileCard({
         <Metric label="RSI" value={formatNumber(analysis.indicators.rsi, 1)} />
         <Metric label="MACD" value={formatNumber(analysis.indicators.macd.histogram, 4)} />
         <Metric label="Trend" value={getTrend(analysis, copy)} />
-        <Metric label={copy.risk} value={`${analysis.risk.level} · ${analysis.risk.score}`} />
+        <Metric label={copy.risk} value={`${getRiskLabel(analysis.risk.level, locale)} · ${analysis.risk.score}`} />
         <Metric label={copy.confidence} value={`${analysis.signal.confidence}%`} />
       </div>
 
-      <p className="mt-3 text-xs leading-5 text-slate-600">{analysis.explanation}</p>
+      <p className="mt-3 text-xs leading-5 text-slate-600">{localizeAiMarketText(analysis.explanation, locale)}</p>
       <Link href={tradeHref} className="mt-3 inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-[#0f766e]">
         {locale === "en" ? "Try in virtual portfolio" : "Sanal portföyde dene"}
       </Link>

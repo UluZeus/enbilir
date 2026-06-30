@@ -3,7 +3,7 @@ import { fetchBinanceCandles } from "@/lib/ai-market/binance-public";
 import { fetchGateCandles } from "@/lib/ai-market/gate-public";
 import { fetchYahooCandles } from "@/lib/ai-market/yahoo-public";
 import { calculateIndicators, calculateTechnicalSeries } from "@/lib/ai-market/indicators";
-import { AI_MARKET_DISCLAIMER, buildExplanation } from "@/lib/ai-market/explanation-engine";
+import { buildExplanation, getAiMarketDisclaimer } from "@/lib/ai-market/explanation-engine";
 import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import { logMarketAnalysisSignal } from "@/lib/ai-market/signal-logger";
@@ -20,6 +20,10 @@ function getExchange(value: string | null): MarketExchange {
 
 function getInterval(value: string | null) {
   return value && allowedIntervals.has(value) ? value : "1h";
+}
+
+function getLocale(value: string | null): "tr" | "en" {
+  return value === "en" ? "en" : "tr";
 }
 
 function getChangePercent(candles: Candle[]) {
@@ -83,7 +87,7 @@ async function loadCandlesWithFallback(symbol: WatchSymbol, exchange: MarketExch
   }
 }
 
-function buildFallbackAnalysis(symbol: ReturnType<typeof getWatchSymbol>, exchange: MarketExchange, interval: string, error: string): MarketAnalysis {
+function buildFallbackAnalysis(symbol: ReturnType<typeof getWatchSymbol>, exchange: MarketExchange, interval: string, error: string, locale: "tr" | "en"): MarketAnalysis {
   const indicators = calculateIndicators([]);
   const signal = analyzeSignal([], indicators);
   const risk = assessRisk([], indicators);
@@ -105,8 +109,8 @@ function buildFallbackAnalysis(symbol: ReturnType<typeof getWatchSymbol>, exchan
 
   return {
     ...base,
-    explanation: buildExplanation(base),
-    disclaimer: AI_MARKET_DISCLAIMER,
+    explanation: buildExplanation(base, locale),
+    disclaimer: getAiMarketDisclaimer(locale),
   };
 }
 
@@ -115,10 +119,11 @@ export async function GET(request: Request) {
   const symbol = getWatchSymbol(url.searchParams.get("symbol"));
   const requestedExchange = getExchange(url.searchParams.get("exchange"));
   const interval = getInterval(url.searchParams.get("interval"));
+  const locale = getLocale(url.searchParams.get("locale"));
   const { candles, exchange, error } = await loadCandlesWithFallback(symbol, requestedExchange, interval);
 
   if (candles.length < 30) {
-    return NextResponse.json(buildFallbackAnalysis(symbol, exchange, interval, error ?? "Yeterli public mum verisi bulunamadi."));
+    return NextResponse.json(buildFallbackAnalysis(symbol, exchange, interval, error ?? "Yeterli public mum verisi bulunamadi.", locale));
   }
 
   const indicators = calculateIndicators(candles);
@@ -143,8 +148,8 @@ export async function GET(request: Request) {
 
   const analysis: MarketAnalysis = {
     ...base,
-    explanation: buildExplanation(base),
-    disclaimer: AI_MARKET_DISCLAIMER,
+    explanation: buildExplanation(base, locale),
+    disclaimer: getAiMarketDisclaimer(locale),
     technicalSeries: calculateTechnicalSeries(candles, 100),
   };
 

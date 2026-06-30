@@ -87,7 +87,11 @@ export default async function WeeklyLeadersPage({ params }: { params: Promise<{ 
                 <RankingPanel title={isEnglish ? "Weekly gain leaders" : "Haftalık kazanç liderleri"} rows={weeklyRows} />
                 <RankingPanel title={isEnglish ? "Overall gain leaders" : "Toplam kazanç liderleri"} rows={totalRows} />
               </div>
-              {publication.note ? <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">{publication.note}</p> : null}
+              {publication.note ? (
+                <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">
+                  {getPublicationNote(publication.note, locale)}
+                </p>
+              ) : null}
             </article>
           );
         })
@@ -124,4 +128,20 @@ function formatWeekRange(start: Date, end: Date, locale: "tr" | "en") {
   const inclusiveEnd = new Date(end.getTime() - 86_400_000);
 
   return `${formatter.format(start)} - ${formatter.format(inclusiveEnd)}`;
+}
+
+function getPublicationNote(note: string, locale: "tr" | "en") {
+  if (locale !== "en") {
+    return note;
+  }
+
+  if (note.includes("canlı portföy") || note.includes("geçici görünüm")) {
+    return "This temporary view is calculated from live portfolio and recent trade data. Archived results are shown after the first persisted weekly publication.";
+  }
+
+  if (note.includes("Haftalık liste") || note.includes("genel liste")) {
+    return "Two lists were published for this period. The weekly list shows the contribution of last week's virtual trades at current prices, while the overall list shows total portfolio profit.";
+  }
+
+  return "Weekly leaderboard publication note.";
 }

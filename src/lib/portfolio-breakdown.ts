@@ -1,15 +1,16 @@
 import { getDonutColor } from "@/components/PortfolioDonut";
 import type { PortfolioBreakdownItem } from "@/components/PortfolioBreakdown";
 import type { getPortfolioSnapshot } from "@/lib/portfolio";
+import { localizeMarketText } from "@/lib/market-data";
 
 type PortfolioSnapshot = Awaited<ReturnType<typeof getPortfolioSnapshot>>;
 
-export function getPortfolioBreakdownItems(snapshot: PortfolioSnapshot): PortfolioBreakdownItem[] {
+export function getPortfolioBreakdownItems(snapshot: PortfolioSnapshot, locale = "tr"): PortfolioBreakdownItem[] {
   const total = snapshot.totalValueUsd;
   const percentOfTotal = (value: number) => (total > 0 ? (value / total) * 100 : 0);
   const cashItem: PortfolioBreakdownItem = {
     label: snapshot.cashCurrency,
-    symbol: `Nakit / ${snapshot.cashCurrency}`,
+    symbol: locale === "en" ? `Cash / ${snapshot.cashCurrency}` : `Nakit / ${snapshot.cashCurrency}`,
     value: snapshot.cashValueUsd,
     percent: percentOfTotal(snapshot.cashValueUsd),
     color: getDonutColor(0),
@@ -22,6 +23,7 @@ export function getPortfolioBreakdownItems(snapshot: PortfolioSnapshot): Portfol
       percent: percentOfTotal(position.valueUsd),
       color: getDonutColor(index + 1),
     }))
+    .map((item) => ({ ...item, label: localizeMarketText(item.label, locale) }))
     .sort((a, b) => b.value - a.value);
 
   return [cashItem, ...positionItems];

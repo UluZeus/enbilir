@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AiSignalPerformanceDashboard } from "@/components/ai-market/AiSignalPerformanceDashboard";
 import { getSafeLocale } from "@/i18n/config";
-import { AI_MARKET_SYMBOLS } from "@/lib/ai-market/symbols";
+import { getLocalizedAiMarketSymbols } from "@/lib/ai-market/symbols";
 import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -14,5 +14,5 @@ export default async function AiSignalPerformancePage({ params }: { params: Prom
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
 
-  return <AiSignalPerformanceDashboard locale={locale} symbols={AI_MARKET_SYMBOLS} />;
+  return <AiSignalPerformanceDashboard locale={locale} symbols={getLocalizedAiMarketSymbols(locale)} />;
 }

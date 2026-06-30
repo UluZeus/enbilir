@@ -7,6 +7,7 @@ import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { ASSET_UNIVERSE_SECTIONS, type AssetUniverseCategory, type AssetUniverseItem } from "@/lib/ai-market/asset-universe";
 import type { AssetClass } from "@/lib/ai-market/types";
+import { localizeMarketText } from "@/lib/market-data";
 
 type BinanceUniverseAsset = {
   symbol: string;
@@ -136,12 +137,16 @@ export function AssetUniversePanel({ locale = "tr", favorites, onAddFavorite, on
         const payload = (await response.json()) as UniverseResponse;
 
         if (!response.ok) {
-          const message = !Array.isArray(payload) && typeof payload.error === "string" ? payload.error : "Varlik listesi alinamadi.";
+          const message = !Array.isArray(payload) && typeof payload.error === "string"
+            ? payload.error
+            : safeLocale === "en"
+              ? "Asset list could not be loaded."
+              : "Varlik listesi alinamadi.";
           throw new Error(message);
         }
 
         if (!Array.isArray(payload)) {
-          throw new Error("Varlik listesi beklenen formatta degil.");
+          throw new Error(safeLocale === "en" ? "Asset list is not in the expected format." : "Varlik listesi beklenen formatta degil.");
         }
 
         setState({ status: "success", assets: payload.filter(isUniverseAsset), error: null });
@@ -153,7 +158,7 @@ export function AssetUniversePanel({ locale = "tr", favorites, onAddFavorite, on
         setState({
           status: "error",
           assets: [],
-          error: error instanceof Error ? error.message : "Varlik listesi yuklenemedi.",
+          error: error instanceof Error ? error.message : safeLocale === "en" ? "Asset list could not be loaded." : "Varlik listesi yuklenemedi.",
         });
       }
     }
@@ -161,7 +166,7 @@ export function AssetUniversePanel({ locale = "tr", favorites, onAddFavorite, on
     loadUniverse();
 
     return () => controller.abort();
-  }, []);
+  }, [safeLocale]);
 
   const filteredVolumeAssets = useMemo(() => {
     if (assetFilter !== "ALL" && assetFilter !== "CRYPTO_VOLUME_TOP_100") {
@@ -316,6 +321,7 @@ function VolumeAssetCard({
         name={`$${formatPrice(asset.price)} · ${asset.change24h.toFixed(2)}% · ${formatVolume(asset.volume24h)}`}
         assetClass="CRYPTO"
         exchangeLabel="Binance"
+        locale={locale}
       />
       <FavoriteToggle locale={locale} symbol={asset.symbol} isFavorite={isFavorite} onAddFavorite={onAddFavorite} onRemoveFavorite={onRemoveFavorite} />
     </AssetCardFrame>
@@ -339,9 +345,10 @@ function SeedAssetCard({
     <AssetCardFrame isFavorite={isFavorite}>
       <AssetCardBody
         displayName={asset.displayName}
-        name={asset.name}
+        name={localizeMarketText(asset.name, locale)}
         assetClass={asset.assetClass}
         exchangeLabel={asset.exchangeLabel}
+        locale={locale}
       />
       <FavoriteToggle locale={locale} symbol={asset.symbol} isFavorite={isFavorite} onAddFavorite={onAddFavorite} onRemoveFavorite={onRemoveFavorite} />
     </AssetCardFrame>
@@ -361,19 +368,32 @@ function AssetCardBody({
   name,
   assetClass,
   exchangeLabel,
+  locale = "tr",
 }: {
   displayName: string;
   name: string;
   assetClass: AssetClass;
   exchangeLabel: string;
+  locale?: Locale | string;
 }) {
+  const safeLocale = getSafeLocale(locale);
+  const assetClassLabel = safeLocale === "en"
+    ? {
+        CRYPTO: "Crypto",
+        COMMODITY: "Metals",
+        FX: "FX",
+        EQUITY: "Equities",
+        INDEX: "Indexes",
+      }[assetClass]
+    : getAssetClassLabel(assetClass);
+
   return (
     <div className="min-w-0">
       <p className="truncate text-sm font-black text-[#152033]">{displayName}</p>
       <p className="mt-1 truncate text-xs text-slate-500">{name}</p>
       <div className="mt-2 flex flex-wrap gap-1">
         <span className="rounded-md border border-slate-200 bg-white/70 px-2 py-1 text-[11px] font-black text-slate-500">
-          {getAssetClassLabel(assetClass)}
+          {assetClassLabel}
         </span>
         <span className="rounded-md border border-slate-200 bg-white/70 px-2 py-1 text-[11px] font-black text-slate-500">
           {exchangeLabel}

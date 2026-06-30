@@ -1,4 +1,5 @@
 import { getSafeLocale, type Locale } from "@/i18n/config";
+import { localizeAiMarketText } from "@/lib/ai-market/localization";
 import { getSignalReadingGuide } from "@/lib/ai-market/signal-reading-guide";
 import type { MarketAnalysis, SignalType } from "@/lib/ai-market/types";
 
@@ -81,7 +82,7 @@ export function SignalCard({ locale = "tr", analysis }: { locale?: Locale | stri
       </div>
 
       <div className="mt-5 rounded-md border border-white/10 bg-white/5 p-4">
-        <p className="text-sm leading-6 text-slate-200">{analysis.explanation}</p>
+        <p className="text-sm leading-6 text-slate-200">{localizeAiMarketText(analysis.explanation, safeLocale)}</p>
       </div>
 
       <div className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-4">
@@ -94,7 +95,7 @@ export function SignalCard({ locale = "tr", analysis }: { locale?: Locale | stri
       <div className="mt-4 grid gap-2">
         {analysis.signal.reasons.map((reason) => (
           <p key={reason} className="rounded-md bg-black/20 px-3 py-2 text-sm text-slate-200">
-            {reason}
+            {localizeAiMarketText(reason, safeLocale)}
           </p>
         ))}
       </div>

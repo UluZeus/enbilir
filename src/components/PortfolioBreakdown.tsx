@@ -13,6 +13,7 @@ export type PortfolioBreakdownItem = {
 type PortfolioBreakdownProps = {
   items: PortfolioBreakdownItem[];
   compact?: boolean;
+  locale?: string;
 };
 
 function formatUsd(value: number) {
@@ -30,14 +31,17 @@ function formatPercent(value: number) {
   return `${value.toFixed(decimals)}%`;
 }
 
-export function PortfolioBreakdown({ items, compact = false }: PortfolioBreakdownProps) {
+export function PortfolioBreakdown({ items, compact = false, locale = "tr" }: PortfolioBreakdownProps) {
+  const isEnglish = locale === "en";
   const [expanded, setExpanded] = useState(false);
   const visibleItems = expanded ? items : items.slice(0, 10);
 
   if (items.length === 0) {
     return (
       <div className="rounded-md bg-[#f8fafc] p-4 text-sm leading-6 text-slate-500">
-        Portföyünde henüz yatırım ürünü yok. İlk sanal alımından sonra dağılım ve ürün ağırlıkları burada listelenir.
+        {isEnglish
+          ? "Your portfolio does not include any investment products yet. After your first virtual purchase, allocation and product weights will be listed here."
+          : "Portföyünde henüz yatırım ürünü yok. İlk sanal alımından sonra dağılım ve ürün ağırlıkları burada listelenir."}
       </div>
     );
   }
@@ -63,7 +67,7 @@ export function PortfolioBreakdown({ items, compact = false }: PortfolioBreakdow
           onClick={() => setExpanded((value) => !value)}
           className="rounded-md border border-slate-300 bg-white/70 px-4 py-2 text-xs font-black text-slate-700 hover:border-[#0f766e]"
         >
-          {expanded ? "Daha az göster" : `Tümünü göster (${items.length})`}
+          {expanded ? (isEnglish ? "Show less" : "Daha az göster") : `${isEnglish ? "Show all" : "Tümünü göster"} (${items.length})`}
         </button>
       ) : null}
     </div>

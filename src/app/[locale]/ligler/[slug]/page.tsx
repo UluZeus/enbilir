@@ -6,6 +6,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { joinLeagueAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
+import { getDefaultLeagueDescription, getLeagueNameForLocale, isDefaultLeagueSlug } from "@/lib/default-leagues";
 import { getLeagueDetail, getLeagueLeaderboard } from "@/lib/leagues";
 import { formatMoney } from "@/lib/portfolio";
 import { defaultOpenGraphImage } from "@/lib/seo";
@@ -19,14 +20,17 @@ export async function generateMetadata({
   const { locale: rawLocale, slug } = await params;
   const locale = getSafeLocale(rawLocale);
   const league = await getLeagueDetail(slug);
+  const leagueName = league ? getLeagueNameForLocale(league.name, slug, locale) : null;
+  const leagueTitleName = leagueName && locale === "tr" && !leagueName.endsWith("Ligi") ? `${leagueName} Ligi` : leagueName;
   const title = league
     ? locale === "en"
-      ? `${league.name} League | Enbilir Portfolio Competition`
-      : `${league.name} Ligi | Enbilir Portföy Yarışması`
+      ? `${leagueName} | Enbilir Portfolio Competition`
+      : `${leagueTitleName} | Enbilir Portföy Yarışması`
     : locale === "en"
       ? "League | Enbilir"
       : "Lig | Enbilir";
-  const description = league?.description || (locale === "en"
+  const localizedDescription = getLeagueDescriptionForLocale(slug, league?.description ?? null, locale);
+  const description = localizedDescription || (locale === "en"
     ? "Join Enbilir leagues directly and follow virtual portfolio rankings with market-literacy context."
     : "Enbilir liglerine doğrudan katılın ve sanal portföy sıralamalarını finansal okuryazarlık bağlamıyla takip edin.");
   const path = `/${locale}/ligler/${slug}`;
@@ -75,6 +79,8 @@ export default async function LeagueDetailPage({
 
   const membership = user ? league.memberships.find((item) => item.userId === user.id) : null;
   const leaderboard = await getLeagueLeaderboard(league.id, user?.id);
+  const leagueDescription = getLeagueDescriptionForLocale(league.slug, league.description, locale);
+  const leagueName = getLeagueNameForLocale(league.name, league.slug, locale);
   const inviteUrl = `${getSiteUrl()}/${locale}/ligler/${league.slug}`;
   const siteUrl = getSiteUrl();
   const leagueUrl = `${siteUrl}/${locale}/ligler/${league.slug}`;
@@ -99,16 +105,16 @@ export default async function LeagueDetailPage({
           {
             "@type": "ListItem",
             position: 3,
-            name: league.name,
+            name: leagueName,
             item: leagueUrl,
           },
         ],
       },
       {
         "@type": "CollectionPage",
-        name: `${league.name} ${locale === "en" ? "League" : "Ligi"}`,
+        name: locale === "en" ? leagueName : (leagueName.endsWith("Ligi") ? leagueName : `${leagueName} Ligi`),
         url: leagueUrl,
-        description: league.description ?? (locale === "en" ? "Enbilir virtual portfolio league." : "Enbilir sanal portföy ligi."),
+        description: leagueDescription ?? (locale === "en" ? "Enbilir virtual portfolio league." : "Enbilir sanal portföy ligi."),
         inLanguage: locale === "en" ? "en-US" : "tr-TR",
         isPartOf: {
           "@type": "WebSite",
@@ -136,8 +142,8 @@ export default async function LeagueDetailPage({
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">
               {copy.leagueTypeLabels[league.type]}
             </p>
-            <h1 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">{league.name}</h1>
-            {league.description ? <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">{league.description}</p> : null}
+            <h1 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">{leagueName}</h1>
+            {leagueDescription ? <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">{leagueDescription}</p> : null}
           </div>
           <div className="rounded-lg border border-white/10 bg-black/25 p-5">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{copy.memberCount}</p>
@@ -180,7 +186,7 @@ export default async function LeagueDetailPage({
               </p>
               <p className="mt-3 rounded-lg border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300">{inviteUrl}</p>
               <div className="mt-3">
-                <LeagueInviteActions inviteUrl={inviteUrl} leagueName={league.name} locale={locale} />
+                <LeagueInviteActions inviteUrl={inviteUrl} leagueName={leagueName} locale={locale} />
               </div>
             </>
           ) : (
@@ -215,12 +221,12 @@ export default async function LeagueDetailPage({
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f5a623]">
               {locale === "tr" ? "Lig Yönetici Paneli" : "League Manager Panel"}
             </p>
-            <h2 className="mt-2 text-2xl font-black text-white">{league.name}</h2>
+            <h2 className="mt-2 text-2xl font-black text-white">{leagueName}</h2>
             <p className="mt-3 break-all rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm font-black text-white">
               {inviteUrl}
             </p>
             <div className="mt-3">
-              <LeagueInviteActions inviteUrl={inviteUrl} leagueName={league.name} locale={locale} />
+              <LeagueInviteActions inviteUrl={inviteUrl} leagueName={leagueName} locale={locale} />
             </div>
           </div>
 
@@ -326,4 +332,24 @@ export default async function LeagueDetailPage({
       </section>
     </div>
   );
+}
+
+function getLeagueDescriptionForLocale(slug: string, description: string | null, locale: "tr" | "en") {
+  if (locale === "tr") {
+    return description;
+  }
+
+  if (isDefaultLeagueSlug(slug)) {
+    return getDefaultLeagueDescription(slug, "en");
+  }
+
+  if (description && !looksTurkish(description)) {
+    return description;
+  }
+
+  return "Community-created league. The league owner can add an English description from the dashboard.";
+}
+
+function looksTurkish(value: string) {
+  return /[çğıöşüÇĞİÖŞÜ]|\b(ve|için|ile|kullanıcı|portföy|yarışma|finansal|okuryazarlık|lig|üyeler|katılım)\b/i.test(value);
 }

@@ -59,6 +59,18 @@ function RankingList({ title, rows, locale }: { title: string; rows: WinnerRow[]
   );
 }
 
+function getLocalizedSummaryNote(note: string | null | undefined, locale: Locale) {
+  if (!note || locale === "tr") {
+    return note;
+  }
+
+  if (note.includes("baseline")) {
+    return "For users without a starting weekly baseline in this archive entry, the weekly virtual-trade contribution was used. Future weeks will be archived against the starting portfolio baseline.";
+  }
+
+  return "Weekly gain is calculated by comparing the starting portfolio baseline with the portfolio value at publication time.";
+}
+
 export function WeeklyWinnersModal({ locale, isSignedIn, summary }: WeeklyWinnersModalProps) {
   const storageKey = `enbilir-weekly-winners-dismissed:${summary.weekKey}`;
   const [isOpen, setIsOpen] = useState(false);
@@ -126,7 +138,7 @@ export function WeeklyWinnersModal({ locale, isSignedIn, summary }: WeeklyWinner
         <a href={`/${locale}/haftalik-liderler`} className="mt-3 inline-flex rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-black text-[#152033] hover:border-[#0f766e] hover:text-[#0f766e]">
           {locale === "tr" ? "Haftalık liderler arşivini aç" : "Open weekly leaders archive"}
         </a>
-        {summary.note ? <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">{summary.note}</p> : null}
+        {summary.note ? <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">{getLocalizedSummaryNote(summary.note, locale)}</p> : null}
       </section>
     </div>
   );

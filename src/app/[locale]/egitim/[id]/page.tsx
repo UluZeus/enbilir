@@ -35,10 +35,12 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const localizedIds = getLocalizedEducationIds(id);
   const canonical = `/${locale}/egitim/${id}`;
   const description = item.excerpt ?? paragraphs(item.body)[0];
+  const sectionName = locale === "en" ? "Enbilir Education" : "Enbilir Eğitim";
+  const authorName = locale === "en" ? "Dr. Hakan Unsal" : seoBrand.founder;
 
   return {
     ...(await buildPageMetadata({ locale, path: `/egitim/${id}`, page: "education" })),
-    title: { absolute: `${item.title} | Enbilir Eğitim` },
+    title: { absolute: `${item.title} | ${sectionName}` },
     description,
     alternates: {
       canonical,
@@ -55,13 +57,13 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       title: item.title,
       description,
       publishedTime: item.publishedAt?.toISOString(),
-      authors: [seoBrand.founder],
+      authors: [authorName],
       images: [
         {
           url: `${siteUrl}${defaultOpenGraphImage}`,
           width: 1200,
           height: 630,
-          alt: `${item.title} | Enbilir Eğitim`,
+          alt: `${item.title} | ${sectionName}`,
         },
       ],
     },
@@ -84,6 +86,8 @@ export default async function EducationDetailPage({ params }: { params: Promise<
   }
 
   const articleParagraphs = paragraphs(item.body);
+  const authorName = locale === "en" ? "Dr. Hakan Unsal" : seoBrand.founder;
+  const publisherName = locale === "en" ? "Enbilir Market Academy" : seoBrand.legalName;
   const siteUrl = getSiteUrl();
   const published = item.publishedAt
     ? new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "long" }).format(item.publishedAt)
@@ -99,11 +103,11 @@ export default async function EducationDetailPage({ params }: { params: Promise<
     dateModified: item.publishedAt?.toISOString(),
     author: {
       "@type": "Person",
-      name: seoBrand.founder,
+      name: authorName,
     },
     publisher: {
       "@type": "Organization",
-      name: seoBrand.legalName,
+      name: publisherName,
       logo: {
         "@type": "ImageObject",
         url: `${siteUrl}/logo.png`,

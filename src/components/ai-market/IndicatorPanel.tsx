@@ -1,5 +1,6 @@
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
+import { getRiskLabel, localizeAiMarketText } from "@/lib/ai-market/localization";
 import type { IndicatorSnapshot, RiskAssessment } from "@/lib/ai-market/types";
 
 function formatNumber(value: number | null, digits = 2) {
@@ -11,8 +12,9 @@ function formatNumber(value: number | null, digits = 2) {
 }
 
 export function IndicatorPanel({ locale, indicators, risk }: { locale: Locale | string; indicators: IndicatorSnapshot; risk: RiskAssessment }) {
-  const copy = getUiCopy(getSafeLocale(locale)).ai;
-  const isEnglish = getSafeLocale(locale) === "en";
+  const safeLocale = getSafeLocale(locale);
+  const copy = getUiCopy(safeLocale).ai;
+  const isEnglish = safeLocale === "en";
   const rows = [
     { label: "RSI", value: formatNumber(indicators.rsi) },
     { label: "MACD", value: formatNumber(indicators.macd.macd, 4) },
@@ -37,7 +39,7 @@ export function IndicatorPanel({ locale, indicators, risk }: { locale: Locale | 
         <div className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm">
           <span className="font-bold text-stone-300">{copy.risk}</span>{" "}
           <span className={risk.level === "YUKSEK" ? "font-black text-red-600" : risk.level === "ORTA" ? "font-black text-amber-700" : "font-black text-[#0f766e]"}>
-            {risk.level} {risk.score}/100
+            {getRiskLabel(risk.level, safeLocale)} {risk.score}/100
           </span>
         </div>
       </div>
@@ -54,7 +56,7 @@ export function IndicatorPanel({ locale, indicators, risk }: { locale: Locale | 
       <div className="mt-4 grid gap-2">
         {risk.reasons.map((reason) => (
           <p key={reason} className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-stone-200">
-            {reason}
+            {localizeAiMarketText(reason, safeLocale)}
           </p>
         ))}
       </div>

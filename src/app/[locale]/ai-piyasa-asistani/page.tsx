@@ -7,7 +7,7 @@ import { SiteMotion } from "@/components/SiteMotion";
 import { getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
-import { AI_MARKET_SYMBOLS } from "@/lib/ai-market/symbols";
+import { getLocalizedAiMarketSymbols } from "@/lib/ai-market/symbols";
 import { getMembershipSnapshot, membershipConfig } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
@@ -27,6 +27,7 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
   const commandMetrics = getCommandMetrics(locale);
   const reportSlots = getReportSlots(locale);
   const decisionCards = getDecisionCards(locale);
+  const aiSymbols = getLocalizedAiMarketSymbols(locale);
   const user = await getSessionUser();
   const fullUser = user
     ? await prisma.user.findUnique({
@@ -208,7 +209,7 @@ export default async function AiMarketAssistantPage({ params }: { params: Promis
         standardPaymentLink={membershipConfig.standardPaymentLink}
         vipPaymentLink={membershipConfig.vipPaymentLink}
       />
-      <MarketAssistantDashboard locale={locale} symbols={AI_MARKET_SYMBOLS} />
+      <MarketAssistantDashboard locale={locale} symbols={aiSymbols} />
     </div>
   );
 }
@@ -257,7 +258,7 @@ function getCommandMetrics(locale: string) {
   if (locale === "en") {
     return [
       { value: "1h", label: "Live terminal", body: "Focuses on the active asset with indicators, radar, and confidence context." },
-      { value: "3x", label: "Macro reports", body: "Creates a broader market read at 07:00, 12:00, and 18:00 Türkiye time." },
+      { value: "3x", label: "Macro reports", body: "Creates a broader market read at 07:00, 12:00, and 18:00 Turkey time." },
       { value: "AI", label: "Learning agent", body: "Explains signals as educational context, never as automatic trade orders." },
     ] as const;
   }
@@ -273,7 +274,7 @@ function getReportSlots(locale: string) {
   if (locale === "en") {
     return [
       { time: "07:00", title: "Morning macro frame", body: "Starts the day with overnight news, Asia/US close, metals, FX, and energy context." },
-      { time: "12:00", title: "Midday reset", body: "Refreshes the picture after European flow and early Türkiye market behavior." },
+      { time: "12:00", title: "Midday reset", body: "Refreshes the picture after European flow and early Turkish market behavior." },
       { time: "18:00", title: "Evening decision note", body: "Collects the day into a calmer summary before the next morning cycle." },
     ] as const;
   }
