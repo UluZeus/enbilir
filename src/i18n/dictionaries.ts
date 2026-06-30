@@ -5,6 +5,7 @@ export const dictionaries = {
     brand: "Enbilir",
     nav: {
       home: "Ana sayfa",
+      usageGuide: "KULLANIM KILAVUZU",
       contentHub: "İçerik Merkezi",
       trade: "İşlem Yap",
       riskTest: "Risk Testi",
@@ -79,6 +80,7 @@ export const dictionaries = {
     brand: "Enbilir",
     nav: {
       home: "Home",
+      usageGuide: "USAGE GUIDE",
       contentHub: "Content Hub",
       trade: "Trade",
       riskTest: "Risk Test",

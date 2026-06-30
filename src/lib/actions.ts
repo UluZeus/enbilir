@@ -336,8 +336,9 @@ export async function registerAction(formData: FormData) {
       },
     });
 
-    const verificationUrl = buildEmailVerificationUrl(token, getSafeLocale(String(locale ?? "tr")));
-    const { subject, text, html } = buildWelcomeVerificationEmail({ name, verificationUrl });
+    const safeLocale = getSafeLocale(String(locale ?? "tr"));
+    const verificationUrl = buildEmailVerificationUrl(token, safeLocale);
+    const { subject, text, html } = buildWelcomeVerificationEmail({ name, verificationUrl, locale: safeLocale });
 
     await sendEmail({
       to: email,

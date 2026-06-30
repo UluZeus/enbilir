@@ -5,6 +5,7 @@ import { getSiteUrl } from "@/lib/site-url";
 const staticRoutes = [
   { path: "", frequency: "daily", priority: 1 },
   { path: "/islem-yap", frequency: "daily", priority: 0.92 },
+  { path: "/kullanim-kilavuzu", frequency: "weekly", priority: 0.9 },
   { path: "/risk-istahi-testi", frequency: "weekly", priority: 0.86 },
   { path: "/ai-piyasa-asistani", frequency: "daily", priority: 0.95 },
   { path: "/ai-piyasa-asistani/raporlar", frequency: "daily", priority: 0.93 },

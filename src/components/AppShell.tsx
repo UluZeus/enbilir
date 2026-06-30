@@ -5,6 +5,7 @@ import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { LeagueRequiredGate } from "@/components/LeagueRequiredGate";
 import { MobileHeaderMenu } from "@/components/MobileHeaderMenu";
 import { SiteMotion } from "@/components/SiteMotion";
+import { UsageGuideWelcomeModal } from "@/components/usage-guide/UsageGuideWelcomeModal";
 import { WeeklyWinnersModal } from "@/components/WeeklyWinnersModal";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
@@ -19,6 +20,7 @@ import { getWeeklyCompetitionSummary } from "@/lib/weekly-competition-summary";
 
 const primaryNav = [
   { href: "", label: "home" },
+  { href: "kullanim-kilavuzu", label: "usageGuide" },
   { href: "icerik-merkezi", label: "contentHub" },
   { href: "ligler", label: "leagues" },
   { href: "liderlik-tablosu", label: "leaderboard" },
@@ -179,6 +181,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
         <SiteMotion variant="trend" className="site-ambient-motion site-ambient-motion--three" />
       </div>
       {sessionUser && userLeagueCount === 0 ? <LeagueRequiredGate locale={locale} leagues={defaultLeagueOptions} /> : null}
+      <UsageGuideWelcomeModal locale={locale} />
       <WeeklyWinnersModal locale={locale} isSignedIn={Boolean(sessionUser)} summary={weeklySummary} />
       <header className="premium-site-header premium-site-header--advanced sticky top-0 z-30">
         <div className="premium-finance-topbar hidden md:block">

@@ -245,6 +245,18 @@ const pageSeo = {
         "The Enbilir content hub brings blog articles, financial-literacy education, and site guides together with search, filters, and a practical reading path.",
     },
   },
+  usageGuide: {
+    tr: {
+      title: "Kullanım Kılavuzu | Enbilir'e Adım Adım Başlama Rehberi",
+      description:
+        "Enbilir'de üye olma, lig seçme, Risk İştahı Testi, okuma sırası, sanal portföy işlemleri, günlük ve haftalık raporları yorumlama için profesyonel kullanım kılavuzu.",
+    },
+    en: {
+      title: "Usage Guide | Step-by-Step Enbilir Onboarding",
+      description:
+        "A professional Enbilir usage guide for registration, league selection, the Risk Appetite Test, reading order, virtual portfolio practice, and daily or weekly report interpretation.",
+    },
+  },
   riskTest: {
     tr: {
       title: "Risk İştahı Testi | Enbilir Sanal Portföy Risk Profili",

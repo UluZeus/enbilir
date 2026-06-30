@@ -1,5 +1,6 @@
 import { sendEmail } from "@/lib/email";
 import { getSiteUrl } from "@/lib/site-url";
+import { buildUsageGuideEmailSection } from "@/lib/usage-guide-content";
 
 function escapeHtml(value: string) {
   return value
@@ -15,6 +16,7 @@ export function buildGoogleWelcomeEmail({ name }: { name: string }) {
   const escapedName = escapeHtml(safeName);
   const siteUrl = getSiteUrl();
   const panelUrl = `${siteUrl}/tr/panel`;
+  const guide = buildUsageGuideEmailSection("tr");
   const subject = "Enbilir'e hoş geldiniz";
   const text = [
     `Merhaba ${safeName},`,
@@ -24,6 +26,8 @@ export function buildGoogleWelcomeEmail({ name }: { name: string }) {
     "Google hesabınızla üyeliğiniz başarıyla oluşturuldu. Artık sanal portföyünüzü, AI piyasa asistanını, makro raporları ve eğitim içeriklerini tek hesabınızla kullanabilirsiniz.",
     "",
     `Başlamak için panelinize gidebilirsiniz: ${panelUrl}`,
+    "",
+    guide.text,
     "",
     "Bu platform eğitim, simülasyon ve finansal farkındalık amacıyla hazırlanmıştır; gerçek para işlemi veya yatırım tavsiyesi içermez.",
     "",
@@ -53,6 +57,7 @@ export function buildGoogleWelcomeEmail({ name }: { name: string }) {
             <p style="margin:0 0 22px 0;font-size:13px;line-height:1.6;color:#64748b;">
               Not: Enbilir eğitim, simülasyon ve finansal farkındalık amacıyla hazırlanmıştır; gerçek para işlemi veya yatırım tavsiyesi içermez.
             </p>
+            ${guide.html}
             <p style="margin:0;font-size:15px;line-height:1.7;color:#152033;">
               Hoş geldiniz,<br />
               <strong>Dr. Hakan Ünsal</strong><br />

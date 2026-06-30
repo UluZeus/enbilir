@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
+import type { Locale } from "@/i18n/config";
 import { getSiteUrl } from "@/lib/site-url";
+import { buildUsageGuideEmailSection } from "@/lib/usage-guide-content";
 
 const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24;
 
@@ -42,14 +44,17 @@ function escapeHtml(value: string) {
 export function buildWelcomeVerificationEmail({
   name,
   verificationUrl,
+  locale = "tr",
 }: {
   name: string;
   verificationUrl: string;
+  locale?: Locale;
 }) {
   const safeName = name.trim() || "Değerli üyemiz";
   const escapedName = escapeHtml(safeName);
   const escapedVerificationUrl = escapeHtml(verificationUrl);
   const expiryMessage = getEmailVerificationExpiryMessage();
+  const guide = buildUsageGuideEmailSection(locale);
   const subject = "Enbilir'e hoş geldiniz | Hesabınızı aktifleştirin";
   const text = [
     `Merhaba ${safeName},`,
@@ -62,6 +67,8 @@ export function buildWelcomeVerificationEmail({
     verificationUrl,
     "",
     expiryMessage,
+    "",
+    guide.text,
     "",
     "Bu platform eğitim, simülasyon ve finansal farkındalık amacıyla hazırlanmıştır; gerçek para işlemi veya yatırım tavsiyesi içermez.",
     "",
@@ -97,6 +104,7 @@ export function buildWelcomeVerificationEmail({
               </p>
             </div>
             <p style="margin:0 0 18px 0;font-size:13px;line-height:1.6;color:#64748b;">${escapeHtml(expiryMessage)}</p>
+            ${guide.html}
             <p style="margin:0 0 22px 0;font-size:13px;line-height:1.6;color:#64748b;">
               Not: Enbilir eğitim, simülasyon ve finansal farkındalık amacıyla hazırlanmıştır; gerçek para işlemi veya yatırım tavsiyesi içermez.
             </p>
