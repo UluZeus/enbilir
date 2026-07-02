@@ -227,7 +227,7 @@ export const uiCopy = {
       sellSignal: "SAT önerisi",
       confidence: "Güven",
       risk: "Risk",
-      terminal: "AI Trading Terminal",
+      terminal: "AI Piyasa Terminali",
       manageAssets: "Varlıkları Yönet",
       lastPrice: "Son fiyat",
       volume24h: "24s hacim",

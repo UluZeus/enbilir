@@ -73,7 +73,7 @@ export function TerminalChartArea({ locale, analysis, status }: TerminalChartAre
     <section className="terminal-health-panel rounded-md border border-slate-200 bg-slate-100/95 p-3 shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="terminal-health-kicker text-xs font-black uppercase tracking-[0.16em] text-slate-500">AI Trading Terminal</p>
+          <p className="terminal-health-kicker text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.terminal}</p>
           <h2 className="terminal-health-title mt-1 text-lg font-black text-[#152033]">
             {analysis ? `${analysis.symbol} ${copy.technicalHealth}` : copy.selectedAssetTechnical}
           </h2>

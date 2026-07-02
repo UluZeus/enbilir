@@ -142,6 +142,22 @@ function formatSignal(value: string | null, locale = "tr") {
   return value ? labels[locale === "en" ? "en" : "tr"][value] ?? value : "-";
 }
 
+function formatStoredCommentary(value: string, locale: "tr" | "en") {
+  if (locale === "en") {
+    return value;
+  }
+
+  return value
+    .replace(/\bSTRONG_BUY\b/g, "GÜÇLÜ AL")
+    .replace(/\bTAKE_PROFIT\b/g, "KAR REALİZASYONU İZLE")
+    .replace(/\bNO_TRADE\b/g, "İŞLEM YOK")
+    .replace(/\bBUY\b/g, "AL")
+    .replace(/\bSELL\b/g, "SAT")
+    .replace(/\bWATCH\b/g, "İZLE")
+    .replace(/\bHOLD\b/g, "BEKLE")
+    .replace(/\bAVOID\b/g, "UZAK DUR");
+}
+
 function localizeMarketLabel(value: string, locale: "tr" | "en") {
   if (locale !== "en") {
     return value;
@@ -432,7 +448,9 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
                     <p className="text-sm font-bold text-slate-500">Prepared by the scheduled AI agent trained for Enbilir.</p>
                   </div>
                 </div>
-                <h1 className="mt-2 text-3xl font-black text-[#111827] md:text-5xl">{isWeeklyReport ? "Scheduled Weekly Macro Report" : "Scheduled Macro Report"}</h1>
+                <h1 className="mt-2 text-3xl font-black text-[#111827] md:text-5xl">
+                  {isWeeklyReport ? "Weekly Macro Report: Market Context" : "Daily Macro Report: Market Context"}
+                </h1>
                 <p className="mt-2 text-sm font-bold text-slate-500">
                   {new Intl.DateTimeFormat("en-US", { dateStyle: "full", timeStyle: "short" }).format(report.generatedAt)} · {report.scope}
                 </p>
@@ -511,14 +529,50 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
             </div>
           </section>
 
-          {chartAssets.length > 0 ? (
-            <section className="report-chart-section rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Chart coverage</p>
-              <p className="mt-2 text-sm leading-7 text-slate-700">
-                {chartAssets.length} asset{chartAssets.length === 1 ? "" : "s"} include recent technical chart data in this report.
-              </p>
-            </section>
-          ) : null}
+          {chartAssets.map((asset, index) => {
+            const source = readSourcePayload(asset.sourcePayload);
+            const series = source.technicalSeries;
+
+            if (!series) {
+              return null;
+            }
+
+            return (
+              <section key={asset.id} className="report-chart-section print-page avoid-break rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="print-label text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">Recent 3-day chart set {index + 1}</p>
+                    <h2 className="print-title mt-1 text-2xl font-black text-[#111827]">{localizeMarketLabel(asset.displayName, "en")}</h2>
+                    <p className="print-muted mt-1 text-sm font-bold text-slate-500">
+                      Last: {formatNumber(asset.lastPrice, "en")} · Change: {formatPercent(asset.changePercent)} · Signal: {formatSignal(asset.signalType, "en")}
+                    </p>
+                  </div>
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600">{source.interval ?? "1h"}</span>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <ChartCard title="Price, EMA and Bollinger">
+                    <PriceChart series={series} locale="en" />
+                  </ChartCard>
+                  <ChartCard title="Volume and average volume">
+                    <VolumeChart series={series} locale="en" />
+                  </ChartCard>
+                  <ChartCard title="RSI">
+                    <SingleLineChart series={series} keys={["rsi"]} fixedMin={0} fixedMax={100} colors={["#0f766e"]} locale="en" />
+                  </ChartCard>
+                  <ChartCard title="MACD">
+                    <MacdChart series={series} />
+                  </ChartCard>
+                  <ChartCard title="Ichimoku cloud">
+                    <IchimokuChart series={series} locale="en" />
+                  </ChartCard>
+                  <ChartCard title="ATR and Bollinger bandwidth">
+                    <SingleLineChart series={series} keys={["atr", "bollingerBandwidth"]} colors={["#dc2626", "#2563eb"]} locale="en" />
+                  </ChartCard>
+                </div>
+              </section>
+            );
+          })}
 
           <section className="report-news-section rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-xl">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">News sources used</p>
@@ -664,22 +718,22 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <ChartCard title="Fiyat, EMA ve Bollinger">
-                  <PriceChart series={series} />
+                  <PriceChart series={series} locale="tr" />
                 </ChartCard>
                 <ChartCard title="Hacim ve ortalama hacim">
-                  <VolumeChart series={series} />
+                  <VolumeChart series={series} locale="tr" />
                 </ChartCard>
                 <ChartCard title="RSI">
-                  <SingleLineChart series={series} keys={["rsi"]} fixedMin={0} fixedMax={100} colors={["#0f766e"]} />
+                  <SingleLineChart series={series} keys={["rsi"]} fixedMin={0} fixedMax={100} colors={["#0f766e"]} locale="tr" />
                 </ChartCard>
                 <ChartCard title="MACD">
                   <MacdChart series={series} />
                 </ChartCard>
                 <ChartCard title="Ichimoku bulutu">
-                  <IchimokuChart series={series} />
+                  <IchimokuChart series={series} locale="tr" />
                 </ChartCard>
                 <ChartCard title="ATR ve Bollinger bant genisligi">
-                  <SingleLineChart series={series} keys={["atr", "bollingerBandwidth"]} colors={["#dc2626", "#2563eb"]} />
+                  <SingleLineChart series={series} keys={["atr", "bollingerBandwidth"]} colors={["#dc2626", "#2563eb"]} locale="tr" />
                 </ChartCard>
               </div>
             </section>
@@ -707,9 +761,9 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
                 </div>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <Comment title="Teknik" body={asset.technicalCommentary} />
-                  {asset.macroCommentary ? <Comment title="Makro" body={asset.macroCommentary} /> : null}
-                  {asset.newsCommentary ? <Comment title="Haber" body={asset.newsCommentary} /> : null}
+                  <Comment title="Teknik" body={formatStoredCommentary(asset.technicalCommentary, locale)} />
+                  {asset.macroCommentary ? <Comment title="Makro" body={formatStoredCommentary(asset.macroCommentary, locale)} /> : null}
+                  {asset.newsCommentary ? <Comment title="Haber" body={formatStoredCommentary(asset.newsCommentary, locale)} /> : null}
                 </div>
               </div>
             ))}
@@ -890,14 +944,14 @@ function SvgFrame({ children, points, min, max, yLabel = "Deger" }: { children: 
   );
 }
 
-function PriceChart({ series }: { series: TechnicalSeries }) {
+function PriceChart({ series, locale = "tr" }: { series: TechnicalSeries; locale?: "tr" | "en" }) {
   const points = compactPoints(series.points);
   const values = numericValues(points, ["close", "ema20", "ema50", "bollingerUpper", "bollingerLower"]);
   const { min, max } = valueRange(values);
   const band = areaPath(points, "bollingerUpper", "bollingerLower", 360, 150, min, max);
 
   return (
-    <SvgFrame points={points} min={min} max={max} yLabel="Fiyat">
+    <SvgFrame points={points} min={min} max={max} yLabel={locale === "en" ? "Price" : "Fiyat"}>
       {band ? <path d={band} fill="#dbeafe" opacity="0.65" /> : null}
       <path d={linePath(points, "close", 360, 150, min, max)} fill="none" stroke="#111827" strokeWidth="2.2" />
       <path d={linePath(points, "ema20", 360, 150, min, max)} fill="none" stroke="#0f766e" strokeWidth="1.5" />
@@ -906,14 +960,14 @@ function PriceChart({ series }: { series: TechnicalSeries }) {
   );
 }
 
-function VolumeChart({ series }: { series: TechnicalSeries }) {
+function VolumeChart({ series, locale = "tr" }: { series: TechnicalSeries; locale?: "tr" | "en" }) {
   const points = compactPoints(series.points);
   const values = numericValues(points, ["volume", "volumeSma20"]);
   const { max } = valueRange(values, 0, 1);
   const barWidth = 360 / Math.max(points.length, 1);
 
   return (
-    <SvgFrame points={points} min={0} max={max} yLabel="Hacim">
+    <SvgFrame points={points} min={0} max={max} yLabel={locale === "en" ? "Volume" : "Hacim"}>
       {points.map((point, index) => {
         const height = Math.max(1, (point.volume / max) * 125);
         return <rect key={`${point.time}-volume`} x={index * barWidth} y={140 - height} width={Math.max(1, barWidth - 1)} height={height} fill="#94a3b8" />;
@@ -929,12 +983,14 @@ function SingleLineChart({
   colors,
   fixedMin,
   fixedMax,
+  locale = "tr",
 }: {
   series: TechnicalSeries;
   keys: Array<keyof TechnicalSeriesPoint>;
   colors: string[];
   fixedMin?: number;
   fixedMax?: number;
+  locale?: "tr" | "en";
 }) {
   const points = compactPoints(series.points);
   const values = numericValues(points, keys);
@@ -943,7 +999,7 @@ function SingleLineChart({
   const max = fixedMax ?? range.max;
 
   return (
-    <SvgFrame points={points} min={min} max={max} yLabel="Değer">
+    <SvgFrame points={points} min={min} max={max} yLabel={locale === "en" ? "Value" : "Değer"}>
       {keys.map((key, index) => (
         <path key={String(key)} d={linePath(points, key, 360, 150, min, max)} fill="none" stroke={colors[index] ?? "#111827"} strokeWidth="2" />
       ))}
@@ -972,14 +1028,14 @@ function MacdChart({ series }: { series: TechnicalSeries }) {
   );
 }
 
-function IchimokuChart({ series }: { series: TechnicalSeries }) {
+function IchimokuChart({ series, locale = "tr" }: { series: TechnicalSeries; locale?: "tr" | "en" }) {
   const points = compactPoints(series.points);
   const values = numericValues(points, ["close", "ichimokuConversion", "ichimokuBase", "ichimokuSpanA", "ichimokuSpanB"]);
   const { min, max } = valueRange(values);
   const cloud = areaPath(points, "ichimokuSpanA", "ichimokuSpanB", 360, 150, min, max);
 
   return (
-    <SvgFrame points={points} min={min} max={max} yLabel="Fiyat">
+    <SvgFrame points={points} min={min} max={max} yLabel={locale === "en" ? "Price" : "Fiyat"}>
       {cloud ? <path d={cloud} fill="#bbf7d0" opacity="0.55" /> : null}
       <path d={linePath(points, "close", 360, 150, min, max)} fill="none" stroke="#111827" strokeWidth="2" />
       <path d={linePath(points, "ichimokuConversion", 360, 150, min, max)} fill="none" stroke="#2563eb" strokeWidth="1.5" />
