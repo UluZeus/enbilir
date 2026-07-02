@@ -119,45 +119,47 @@ function MiniLineChart({
   const minLabel = compactNumber(bounds.min, 2);
 
   return (
-    <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)_64px] gap-4">
-      <svg className="h-56 w-full max-w-full overflow-hidden" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
-        <line x1="0" x2={chartWidth} y1="0" y2="0" stroke="#e2e8f0" strokeWidth="1" />
-        <line x1="0" x2={chartWidth} y1={chartHeight / 2} y2={chartHeight / 2} stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
-        <line x1="0" x2={chartWidth} y1={chartHeight} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
-        {references.map((reference) => {
-          const y = yForValue(reference.value, bounds.min, bounds.max);
+    <div className="mt-4 min-w-0">
+      <div className="overflow-x-auto overscroll-x-contain rounded-lg border border-slate-100 bg-white [touch-action:pinch-zoom]">
+        <svg className="h-64 w-[680px] max-w-none overflow-hidden p-2 md:h-56 md:w-full md:max-w-full" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
+          <line x1="0" x2={chartWidth} y1="0" y2="0" stroke="#e2e8f0" strokeWidth="1" />
+          <line x1="0" x2={chartWidth} y1={chartHeight / 2} y2={chartHeight / 2} stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
+          <line x1="0" x2={chartWidth} y1={chartHeight} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
+          {references.map((reference) => {
+            const y = yForValue(reference.value, bounds.min, bounds.max);
 
-          return y >= 0 && y <= chartHeight ? (
-            <g key={`${reference.label}-${reference.value}`}>
-              <line
-                x1="0"
-                x2={chartWidth}
-                y1={y}
-                y2={y}
-                stroke={reference.color ?? "#94a3b8"}
-                strokeDasharray="4 4"
-                strokeWidth="1"
-              />
-              <text x={chartWidth - 4} y={Math.max(14, y - 6)} textAnchor="end" fill={reference.color ?? "#64748b"} fontSize="13" fontWeight="700">
-                {reference.label}
-              </text>
-            </g>
-          ) : null;
-        })}
-        {lines.map((line) => (
-          <path
-            key={line.label}
-            d={buildPath(line.values, bounds.min, bounds.max)}
-            fill="none"
-            stroke={line.color}
-            strokeDasharray={line.dashed ? "5 5" : undefined}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={line.width ?? 2}
-          />
-        ))}
-      </svg>
-      <div className="flex flex-col justify-between py-1 text-right text-xs font-bold text-slate-500">
+            return y >= 0 && y <= chartHeight ? (
+              <g key={`${reference.label}-${reference.value}`}>
+                <line
+                  x1="0"
+                  x2={chartWidth}
+                  y1={y}
+                  y2={y}
+                  stroke={reference.color ?? "#94a3b8"}
+                  strokeDasharray="4 4"
+                  strokeWidth="1"
+                />
+                <text x={chartWidth - 4} y={Math.max(14, y - 6)} textAnchor="end" fill={reference.color ?? "#64748b"} fontSize="13" fontWeight="700">
+                  {reference.label}
+                </text>
+              </g>
+            ) : null;
+          })}
+          {lines.map((line) => (
+            <path
+              key={line.label}
+              d={buildPath(line.values, bounds.min, bounds.max)}
+              fill="none"
+              stroke={line.color}
+              strokeDasharray={line.dashed ? "5 5" : undefined}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={line.width ?? 2}
+            />
+          ))}
+        </svg>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px] font-bold text-slate-500">
         <span>{maxLabel}</span>
         <span>{compactNumber((bounds.max + bounds.min) / 2, 2)}</span>
         <span>{minLabel}</span>
@@ -199,7 +201,7 @@ function ChartPanel({
   max?: number;
 }) {
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white/90 p-5 shadow-sm lg:p-6">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm sm:p-5 lg:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h4 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500">{title}</h4>
@@ -214,8 +216,8 @@ function ChartPanel({
           ))}
         </div>
       </div>
-      <ValueGrid values={values} />
       <MiniLineChart lines={lines} references={references} min={min} max={max} />
+      <ValueGrid values={values} />
       {children ? <div className="mt-4 text-sm leading-6 text-slate-600">{children}</div> : null}
     </div>
   );
@@ -370,7 +372,7 @@ export const TechnicalIndicatorCharts = memo(function TechnicalIndicatorCharts({
   const volumeAnomaly = latest.volumeSma20 !== null && latest.volumeSma20 > 0 && latest.volume / latest.volumeSma20 >= 1.8;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 lg:p-5">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2 sm:p-4 lg:p-5">
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <h3 className="text-sm font-black text-[#152033]">{isEnglish ? `${symbol} Technical Chart Panels` : `${symbol} Teknik Grafik Panelleri`}</h3>
         <p className="text-xs font-semibold text-slate-500">

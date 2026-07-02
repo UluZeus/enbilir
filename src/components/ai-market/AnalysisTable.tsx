@@ -284,7 +284,7 @@ export function AnalysisTable({ locale, interval = FALLBACK_INTERVAL }: Analysis
   return (
     <>
       <TopOpportunitiesPanel locale={safeLocale} analyses={successfulAnalyses} isLoading={state.status === "loading"} updatedAt={state.updatedAt} />
-      <section className="premium-card p-4 md:p-5">
+      <section className="premium-card p-3 md:p-5" style={{ overflow: "visible" }}>
       <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-lg font-black text-[#152033]">{copy.favoritesTable}</h2>
@@ -324,8 +324,8 @@ export function AnalysisTable({ locale, interval = FALLBACK_INTERVAL }: Analysis
       {favorites.length > 0 && state.status === "error" ? <ErrorState title={copy.favoriteAnalysisLoadError} message={state.error ?? copy.favoriteAnalysisLoadError} /> : null}
       {results.length > 0 ? (
         <>
-          <DesktopTable copy={copy} signalLabels={signalLabels} results={results} />
-          <MobileCards copy={copy} signalLabels={signalLabels} results={results} />
+          <DesktopTable copy={copy} signalLabels={signalLabels} results={results} locale={safeLocale} />
+          <MobileCards copy={copy} signalLabels={signalLabels} results={results} locale={safeLocale} />
         </>
       ) : null}
       </section>
@@ -337,10 +337,12 @@ function DesktopTable({
   copy,
   signalLabels,
   results,
+  locale,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   results: BatchResult[];
+  locale: Locale;
 }) {
   return (
     <div className="mt-4 hidden overflow-x-auto md:block">
@@ -371,7 +373,7 @@ function DesktopTable({
         </thead>
         <tbody>
           {results.map((result) => (
-            <DesktopResultRows key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} />
+            <DesktopResultRows key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} locale={locale} />
           ))}
         </tbody>
       </table>
@@ -383,10 +385,12 @@ function DesktopResultRows({
   copy,
   signalLabels,
   result,
+  locale,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   result: BatchResult;
+  locale: Locale;
 }) {
   if (!result.ok) {
     const asset = getAssetLabel(result.symbol);
@@ -406,7 +410,6 @@ function DesktopResultRows({
 
   const analysis = result.analysis;
   const signal = analysis.signal.signal;
-  const locale = copy.terminal === "AI Trading Terminal" ? "en" : "tr";
   const tradeHref = `/${locale}/islem-yap?symbol=${encodeURIComponent(analysis.symbol)}&q=${encodeURIComponent(analysis.symbol)}`;
 
   return (
@@ -437,14 +440,14 @@ function DesktopResultRows({
           {localizeAiMarketText(analysis.explanation, locale)}
         </span>
         <span className="mt-2 block rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1.5 text-[11px] font-bold leading-4 text-cyan-900">
-          {getSignalReadingGuide(signal, copy.terminal === "AI Trading Terminal" ? "en" : "tr")}
+          {getSignalReadingGuide(signal, locale)}
         </span>
       </td>
       </tr>
       {analysis.technicalSeries ? (
         <tr>
           <td className="border-b border-slate-200 px-2 py-3" colSpan={9}>
-            <TechnicalIndicatorCharts locale={copy.terminal === "AI Trading Terminal" ? "en" : "tr"} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
+            <TechnicalIndicatorCharts locale={locale} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
           </td>
         </tr>
       ) : null}
@@ -456,15 +459,17 @@ function MobileCards({
   copy,
   signalLabels,
   results,
+  locale,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   results: BatchResult[];
+  locale: Locale;
 }) {
   return (
     <div className="mt-4 grid gap-3 md:hidden">
       {results.map((result) => (
-        <MobileCard key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} />
+        <MobileCard key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} locale={locale} />
       ))}
     </div>
   );
@@ -474,10 +479,12 @@ function MobileCard({
   copy,
   signalLabels,
   result,
+  locale,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   result: BatchResult;
+  locale: Locale;
 }) {
   if (!result.ok) {
     const asset = getAssetLabel(result.symbol);
@@ -492,7 +499,6 @@ function MobileCard({
 
   const analysis = result.analysis;
   const signal = analysis.signal.signal;
-  const locale = copy.terminal === "AI Trading Terminal" ? "en" : "tr";
   const tradeHref = `/${locale}/islem-yap?symbol=${encodeURIComponent(analysis.symbol)}&q=${encodeURIComponent(analysis.symbol)}`;
 
   return (
@@ -521,11 +527,11 @@ function MobileCard({
         {locale === "en" ? "Try in virtual portfolio" : "Sanal portföyde dene"}
       </Link>
       <p className="mt-2 rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1.5 text-xs font-bold leading-5 text-cyan-900">
-        {getSignalReadingGuide(signal, copy.terminal === "AI Trading Terminal" ? "en" : "tr")}
+        {getSignalReadingGuide(signal, locale)}
       </p>
       {analysis.technicalSeries ? (
-        <div className="mt-3">
-          <TechnicalIndicatorCharts locale={copy.terminal === "AI Trading Terminal" ? "en" : "tr"} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
+        <div className="relative left-1/2 mt-3 w-[calc(100vw-1.5rem)] max-w-[480px] -translate-x-1/2">
+          <TechnicalIndicatorCharts locale={locale} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
         </div>
       ) : null}
     </div>
