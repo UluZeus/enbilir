@@ -5442,6 +5442,31 @@ body:has(.site-modern-academy) .mobile-menu-button--advanced {
     0 12px 28px rgb(0 0 0 / 18%);
 }
 
+body:has(.site-modern-academy) .mobile-menu-panel {
+  border-color: rgb(209 191 167 / 38%) !important;
+  background: rgb(255 250 246 / 97%) !important;
+  color: #1f2937 !important;
+}
+
+body:has(.site-modern-academy) .mobile-menu-panel > p,
+body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="default"],
+body:has(.site-modern-academy) .mobile-menu-panel button,
+body:has(.site-modern-academy) .mobile-menu-panel :where(.text-\[\#152033\], .text-slate-600, .text-slate-700) {
+  color: #1f2937 !important;
+}
+
+body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="trade"],
+body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="chat"],
+body:has(.site-modern-academy) .mobile-menu-panel a[href*="/panel"] {
+  color: #064e3b !important;
+}
+
+body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="ai"],
+body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="macro"],
+body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="whatsapp"] {
+  color: #fffaf6 !important;
+}
+
 .page-header-premium--modern {
   position: relative;
   overflow: hidden;

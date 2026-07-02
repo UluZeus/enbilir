@@ -98,21 +98,19 @@ export default async function TradePage({
       <FormMessage message={query.success} tone="success" />
       <FormMessage message={dataError} tone="info" />
       <AdBanner ads={topAds} locale={locale} />
-      <section className="grid min-w-0 gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
-        <aside className="grid min-w-0 content-start gap-5 self-start">
+      <section className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
+        <aside className="order-1 grid min-w-0 content-start gap-5 self-start xl:col-start-1 xl:row-start-1">
           <TradePortfolioPanel snapshot={snapshot} copy={copy.trade} locale={locale} />
-          <LiveMarketOverview locale={locale} initialItems={marketItems} title={copy.trade.title} variant="sidebar" />
-          <AdBanner ads={sideAds} locale={locale} variant="side" />
         </aside>
 
-        <div className="grid min-w-0 gap-5">
-          <div className="trade-ticket-panel premium-card rounded-2xl p-6 shadow-sm">
-            <div className="site-page-hero-grid site-page-hero-grid--compact">
+        <div className="order-2 grid min-w-0 gap-4 md:gap-5 xl:col-start-2 xl:row-span-3 xl:row-start-1">
+          <div className="trade-ticket-panel premium-card rounded-2xl p-4 shadow-sm md:p-6">
+            <div className="site-page-hero-grid site-page-hero-grid--compact gap-3 md:gap-5">
               <div>
-                <h1 className="text-2xl font-black text-[#152033]">{copy.trade.title}</h1>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{copy.trade.description}</p>
+                <h1 className="text-xl font-black text-[#152033] md:text-2xl">{copy.trade.title}</h1>
+                <p className="mt-1 hidden text-sm leading-6 text-slate-600 md:mt-2 md:block">{copy.trade.description}</p>
               </div>
-              <div className="site-page-hero-motion">
+              <div className="site-page-hero-motion hidden md:block">
                 <SiteMotion variant="bars" />
               </div>
             </div>
@@ -129,18 +127,26 @@ export default async function TradePage({
             />
           </div>
 
-          <div className="trade-cash-panel premium-card rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-black text-[#152033]">{copy.trade.cashPreference}</h2>
-            <form action={updateCashModeAction} className="mt-4 flex flex-wrap gap-3">
+          <div className="trade-cash-panel premium-card rounded-2xl p-4 shadow-sm md:p-6">
+            <h2 className="text-lg font-black text-[#152033] md:text-xl">{copy.trade.cashPreference}</h2>
+            <form action={updateCashModeAction} className="mt-3 flex flex-wrap gap-2 md:mt-4 md:gap-3">
               <input type="hidden" name="locale" value={locale} />
               <input type="hidden" name="userId" value={user.id} />
               {["USD", "EUR", "CHF", "TRY_REPO"].map((mode) => (
-                <button key={mode} name="cashMode" value={mode} className="rounded-md border border-slate-300 bg-white/70 px-4 py-2 text-sm font-black text-slate-700 hover:border-[#0f766e] hover:shadow-md">{mode}</button>
+                <button key={mode} name="cashMode" value={mode} className="rounded-md border border-slate-300 bg-white/70 px-3 py-2 text-xs font-black text-slate-700 hover:border-[#0f766e] hover:shadow-md md:px-4 md:text-sm">{mode}</button>
               ))}
             </form>
           </div>
           <AdBanner ads={bottomAds} locale={locale} variant="bottom" />
         </div>
+
+        <aside className="order-3 grid min-w-0 content-start gap-5 self-start xl:col-start-1 xl:row-start-2">
+          <LiveMarketOverview locale={locale} initialItems={marketItems} title={copy.trade.title} variant="sidebar" />
+        </aside>
+
+        <aside className="order-4 grid min-w-0 content-start gap-5 self-start xl:col-start-1 xl:row-start-3">
+          <AdBanner ads={sideAds} locale={locale} variant="side" />
+        </aside>
       </section>
 
     </div>
@@ -251,7 +257,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
 
   if (!snapshot) {
     return (
-      <div className="trade-portfolio-panel premium-card p-5 shadow-sm">
+      <div className="trade-portfolio-panel premium-card p-4 shadow-sm md:p-5">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.totalPortfolio}</p>
         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
           {copy.portfolioUnavailable}
@@ -263,15 +269,30 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
   const positions = [...snapshot.positions].sort((a, b) => b.valueUsd - a.valueUsd);
 
   return (
-    <div className="trade-portfolio-panel premium-card p-5 shadow-sm">
+    <div className="trade-portfolio-panel premium-card p-4 shadow-sm md:p-5">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{copy.totalPortfolio}</p>
-      <p className="mt-2 text-3xl font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</p>
+      <p className="mt-2 text-2xl font-black text-[#0f766e] md:text-3xl">{formatMoney(snapshot.totalValueUsd)}</p>
       <p className={`mt-1 text-sm font-black ${getProfitLossToneClass(snapshot.profitLossUsd)}`} style={{ color: getProfitLossColor(snapshot.profitLossUsd) }}>
         {snapshot.profitLossUsd >= 0 ? "+" : ""}
         {formatMoney(snapshot.profitLossUsd)} ({formatSignedPercent(snapshot.profitLossPercent)})
       </p>
 
-      <div className="mt-5">
+      <div className="mt-4 grid gap-2 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-sm md:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-bold text-slate-600">{panelText.cash}</span>
+          <span className="font-black text-[#152033]">{formatMoney(snapshot.cashValueUsd)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-bold text-slate-600">{panelText.positions}</span>
+          <span className="font-black text-[#152033]">{positions.length}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t border-emerald-100 pt-2">
+          <span className="font-black text-[#0f766e]">{panelText.total}</span>
+          <span className="font-black text-[#0f766e]">{formatMoney(snapshot.totalValueUsd)}</span>
+        </div>
+      </div>
+
+      <div className="mt-4 hidden md:mt-5 md:block">
         <PortfolioDonut
           total={snapshot.totalValueUsd}
           animated
@@ -296,7 +317,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
         />
       </div>
 
-      <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+      <div className="mt-4 hidden rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 md:mt-5 md:block md:p-4">
         <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">{panelText.formulaTitle}</p>
         <div className="mt-3 grid gap-2 text-sm">
           <div className="flex items-center justify-between gap-3">
@@ -325,7 +346,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
         <p className="mt-3 text-xs leading-5 text-slate-600">{panelText.dataNote}</p>
       </div>
 
-      <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3 md:mt-5 md:block">
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="font-bold text-slate-600">{copy.remainingCash}</span>
           <span className="font-black text-[#152033]">{formatMoney(snapshot.cashValueUsd)}</span>
@@ -336,7 +357,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
         </div>
       </div>
 
-      <div className="mt-4 grid max-h-[560px] gap-3 overflow-auto pr-1">
+      <div className="mt-4 hidden max-h-[360px] gap-2 overflow-auto pr-1 md:grid md:max-h-[560px] md:gap-3">
         {positions.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm leading-6 text-slate-500">
             {panelText.empty}
@@ -347,7 +368,7 @@ function TradePortfolioPanel({ snapshot, copy, locale }: { snapshot: PortfolioSn
           const profitColor = getProfitLossColor(position.profitLossUsd);
 
           return (
-            <div key={position.symbol} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div key={position.symbol} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm md:p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-[#152033]">{position.symbol}</p>

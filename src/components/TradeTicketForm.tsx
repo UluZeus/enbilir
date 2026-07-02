@@ -40,7 +40,7 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
   const { pending } = useFormStatus();
 
   return (
-    <button disabled={pending} className="premium-cta px-5 py-3 text-sm font-black disabled:cursor-wait disabled:opacity-70">
+    <button disabled={pending} className="premium-cta w-full px-4 py-2.5 text-sm font-black disabled:cursor-wait disabled:opacity-70 sm:w-auto md:px-5 md:py-3">
       {pending ? pendingLabel : label}
     </button>
   );
@@ -78,9 +78,9 @@ function TrendBadge({ label, value, tone }: { label: string; value: string; tone
         : "border-slate-200 bg-slate-50 text-slate-700";
 
   return (
-    <div className={`trade-trend-badge rounded-lg border px-3 py-2 ${toneClasses}`}>
+    <div className={`trade-trend-badge rounded-lg border px-2.5 py-1.5 md:px-3 md:py-2 ${toneClasses}`}>
       <p className="text-[10px] font-black uppercase tracking-[0.12em] opacity-70">{label}</p>
-      <p className="mt-1 text-sm font-black">{value}</p>
+      <p className="mt-0.5 text-xs font-black md:mt-1 md:text-sm">{value}</p>
     </div>
   );
 }
@@ -329,15 +329,15 @@ export function TradeTicketForm({
         : "slate";
 
   return (
-    <div className="grid min-w-0 gap-5">
-      <form action={formAction} className="trade-ticket-terminal dashboard-shell min-w-0 p-4 lg:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div className="grid min-w-0 gap-4 md:gap-5">
+      <form action={formAction} className="trade-ticket-terminal dashboard-shell grid min-w-0 p-3 md:p-4 lg:p-5">
+        <div className="hidden flex-col gap-2 md:flex lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.title}</p>
-            <h2 className="mt-2 text-xl font-black text-[#152033] sm:text-2xl">
+            <h2 className="mt-1 text-lg font-black text-[#152033] sm:text-xl md:mt-2 md:text-2xl">
               {effectiveSelectedItem ? `${effectiveSelectedItem.symbol} · ${effectiveSelectedItem.name}` : copy.description}
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{copy.description}</p>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 md:mt-2 md:text-sm md:leading-6">{copy.description}</p>
           </div>
           <div className="grid gap-1 text-left text-xs font-bold text-slate-500 lg:text-right">
             <p>{safeLocale === "en" ? "Last update" : "Son güncelleme"}</p>
@@ -359,27 +359,85 @@ export function TradeTicketForm({
         <input type="hidden" name="userId" value={userId} />
         <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 
-        <div className="trade-category-card mt-5 rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm">
+        <div className="order-1 mt-3 grid gap-2 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,0.9fr)_auto] md:order-2 md:mt-4 md:gap-3 xl:items-end">
+          <label className="trade-terminal-field grid min-w-0 gap-1.5 text-sm font-bold text-slate-700 md:gap-2">
+            {copy.action}
+            <select name="side" className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#0f766e] md:py-2.5">
+              <option value="BUY">{copy.buy}</option>
+              <option value="SELL">{copy.sell}</option>
+            </select>
+          </label>
+
+          <label className="trade-terminal-field grid min-w-0 gap-1.5 text-sm font-bold text-slate-700 md:gap-2">
+            {copy.amountUsd}
+            <input
+              name="amountUsd"
+              type="number"
+              min="1"
+              step="1"
+              required
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#0f766e] md:py-2.5"
+            />
+          </label>
+
+          <div className="flex items-end">
+            {hasProducts ? (
+              <SubmitButton label={copy.submit} pendingLabel={copy.submitting} />
+            ) : (
+              <button disabled className="w-full rounded-lg border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-500 sm:w-auto">
+                {copy.noProductData}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <label className="order-2 mt-3 grid gap-1.5 text-sm font-bold text-slate-700 md:order-3 md:mt-4 md:gap-2">
+          {safeLocale === "tr" ? "İşlem gerekçesi" : "Decision note"}
+          <textarea
+            name="reason"
+            maxLength={700}
+            rows={2}
+            placeholder={
+              safeLocale === "tr"
+                ? "Bu işlemi neden yapıyorum? Hangi vadede düşünüyorum? Hangi durumda yanıldığımı kabul ederim?"
+                : "Why am I placing this virtual trade? What is my time frame? What would prove me wrong?"
+            }
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal leading-6 outline-none focus:border-[#0f766e] md:py-2.5"
+          />
+          <span className="text-xs font-semibold leading-5 text-slate-500">
+            {safeLocale === "tr"
+              ? "Bu not yatırım tavsiyesi değildir; kendi karar sürecini sonradan değerlendirebilmen için saklanır."
+              : "This note is not investment advice; it is saved so you can review your own decision process later."}
+          </span>
+        </label>
+
+        <div className="order-3 mt-3 grid grid-cols-3 gap-2 md:order-4 md:mt-4 md:gap-3">
+          <TrendBadge label={safeLocale === "en" ? "Displayed" : "Görüntülenen"} value={String(filteredItems.length)} tone="slate" />
+          <TrendBadge label={safeLocale === "en" ? "Buy / Sell" : "Alım / Satım"} value={safeLocale === "en" ? "Active" : "Aktif"} tone="green" />
+          <TrendBadge label={safeLocale === "en" ? "Refresh" : "Yenileme"} value={safeLocale === "en" ? "30 sec" : "30 saniye"} tone="slate" />
+        </div>
+
+        <div className="trade-category-card order-4 mt-4 rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-sm md:order-1 md:mt-5 md:p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{copy.category}</h3>
-              <p className="mt-1 text-sm font-semibold text-slate-600">{copy.productSearch}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-600 md:text-sm">{copy.productSearch}</p>
               <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
                 {selectedCategoryLabel} · {filteredItems.length} {copy.allProducts.toLowerCase()}
               </p>
             </div>
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600 md:px-3 md:text-xs">
               {safeLocale === "en" ? "30-second live scan" : "30 saniye canlı tarama"}
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-3 md:gap-2 lg:grid-cols-5">
             {effectiveCategoryOptions.map((option) => (
               <Link
                 key={String(option.value)}
                 href={buildTradeHref(safeLocale, option.value, undefined, query)}
                 aria-current={category === option.value ? "page" : undefined}
-                className={`trade-category-pill rounded-full border px-3 py-2 text-[11px] font-black transition ${
+                className={`trade-category-pill rounded-full border px-2 py-1.5 text-[10px] font-black transition md:px-3 md:py-2 md:text-[11px] ${
                   category === option.value
                     ? "border-[#0f766e] bg-[#0f766e] text-white shadow-sm"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-[#0f766e] hover:text-[#0f766e]"
@@ -393,67 +451,9 @@ export function TradeTicketForm({
         </div>
 
         <input type="hidden" name="symbol" value={effectiveSelectedSymbol} />
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,0.9fr)_auto] xl:items-end">
-          <label className="trade-terminal-field grid min-w-0 gap-2 text-sm font-bold text-slate-700">
-            {copy.action}
-            <select name="side" className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal outline-none focus:border-[#0f766e]">
-              <option value="BUY">{copy.buy}</option>
-              <option value="SELL">{copy.sell}</option>
-            </select>
-          </label>
-
-          <label className="trade-terminal-field grid min-w-0 gap-2 text-sm font-bold text-slate-700">
-            {copy.amountUsd}
-            <input
-              name="amountUsd"
-              type="number"
-              min="1"
-              step="1"
-              required
-              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal outline-none focus:border-[#0f766e]"
-            />
-          </label>
-
-          <div className="flex items-end">
-            {hasProducts ? (
-              <SubmitButton label={copy.submit} pendingLabel={copy.submitting} />
-            ) : (
-              <button disabled className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-500">
-                {copy.noProductData}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <label className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
-          {safeLocale === "tr" ? "İşlem gerekçesi" : "Decision note"}
-          <textarea
-            name="reason"
-            maxLength={700}
-            rows={3}
-            placeholder={
-              safeLocale === "tr"
-                ? "Bu işlemi neden yapıyorum? Hangi vadede düşünüyorum? Hangi durumda yanıldığımı kabul ederim?"
-                : "Why am I placing this virtual trade? What is my time frame? What would prove me wrong?"
-            }
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal leading-6 outline-none focus:border-[#0f766e]"
-          />
-          <span className="text-xs font-semibold leading-5 text-slate-500">
-            {safeLocale === "tr"
-              ? "Bu not yatırım tavsiyesi değildir; kendi karar sürecini sonradan değerlendirebilmen için saklanır."
-              : "This note is not investment advice; it is saved so you can review your own decision process later."}
-          </span>
-        </label>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <TrendBadge label={safeLocale === "en" ? "Displayed" : "Görüntülenen"} value={String(filteredItems.length)} tone="slate" />
-          <TrendBadge label={safeLocale === "en" ? "Buy / Sell" : "Alım / Satım"} value={safeLocale === "en" ? "Active" : "Aktif"} tone="green" />
-          <TrendBadge label={safeLocale === "en" ? "Refresh" : "Yenileme"} value={safeLocale === "en" ? "30 sec" : "30 saniye"} tone="slate" />
-        </div>
       </form>
 
-      <div className="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-sm md:p-4">
         <form method="get" action={`/${safeLocale}/islem-yap`} className="grid gap-2">
           <label className="grid gap-2 text-sm font-bold text-slate-700">
             {copy.productSearch}
@@ -462,41 +462,41 @@ export function TradeTicketForm({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={copy.productSearchPlaceholder}
-              className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm font-normal outline-none focus:border-[#0f766e]"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#0f766e] md:py-2.5"
             />
           </label>
           <input type="hidden" name="category" value={category} />
           <input type="hidden" name="symbol" value={effectiveSelectedSymbol} />
           <div className="flex justify-end">
-            <button type="submit" className="rounded-md border border-[#0f766e] bg-[#0f766e] px-4 py-2 text-sm font-black text-white shadow-sm">
+            <button type="submit" className="rounded-md border border-[#0f766e] bg-[#0f766e] px-3 py-1.5 text-sm font-black text-white shadow-sm md:px-4 md:py-2">
               {safeLocale === "en" ? "Search" : "Ara"}
             </button>
           </div>
         </form>
 
-        <div key={`${category}:${query}`} className="mt-4 max-h-[22rem] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
-          <div className="grid gap-2">
+        <div key={`${category}:${query}`} className="mt-3 max-h-[16rem] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 md:mt-4 md:max-h-[22rem] md:p-2">
+          <div className="grid gap-1.5 md:gap-2">
             {filteredItems.map((item) => (
               <Link
                 key={item.symbol}
                 href={buildTradeHref(safeLocale, category, item.symbol, query)}
                 aria-current={effectiveSelectedSymbol === item.symbol ? "page" : undefined}
-                className={`grid gap-1 rounded-lg border px-3 py-2.5 text-left transition ${
+                className={`grid gap-0.5 rounded-lg border px-2.5 py-2 text-left transition md:gap-1 md:px-3 md:py-2.5 ${
                   effectiveSelectedSymbol === item.symbol
                     ? "border-[#0f766e] bg-white shadow-sm"
                     : "border-slate-200 bg-white/80 hover:border-[#0f766e]"
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-black text-[#152033]">{item.symbol}</p>
-                  <p className={`shrink-0 text-sm font-black ${item.changePercent >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                  <p className="truncate text-xs font-black text-[#152033] md:text-sm">{item.symbol}</p>
+                  <p className={`shrink-0 text-xs font-black md:text-sm ${item.changePercent >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                     {formatChange(item.changePercent)}
                   </p>
                 </div>
-                <p className="truncate text-xs font-semibold text-slate-500">
+                <p className="truncate text-[11px] font-semibold text-slate-500 md:text-xs">
                   {item.name} · {copy.categoryLabels[item.category]} · {copy.statusLabels[item.dataStatus]}
                 </p>
-                <p className="text-xs font-bold text-[#0f766e]">{formatMarketItemPrice(item)}</p>
+                <p className="text-[11px] font-bold text-[#0f766e] md:text-xs">{formatMarketItemPrice(item)}</p>
               </Link>
             ))}
             {!hasProducts ? (
@@ -508,13 +508,13 @@ export function TradeTicketForm({
         </div>
       </div>
 
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
+      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4 lg:p-5">
         {effectiveSelectedItem ? (
           <div className="grid gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:p-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{effectiveSelectedItem.market}</p>
-                <p className="mt-1 text-2xl font-black text-[#0f766e] lg:text-3xl">{effectiveSelectedItem.price}</p>
+                <p className="mt-1 text-xl font-black text-[#0f766e] md:text-2xl lg:text-3xl">{effectiveSelectedItem.price}</p>
               </div>
               <div
                 className={`rounded-full border px-3 py-1 text-xs font-black lg:text-sm ${
@@ -537,12 +537,34 @@ export function TradeTicketForm({
             </div>
 
             {analysisState.analysis?.technicalSeries ? (
-              <TechnicalIndicatorCharts
-                locale={safeLocale}
-                symbol={analysisState.analysis.symbol}
-                interval={analysisState.analysis.interval}
-                series={analysisState.analysis.technicalSeries}
-              />
+              <>
+                <details className="rounded-xl border border-slate-200 bg-slate-50 p-3 md:hidden">
+                  <summary className="cursor-pointer text-sm font-black text-[#152033]">
+                    {safeLocale === "tr" ? "Teknik grafikleri aç" : "Open technical charts"}
+                  </summary>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">
+                    {safeLocale === "tr"
+                      ? "Grafikler mobilde kapalı gelir; işlem alanının daha hızlı kullanılabilmesi için buradan açılır."
+                      : "Charts are collapsed on mobile so the trading area stays quick to use."}
+                  </p>
+                  <div className="mt-3 max-h-[34rem] overflow-auto pr-1">
+                    <TechnicalIndicatorCharts
+                      locale={safeLocale}
+                      symbol={analysisState.analysis.symbol}
+                      interval={analysisState.analysis.interval}
+                      series={analysisState.analysis.technicalSeries}
+                    />
+                  </div>
+                </details>
+                <div className="hidden md:block">
+                  <TechnicalIndicatorCharts
+                    locale={safeLocale}
+                    symbol={analysisState.analysis.symbol}
+                    interval={analysisState.analysis.interval}
+                    series={analysisState.analysis.technicalSeries}
+                  />
+                </div>
+              </>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-600">
                 {analysisState.status === "loading"
