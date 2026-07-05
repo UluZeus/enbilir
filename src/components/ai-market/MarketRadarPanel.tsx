@@ -191,7 +191,7 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
   }, [loadOpportunities]);
 
   return (
-    <section className="ai-market-radar-panel w-full overflow-hidden rounded-md border border-slate-800 bg-[#0b111d] p-3 text-slate-100 shadow-xl md:p-4">
+    <section className="ai-market-radar-panel min-w-0 max-w-full overflow-hidden rounded-md border border-slate-800 bg-[#0b111d] p-3 text-slate-100 shadow-xl md:p-4">
       <style>{`
         @keyframes ai-market-radar-ticker {
           from { transform: translateX(0); }
@@ -204,9 +204,13 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
         .ai-market-radar-track:hover {
           animation-play-state: paused;
         }
+        .ai-market-radar-viewport {
+          contain: layout paint;
+          overflow: clip;
+        }
       `}</style>
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
+      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
           <h2 className="ai-market-radar-heading text-sm font-black uppercase tracking-[0.14em] text-cyan-300 md:text-base">{copy.radarTitle}</h2>
           <p className="ai-market-radar-description mt-1 text-xs leading-5 text-slate-400">
             {locale === "tr"
@@ -214,7 +218,7 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
               : "This section scans opportunities every 30 seconds; it is educational and not investment advice."}
           </p>
         </div>
-        <span className="ai-market-radar-status rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
+        <span className="ai-market-radar-status w-fit max-w-full self-start rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100 md:self-auto">
           {copy.radarStatus}
         </span>
       </div>
@@ -243,8 +247,8 @@ function RadarTickerRow({
   const tickerSegments = segments.length > 0 ? segments : [{ id: "radar-fallback", alerts: [] }];
 
   return (
-    <div className="ai-market-radar-row grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/65 p-2 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
-      <div className="shrink-0 px-1">
+    <div className="ai-market-radar-row grid min-w-0 max-w-full gap-2 rounded-md border border-slate-800 bg-slate-950/65 p-2 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
+      <div className="min-w-0 shrink-0 px-1">
         <p className="ai-market-radar-row-title text-xs font-black uppercase tracking-[0.12em] text-slate-300 md:text-sm">{title}</p>
         <p className="ai-market-radar-row-subtitle mt-0.5 text-[11px] font-bold text-slate-500">{subtitle}</p>
       </div>

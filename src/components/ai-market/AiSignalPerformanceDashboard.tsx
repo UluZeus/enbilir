@@ -77,6 +77,7 @@ type Props = {
 
 const copyByLocale = {
   tr: {
+    eyebrow: "AI Piyasa Asistanı",
     title: "AI Sinyal Performansı",
     subtitle: "AI Asistanı sinyallerinin gerçekleşen fiyat hareketleriyle karşılaştırması.",
     totalSignals: "Toplam sinyal",
@@ -100,9 +101,9 @@ const copyByLocale = {
     sell: "SAT",
     successChart: "Başarı oranı",
     returnChart: "Ortalama getiri",
-    intervalBars: "Interval bazlı başarı",
+    intervalBars: "Periyot bazlı başarı",
     buySell: "AL / SAT karşılaştırması",
-    horizon: "Horizon bazlı sonuç",
+    horizon: "Vade bazlı sonuç",
     topSymbols: "En çok sinyal üreten semboller",
     bestTen: "En iyi 10 sinyal",
     worstTen: "En kötü 10 sinyal",
@@ -120,8 +121,21 @@ const copyByLocale = {
     error: "Performans raporu alınamadı.",
     empty: "Henüz değerlendirilecek yeterli sinyal yok.",
     note: "Bu sayfa AI Asistanı’nın geçmiş sinyal performansını ölçmek için hazırlanmıştır. Buradaki veriler yatırım tavsiyesi değildir.",
+    resultLabels: {
+      CORRECT: "Doğru",
+      WRONG: "Yanlış",
+      NEUTRAL: "Nötr",
+      DATA_UNAVAILABLE: "Veri yok",
+    },
+    statusLabels: {
+      EVALUATED: "Değerlendirildi",
+      NEUTRAL: "Nötr",
+      DATA_UNAVAILABLE: "Veri yok",
+      PENDING: "Beklemede",
+    },
   },
   en: {
+    eyebrow: "AI Market Assistant",
     title: "AI Signal Performance",
     subtitle: "Comparison of AI Assistant signals against realized price movements.",
     totalSignals: "Total signals",
@@ -165,6 +179,18 @@ const copyByLocale = {
     error: "The performance report could not be loaded.",
     empty: "Not enough evaluated signals yet.",
     note: "This page measures the historical performance of AI Assistant signals. The information shown here is not investment advice.",
+    resultLabels: {
+      CORRECT: "Correct",
+      WRONG: "Wrong",
+      NEUTRAL: "Neutral",
+      DATA_UNAVAILABLE: "Data unavailable",
+    },
+    statusLabels: {
+      EVALUATED: "Evaluated",
+      NEUTRAL: "Neutral",
+      DATA_UNAVAILABLE: "Data unavailable",
+      PENDING: "Pending",
+    },
   },
 } as const;
 
@@ -188,6 +214,14 @@ function resultClass(signal: PerformanceSignal) {
   }
 
   return "text-slate-400";
+}
+
+function localizeCodeLabel(value: string | null | undefined, labels: Record<string, string>) {
+  if (!value) {
+    return "-";
+  }
+
+  return labels[value] ?? value;
 }
 
 function MiniLineChart({ data, metric, color }: { data: ChartPoint[]; metric: "successRate" | "averageReturn"; color: string }) {
@@ -280,8 +314,8 @@ function SignalTable({ title, signals, copy, locale }: { title: string; signals:
                 <td className={`px-3 py-3 font-black ${resultClass(signal)}`}>{formatNumber(signal.evaluation?.priceChangePercent, "%")}</td>
                 <td className="px-3 py-3">{formatNumber(signal.confidence, "%")}</td>
                 <td className="px-3 py-3">{formatNumber(signal.riskScore, "%")}</td>
-                <td className="px-3 py-3">{signal.evaluation?.resultLabel ?? "-"}</td>
-                <td className="px-3 py-3">{signal.evaluation?.status ?? "PENDING"}</td>
+                <td className="px-3 py-3">{localizeCodeLabel(signal.evaluation?.resultLabel, copy.resultLabels)}</td>
+                <td className="px-3 py-3">{localizeCodeLabel(signal.evaluation?.status ?? "PENDING", copy.statusLabels)}</td>
               </tr>
             ))}
           </tbody>
@@ -343,7 +377,7 @@ export function AiSignalPerformanceDashboard({ locale, symbols }: Props) {
       <main className="mx-auto grid max-w-7xl gap-4">
         <header className="flex flex-col gap-3 border-b border-slate-800 pb-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">AI Market Assistant</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">{copy.eyebrow}</p>
             <h1 className="mt-1 text-2xl font-black text-white md:text-3xl">{copy.title}</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-400">{copy.subtitle}</p>
           </div>

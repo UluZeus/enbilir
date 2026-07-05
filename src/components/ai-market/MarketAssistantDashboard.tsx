@@ -205,7 +205,7 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
 
   return (
     <div className="rounded-md border border-slate-900 bg-[#050812] p-3 text-slate-100 shadow-2xl md:p-4">
-      <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
         <MarketRadarPanel locale={safeLocale} />
 
         <TerminalHeader

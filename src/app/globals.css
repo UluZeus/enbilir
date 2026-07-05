@@ -37,6 +37,10 @@
   --font-mono: var(--font-enbilir-sans);
 }
 
+html {
+  overflow-x: clip;
+}
+
 body {
   min-height: 100vh;
   overflow-x: clip;
@@ -6097,6 +6101,10 @@ body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="whatsapp"] {
 }
 
 /* Final contrast pass: keep muted text on dark surfaces as solid off-white. */
+.premium-mobile-dock :where(a[class*="bg-[#101827]"], .macro-report-nav-link) {
+  color: var(--off-white) !important;
+}
+
 .usage-guide-welcome-modal :where(h2, p, button) {
   color: var(--off-white) !important;
 }
