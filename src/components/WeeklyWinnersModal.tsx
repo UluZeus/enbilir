@@ -99,7 +99,8 @@ export function WeeklyWinnersModal({ locale, isSignedIn, summary }: WeeklyWinner
           type="button"
           onClick={close}
           aria-label={locale === "tr" ? "Pencereyi kapat" : "Close window"}
-          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xl font-black text-slate-500 shadow-sm hover:border-[#0f766e] hover:text-[#0f766e]"
+          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xl font-black shadow-sm hover:border-[#0f766e]"
+          style={{ color: "#000000" }}
         >
           x
         </button>
@@ -135,10 +136,20 @@ export function WeeklyWinnersModal({ locale, isSignedIn, summary }: WeeklyWinner
             </>
           )}
         </div>
-        <a href={`/${locale}/haftalik-liderler`} className="mt-3 inline-flex rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-black text-[#152033] hover:border-[#0f766e] hover:text-[#0f766e]">
-          {locale === "tr" ? "Haftalık liderler arşivini aç" : "Open weekly leaders archive"}
-        </a>
         {summary.note ? <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">{getLocalizedSummaryNote(summary.note, locale)}</p> : null}
+        <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white/95 py-3 backdrop-blur">
+          <a href={`/${locale}/haftalik-liderler`} className="inline-flex rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-black text-[#152033] hover:border-[#0f766e] hover:text-[#0f766e]">
+            {locale === "tr" ? "Haftalık liderler arşivini aç" : "Open weekly leaders archive"}
+          </a>
+          <button
+            type="button"
+            onClick={close}
+            aria-label={locale === "tr" ? "Pencereyi kapat" : "Close window"}
+            className="inline-flex rounded-md bg-[#111827] px-5 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0f766e]"
+          >
+            {locale === "tr" ? "Kapat" : "Close"}
+          </button>
+        </div>
       </section>
     </div>
   );
