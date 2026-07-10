@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ContentArticleShell } from "@/components/content/ContentArticleShell";
 import { getSafeLocale } from "@/i18n/config";
 import { getManagedContentItemById } from "@/lib/managed-content";
-import { buildPageMetadata, defaultOpenGraphImage, seoBrand, stringifyJsonLd } from "@/lib/seo";
+import { buildPageMetadata, buildSeoDescription, buildSeoTitleWithSuffix, defaultOpenGraphImage, seoBrand, stringifyJsonLd } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 function paragraphs(body: string) {
@@ -34,11 +34,12 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const siteUrl = getSiteUrl();
   const localizedIds = getLocalizedBlogIds(id);
   const canonical = `/${locale}/blog/${id}`;
-  const description = post.excerpt ?? paragraphs(post.body)[0];
+  const seoTitle = buildSeoTitleWithSuffix(post.title, "Enbilir Blog");
+  const description = buildSeoDescription(post.excerpt ?? paragraphs(post.body)[0]);
 
   return {
     ...(await buildPageMetadata({ locale, path: `/blog/${id}`, page: "blog" })),
-    title: { absolute: `${post.title} | Enbilir Blog` },
+    title: { absolute: seoTitle },
     description,
     alternates: {
       canonical,
@@ -52,7 +53,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       locale: locale === "tr" ? "tr_TR" : "en_US",
       url: canonical,
       siteName: seoBrand.domain,
-      title: post.title,
+      title: seoTitle,
       description,
       publishedTime: post.publishedAt?.toISOString(),
       authors: [seoBrand.founder],
@@ -61,13 +62,13 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
           url: `${siteUrl}${defaultOpenGraphImage}`,
           width: 1200,
           height: 630,
-          alt: `${post.title} | Enbilir Blog`,
+          alt: seoTitle,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: post.title,
+      title: seoTitle,
       description,
       images: [`${siteUrl}${defaultOpenGraphImage}`],
     },

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ContentArticleShell } from "@/components/content/ContentArticleShell";
 import { getSafeLocale } from "@/i18n/config";
 import { getManagedContentItemById } from "@/lib/managed-content";
-import { buildPageMetadata, defaultOpenGraphImage, seoBrand, stringifyJsonLd } from "@/lib/seo";
+import { buildPageMetadata, buildSeoDescription, buildSeoTitleWithSuffix, defaultOpenGraphImage, seoBrand, stringifyJsonLd } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 function paragraphs(body: string) {
@@ -34,13 +34,14 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const siteUrl = getSiteUrl();
   const localizedIds = getLocalizedEducationIds(id);
   const canonical = `/${locale}/egitim/${id}`;
-  const description = item.excerpt ?? paragraphs(item.body)[0];
   const sectionName = locale === "en" ? "Enbilir Education" : "Enbilir Eğitim";
   const authorName = locale === "en" ? "Dr. Hakan Unsal" : seoBrand.founder;
+  const seoTitle = buildSeoTitleWithSuffix(item.title, sectionName);
+  const description = buildSeoDescription(item.excerpt ?? paragraphs(item.body)[0]);
 
   return {
     ...(await buildPageMetadata({ locale, path: `/egitim/${id}`, page: "education" })),
-    title: { absolute: `${item.title} | ${sectionName}` },
+    title: { absolute: seoTitle },
     description,
     alternates: {
       canonical,
@@ -54,7 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       locale: locale === "tr" ? "tr_TR" : "en_US",
       url: canonical,
       siteName: seoBrand.domain,
-      title: item.title,
+      title: seoTitle,
       description,
       publishedTime: item.publishedAt?.toISOString(),
       authors: [authorName],
@@ -63,13 +64,13 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
           url: `${siteUrl}${defaultOpenGraphImage}`,
           width: 1200,
           height: 630,
-          alt: `${item.title} | ${sectionName}`,
+          alt: seoTitle,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: item.title,
+      title: seoTitle,
       description,
       images: [`${siteUrl}${defaultOpenGraphImage}`],
     },

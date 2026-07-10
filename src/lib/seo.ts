@@ -228,7 +228,7 @@ const pageSeo = {
         "Rotaryenler için bilanço okuma, finansal tablolar, borsa, kripto, teknik analiz, risk yönetimi ve sanal portföy eğitimi.",
     },
     en: {
-      title: "Financial Literacy Education | Statements, Risk, Markets and Virtual Portfolios",
+      title: "Financial Literacy Education | Enbilir Learning Center",
       description:
         "Financial literacy education for Rotary communities with statements, stocks, crypto, technical analysis, risk management, and virtual portfolios.",
     },
@@ -431,6 +431,36 @@ export type SeoPageKey = keyof typeof pageSeo;
 
 export function getSeoPage(key: SeoPageKey, locale: Locale) {
   return pageSeo[key][locale] ?? pageSeo[key].tr;
+}
+
+export function shortenSeoText(value: string | null | undefined, maxLength = 165) {
+  const text = (value ?? "").replace(/\s+/g, " ").trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  const limit = Math.max(10, maxLength - 3);
+  let clipped = text.slice(0, limit).trimEnd();
+  const wordBoundary = clipped.lastIndexOf(" ");
+
+  if (wordBoundary >= Math.floor(limit * 0.65)) {
+    clipped = clipped.slice(0, wordBoundary);
+  }
+
+  return `${clipped.replace(/[.,;:!?-]+$/, "")}...`;
+}
+
+export function buildSeoDescription(value: string | null | undefined, maxLength = 155) {
+  return shortenSeoText((value ?? "").replace(/"/g, ""), maxLength);
+}
+
+export function buildSeoTitleWithSuffix(title: string, suffix: string, maxLength = 72) {
+  const separator = " | ";
+  const suffixLength = separator.length + suffix.length;
+  const availableTitleLength = Math.max(16, maxLength - suffixLength);
+
+  return `${shortenSeoText(title, availableTitleLength)}${separator}${suffix}`;
 }
 
 export function buildPageMetadata({

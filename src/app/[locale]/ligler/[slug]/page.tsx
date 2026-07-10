@@ -9,7 +9,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getDefaultLeagueDescription, getLeagueNameForLocale, isDefaultLeagueSlug } from "@/lib/default-leagues";
 import { getLeagueDetail, getLeagueLeaderboard } from "@/lib/leagues";
 import { formatMoney } from "@/lib/portfolio";
-import { defaultOpenGraphImage } from "@/lib/seo";
+import { buildSeoDescription, defaultOpenGraphImage } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 export async function generateMetadata({
@@ -30,9 +30,14 @@ export async function generateMetadata({
       ? "League | Enbilir"
       : "Lig | Enbilir";
   const localizedDescription = getLeagueDescriptionForLocale(slug, league?.description ?? null, locale);
-  const description = localizedDescription || (locale === "en"
+  const descriptionSource = localizedDescription || (locale === "en"
     ? "Join Enbilir leagues directly and follow virtual portfolio rankings with market-literacy context."
     : "Enbilir liglerine doğrudan katılın ve sanal portföy sıralamalarını finansal okuryazarlık bağlamıyla takip edin.");
+  const description = buildSeoDescription(
+    descriptionSource.length < 60
+      ? `${descriptionSource} ${locale === "en" ? "Follow members, virtual portfolio rankings, and learning-focused competition inside Enbilir." : "Enbilir'de üyeleri, sanal portföy sıralamasını ve öğrenme odaklı yarışmayı takip edin."}`
+      : descriptionSource,
+  );
   const path = `/${locale}/ligler/${slug}`;
 
   return {
