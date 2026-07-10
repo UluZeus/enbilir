@@ -21,6 +21,7 @@
     "db:ensure-default-leagues": "node scripts/ensure-default-leagues.mjs --apply",
     "weekly:capture-baseline": "node scripts/publish-weekly-competition-results.mjs --apply --capture-baseline-only",
     "weekly:publish-results": "node scripts/publish-weekly-competition-results.mjs --apply",
+    "weekly:install-cron": "node scripts/install-weekly-competition-cron.mjs",
     "test:visual": "node scripts/visual-qa.mjs",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",

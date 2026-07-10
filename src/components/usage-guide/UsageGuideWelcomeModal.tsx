@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import type { Locale } from "@/i18n/config";
 import { getUsageGuideContent } from "@/lib/usage-guide-content";
 import { UsageGuidePanel } from "@/components/usage-guide/UsageGuidePanel";
-
-const storageKey = "enbilir-usage-guide-welcome:v1";
+import { getUsageGuideWelcomeStorageKey, usageGuideClosedEvent } from "@/lib/onboarding-state";
 
 export function UsageGuideWelcomeModal({ locale }: { locale: Locale }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,15 +13,16 @@ export function UsageGuideWelcomeModal({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setIsOpen(window.localStorage.getItem(`${storageKey}:${locale}`) !== "1");
+      setIsOpen(window.localStorage.getItem(getUsageGuideWelcomeStorageKey(locale)) !== "1");
     });
 
     return () => window.cancelAnimationFrame(frame);
   }, [locale]);
 
   function close() {
-    window.localStorage.setItem(`${storageKey}:${locale}`, "1");
+    window.localStorage.setItem(getUsageGuideWelcomeStorageKey(locale), "1");
     setIsOpen(false);
+    window.dispatchEvent(new Event(usageGuideClosedEvent));
   }
 
   if (!isOpen) {

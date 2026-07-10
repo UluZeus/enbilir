@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { calculateSignalEvaluation, evaluationHorizons, getEvaluationPrice } from "@/lib/ai-market/signal-evaluator";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
-const MAX_SIGNALS_PER_RUN = 100;
+const MAX_EVALUATIONS_PER_RUN = 40;
+const EVALUATION_CONCURRENCY = 4;
+const DATA_RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 function isAuthorized(request: Request) {
-  const configuredSecret = process.env.INTERNAL_CRON_SECRET;
+  const configuredSecret = process.env.INTERNAL_CRON_SECRET ?? process.env.AI_AGENT_CRON_SECRET;
 
   if (!configuredSecret && process.env.NODE_ENV !== "production") {
     return true;
@@ -19,10 +22,81 @@ function isAuthorized(request: Request) {
 
   const url = new URL(request.url);
   const querySecret = url.searchParams.get("secret");
-  const headerSecret = request.headers.get("x-internal-cron-secret");
+  const headerSecret = request.headers.get("x-internal-cron-secret") ?? request.headers.get("x-ai-agent-secret");
   const authorization = request.headers.get("authorization");
 
   return querySecret === configuredSecret || headerSecret === configuredSecret || authorization === `Bearer ${configuredSecret}`;
+}
+
+type HorizonConfig = (typeof evaluationHorizons)[number];
+type SignalCandidate = Awaited<ReturnType<typeof findSignalsForEvaluation>>[number];
+type EvaluationQueueItem = { signal: SignalCandidate; horizonConfig: HorizonConfig };
+
+async function findSignalsForEvaluation(input: {
+  horizonConfig: HorizonConfig;
+  now: Date;
+  retry: boolean;
+  take: number;
+}) {
+  const retryBefore = new Date(input.now.getTime() - DATA_RETRY_COOLDOWN_MS);
+
+  return prisma.aiSignalLog.findMany({
+    where: {
+      createdAt: { lte: new Date(input.now.getTime() - input.horizonConfig.ms) },
+      evaluations: input.retry
+        ? {
+            some: {
+              horizon: input.horizonConfig.horizon,
+              status: "DATA_UNAVAILABLE",
+              evaluatedAt: { lte: retryBefore },
+            },
+          }
+        : { none: { horizon: input.horizonConfig.horizon } },
+    },
+    orderBy: { createdAt: "asc" },
+    take: input.take,
+    select: {
+      id: true,
+      symbol: true,
+      exchange: true,
+      signalType: true,
+      priceAtSignal: true,
+      createdAt: true,
+    },
+  });
+}
+
+async function buildEvaluationQueue(now: Date) {
+  const queue: EvaluationQueueItem[] = [];
+
+  for (const retry of [false, true]) {
+    for (const horizonConfig of evaluationHorizons) {
+      const remaining = MAX_EVALUATIONS_PER_RUN - queue.length;
+
+      if (remaining === 0) {
+        return queue;
+      }
+
+      const signals = await findSignalsForEvaluation({ horizonConfig, now, retry, take: remaining });
+      queue.push(...signals.map((signal) => ({ signal, horizonConfig })));
+    }
+  }
+
+  return queue;
+}
+
+async function runWithConcurrency<T>(items: T[], worker: (item: T) => Promise<void>) {
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex];
+      nextIndex += 1;
+      await worker(item);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(EVALUATION_CONCURRENCY, items.length) }, () => runWorker()));
 }
 
 export async function POST(request: Request) {
@@ -30,39 +104,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const now = Date.now();
-  const signals = await prisma.aiSignalLog.findMany({
-    orderBy: { createdAt: "asc" },
-    take: MAX_SIGNALS_PER_RUN,
-    include: {
-      evaluations: {
-        select: { horizon: true },
-      },
-    },
-  });
+  const now = new Date();
+  const queue = await buildEvaluationQueue(now);
   const summary = {
-    scannedSignals: signals.length,
+    queuedEvaluations: queue.length,
     createdEvaluations: 0,
     dataUnavailable: 0,
-    skippedPending: 0,
-    skippedExisting: 0,
     errors: [] as string[],
   };
 
-  for (const signal of signals) {
-    const existingHorizons = new Set(signal.evaluations.map((evaluation) => evaluation.horizon));
-
-    for (const horizonConfig of evaluationHorizons) {
-      if (existingHorizons.has(horizonConfig.horizon)) {
-        summary.skippedExisting += 1;
-        continue;
-      }
-
-      if (signal.createdAt.getTime() + horizonConfig.ms > now) {
-        summary.skippedPending += 1;
-        continue;
-      }
-
+  await runWithConcurrency(queue, async ({ signal, horizonConfig }) => {
       try {
         const priceAtSignal = typeof signal.priceAtSignal === "number" && Number.isFinite(signal.priceAtSignal) ? signal.priceAtSignal : null;
         const priceAtEvaluation = await getEvaluationPrice({
@@ -109,8 +160,7 @@ export async function POST(request: Request) {
       } catch (error) {
         summary.errors.push(`${signal.symbol} ${horizonConfig.horizon}: ${error instanceof Error ? error.message : "Evaluation failed"}`);
       }
-    }
-  }
+  });
 
   return NextResponse.json(summary);
 }

@@ -570,7 +570,7 @@ export default async function AdminPage({
   const publishedItems = managedItems.filter((item) => item.isActive).length;
   const activePeriods = competitionPeriods.filter((period) => period.isActive).length;
   const smtpConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
-  const cronConfigured = Boolean(process.env.AI_MARKET_AGENT_SECRET || process.env.CRON_SECRET);
+  const cronConfigured = Boolean(process.env.AI_AGENT_CRON_SECRET);
   const funnelSteps = [
     { label: locale === "tr" ? "Kayıt olan" : "Registered", value: userCount },
     { label: locale === "tr" ? "Lige katılan" : "Joined league", value: leagueJoinedUsers.length },

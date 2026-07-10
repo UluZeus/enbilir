@@ -49,18 +49,26 @@ if (!secret) {
 }
 
 const siteUrl = (process.env.AI_AGENT_CRON_ORIGIN || "http://127.0.0.1:3006").replace(/\/$/, "");
-const url = new URL("/api/ai-market/agent/run", siteUrl);
-url.searchParams.set("secret", secret);
+const agentUrl = new URL("/api/ai-market/agent/run", siteUrl);
 
 if (process.argv.includes("--force")) {
-  url.searchParams.set("force", "true");
+  agentUrl.searchParams.set("force", "true");
 }
 
-const response = await fetch(url, { method: "POST" });
-const body = await response.text();
+async function runJob(label, url) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "x-ai-agent-secret": secret },
+  });
+  const body = await response.text();
 
-console.log(`[ai-agent-cron] ${new Date().toISOString()} ${response.status} ${body}`);
+  console.log(`[${label}] ${new Date().toISOString()} ${response.status} ${body}`);
+  return response.ok;
+}
 
-if (!response.ok) {
+const agentOk = await runJob("ai-agent-cron", agentUrl);
+const evaluationOk = await runJob("ai-signal-evaluation-cron", new URL("/api/ai-market/evaluate-signals", siteUrl));
+
+if (!agentOk || !evaluationOk) {
   process.exit(1);
 }

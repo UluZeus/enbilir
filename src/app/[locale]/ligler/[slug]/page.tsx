@@ -9,7 +9,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getDefaultLeagueDescription, getLeagueNameForLocale, isDefaultLeagueSlug } from "@/lib/default-leagues";
 import { getLeagueDetail, getLeagueLeaderboard } from "@/lib/leagues";
 import { formatMoney } from "@/lib/portfolio";
-import { buildSeoDescription, defaultOpenGraphImage } from "@/lib/seo";
+import { buildSeoDescription, defaultOpenGraphImage, stringifyJsonLd } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
 export async function generateMetadata({
@@ -137,7 +137,7 @@ export default async function LeagueDetailPage({
 
   return (
     <div className="growth-page grid gap-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }} />
       <section className="league-detail-hero rounded-[1.6rem] border border-[#d9a441]/30 bg-[#101827] p-6 text-white shadow-sm">
         <Link href={`/${locale}/ligler`} className="text-sm font-bold text-[#f5a623] hover:text-[#ffd36b]">
           {copy.back}

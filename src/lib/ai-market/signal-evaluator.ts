@@ -20,7 +20,7 @@ export type EvaluationHorizon = (typeof evaluationHorizons)[number]["horizon"];
 
 function getCloseAtOrAfter(candles: Candle[], targetTime: number) {
   const candle = candles.find((item) => item.openTime >= targetTime);
-  return candle?.close ?? candles[candles.length - 1]?.close ?? null;
+  return candle?.close ?? null;
 }
 
 function getCandleLimit(horizon: EvaluationHorizon) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Locale } from "@/i18n/config";
+import { getUsageGuideWelcomeStorageKey, usageGuideClosedEvent } from "@/lib/onboarding-state";
 
 type WinnerRow = {
   userId: string;
@@ -76,12 +77,22 @@ export function WeeklyWinnersModal({ locale, isSignedIn, summary }: WeeklyWinner
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      setIsOpen(window.localStorage.getItem(storageKey) !== "1");
-    }, 0);
+    function openWhenGuideIsComplete() {
+      const guideIsComplete = window.localStorage.getItem(getUsageGuideWelcomeStorageKey(locale)) === "1";
 
-    return () => window.clearTimeout(handle);
-  }, [storageKey]);
+      if (guideIsComplete) {
+        setIsOpen(window.localStorage.getItem(storageKey) !== "1");
+      }
+    }
+
+    const handle = window.setTimeout(openWhenGuideIsComplete, 0);
+    window.addEventListener(usageGuideClosedEvent, openWhenGuideIsComplete);
+
+    return () => {
+      window.clearTimeout(handle);
+      window.removeEventListener(usageGuideClosedEvent, openWhenGuideIsComplete);
+    };
+  }, [locale, storageKey]);
 
   function close() {
     window.localStorage.setItem(storageKey, "1");
