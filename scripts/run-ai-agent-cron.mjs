@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,20 +52,47 @@ if (!secret) {
 
 const siteUrl = (process.env.AI_AGENT_CRON_ORIGIN || "http://127.0.0.1:3006").replace(/\/$/, "");
 const agentUrl = new URL("/api/ai-market/agent/run", siteUrl);
+const configuredTimeoutMs = Number(process.env.AI_AGENT_CRON_TIMEOUT_MS);
+const requestTimeoutMs = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0 ? configuredTimeoutMs : 15 * 60 * 1000;
 
 if (process.argv.includes("--force")) {
   agentUrl.searchParams.set("force", "true");
 }
 
-async function runJob(label, url) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "x-ai-agent-secret": secret },
-  });
-  const body = await response.text();
+function post(url) {
+  return new Promise((resolveRequest, rejectRequest) => {
+    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
+      method: "POST",
+      headers: { "x-ai-agent-secret": secret },
+    }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        resolveRequest({
+          body: Buffer.concat(chunks).toString("utf8"),
+          status: response.statusCode ?? 0,
+        });
+      });
+    });
 
-  console.log(`[${label}] ${new Date().toISOString()} ${response.status} ${body}`);
-  return response.ok;
+    request.setTimeout(requestTimeoutMs, () => {
+      request.destroy(new Error(`Request exceeded ${requestTimeoutMs} ms.`));
+    });
+    request.on("error", rejectRequest);
+    request.end();
+  });
+}
+
+async function runJob(label, url) {
+  try {
+    const response = await post(url);
+
+    console.log(`[${label}] ${new Date().toISOString()} ${response.status} ${response.body}`);
+    return response.status >= 200 && response.status < 300;
+  } catch (error) {
+    console.error(`[${label}] ${new Date().toISOString()} request failed: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
 }
 
 const agentOk = await runJob("ai-agent-cron", agentUrl);

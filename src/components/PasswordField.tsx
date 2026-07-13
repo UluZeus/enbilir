@@ -17,8 +17,8 @@ export function PasswordField({ label, locale, name = "password", autoComplete, 
   const hintId = useId();
 
   return (
-    <label htmlFor={inputId} className="grid gap-2 text-sm font-bold text-slate-700">
-      {label}
+    <div className="grid gap-2 text-sm font-bold text-slate-700">
+      <label htmlFor={inputId}>{label}</label>
       <span className="relative block">
         <input
           id={inputId}
@@ -40,6 +40,6 @@ export function PasswordField({ label, locale, name = "password", autoComplete, 
         </button>
       </span>
       {hint ? <span id={hintId} className="text-xs font-medium leading-5 text-slate-500">{hint}</span> : null}
-    </label>
+    </div>
   );
 }

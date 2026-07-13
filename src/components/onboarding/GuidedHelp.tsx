@@ -28,6 +28,7 @@ export function GuidedHelp({ locale, userId, progress }: GuidedHelpProps) {
   const dialogId = useId();
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const open = () => setIsOpen(true);
@@ -48,9 +49,23 @@ export function GuidedHelp({ locale, userId, progress }: GuidedHelpProps) {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      window.localStorage.setItem(seenKey, "1");
-      setIsOpen(false);
+      if (event.key === "Escape") {
+        window.localStorage.setItem(seenKey, "1");
+        setIsOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled])'));
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
 
@@ -76,7 +91,7 @@ export function GuidedHelp({ locale, userId, progress }: GuidedHelpProps) {
       {isOpen ? <div aria-hidden="true" onClick={closeHelp} className="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px]" /> : null}
     <div className="fixed inset-x-3 bottom-24 z-40 flex flex-col items-end gap-3 md:inset-x-auto md:bottom-5 md:right-5">
       {isOpen ? (
-        <section id={dialogId} role="dialog" aria-modal="true" aria-labelledby={titleId} className="max-h-[calc(100dvh-7rem)] w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-2xl md:max-h-[calc(100dvh-2.5rem)] md:w-[390px]">
+        <section ref={dialogRef} id={dialogId} role="dialog" aria-modal="true" aria-labelledby={titleId} className="max-h-[calc(100dvh-7rem)] w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-2xl md:max-h-[calc(100dvh-2.5rem)] md:w-[390px]">
           <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-[#101827] p-4 text-[#fffaf6]">
             <div>
               <p className="text-xs font-bold uppercase text-cyan-200">{locale === "tr" ? "Enbilir yardımcısı" : "Enbilir guide"}</p>
