@@ -5631,6 +5631,12 @@ body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="whatsapp"] {
   color: #fffaf6 !important;
 }
 
+body:has(.site-modern-academy) .mobile-menu-panel .mobile-menu-close-button {
+  border-color: rgb(255 255 255 / 32%) !important;
+  background: rgb(255 255 255 / 12%) !important;
+  color: #fffaf6 !important;
+}
+
 .page-header-premium--modern {
   position: relative;
   overflow: hidden;
