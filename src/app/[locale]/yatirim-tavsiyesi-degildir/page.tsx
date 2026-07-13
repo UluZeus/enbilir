@@ -15,5 +15,5 @@ export default async function InvestmentDisclaimerPage({ params }: { params: Pro
   const locale = getSafeLocale(rawLocale);
   const content = getLegalPageContent(locale, "investmentDisclaimer");
 
-  return <LegalPage locale={locale} title={content.title} updatedAt={content.updatedAt} sections={content.sections} />;
+  return <LegalPage locale={locale} {...content} />;
 }

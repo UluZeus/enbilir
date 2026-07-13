@@ -15,5 +15,5 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
   const locale = getSafeLocale(rawLocale);
   const content = getLegalPageContent(locale, "terms");
 
-  return <LegalPage locale={locale} title={content.title} updatedAt={content.updatedAt} sections={content.sections} />;
+  return <LegalPage locale={locale} {...content} />;
 }

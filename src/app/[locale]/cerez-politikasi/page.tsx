@@ -15,5 +15,5 @@ export default async function CookiePolicyPage({ params }: { params: Promise<{ l
   const locale = getSafeLocale(rawLocale);
   const content = getLegalPageContent(locale, "cookies");
 
-  return <LegalPage locale={locale} title={content.title} updatedAt={content.updatedAt} sections={content.sections} />;
+  return <LegalPage locale={locale} {...content} />;
 }

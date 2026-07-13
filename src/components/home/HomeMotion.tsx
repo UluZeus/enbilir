@@ -21,36 +21,53 @@ export function HomeMotionCue({ variant, className = "" }: HomeMotionProps & { v
   return <span className={`home-motion-cue home-motion-cue--${variant} ${className}`.trim()} aria-hidden="true" />;
 }
 
-// CSS-only hero loop: a light data stream and glow layer keeps the dashboard alive without media weight.
+// CSS-only market study visual: animated bars, trend flow, and orbital rings without canvas weight.
 export function HomeHeroDataFlow() {
   return (
-    <div className="home-hero-dashboard-core" aria-hidden="true">
-      <div className="home-dashboard-glow" />
-      <div className="home-hero-dashboard-bar">
+    <div className="home-market-visual" aria-hidden="true">
+      <div className="home-market-window-dots">
         <span />
         <span />
         <span />
       </div>
-      <div className="home-data-flow-lane home-data-flow-lane--one">
-        <span />
+
+      <svg className="home-market-trend" viewBox="0 0 600 220" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="home-market-area" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#44e2cd" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#44e2cd" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="home-market-line" x1="0" x2="1">
+            <stop offset="0%" stopColor="#98cbff" />
+            <stop offset="58%" stopColor="#44e2cd" />
+            <stop offset="100%" stopColor="#f9bd22" />
+          </linearGradient>
+        </defs>
+        <path className="home-market-trend-area" d="M0 178 C45 166 72 182 112 151 S177 119 220 140 S284 169 326 112 S393 64 438 91 S516 124 600 42 L600 220 L0 220 Z" fill="url(#home-market-area)" />
+        <path className="home-market-trend-line" pathLength="1" d="M0 178 C45 166 72 182 112 151 S177 119 220 140 S284 169 326 112 S393 64 438 91 S516 124 600 42" fill="none" stroke="url(#home-market-line)" strokeLinecap="round" strokeWidth="4" />
+        <circle className="home-market-trend-point home-market-trend-point--one" cx="220" cy="140" r="5" />
+        <circle className="home-market-trend-point home-market-trend-point--two" cx="438" cy="91" r="5" />
+        <circle className="home-market-trend-point home-market-trend-point--three" cx="600" cy="42" r="7" />
+      </svg>
+
+      <div className="home-market-bars">
+        {Array.from({ length: 10 }, (_, index) => <span className="home-market-bar" key={index} />)}
       </div>
-      <div className="home-data-flow-lane home-data-flow-lane--two">
-        <span />
+
+      <div className="home-market-orbits">
+        <span className="home-market-ring home-market-ring--outer" />
+        <span className="home-market-ring home-market-ring--middle" />
+        <span className="home-market-ring home-market-ring--inner" />
+        <span className="home-market-orbit-core" />
       </div>
-      <div className="home-data-flow-lane home-data-flow-lane--three">
-        <span />
+
+      <div className="home-market-mini-rings">
+        <span className="home-market-mini-ring home-market-mini-ring--one" />
+        <span className="home-market-mini-ring home-market-mini-ring--two" />
+        <span className="home-market-mini-ring home-market-mini-ring--three" />
       </div>
-      <div className="home-hero-radar">
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className="home-hero-signal-grid">
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
+
+      <span className="home-market-scan" />
     </div>
   );
 }

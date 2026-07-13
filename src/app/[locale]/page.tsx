@@ -55,7 +55,7 @@ function GuestHome({ locale, latestReportId }: { locale: "tr" | "en"; latestRepo
               <Link href={reportHref} className="rounded-md border border-cyan-300/30 px-5 py-3 text-sm font-black text-cyan-100">{tr ? "Son raporu oku" : "Read latest report"}</Link>
             </div>
           </div>
-          <div className="min-h-[280px] overflow-hidden rounded-lg border border-white/10 bg-white/5"><HomeHeroDataFlow /></div>
+          <div className="relative min-h-[280px] overflow-hidden rounded-lg border border-white/10 bg-white/5"><HomeHeroDataFlow /></div>
         </div>
       </section>
 
