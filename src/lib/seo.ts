@@ -233,6 +233,18 @@ const pageSeo = {
         "Financial literacy education for Rotary communities with statements, stocks, crypto, technical analysis, risk management, and virtual portfolios.",
     },
   },
+  learn: {
+    tr: {
+      title: "Öğrenme Merkezi | Enbilir Kılavuz, Eğitim ve AI Araçları",
+      description:
+        "Enbilir kullanım kılavuzu, risk testi, finansal okuryazarlık eğitimi, AI piyasa araçları ve rapor okuma kaynaklarını tek öğrenme merkezinde keşfedin.",
+    },
+    en: {
+      title: "Learning Center | Enbilir Guides, Education and AI Tools",
+      description:
+        "Explore the Enbilir usage guide, risk test, financial-literacy education, AI market tools, and report-reading resources in one learning center.",
+    },
+  },
   contentHub: {
     tr: {
       title: "İçerik Merkezi | Enbilir Blog, Eğitim ve Site Rehberi",

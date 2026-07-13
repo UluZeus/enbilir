@@ -7,6 +7,9 @@ export const siteAnalyticsEvents = {
   firstTrade: "FIRST_TRADE",
   aiChat: "AI_CHAT",
   macroReportOpen: "MACRO_REPORT_OPEN",
+  onboardingStep: "ONBOARDING_STEP",
+  onboardingComplete: "ONBOARDING_COMPLETE",
+  registrationStarted: "REGISTRATION_STARTED",
 } as const;
 
 export type SiteAnalyticsEventType = (typeof siteAnalyticsEvents)[keyof typeof siteAnalyticsEvents];

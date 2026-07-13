@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 const staticRoutes = [
   { path: "", frequency: "daily", priority: 1 },
-  { path: "/islem-yap", frequency: "daily", priority: 0.92 },
+  { path: "/ogren", frequency: "weekly", priority: 0.92 },
   { path: "/kullanim-kilavuzu", frequency: "weekly", priority: 0.9 },
   { path: "/risk-istahi-testi", frequency: "weekly", priority: 0.86 },
   { path: "/ai-piyasa-asistani", frequency: "daily", priority: 0.95 },
@@ -16,8 +16,6 @@ const staticRoutes = [
   { path: "/kayit", frequency: "weekly", priority: 0.82 },
   { path: "/giris", frequency: "weekly", priority: 0.58 },
   { path: "/ligler", frequency: "daily", priority: 0.86 },
-  { path: "/liderlik-tablosu", frequency: "daily", priority: 0.8 },
-  { path: "/haftalik-liderler", frequency: "weekly", priority: 0.76 },
   { path: "/topluluk", frequency: "weekly", priority: 0.76 },
   { path: "/sohbet", frequency: "daily", priority: 0.74 },
   { path: "/icerik-merkezi", frequency: "weekly", priority: 0.9 },
@@ -47,7 +45,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { id: true, updatedAt: true, generatedAt: true },
   });
   const activeLeagues = await prisma.league.findMany({
-    where: { isActive: true },
+    where: { isActive: true, type: { not: "PRIVATE" } },
     orderBy: { updatedAt: "desc" },
     select: { slug: true, updatedAt: true, createdAt: true },
   });

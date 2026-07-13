@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { FormMessage } from "@/components/FormMessage";
-import { PageHeader } from "@/components/PageHeader";
+import { PasswordField } from "@/components/PasswordField";
+import { RegistrationStartTracker } from "@/components/RegistrationStartTracker";
 import { getSafeLocale } from "@/i18n/config";
-import { getDictionary } from "@/i18n/dictionaries";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { registerAction } from "@/lib/actions";
-import { getDefaultLeagueOptions } from "@/lib/default-leagues";
+import { getSessionUser } from "@/lib/auth";
 import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -25,212 +26,81 @@ export default async function RegisterPage({
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
   const locale = getSafeLocale(rawLocale);
-  const dictionary = getDictionary(locale);
+  const sessionUser = await getSessionUser();
+  if (sessionUser) redirect(`/${locale}/panel`);
   const copy = getUiCopy(locale).auth;
   const isDevelopment = process.env.NODE_ENV !== "production";
-  const devLoginHref = `/api/auth/dev-login?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/panel`)}`;
-  const benefits = getRegisterBenefits(locale);
-  const timeline = getRegisterTimeline(locale);
-  const defaultLeagues = await getDefaultLeagueOptions(locale);
+  const startPath = `/${locale}/baslangic`;
 
   return (
-    <div className="grid gap-6">
-      <PageHeader title={dictionary.pages.register.title} description={dictionary.pages.register.description} locale={locale} />
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div className="premium-card premium-card--dark p-6 sm:p-7">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">
-            {locale === "tr" ? "Topluluk üyeliği" : "Community membership"}
+    <div className="mx-auto grid max-w-3xl gap-6">
+      <RegistrationStartTracker locale={locale} />
+      <form action={registerAction} className="auth-conversion-form grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <div className="border-b border-slate-100 pb-4">
+          <p className="text-xs font-black uppercase text-[#8a6a5d]">
+            {locale === "tr" ? "Bir dakikada hesap oluştur" : "Create your account in one minute"}
           </p>
-          <h2 className="mt-3 text-3xl font-black">
-            {locale === "tr" ? "Rotary topluluğunu dijital yarışma ve eğitim akışına taşı." : "Bring your Rotary community into a digital competition and education flow."}
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-slate-300">
+          <h1 className="mt-2 text-2xl font-black text-[#152033]">
+            {locale === "tr" ? "Önce hesabın, sonra adım adım başlangıç" : "Your account first, then a guided start"}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
             {locale === "tr"
-              ? "Kayıt olan her üye; sanal portföy yarışmasına, AI destekli piyasa okuryazarlığına ve lig bazlı topluluk deneyimine aynı hesapla erişir."
-              : "Each member who registers gets access to virtual portfolio competition, AI-supported market literacy, and league-based community participation from one account."}
+              ? "Lig, risk profili ve ilk sanal işlem seçimlerini kayıt sonrasında birlikte tamamlayacağız."
+              : "We will guide you through league, risk profile, and your first virtual trade after registration."}
           </p>
-          <div className="mt-6 grid gap-3">
-            {benefits.map((benefit) => (
-              <div key={benefit.title} className="rounded-2xl border border-white/10 bg-white/6 p-4">
-                <p className="text-sm font-black text-white">{benefit.title}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{benefit.body}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
-              {locale === "tr" ? "İlk 3 adım" : "First 3 steps"}
-            </p>
-            <div className="mt-3 grid gap-3">
-              {timeline.map((step) => (
-                <div key={step.title} className="flex gap-3">
-                  <span className="mt-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/12 text-xs font-black text-white">
-                    {step.step}
-                  </span>
-                  <div>
-                    <p className="text-sm font-black text-white">{step.title}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-300">{step.body}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
-        <form action={registerAction} className="auth-conversion-form mx-auto grid w-full gap-4 rounded-[1.35rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="auth-form-intro rounded-2xl p-4">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#bd8c7d]">
-              {locale === "tr" ? "30 gün ücretsiz deneme" : "30-day free trial"}
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-[#152033]">
-              {locale === "tr" ? "Sanal portföyünü hemen aç" : "Open your virtual portfolio now"}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {locale === "tr"
-                ? "Gerçek para riski olmadan işlem yap, liglere katıl, AI makro raporları takip et. İlk 30 gün ücretsizdir; sonrasında standart üyelikte 70 TL katkı gönüllü, VIP üyelikte aylık 100 TL ileri AI hizmeti içindir."
-                : "Trade without real-money risk, join leagues, and follow AI macro reports. The first 30 days are free; after that, the 70 TL standard contribution is voluntary, while VIP membership is 100 TL per month for the advanced AI service."}
-            </p>
-          </div>
-          <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
+        <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
+        <a
+          href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(startPath)}`}
+          className="rounded-md border border-slate-300 bg-white px-5 py-3 text-center text-sm font-black text-[#152033] shadow-sm hover:border-[#0f766e] hover:text-[#0f766e]"
+        >
+          {copy.googleRegister}
+        </a>
+        {isDevelopment ? (
           <a
-            href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/panel`)}`}
-            className="rounded-md border border-slate-300 bg-white px-5 py-3 text-center text-sm font-black text-[#152033] shadow-sm hover:border-[#0f766e] hover:text-[#0f766e]"
+            href={`/api/auth/dev-login?locale=${locale}&returnTo=${encodeURIComponent(startPath)}`}
+            className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-5 py-3 text-center text-sm font-black text-amber-900"
           >
-            {copy.googleRegister}
+            {locale === "tr" ? "Geliştirme girişi" : "Development login"}
           </a>
-          {isDevelopment ? (
-            <a
-              href={devLoginHref}
-              className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-5 py-3 text-center text-sm font-black text-amber-900 shadow-sm hover:border-amber-500 hover:bg-amber-100"
-            >
-              {locale === "tr" ? "Geliştirme girişi" : "Development login"}
-            </a>
-          ) : null}
-          <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-            <span className="h-px flex-1 bg-slate-200" />
-            {copy.or}
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
-          <input type="hidden" name="locale" value={locale} />
-          <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.fullName}<input name="name" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
-          <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.nickname}<input name="nickname" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
-          <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.displayName}<select name="displayNameMode" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]"><option value="REAL_NAME">{copy.showRealName}</option><option value="NICKNAME">{copy.showNickname}</option></select></label>
-          <label className="grid gap-2 text-sm font-bold text-slate-700">
-            {locale === "tr" ? "Başlangıç ligi" : "Starting league"}
-            <select
-              name="initialLeagueSlug"
-              required
-              defaultValue=""
-              className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
-            >
-              <option value="" disabled>
-                {locale === "tr" ? "Lütfen bir lig seçin" : "Please choose a league"}
-              </option>
-              {defaultLeagues.map((league) => (
-                <option key={league.slug} value={league.slug}>
-                  {league.name}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs font-semibold leading-5 text-slate-500">
-              {locale === "tr"
-                ? "Sisteme girerken en az bir lig seçimi zorunludur. Daha sonra diğer liglere de katılabilirsin."
-                : "Choosing at least one league is required when entering the system. You may join additional leagues later."}
-            </span>
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.email}<input name="email" type="email" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
-          <label className="grid gap-2 text-sm font-bold text-slate-700">{copy.password}<input name="password" type="password" minLength={8} className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" /></label>
-          <label className="flex gap-3 text-sm text-slate-700"><input name="kvkkAccepted" type="checkbox" /> <span><Link href={`/${locale}/kvkk`} className="font-bold text-[#0f766e]">{locale === "tr" ? "KVKK Aydınlatma Metni" : "Privacy Notice"}</Link>{locale === "tr" ? "’ni okudum." : " read and understood."}</span></label>
-          <label className="flex gap-3 text-sm text-slate-700"><input name="termsAccepted" type="checkbox" /> <span><Link href={`/${locale}/kullanim-sartlari`} className="font-bold text-[#0f766e]">{locale === "tr" ? "Kullanım Şartları" : "Terms of Use"}</Link>{locale === "tr" ? "’nı kabul ediyorum." : " accepted."}</span></label>
-          <label className="flex gap-3 text-sm text-slate-700"><input name="noAdviceAccepted" type="checkbox" /> <span>{copy.noAdviceAccepted}</span></label>
+        ) : null}
+        <div className="flex items-center gap-3 text-xs font-bold uppercase text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          {copy.or}
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <input type="hidden" name="locale" value={locale} />
+        <label className="grid gap-2 text-sm font-bold text-slate-700">
+          {copy.fullName}
+          <input name="name" required autoComplete="name" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" />
+        </label>
+        <label className="grid gap-2 text-sm font-bold text-slate-700">
+          {copy.email}
+          <input name="email" type="email" required autoComplete="email" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e]" />
+        </label>
+        <PasswordField
+          label={copy.password}
+          locale={locale}
+          autoComplete="new-password"
+          minLength={8}
+          hint={locale === "tr" ? "En az 8 karakter kullan." : "Use at least 8 characters."}
+        />
+
+        <fieldset className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <legend className="px-1 text-sm font-black text-[#152033]">{locale === "tr" ? "Onaylar" : "Confirmations"}</legend>
+          <label className="flex gap-3 text-sm text-slate-700"><input name="kvkkAccepted" type="checkbox" required /> <span><Link href={`/${locale}/kvkk`} className="font-bold text-[#0f766e]">{locale === "tr" ? "KVKK Aydınlatma Metni" : "Privacy Notice"}</Link>{locale === "tr" ? "’ni okudum." : " read and understood."}</span></label>
+          <label className="flex gap-3 text-sm text-slate-700"><input name="termsAccepted" type="checkbox" required /> <span><Link href={`/${locale}/kullanim-sartlari`} className="font-bold text-[#0f766e]">{locale === "tr" ? "Kullanım Şartları" : "Terms of Use"}</Link>{locale === "tr" ? "’nı kabul ediyorum." : " accepted."}</span></label>
+          <label className="flex gap-3 text-sm text-slate-700"><input name="noAdviceAccepted" type="checkbox" required /> <span>{copy.noAdviceAccepted}</span></label>
           <label className="flex gap-3 text-sm text-slate-700"><input name="electronicConsent" type="checkbox" /> <span>{copy.electronicConsent}</span></label>
-          <button className="premium-cta px-5 py-3 text-sm font-black">{copy.register}</button>
-          <div className="auth-trust-grid grid gap-2 sm:grid-cols-3">
-            {(locale === "tr"
-              ? ["Gerçek para yok", "AI destekli öğrenme", "Lig ve topluluk"]
-              : ["No real money", "AI-assisted learning", "League community"]
-            ).map((item) => (
-              <span key={item} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-black text-[#152033]">
-                {item}
-              </span>
-            ))}
-          </div>
-        </form>
-      </section>
+        </fieldset>
+        <button className="premium-cta px-5 py-3 text-sm font-black">{copy.register}</button>
+        <p className="text-center text-sm text-slate-600">
+          {locale === "tr" ? "Zaten hesabın var mı?" : "Already have an account?"}{" "}
+          <Link href={`/${locale}/giris`} className="font-black text-[#0f766e]">{copy.login}</Link>
+        </p>
+      </form>
     </div>
   );
-}
-
-function getRegisterBenefits(locale: string) {
-  if (locale === "en") {
-    return [
-      {
-        title: "Education plus competition",
-        body: "Members can apply what they learn immediately inside a virtual portfolio, instead of stopping at static lessons.",
-      },
-      {
-        title: "League-specific motivation",
-        body: "Each Rotary community can build its own rhythm with rankings, direct participation, and shared progress.",
-      },
-      {
-        title: "A modern AI companion",
-        body: "The AI assistant turns raw market movement into readable learning cues and keeps the platform feeling alive.",
-      },
-    ] as const;
-  }
-
-  return [
-    {
-      title: "Eğitim ve yarışma birlikte",
-      body: "Üyeler öğrendiklerini statik derslerde bırakmaz; doğrudan sanal portföy içinde uygular.",
-    },
-    {
-      title: "Lige özel motivasyon",
-      body: "Her Rotary topluluğu sıralama, doğrudan katılım ve ortak ilerleme üzerinden kendi ritmini kurabilir.",
-    },
-    {
-      title: "Modern bir AI yardımcı",
-      body: "AI asistanı ham piyasa hareketini okunabilir öğrenme sinyallerine dönüştürür ve platformu canlı hissettirir.",
-    },
-  ] as const;
-}
-
-function getRegisterTimeline(locale: string) {
-  if (locale === "en") {
-    return [
-      {
-        step: "1",
-        title: "Create your profile",
-        body: "Choose how you want to appear in rankings and community views.",
-      },
-      {
-        step: "2",
-        title: "Join or create a league",
-        body: "Connect with your Rotary circle and make the experience social from day one.",
-      },
-      {
-        step: "3",
-        title: "Start learning with live context",
-        body: "Use the AI assistant, education pages, and virtual trading flow as one connected journey.",
-      },
-    ] as const;
-  }
-
-  return [
-    {
-      step: "1",
-      title: "Profilini oluştur",
-      body: "Sıralama ve topluluk görünümünde nasıl yer almak istediğini belirle.",
-    },
-    {
-      step: "2",
-      title: "Bir lige katıl veya lig kur",
-      body: "Rotary çevrenle bağ kur ve deneyimi ilk günden sosyal hale getir.",
-    },
-    {
-      step: "3",
-      title: "Canlı bağlamla öğrenmeye başla",
-      body: "AI asistanı, eğitim sayfaları ve sanal işlem akışını tek bir öğrenme yolculuğu gibi kullan.",
-    },
-  ] as const;
 }

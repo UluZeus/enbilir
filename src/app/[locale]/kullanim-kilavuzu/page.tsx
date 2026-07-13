@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { UsageGuidePanel } from "@/components/usage-guide/UsageGuidePanel";
 import { SiteMotion } from "@/components/SiteMotion";
+import { OnboardingVisitTracker } from "@/components/onboarding/OnboardingVisitTracker";
 import { getSafeLocale } from "@/i18n/config";
+import { getSessionUser } from "@/lib/auth";
 import { getUsageGuideContent } from "@/lib/usage-guide-content";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -27,9 +29,11 @@ export default async function UsageGuidePage({ params }: { params: Promise<{ loc
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const content = getUsageGuideContent(locale);
+  const user = await getSessionUser();
 
   return (
     <div className="grid gap-6">
+      {user ? <OnboardingVisitTracker step="guide" locale={locale} /> : null}
       <section className="premium-card premium-card--interactive p-6 md:p-8">
         <div className="site-page-hero-grid">
           <div>

@@ -15,7 +15,7 @@ export function FormMessage({ message, tone = "error" }: FormMessageProps) {
   }[tone];
 
   return (
-    <div className={`rounded-lg border px-4 py-3 text-sm font-semibold leading-6 ${classes}`}>
+    <div role={tone === "error" ? "alert" : "status"} aria-live={tone === "error" ? "assertive" : "polite"} className={`rounded-lg border px-4 py-3 text-sm font-semibold leading-6 ${classes}`}>
       {message}
     </div>
   );

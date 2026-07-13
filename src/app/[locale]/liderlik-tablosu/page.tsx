@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { SiteMotion } from "@/components/SiteMotion";
-import { getDisplayName } from "@/lib/auth";
+import { OnboardingVisitTracker } from "@/components/onboarding/OnboardingVisitTracker";
+import { getDisplayName, getSessionUser } from "@/lib/auth";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
@@ -11,12 +13,19 @@ import { buildPageMetadata } from "@/lib/seo";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
-  return buildPageMetadata({ locale, path: "/liderlik-tablosu", page: "leaderboard" });
+  return {
+    ...buildPageMetadata({ locale, path: "/liderlik-tablosu", page: "leaderboard" }),
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function LeaderboardPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) {
+    redirect(`/${locale}/giris`);
+  }
   const copy = getUiCopy(locale).leaderboard;
   const users = await prisma.user.findMany({
     select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
@@ -34,6 +43,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ lo
 
   return (
     <div className="grid gap-6">
+      <OnboardingVisitTracker step="ranking" locale={locale} />
       <section className="premium-card premium-card--interactive p-6">
         <div className="site-page-hero-grid">
           <div>

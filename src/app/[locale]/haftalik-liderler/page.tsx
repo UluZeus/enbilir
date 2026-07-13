@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { getSafeLocale } from "@/i18n/config";
+import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/portfolio";
 import { buildPageMetadata } from "@/lib/seo";
@@ -9,19 +11,26 @@ import { buildPageMetadata } from "@/lib/seo";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
-  return buildPageMetadata({
+  return {
+    ...buildPageMetadata({
     locale,
     path: "/haftalik-liderler",
     page: "weeklyLeaders",
     keywords: locale === "tr"
       ? ["haftalık liderler", "Rotaryen sanal portföy yarışması", "haftalık kazanç liderleri", "toplam portföy liderleri"]
       : ["weekly leaders", "Rotary virtual portfolio competition", "weekly gain leaders", "overall portfolio leaders"],
-  });
+    }),
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function WeeklyLeadersPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) {
+    redirect(`/${locale}/giris`);
+  }
   const isEnglish = locale === "en";
   const publications = await prisma.weeklyCompetitionPublication.findMany({
     orderBy: { publishedAt: "desc" },

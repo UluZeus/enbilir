@@ -36,6 +36,8 @@ type AnalysisState = {
   error: string | null;
 };
 
+const MARKET_RESULT_BATCH_SIZE = 40;
+
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
 
@@ -141,6 +143,7 @@ export function TradeTicketForm({
   const [state, formAction] = useActionState<TradeActionState, FormData>(action, { ok: false, message: "" });
   const localizedInitialItems = useMemo(() => localizeMarketItems(marketItems, safeLocale), [marketItems, safeLocale]);
   const [query, setQuery] = useState(initialSearch);
+  const [visibleItemCount, setVisibleItemCount] = useState(MARKET_RESULT_BATCH_SIZE);
   const category = initialCategory;
   const [liveItems, setLiveItems] = useState<MarketItem[]>(localizedInitialItems);
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<string | null>(null);
@@ -312,6 +315,12 @@ export function TradeTicketForm({
     return filteredItems.find((item) => item.symbol === selectedSymbol) ?? filteredItems[0] ?? null;
   }, [filteredItems, selectedSymbol]);
   const effectiveSelectedSymbol = effectiveSelectedItem?.symbol ?? "";
+  const orderedFilteredItems = useMemo(() => {
+    if (!effectiveSelectedSymbol) return filteredItems;
+    const selected = filteredItems.find((item) => item.symbol === effectiveSelectedSymbol);
+    return selected ? [selected, ...filteredItems.filter((item) => item.symbol !== effectiveSelectedSymbol)] : filteredItems;
+  }, [effectiveSelectedSymbol, filteredItems]);
+  const visibleItems = orderedFilteredItems.slice(0, visibleItemCount);
   const selectedCategoryLabel = category === "ALL" ? copy.allProducts : copy.categoryLabels[category];
   const effectiveCategoryOptions = [
     { value: "ALL" as const, label: copy.allProducts, count: liveItems.length },
@@ -412,7 +421,7 @@ export function TradeTicketForm({
         </label>
 
         <div className="order-3 mt-3 grid grid-cols-3 gap-2 md:order-4 md:mt-4 md:gap-3">
-          <TrendBadge label={safeLocale === "en" ? "Displayed" : "Görüntülenen"} value={String(filteredItems.length)} tone="slate" />
+          <TrendBadge label={safeLocale === "en" ? "Displayed" : "Görüntülenen"} value={`${visibleItems.length}/${filteredItems.length}`} tone="slate" />
           <TrendBadge label={safeLocale === "en" ? "Buy / Sell" : "Alım / Satım"} value={safeLocale === "en" ? "Active" : "Aktif"} tone="green" />
           <TrendBadge label={safeLocale === "en" ? "Refresh" : "Yenileme"} value={safeLocale === "en" ? "30 sec" : "30 saniye"} tone="slate" />
         </div>
@@ -460,7 +469,10 @@ export function TradeTicketForm({
             <input
               name="q"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setVisibleItemCount(MARKET_RESULT_BATCH_SIZE);
+              }}
               placeholder={copy.productSearchPlaceholder}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#0f766e] md:py-2.5"
             />
@@ -475,8 +487,11 @@ export function TradeTicketForm({
         </form>
 
         <div key={`${category}:${query}`} className="mt-3 max-h-[16rem] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 md:mt-4 md:max-h-[22rem] md:p-2">
+          <p className="sr-only" role="status">
+            {safeLocale === "tr" ? `${filteredItems.length} sonuçtan ${visibleItems.length} tanesi gösteriliyor.` : `Showing ${visibleItems.length} of ${filteredItems.length} results.`}
+          </p>
           <div className="grid gap-1.5 md:gap-2">
-            {filteredItems.map((item) => (
+            {visibleItems.map((item) => (
               <Link
                 key={item.symbol}
                 href={buildTradeHref(safeLocale, category, item.symbol, query)}
@@ -503,6 +518,17 @@ export function TradeTicketForm({
               <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-sm font-semibold text-slate-500">
                 {copy.marketDataUnavailable}
               </div>
+            ) : null}
+            {visibleItems.length < filteredItems.length ? (
+              <button
+                type="button"
+                onClick={() => setVisibleItemCount((current) => current + MARKET_RESULT_BATCH_SIZE)}
+                className="rounded-lg border border-[#0f766e] bg-white px-3 py-3 text-sm font-black text-[#0f766e] hover:bg-emerald-50"
+              >
+                {safeLocale === "tr"
+                  ? `Daha fazla varlık göster (${filteredItems.length - visibleItems.length} kaldı)`
+                  : `Show more assets (${filteredItems.length - visibleItems.length} remaining)`}
+              </button>
             ) : null}
           </div>
         </div>
@@ -568,8 +594,8 @@ export function TradeTicketForm({
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-600">
                 {analysisState.status === "loading"
-                  ? "Teknik grafik yükleniyor..."
-                  : analysisState.error || "Seçilen ürün için teknik grafik verisi hazırlanıyor."}
+                  ? (safeLocale === "tr" ? "Teknik grafik yükleniyor..." : "Loading technical chart...")
+                  : analysisState.error || (safeLocale === "tr" ? "Seçilen ürün için teknik grafik verisi hazırlanıyor." : "Technical chart data is being prepared for the selected asset.")}
               </div>
             )}
           </div>

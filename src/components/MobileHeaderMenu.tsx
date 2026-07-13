@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
 import { logoutAction } from "@/lib/actions";
@@ -39,6 +40,62 @@ export function MobileHeaderMenu({
   tagline,
 }: MobileHeaderMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+  const menuId = useId();
+  const menuTitleId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const openMenu = () => setIsOpen(true);
+    window.addEventListener("enbilir:open-mobile-menu", openMenu);
+    return () => window.removeEventListener("enbilir:open-mobile-menu", openMenu);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !menuPanelRef.current) return;
+      const focusable = Array.from(menuPanelRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled])'));
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
+  const localizedPath = (language: Locale) => {
+    const path = pathname.replace(/^\/(tr|en)(?=\/|$)/, `/${language}`);
+    return path === pathname && !pathname.startsWith(`/${locale}`) ? `/${language}` : path;
+  };
+
+  const isCurrent = (href: string) => {
+    if (!href.startsWith("/")) return false;
+    const hrefPath = href.split("?")[0];
+    if (hrefPath === `/${locale}`) return pathname === hrefPath;
+    return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
+  };
 
   return (
     <div className="mobile-site-header mobile-site-header--advanced border-b border-[#d1bfa7]/30 bg-[#fffaf6]/92 px-4 py-3 shadow-lg backdrop-blur-xl md:hidden">
@@ -57,7 +114,7 @@ export function MobileHeaderMenu({
           {locales.map((language) => (
             <Link
               key={language}
-              href={`/${language}`}
+              href={localizedPath(language)}
               aria-label={language === "tr" ? "Türkçe" : "English"}
               className={`rounded-md border px-2.5 py-1.5 text-xs font-black ${
                 language === locale ? "border-[#0f766e] bg-emerald-50 text-[#0f766e]" : "border-slate-200 bg-white text-slate-600"
@@ -69,8 +126,9 @@ export function MobileHeaderMenu({
           ))}
           <button
             type="button"
-            aria-label={isOpen ? "Menüyü kapat" : "Menüyü aç"}
+            aria-label={isOpen ? (locale === "tr" ? "Menüyü kapat" : "Close menu") : (locale === "tr" ? "Menüyü aç" : "Open menu")}
             aria-expanded={isOpen}
+            aria-controls={menuId}
             onClick={() => setIsOpen((current) => !current)}
             className="mobile-menu-button mobile-menu-button--advanced inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#d1bfa7]/60 bg-white text-[#152033] shadow-sm"
           >
@@ -89,50 +147,72 @@ export function MobileHeaderMenu({
       </div>
 
       {isOpen ? (
-        <div className="mobile-menu-panel mt-3 grid gap-3 rounded-2xl border border-[#d1bfa7]/38 bg-white/95 p-3 shadow-2xl">
-          <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-600">{tagline}</p>
-          <nav className="grid grid-cols-2 gap-2" aria-label="Ana menü">
-            {primaryLinks.map((item) => (
-              <MobileMenuLink key={item.href} item={item} onClick={() => setIsOpen(false)} />
-            ))}
-          </nav>
-          <nav className="grid gap-2" aria-label="Ürün menüsü">
-            {productLinks.map((item) => (
-              <MobileMenuLink key={item.href} item={item} onClick={() => setIsOpen(false)} wide />
-            ))}
-          </nav>
-          <div className="grid gap-2 border-t border-slate-100 pt-3">
-            {userLabel ? (
-              <>
-                <Link
-                  href={`/${locale}/panel`}
-                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-[#0f766e]"
-                  onClick={() => setIsOpen(false)}
-                >
-                  {userLabel}
-                </Link>
-                <form action={logoutAction}>
-                  <input type="hidden" name="locale" value={locale} />
-                  <button className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-sm font-black text-slate-700">
-                    {logoutLabel}
-                  </button>
-                </form>
-              </>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {accountLinks.map((item) => (
-                  <MobileMenuLink key={item.href} item={item} onClick={() => setIsOpen(false)} />
-                ))}
+        <div className="fixed inset-0 z-50 bg-slate-950/55 p-3 pb-24 backdrop-blur-sm" onMouseDown={(event) => { if (event.currentTarget === event.target) setIsOpen(false); }}>
+          <section ref={menuPanelRef} id={menuId} role="dialog" aria-modal="true" aria-labelledby={menuTitleId} className="mobile-menu-panel mx-auto flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#d1bfa7]/38 bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-[#101827] px-4 py-3 text-white">
+              <div>
+                <p className="text-xs font-bold uppercase text-cyan-200">{locale === "tr" ? "Gezinme" : "Navigation"}</p>
+                <h2 id={menuTitleId} className="mt-0.5 text-lg font-black text-white">{locale === "tr" ? "Nereye gitmek istersin?" : "Where would you like to go?"}</h2>
               </div>
-            )}
-          </div>
+              <button ref={closeButtonRef} type="button" onClick={() => setIsOpen(false)} aria-label={locale === "tr" ? "Menüyü kapat" : "Close menu"} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/10 text-xl font-black text-white">×</button>
+            </div>
+            <div className="grid gap-3 overflow-y-auto p-3">
+              <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-700">{tagline}</p>
+              <nav className="grid grid-cols-2 gap-2" aria-label={locale === "tr" ? "Ana menü" : "Main menu"}>
+                {primaryLinks.map((item) => (
+                  <MobileMenuLink key={item.href} item={item} current={isCurrent(item.href)} onClick={() => setIsOpen(false)} />
+                ))}
+              </nav>
+              <nav className="grid gap-2" aria-label={locale === "tr" ? "Ürün menüsü" : "Product menu"}>
+                {productLinks.map((item) => (
+                  <MobileMenuLink key={item.href} item={item} current={isCurrent(item.href)} onClick={() => setIsOpen(false)} wide />
+                ))}
+              </nav>
+              <div className="grid gap-2 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    window.dispatchEvent(new Event("enbilir:open-help"));
+                  }}
+                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-left text-sm font-black text-cyan-900"
+                >
+                  {locale === "tr" ? "Yardımı aç" : "Open help"}
+                </button>
+                {userLabel ? (
+                  <>
+                    <Link
+                      href={`/${locale}/panel`}
+                      aria-current={isCurrent(`/${locale}/panel`) ? "page" : undefined}
+                      className={`rounded-xl border px-3 py-2 text-sm font-black ${isCurrent(`/${locale}/panel`) ? "border-[#0f766e] bg-emerald-100 text-[#075c56] ring-2 ring-emerald-200" : "border-emerald-200 bg-emerald-50 text-[#0f766e]"}`}
+                      onClick={() => setIsOpen(false)}
+                    >
+                      {userLabel}
+                    </Link>
+                    <form action={logoutAction}>
+                      <input type="hidden" name="locale" value={locale} />
+                      <button className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-sm font-black text-slate-700">
+                        {logoutLabel}
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {accountLinks.map((item) => (
+                      <MobileMenuLink key={item.href} item={item} current={isCurrent(item.href)} onClick={() => setIsOpen(false)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
         </div>
       ) : null}
     </div>
   );
 }
 
-function MobileMenuLink({ item, wide = false, onClick }: { item: HeaderLink; wide?: boolean; onClick: () => void }) {
+function MobileMenuLink({ item, current = false, wide = false, onClick }: { item: HeaderLink; current?: boolean; wide?: boolean; onClick: () => void }) {
   const toneClass =
     item.tone === "trade"
       ? "border-emerald-200 bg-emerald-50 text-[#0f766e]"
@@ -150,8 +230,9 @@ function MobileMenuLink({ item, wide = false, onClick }: { item: HeaderLink; wid
     <Link
       href={item.href}
       onClick={onClick}
+      aria-current={current ? "page" : undefined}
       data-tone={item.tone ?? "default"}
-      className={`rounded-xl border px-3 py-2 text-sm font-black shadow-sm ${toneClass} ${wide ? "block" : ""}`}
+      className={`rounded-xl border px-3 py-2 text-sm font-black shadow-sm ${toneClass} ${wide ? "block" : ""} ${current ? "ring-2 ring-[#0f766e] ring-offset-1" : ""}`}
     >
       {item.label}
     </Link>

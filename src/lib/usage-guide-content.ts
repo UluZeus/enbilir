@@ -63,7 +63,7 @@ export function getUsageGuideContent(locale: Locale): UsageGuideContent {
           title: "Choose your league",
           summary: "League selection gives the learning journey a community rhythm.",
           body: [
-            "Choose the league that fits your context during registration or from the Leagues menu. Rotary, Rotaract, and open/free league options help users compare results in a fairer community setting.",
+            "After creating your account, choose the league that fits your context from the Leagues menu. Rotary, Rotaract, and open/free league options help users compare results in a fairer community setting.",
             "The aim is not only to rank high. The real aim is to compare decision quality, consistency, risk awareness, and learning discipline.",
           ],
         },
@@ -209,7 +209,7 @@ export function getUsageGuideContent(locale: Locale): UsageGuideContent {
         title: "Ligini seç",
         summary: "Lig seçimi öğrenme yolculuğuna topluluk ritmi ve adil karşılaştırma alanı kazandırır.",
         body: [
-          "Kayıt sırasında veya Ligler menüsünden sana uygun ligi seç. Rotaryen, Rotaract ve Serbest lig seçenekleri kullanıcıların daha anlamlı bir topluluk içinde karşılaştırma yapmasını sağlar.",
+          "Hesabını oluşturduktan sonra Ligler menüsünden sana uygun ligi seç. Rotaryen, Rotaract ve Serbest lig seçenekleri kullanıcıların daha anlamlı bir topluluk içinde karşılaştırma yapmasını sağlar.",
           "Amaç yalnızca üst sıraya çıkmak değildir. Asıl amaç karar kalitesini, istikrarı, risk farkındalığını ve öğrenme disiplinini geliştirmektir.",
         ],
       },

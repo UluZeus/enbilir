@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { FormMessage } from "@/components/FormMessage";
 import { LeagueInviteActions } from "@/components/leagues/LeagueInviteActions";
 import { PageHeader } from "@/components/PageHeader";
@@ -21,6 +22,16 @@ import { calculatePortfolioHealth } from "@/lib/portfolio-health";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
+import { getOnboardingProgress } from "@/lib/onboarding";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return {
+    title: locale === "tr" ? "Kullanıcı Paneli | Enbilir" : "User Dashboard | Enbilir",
+    robots: { index: false, follow: false },
+  };
+}
 
 function getPanelCopy(locale: "tr" | "en") {
   return locale === "en"
@@ -161,7 +172,7 @@ export default async function DashboardPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ error?: string; view?: string }>;
 }) {
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
@@ -169,6 +180,7 @@ export default async function DashboardPage({
   const dictionary = getDictionary(locale);
   const ui = getUiCopy(locale);
   const copy = getPanelCopy(locale);
+  const activeView = ["portfolio", "community", "settings"].includes(query.view ?? "") ? query.view! : "overview";
   const user = await getSessionUser();
 
   if (!user) {
@@ -197,19 +209,20 @@ export default async function DashboardPage({
     membershipUser,
     latestTrades,
     portfolioSnapshot,
+    onboardingProgress,
   ] = await Promise.all([
-    getFriendDashboard(user.id),
-    getUserLeagues(user.id),
-    getBadgeDashboard(user.id),
-    getCompetitionRankingsForUser(user.id),
-    prisma.virtualTrade.count({ where: { userId: user.id } }),
-    prisma.virtualTrade.count({ where: { userId: user.id, reason: { not: null } } }),
-    prisma.aiMarketReportEvent.count({ where: { userId: user.id, eventType: "READ" } }),
-    prisma.user.findUnique({
+    activeView === "community" ? getFriendDashboard(user.id) : Promise.resolve({ friends: [] }),
+    activeView === "overview" || activeView === "community" ? getUserLeagues(user.id) : Promise.resolve([]),
+    activeView === "community" ? getBadgeDashboard(user.id) : Promise.resolve([]),
+    activeView === "portfolio" ? getCompetitionRankingsForUser(user.id) : Promise.resolve([]),
+    activeView === "overview" || activeView === "portfolio" ? prisma.virtualTrade.count({ where: { userId: user.id } }) : Promise.resolve(0),
+    activeView === "overview" || activeView === "portfolio" ? prisma.virtualTrade.count({ where: { userId: user.id, reason: { not: null } } }) : Promise.resolve(0),
+    activeView === "overview" ? prisma.aiMarketReportEvent.count({ where: { userId: user.id, eventType: "READ" } }) : Promise.resolve(0),
+    activeView === "settings" ? prisma.user.findUnique({
       where: { id: user.id },
       select: { createdAt: true, membershipTier: true, vipPaidUntil: true },
-    }),
-    prisma.virtualTrade.findMany({
+    }) : Promise.resolve(null),
+    activeView === "portfolio" ? prisma.virtualTrade.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       take: 8,
@@ -224,51 +237,22 @@ export default async function DashboardPage({
         reason: true,
         createdAt: true,
       },
-    }),
-    getPortfolioSnapshot(user.id),
+    }) : Promise.resolve([]),
+    activeView === "overview" || activeView === "portfolio" ? getPortfolioSnapshot(user.id) : Promise.resolve(null),
+    getOnboardingProgress(user.id),
   ]);
   const membership = membershipUser ? getMembershipSnapshot(membershipUser) : null;
   const ownedLeague = userLeagues.find((membership) => membership.role === "OWNER");
   const earnedBadges = badges.filter((badge) => badge.earnedAt).length;
   const panelGrowthActions = getPanelGrowthActions(locale, Boolean(ownedLeague), userLeagues.length > 0);
   const inviteUrl = ownedLeague ? `${getSiteUrl()}/${locale}/ligler/${ownedLeague.league.slug}` : `${getSiteUrl()}/${locale}/ligler`;
-  const onboardingItems = getOnboardingChecklist(locale, {
-    profileComplete: Boolean(user.name.trim() && (user.nickname?.trim() || user.displayNameMode === "REAL_NAME")),
-    firstTradeComplete: tradeCount > 0,
-    leagueJoined: userLeagues.length > 0,
-    reportRead: reportReadCount > 0,
-  });
-  const onboardingComplete = onboardingItems.filter((item) => item.done).length;
-  const onboardingPercent = Math.round((onboardingComplete / onboardingItems.length) * 100);
-  const learningScore = getLearningScore({
-    profileComplete: onboardingItems[0]?.done ?? false,
-    tradeCount,
-    tradeNoteCount,
-    leagueCount: userLeagues.length,
-    reportReadCount,
-    earnedBadges,
-  });
-  const learningMetrics = getLearningMetrics(locale, {
-    learningScore,
-    tradeCount,
-    tradeNoteCount,
-    reportReadCount,
-    earnedBadges,
-    totalBadges: badges.length,
-    leagueCount: userLeagues.length,
-  });
-  const weeklyMissions = getWeeklyMissions(locale, {
-    tradeNoteCount,
-    reportReadCount,
-    leagueCount: userLeagues.length,
-    earnedBadges,
-  });
   const portfolioHealth = calculatePortfolioHealth({
     snapshot: portfolioSnapshot,
     tradeCount,
     tradeNoteCount,
   });
   const todayActions = getTodayActions(locale, {
+    hasTrade: tradeCount > 0,
     portfolioHealthScore: portfolioHealth.score,
     hasTradeNote: tradeNoteCount > 0,
     hasLeague: userLeagues.length > 0,
@@ -278,10 +262,33 @@ export default async function DashboardPage({
 
   return (
     <div className="growth-page grid gap-6">
-      <PageHeader title={dictionary.pages.panel.title} description={dictionary.pages.panel.description} locale={locale} />
+      <PageHeader
+        title={dictionary.pages.panel.title}
+        description={locale === "tr" ? "Bugünkü önerilerini, portföyünü, liglerini ve hesap ayarlarını tek yerden yönet." : "Manage today's suggestions, your portfolio, leagues, and account settings in one place."}
+        locale={locale}
+      />
       <FormMessage message={query.error} />
 
-      {membership ? (
+      <nav className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-4" aria-label={locale === "tr" ? "Panel bölümleri" : "Dashboard sections"}>
+        {[
+          ["overview", locale === "tr" ? "Genel bakış" : "Overview"],
+          ["portfolio", locale === "tr" ? "Portföy" : "Portfolio"],
+          ["community", locale === "tr" ? "Topluluk" : "Community"],
+          ["settings", locale === "tr" ? "Hesap" : "Account"],
+        ].map(([view, label]) => (
+          <Link key={view} href={`/${locale}/panel?view=${view}`} style={activeView === view ? { color: "#fffaf6" } : undefined} className={`flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-sm font-black ${activeView === view ? "bg-[#101827]" : "text-slate-700 hover:bg-slate-100"}`}>{label}</Link>
+        ))}
+      </nav>
+
+      {activeView === "overview" ? <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase text-emerald-800">{locale === "tr" ? "Başlangıç ilerlemesi" : "Getting-started progress"}</p>
+          <p className="mt-1 text-sm text-emerald-950">{onboardingProgress.completedCount}/{onboardingProgress.totalCount} · %{onboardingProgress.percent}</p>
+        </div>
+        <Link href={`/${locale}/baslangic`} className="mt-3 inline-flex rounded-md border border-emerald-700 px-4 py-2 text-sm font-black text-emerald-900 sm:mt-0">{locale === "tr" ? "Başlangıç yolunu aç" : "Open start path"}</Link>
+      </section> : null}
+
+      {membership && activeView === "settings" ? (
         <section className="premium-card grid gap-4 p-6 md:grid-cols-[minmax(0,1fr)_320px]">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">{copy.membership}</p>
@@ -312,7 +319,7 @@ export default async function DashboardPage({
         </section>
       ) : null}
 
-      <section className="panel-growth-command rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
+      <section className={`${activeView === "community" ? "block" : "hidden"} panel-growth-command rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl`}>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">
@@ -354,109 +361,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="panel-onboarding-checklist premium-card p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
-              {locale === "tr" ? "Başlangıç kontrol listesi" : "Onboarding checklist"}
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-[#152033]">
-              {locale === "tr" ? "Platformu tam kullanmak için dört temel adım." : "Four essential steps to use the platform fully."}
-            </h2>
-          </div>
-          <div className="rounded-2xl border border-[#d1bfa7]/45 bg-[#fffaf6] px-5 py-3 text-right">
-            <p className="text-3xl font-black text-[#0f766e]">{onboardingPercent}%</p>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">
-              {locale === "tr" ? "Tamamlandı" : "Complete"}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 h-2 overflow-hidden rounded-full bg-[#eee5dc]">
-          <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${onboardingPercent}%` }} />
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-4">
-          {onboardingItems.map((item) => (
-            <Link
-              key={item.title}
-              href={item.href}
-              className={`rounded-2xl border p-4 transition ${
-                item.done
-                  ? "border-[#0f766e]/30 bg-[#ecfdf5] text-[#152033]"
-                  : "border-[#d1bfa7]/45 bg-white/75 text-[#152033] hover:border-[#bd8c7d]"
-              }`}
-            >
-              <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${
-                item.done ? "bg-[#0f766e] text-white" : "bg-[#bd8c7d]/16 text-[#8a6a5d]"
-              }`}>
-                {item.done ? (locale === "tr" ? "Tamamlandı" : "Done") : (locale === "tr" ? "Sırada" : "Next")}
-              </span>
-              <h3 className="mt-3 text-base font-black">{item.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel-learning-command premium-card p-6">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
-              {locale === "tr" ? "Kişisel öğrenme paneli" : "Personal learning dashboard"}
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-[#152033]">
-              {locale === "tr" ? "Okuma, işlem, rapor ve lig davranışını tek öğrenme skorunda gör." : "See reading, trading, reports, and league behavior in one learning score."}
-            </h2>
-            <p className="mt-2 max-w-4xl text-sm leading-7 text-slate-600">
-              {locale === "tr"
-                ? "Bu alan portföy sonucundan önce karar alışkanlığını gösterir. Amaç sadece daha çok işlem yapmak değil; gerekçe yazmak, rapor okumak, lig ritmine katılmak ve davranışı zaman içinde daha bilinçli hale getirmektir."
-                : "This area shows decision habits before portfolio outcome. The goal is not more trading alone; it is writing reasons, reading reports, joining league rhythm, and making behavior more deliberate over time."}
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {learningMetrics.map((metric) => (
-                <PanelSoftMetric key={metric.label} label={metric.label} value={metric.value} />
-              ))}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-[#0f766e]/25 bg-emerald-50 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
-              {locale === "tr" ? "Öğrenme skoru" : "Learning score"}
-            </p>
-            <p className="mt-2 text-5xl font-black text-[#0f766e]">{learningScore}</p>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
-              <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${learningScore}%` }} />
-            </div>
-            <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">
-              {locale === "tr"
-                ? "Skor; profil, işlem notu, rapor okuma, lig katılımı ve rozet davranışlarından hesaplanır."
-                : "The score is calculated from profile, trade notes, report reads, league participation, and badges."}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-3 md:grid-cols-4">
-          {weeklyMissions.map((mission) => (
-            <Link
-              key={mission.title}
-              href={mission.href}
-              className={`rounded-2xl border p-4 ${
-                mission.done
-                  ? "border-emerald-200 bg-emerald-50"
-                  : "border-[#d1bfa7]/45 bg-white/75 hover:border-[#bd8c7d]"
-              }`}
-            >
-              <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${
-                mission.done ? "bg-[#0f766e] text-white" : "bg-[#fffaf6] text-[#8a6a5d]"
-              }`}>
-                {mission.done ? (locale === "tr" ? "Tamamlandı" : "Done") : mission.kicker}
-              </span>
-              <h3 className="mt-3 text-base font-black text-[#152033]">{mission.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{mission.body}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel-today-command premium-card p-6">
+      <section className={`${activeView === "overview" ? "block" : "hidden"} panel-today-command premium-card p-6`}>
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
@@ -482,6 +387,18 @@ export default async function DashboardPage({
           </div>
 
           <aside className="portfolio-health-card rounded-2xl border border-[#0f766e]/25 bg-emerald-50 p-5">
+            {tradeCount === 0 ? (
+              <div>
+                <p className="text-xs font-black uppercase text-[#0f766e]">{locale === "tr" ? "Portföy sağlık skoru" : "Portfolio health score"}</p>
+                <h3 className="mt-2 text-xl font-black text-[#152033]">{locale === "tr" ? "İlk işlemden sonra hesaplanır" : "Calculated after your first trade"}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  {locale === "tr" ? "Henüz yatırım pozisyonun olmadığı için portföyünü riskli veya kırılgan olarak puanlamıyoruz." : "You have no positions yet, so the portfolio is not labeled risky or fragile."}
+                </p>
+                <Link href={`/${locale}/islem-yap`} className="premium-cta mt-4 inline-flex px-4 py-2.5 text-sm font-black">
+                  {locale === "tr" ? "İlk sanal işlemi planla" : "Plan your first virtual trade"}
+                </Link>
+              </div>
+            ) : <>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
@@ -520,11 +437,12 @@ export default async function DashboardPage({
                 </p>
               ))}
             </div>
+            </>}
           </aside>
         </div>
       </section>
 
-      <section className="panel-trade-journal premium-card p-6">
+      <section className={`${activeView === "portfolio" ? "block" : "hidden"} panel-trade-journal premium-card p-6`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
@@ -587,7 +505,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="glass-card grid gap-4 rounded-lg p-6 shadow-sm md:grid-cols-3">
+      <section className={`${activeView === "settings" ? "grid" : "hidden"} glass-card gap-4 rounded-lg p-6 shadow-sm md:grid-cols-3`}>
         <div className="rounded-md bg-[#f8fafc] p-5">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{copy.user}</p>
           <p className="mt-3 text-xl font-black text-[#152033]">{getDisplayName(user)}</p>
@@ -610,7 +528,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="glass-card rounded-lg p-6 shadow-sm">
+      <section className={`${activeView === "settings" ? "block" : "hidden"} glass-card rounded-lg p-6 shadow-sm`}>
         <h2 className="text-xl font-black text-[#152033]">{copy.displayPreference}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
           {copy.displayPreferenceBody}
@@ -633,7 +551,7 @@ export default async function DashboardPage({
         </form>
       </section>
 
-      <section className="glass-card rounded-lg p-6 shadow-sm">
+      <section className={`${activeView === "portfolio" ? "block" : "hidden"} glass-card rounded-lg p-6 shadow-sm`}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">{copy.competitionPeriods}</p>
@@ -653,7 +571,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section id="league-system" className="premium-card premium-card--dark overflow-hidden shadow-sm">
+      <section id="league-system" className={`${activeView === "community" ? "block" : "hidden"} premium-card premium-card--dark overflow-hidden shadow-sm`}>
         <div className="border-b border-white/10 p-6 text-white">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.achievementSystem}</p>
           <h2 className="mt-2 text-2xl font-black">{copy.myBadges}</h2>
@@ -695,7 +613,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="premium-card premium-card--dark overflow-hidden shadow-sm">
+      <section className={`${activeView === "community" ? "block" : "hidden"} premium-card premium-card--dark overflow-hidden shadow-sm`}>
         <div className="border-b border-white/10 p-6 text-white">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.leagueSystem}</p>
           <h2 className="mt-2 text-2xl font-black">{copy.myLeagues}</h2>
@@ -773,7 +691,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="glass-card overflow-hidden rounded-lg shadow-sm">
+      <section className={`${activeView === "community" ? "block" : "hidden"} glass-card overflow-hidden rounded-lg shadow-sm`}>
         <div className="bg-[#101827] p-6 text-white">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.socialCompetition}</p>
           <h2 className="mt-2 text-2xl font-black">{copy.myFriends}</h2>
@@ -828,72 +746,6 @@ function PanelSoftMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-sm font-black text-[#152033]">{value}</p>
     </div>
   );
-}
-
-function getOnboardingChecklist(
-  locale: "tr" | "en",
-  state: {
-    profileComplete: boolean;
-    firstTradeComplete: boolean;
-    leagueJoined: boolean;
-    reportRead: boolean;
-  },
-) {
-  if (locale === "en") {
-    return [
-      {
-        title: "Complete your profile",
-        body: "Set how your name appears in rankings and community areas.",
-        href: "/en/panel",
-        done: state.profileComplete,
-      },
-      {
-        title: "Make your first virtual trade",
-        body: "Test a decision without real money and start building your portfolio history.",
-        href: "/en/islem-yap",
-        done: state.firstTradeComplete,
-      },
-      {
-        title: "Join a league",
-        body: "Join an active league or create a club league to learn with others.",
-        href: "/en/panel#league-system",
-        done: state.leagueJoined,
-      },
-      {
-        title: "Read your first macro report",
-        body: "Use the AI macro report as a calmer daily market note.",
-        href: "/en/ai-piyasa-asistani/raporlar",
-        done: state.reportRead,
-      },
-    ];
-  }
-
-  return [
-    {
-      title: "Profilini tamamla",
-      body: "Sıralama ve topluluk alanlarında nasıl görüneceğini belirle.",
-      href: "/tr/panel",
-      done: state.profileComplete,
-    },
-    {
-      title: "İlk sanal işlemi yap",
-      body: "Gerçek para riski olmadan bir karar dene ve portföy geçmişini başlat.",
-      href: "/tr/islem-yap",
-      done: state.firstTradeComplete,
-    },
-    {
-      title: "Bir lige katıl",
-      body: "Aktif bir lige katıl veya kulübün için özel bir lig oluştur.",
-      href: "/tr/panel#league-system",
-      done: state.leagueJoined,
-    },
-    {
-      title: "İlk makro raporu oku",
-      body: "AI makro raporu günlük piyasa değerlendirmesi için sakin bir not gibi kullan.",
-      href: "/tr/ai-piyasa-asistani/raporlar",
-      done: state.reportRead,
-    },
-  ];
 }
 
 function getPanelGrowthActions(locale: "tr" | "en", hasOwnedLeague: boolean, hasLeague: boolean) {
@@ -954,61 +806,6 @@ function getPanelGrowthActions(locale: "tr" | "en", hasOwnedLeague: boolean, has
   ] as const;
 }
 
-function getLearningScore({
-  profileComplete,
-  tradeCount,
-  tradeNoteCount,
-  leagueCount,
-  reportReadCount,
-  earnedBadges,
-}: {
-  profileComplete: boolean;
-  tradeCount: number;
-  tradeNoteCount: number;
-  leagueCount: number;
-  reportReadCount: number;
-  earnedBadges: number;
-}) {
-  const score =
-    (profileComplete ? 12 : 0) +
-    Math.min(18, tradeCount * 6) +
-    Math.min(22, tradeNoteCount * 8) +
-    (leagueCount > 0 ? 16 : 0) +
-    Math.min(18, reportReadCount * 6) +
-    Math.min(14, earnedBadges * 3);
-
-  return Math.max(0, Math.min(100, score));
-}
-
-function getLearningMetrics(
-  locale: "tr" | "en",
-  values: {
-    learningScore: number;
-    tradeCount: number;
-    tradeNoteCount: number;
-    reportReadCount: number;
-    earnedBadges: number;
-    totalBadges: number;
-    leagueCount: number;
-  },
-) {
-  if (locale === "en") {
-    return [
-      { label: "Learning score", value: `${values.learningScore}/100` },
-      { label: "Journal notes", value: `${values.tradeNoteCount}/${values.tradeCount}` },
-      { label: "Reports read", value: String(values.reportReadCount) },
-      { label: "Badges", value: `${values.earnedBadges}/${values.totalBadges}` },
-    ];
-  }
-
-  return [
-    { label: "Öğrenme skoru", value: `${values.learningScore}/100` },
-    { label: "Günlük notu", value: `${values.tradeNoteCount}/${values.tradeCount}` },
-    { label: "Okunan rapor", value: String(values.reportReadCount) },
-    { label: "Rozet", value: `${values.earnedBadges}/${values.totalBadges}` },
-  ];
-}
-
 function formatBadgeCategory(category: string, locale: "tr" | "en") {
   if (locale !== "en") {
     return category;
@@ -1031,83 +828,10 @@ function formatBadgeCategory(category: string, locale: "tr" | "en") {
   return labels[category] ?? category;
 }
 
-function getWeeklyMissions(
-  locale: "tr" | "en",
-  state: {
-    tradeNoteCount: number;
-    reportReadCount: number;
-    leagueCount: number;
-    earnedBadges: number;
-  },
-) {
-  if (locale === "en") {
-    return [
-      {
-        kicker: "Journal",
-        title: "Write one decision note",
-        body: "Before a virtual trade, record why you are doing it and what would prove you wrong.",
-        href: "/en/islem-yap",
-        done: state.tradeNoteCount > 0,
-      },
-      {
-        kicker: "AI report",
-        title: "Read one macro report",
-        body: "Use a report as a calm market review before looking at the leaderboard.",
-        href: "/en/ai-piyasa-asistani/raporlar",
-        done: state.reportReadCount > 0,
-      },
-      {
-        kicker: "League",
-        title: "Join a community rhythm",
-        body: "A league turns individual practice into shared learning.",
-        href: "/en/ligler",
-        done: state.leagueCount > 0,
-      },
-      {
-        kicker: "Badge",
-        title: "Earn a learning badge",
-        body: "Badges reward behavior such as notes, diversification, and participation.",
-        href: "/en/panel#league-system",
-        done: state.earnedBadges > 1,
-      },
-    ];
-  }
-
-  return [
-    {
-      kicker: "Günlük",
-      title: "Bir karar notu yaz",
-      body: "Sanal işlemden önce nedenini ve yanıldığını hangi durumda kabul edeceğini kaydet.",
-      href: "/tr/islem-yap",
-      done: state.tradeNoteCount > 0,
-    },
-    {
-      kicker: "AI rapor",
-      title: "Bir makro rapor oku",
-      body: "Liderliğe bakmadan önce raporu sakin piyasa değerlendirmesi gibi kullan.",
-      href: "/tr/ai-piyasa-asistani/raporlar",
-      done: state.reportReadCount > 0,
-    },
-    {
-      kicker: "Lig",
-      title: "Topluluk ritmine katıl",
-      body: "Lig, bireysel pratiği ortak öğrenme ritmine dönüştürür.",
-      href: "/tr/ligler",
-      done: state.leagueCount > 0,
-    },
-    {
-      kicker: "Rozet",
-      title: "Öğrenme rozeti kazan",
-      body: "Rozetler not yazma, çeşitlendirme ve katılım gibi davranışları görünür kılar.",
-      href: "/tr/panel#league-system",
-      done: state.earnedBadges > 1,
-    },
-  ];
-}
-
 function getTodayActions(
   locale: "tr" | "en",
   state: {
+    hasTrade: boolean;
     portfolioHealthScore: number;
     hasTradeNote: boolean;
     hasLeague: boolean;
@@ -1117,7 +841,14 @@ function getTodayActions(
 ) {
   if (locale === "en") {
     return [
-      state.portfolioHealthScore < 66
+      !state.hasTrade
+        ? {
+            kicker: "First step",
+            title: "Plan your first virtual trade",
+            body: "Choose one asset, use a small amount, and write down the reason before submitting.",
+            href: "/en/islem-yap",
+          }
+        : state.portfolioHealthScore < 66
         ? {
             kicker: "Health",
             title: "Review portfolio balance",
@@ -1130,7 +861,14 @@ function getTodayActions(
             body: "Portfolio health is acceptable; review whether the current balance still matches your learning plan.",
             href: "/en/panel",
           },
-      !state.hasTradeNote
+      !state.hasTrade
+        ? {
+            kicker: "Preparation",
+            title: "Review your next start step",
+            body: "Use the saved start path when you are unsure what to do before trading.",
+            href: "/en/baslangic",
+          }
+        : !state.hasTradeNote
         ? {
             kicker: "Journal",
             title: "Write your first decision reason",
@@ -1173,7 +911,14 @@ function getTodayActions(
   }
 
   return [
-    state.portfolioHealthScore < 66
+    !state.hasTrade
+      ? {
+          kicker: "İlk adım",
+          title: "İlk sanal işlemini planla",
+          body: "Bir varlık seç, küçük bir tutar kullan ve uygulamadan önce karar gerekçeni yaz.",
+          href: "/tr/islem-yap",
+        }
+      : state.portfolioHealthScore < 66
       ? {
           kicker: "Sağlık",
           title: "Portföy dengesini gözden geçir",
@@ -1186,7 +931,14 @@ function getTodayActions(
           body: "Portföy sağlığı kabul edilebilir; mevcut dengenin öğrenme planınla uyumunu gözden geçir.",
           href: "/tr/panel",
         },
-    !state.hasTradeNote
+    !state.hasTrade
+      ? {
+          kicker: "Hazırlık",
+          title: "Sıradaki başlangıç adımını gör",
+          body: "İşlemden önce ne yapacağından emin değilsen kaydedilmiş başlangıç yolunu aç.",
+          href: "/tr/baslangic",
+        }
+      : !state.hasTradeNote
       ? {
           kicker: "Günlük",
           title: "İlk karar gerekçeni yaz",

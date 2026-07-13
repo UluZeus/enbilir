@@ -9,6 +9,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getDefaultLeagueDescription, getLeagueNameForLocale, isDefaultLeagueSlug } from "@/lib/default-leagues";
 import { getLeagueDetail, getLeagueLeaderboard } from "@/lib/leagues";
 import { formatMoney } from "@/lib/portfolio";
+import { prisma } from "@/lib/prisma";
 import { buildSeoDescription, defaultOpenGraphImage, stringifyJsonLd } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -19,7 +20,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale: rawLocale, slug } = await params;
   const locale = getSafeLocale(rawLocale);
-  const league = await getLeagueDetail(slug);
+  const league = await prisma.league.findUnique({
+    where: { slug },
+    select: { name: true, description: true, type: true },
+  });
   const leagueName = league ? getLeagueNameForLocale(league.name, slug, locale) : null;
   const leagueTitleName = leagueName && locale === "tr" && !leagueName.endsWith("Ligi") ? `${leagueName} Ligi` : leagueName;
   const title = league
@@ -43,6 +47,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    robots: league?.type === "PRIVATE" ? { index: false, follow: false } : undefined,
     alternates: {
       canonical: path,
       languages: {
@@ -83,7 +88,8 @@ export default async function LeagueDetailPage({
   }
 
   const membership = user ? league.memberships.find((item) => item.userId === user.id) : null;
-  const leaderboard = await getLeagueLeaderboard(league.id, user?.id);
+  const canViewLeaderboard = Boolean(user && (league.type !== "PRIVATE" || membership));
+  const leaderboard = canViewLeaderboard ? await getLeagueLeaderboard(league.id, user?.id) : { rows: [], currentUserRank: null };
   const leagueDescription = getLeagueDescriptionForLocale(league.slug, league.description, locale);
   const leagueName = getLeagueNameForLocale(league.name, league.slug, locale);
   const inviteUrl = `${getSiteUrl()}/${locale}/ligler/${league.slug}`;
@@ -297,7 +303,7 @@ export default async function LeagueDetailPage({
             <Link href={`/${locale}/panel`} className="mt-2 inline-flex rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
               {locale === "tr" ? "Panelime git" : "Go to my panel"}
             </Link>
-          ) : (
+          ) : user ? (
             <form action={joinLeagueAction} className="mt-2">
               <input type="hidden" name="locale" value={locale} />
               <input type="hidden" name="leagueId" value={league.id} />
@@ -306,35 +312,51 @@ export default async function LeagueDetailPage({
                 {locale === "tr" ? "Lige katıl" : "Join league"}
               </button>
             </form>
+          ) : (
+            <Link href={`/${locale}/kayit`} className="mt-2 inline-flex rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
+              {locale === "tr" ? "Üye ol" : "Register"}
+            </Link>
           )}
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-6">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">{copy.innerLeaderboard}</p>
-          <h2 className="mt-2 text-2xl font-black text-[#152033]">{copy.ranking}</h2>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {leaderboard.rows.length === 0 ? (
-            <p className="p-6 text-sm text-slate-600">{copy.noMembers}</p>
-          ) : (
-            leaderboard.rows.map((row) => (
-              <div key={row.membershipId} className="grid gap-3 p-5 md:grid-cols-[80px_1fr_160px_160px] md:items-center">
-                <p className="text-2xl font-black text-[#f5a623]">#{row.rank}</p>
-                <div>
-                  <p className="font-black text-[#152033]">{row.displayName}</p>
-                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{row.role}</p>
+      {user ? (
+        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">{copy.innerLeaderboard}</p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">{copy.ranking}</h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {leaderboard.rows.length === 0 ? (
+              <p className="p-6 text-sm text-slate-600">{copy.noMembers}</p>
+            ) : (
+              leaderboard.rows.map((row) => (
+                <div key={row.membershipId} className="grid gap-3 p-5 md:grid-cols-[80px_1fr_160px_160px] md:items-center">
+                  <p className="text-2xl font-black text-[#f5a623]">#{row.rank}</p>
+                  <div>
+                    <p className="font-black text-[#152033]">{row.displayName}</p>
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{row.role}</p>
+                  </div>
+                  <p className="font-black text-[#152033]">{formatMoney(row.totalValueUsd)}</p>
+                  <p className={row.profitLossUsd >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>
+                    {row.profitLossPercent.toFixed(2)}%
+                  </p>
                 </div>
-                <p className="font-black text-[#152033]">{formatMoney(row.totalValueUsd)}</p>
-                <p className={row.profitLossUsd >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>
-                  {row.profitLossPercent.toFixed(2)}%
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
+              ))
+            )}
+          </div>
+        </section>
+      ) : (
+        <section className="border-y border-slate-200 bg-white/70 px-5 py-6">
+          <h2 className="text-xl font-black text-[#152033]">{locale === "tr" ? "Lig sıralaması üyeler içindir" : "League ranking is for members"}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            {locale === "tr" ? "Önce hesabını oluşturup giriş yap. Yardım kutusu seni sıralamaya geçmeden önce risk testi ve ilk sanal işlem adımlarından geçirecek." : "Create your account and sign in first. The Help guide will take you through the risk test and first virtual trade before rankings."}
+          </p>
+          <Link href={`/${locale}/kayit`} className="premium-cta mt-4 inline-flex px-4 py-2.5 text-sm font-black">
+            {locale === "tr" ? "Ücretsiz üye ol" : "Create free account"}
+          </Link>
+        </section>
+      )}
     </div>
   );
 }

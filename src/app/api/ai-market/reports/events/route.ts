@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
+import { reconcileOnboardingCompletion } from "@/lib/onboarding";
 
 const allowedEventTypes = new Set<string>([
   macroReportEventTypes.read,
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
       eventType: eventType as typeof macroReportEventTypes.read | typeof macroReportEventTypes.pdfDownload,
       metadata: typeof body.metadata === "object" && body.metadata !== null ? body.metadata as Record<string, unknown> : undefined,
     });
+    if (user && eventType === macroReportEventTypes.read) {
+      await reconcileOnboardingCompletion(user.id);
+    }
 
     return NextResponse.json({ ok: true });
   } catch {

@@ -15,6 +15,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getFallbackMarketItems, getLiveMarketItems } from "@/lib/live-market";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { buildPageMetadata } from "@/lib/seo";
+import { prisma } from "@/lib/prisma";
 import type { DisplayAd } from "@/lib/ads";
 import { localizeMarketText, type MarketItem } from "@/lib/market-data";
 
@@ -38,7 +39,10 @@ const tradeCategories: TradeCategory[] = [
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
-  return buildPageMetadata({ locale, path: "/islem-yap", page: "trade" });
+  return {
+    ...buildPageMetadata({ locale, path: "/islem-yap", page: "trade" }),
+    robots: { index: false, follow: false },
+  };
 }
 
 function getInitialTradeCategory(value: string | undefined): TradeCategory {
@@ -77,17 +81,19 @@ export default async function TradePage({
 
   const fallbackMarketItems = getFallbackMarketItems();
   const liveMarketItems = await getLiveMarketItems();
-  const [topAdsResult, sideAdsResult, bottomAdsResult, snapshotResult] = await Promise.allSettled([
+  const [topAdsResult, sideAdsResult, bottomAdsResult, snapshotResult, tradeCountResult] = await Promise.allSettled([
     getAds("trade_top", locale),
     getAds("trade_right", locale),
     getAds("trade_bottom", locale),
     getPortfolioSnapshot(user.id, liveMarketItems),
+    prisma.virtualTrade.count({ where: { userId: user.id } }),
   ]);
   const topAds = settledValue<DisplayAd[]>(topAdsResult, []);
   const sideAds = settledValue<DisplayAd[]>(sideAdsResult, []);
   const bottomAds = settledValue<DisplayAd[]>(bottomAdsResult, []);
   const marketItems: MarketItem[] = Array.isArray(liveMarketItems) ? liveMarketItems : fallbackMarketItems;
   const snapshot = settledValue<PortfolioSnapshot | null>(snapshotResult, null);
+  const tradeCount = settledValue<number>(tradeCountResult, 0);
   const dataError = snapshotResult.status === "rejected"
     ? copy.trade.dataError
     : undefined;
@@ -97,6 +103,17 @@ export default async function TradePage({
       <FormMessage message={query.error} />
       <FormMessage message={query.success} tone="success" />
       <FormMessage message={dataError} tone="info" />
+      {tradeCount === 0 ? (
+        <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+          <p className="text-xs font-black uppercase text-emerald-800">{locale === "tr" ? "İlk sanal işlem" : "First virtual trade"}</p>
+          <h1 className="mt-1 text-lg font-black">{locale === "tr" ? "Küçük başla, gerekçeni yaz, sonucu izle" : "Start small, write your reason, and observe the result"}</h1>
+          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+            <p><strong>1.</strong> {locale === "tr" ? "Bir varlık seç." : "Choose one asset."}</p>
+            <p><strong>2.</strong> {locale === "tr" ? "Küçük bir tutar gir." : "Enter a small amount."}</p>
+            <p><strong>3.</strong> {locale === "tr" ? "Karar nedenini not et." : "Note why you decided."}</p>
+          </div>
+        </section>
+      ) : null}
       <div className="hidden md:block">
         <AdBanner ads={topAds} locale={locale} />
       </div>

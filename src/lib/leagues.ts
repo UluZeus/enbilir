@@ -77,7 +77,7 @@ export async function getUserLeagues(userId: string) {
 
 export async function getActiveLeagues() {
   return prisma.league.findMany({
-    where: { isActive: true },
+    where: { isActive: true, type: { not: "PRIVATE" } },
     orderBy: [{ createdAt: "desc" }],
     include: {
       _count: {

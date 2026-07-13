@@ -20,13 +20,13 @@ import { getLiveMarketItem } from "@/lib/live-market";
 import { cashToUsd, ensureVirtualAccount, getSafePortfolioPriceUsd, usdToCash } from "@/lib/portfolio";
 import type { CashMode, CompetitionPeriodType, DisplayNameMode, LeagueType, TradeSide } from "@/generated/prisma/enums";
 import { getFriendPairKey } from "@/lib/friends";
-import { ensureDefaultLeagues, isDefaultLeagueSlug } from "@/lib/default-leagues";
 import { getUniqueInviteCode, getUniqueLeagueSlug, leagueTypes } from "@/lib/leagues";
 import { awardBadge, evaluateTradeBadges } from "@/lib/badges";
 import { awardLeaderBadgesForActivePeriods, competitionPeriodTypes } from "@/lib/competition-periods";
 import { defaultVisualSettings, getSettingDefinition } from "@/lib/site-visual-settings";
 import { adSlots } from "@/lib/ads";
 import { isManagedContentType } from "@/lib/managed-content";
+import { reconcileOnboardingCompletion } from "@/lib/onboarding";
 
 export type TradeActionState = {
   ok: boolean;
@@ -254,10 +254,7 @@ export async function registerAction(formData: FormData) {
   const locale = formData.get("locale");
   const name = normalizeText(formData.get("name"));
   const email = normalizeEmail(formData.get("email"));
-  const requestedNickname = normalizeText(formData.get("nickname"));
-  const displayNameMode = String(formData.get("displayNameMode") ?? "REAL_NAME") as DisplayNameMode;
   const password = String(formData.get("password") ?? "");
-  const initialLeagueSlug = normalizeText(formData.get("initialLeagueSlug")).toLowerCase();
   const kvkkAccepted = formData.get("kvkkAccepted") === "on";
   const termsAccepted = formData.get("termsAccepted") === "on";
   const noAdviceAccepted = formData.get("noAdviceAccepted") === "on";
@@ -271,10 +268,6 @@ export async function registerAction(formData: FormData) {
     redirect(getRedirect(locale, "kayit", "Zorunlu onay kutularını işaretlemelisiniz."));
   }
 
-  if (!initialLeagueSlug || !isDefaultLeagueSlug(initialLeagueSlug)) {
-    redirect(getRedirect(locale, "kayit", "Kayıt için ROTARYEN, ROTARACT veya SERBEST liglerinden birini seçmelisiniz."));
-  }
-
   const existingUser = await prisma.user.findUnique({ where: { email } });
 
   if (existingUser) {
@@ -284,15 +277,14 @@ export async function registerAction(formData: FormData) {
   const now = new Date();
   const passwordHash = await bcrypt.hash(password, 12);
   const role = email === masterAdminEmail ? "MASTER_ADMIN" : "USER";
-  const nickname = email === masterAdminEmail ? "UluZeus" : requestedNickname || null;
-  const safeDisplayNameMode = displayNameMode === "NICKNAME" && nickname ? "NICKNAME" : "REAL_NAME";
+  const nickname = email === masterAdminEmail ? "UluZeus" : null;
   const { token, tokenHash, expiresAt } = createEmailVerificationToken();
 
   const user = await prisma.user.create({
     data: {
       name,
       nickname,
-      displayNameMode: safeDisplayNameMode,
+      displayNameMode: "REAL_NAME",
       email,
       passwordHash,
       isActive: false,
@@ -321,21 +313,6 @@ export async function registerAction(formData: FormData) {
   });
 
   try {
-    const defaultLeagues = await ensureDefaultLeagues({ ownerUserId: user.id });
-    const selectedLeague = defaultLeagues.find((league) => league.slug === initialLeagueSlug);
-
-    if (!selectedLeague) {
-      throw new Error("Seçilen lig şu anda hazırlanamadı. Lütfen biraz sonra tekrar deneyin.");
-    }
-
-    await prisma.leagueMembership.create({
-      data: {
-        leagueId: selectedLeague.id,
-        userId: user.id,
-        role: "MEMBER",
-      },
-    });
-
     const safeLocale = getSafeLocale(String(locale ?? "tr"));
     const verificationUrl = buildEmailVerificationUrl(token, safeLocale);
     const { subject, text, html } = buildWelcomeVerificationEmail({ name, verificationUrl, locale: safeLocale });
@@ -357,8 +334,6 @@ export async function registerAction(formData: FormData) {
     locale: getSafeLocale(String(locale ?? "tr")),
     path: `/${getSafeLocale(String(locale ?? "tr"))}/kayit`,
     metadata: {
-      initialLeagueSlug,
-      displayNameMode: safeDisplayNameMode,
       electronicCommunicationConsent: electronicConsent,
     },
   });
@@ -393,6 +368,7 @@ export async function loginAction(formData: FormData) {
       passwordHash: true,
       role: true,
       isActive: true,
+      onboardingCompletedAt: true,
     },
   });
 
@@ -430,7 +406,7 @@ export async function loginAction(formData: FormData) {
     role: user.role,
   });
 
-  redirect(getRedirect(locale, "panel"));
+  redirect(getRedirect(locale, user.onboardingCompletedAt ? "panel" : "baslangic"));
 }
 
 export async function logoutAction(formData: FormData) {
@@ -629,6 +605,8 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   } catch {
     // Analytics must never block a completed virtual trade.
   }
+
+  await reconcileOnboardingCompletion(userId);
 
   revalidatePortfolioViews(locale);
 
@@ -1278,12 +1256,14 @@ export async function createLeagueAction(formData: FormData) {
   });
 
   await awardBadge(sessionUser.id, "FIRST_LEAGUE", { action: "create" });
+  await reconcileOnboardingCompletion(sessionUser.id);
 
   redirect(getRedirect(locale, "panel"));
 }
 
 export async function joinLeagueAction(formData: FormData) {
   const locale = formData.get("locale");
+  const safeLocale = getSafeLocale(String(locale ?? "tr"));
   const inviteCode = normalizeText(formData.get("inviteCode")).toUpperCase();
   const leagueId = normalizeText(formData.get("leagueId"));
   const leagueSlug = normalizeText(formData.get("leagueSlug"));
@@ -1316,6 +1296,14 @@ export async function joinLeagueAction(formData: FormData) {
 
   if (!league || !league.isActive) {
     redirect(getRedirect(locale, "ligler", inviteCode ? "Davet kodu geçersiz veya lig aktif değil." : "Lig bulunamadı veya aktif değil."));
+  }
+
+  if (league.type === "PRIVATE" && !inviteCode) {
+    redirect(getRedirect(
+      locale,
+      `ligler/${league.slug}`,
+      safeLocale === "tr" ? "Özel lige katılmak için davet kodunu girmelisin." : "Enter the invitation code to join this private league.",
+    ));
   }
 
   const existingMembership = await prisma.leagueMembership.findUnique({
@@ -1356,6 +1344,7 @@ export async function joinLeagueAction(formData: FormData) {
   });
 
   await awardBadge(sessionUser.id, "FIRST_LEAGUE", { action: "join", leagueId: league.id });
+  await reconcileOnboardingCompletion(sessionUser.id);
   revalidateSocialViews(locale);
 
   redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : getRedirect(locale, `ligler/${league.slug}`).toString());

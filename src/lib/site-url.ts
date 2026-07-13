@@ -17,5 +17,8 @@ export function getSiteUrl() {
 }
 
 export function getRequestOrigin(request: { nextUrl?: { origin: string } }) {
+  if (process.env.NODE_ENV !== "production" && request.nextUrl?.origin) {
+    return request.nextUrl.origin;
+  }
   return normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL) ?? request.nextUrl?.origin ?? DEFAULT_SITE_URL;
 }

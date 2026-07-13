@@ -205,6 +205,18 @@ export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
     window.localStorage.setItem(`${storageKey}:${locale}`, JSON.stringify({ answers, currentIndex, started, showResult }));
   }, [answers, currentIndex, locale, started, showResult]);
 
+  useEffect(() => {
+    if (!showResult || !profile || averageScore === null) return;
+    const completionKey = `enbilir:onboarding-risk:${profile.key}:${formatRiskScore(averageScore)}`;
+    if (window.sessionStorage.getItem(completionKey) === "1") return;
+    window.sessionStorage.setItem(completionKey, "1");
+    void fetch("/api/onboarding/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ step: "risk", score: averageScore, profile: profile.key, locale }),
+    });
+  }, [averageScore, locale, profile, showResult]);
+
   function chooseAnswer(score: number) {
     setAnswers((current) => ({ ...current, [currentQuestion.id]: score }));
   }

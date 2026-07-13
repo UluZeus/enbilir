@@ -6105,10 +6105,6 @@ body:has(.site-modern-academy) .mobile-menu-panel a[data-tone="whatsapp"] {
   color: var(--off-white) !important;
 }
 
-.usage-guide-welcome-modal :where(h2, p, button) {
-  color: var(--off-white) !important;
-}
-
 .visual-shell
   :where(
     .premium-card--dark,
