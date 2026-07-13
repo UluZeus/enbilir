@@ -1122,8 +1122,23 @@ export const recommendedNextStepsEn = [
   { title: "Review risk-management content in the Content Hub", href: "/icerik-merkezi" },
 ] as const;
 
+const activeRiskQuestionIds = [1, 2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21, 27, 32, 35] as const;
+
+function selectActiveRiskQuestions(source: RiskQuestion[]) {
+  const questionsById = new Map(source.map((question) => [question.id, question]));
+
+  return activeRiskQuestionIds.map((sourceId, index) => {
+    const question = questionsById.get(sourceId);
+    if (!question) {
+      throw new Error(`Risk question ${sourceId} is missing.`);
+    }
+
+    return { ...question, id: index + 1 };
+  });
+}
+
 export function getRiskQuestionsForLocale(locale: string) {
-  return locale === "en" ? riskQuestionsEn : riskQuestions;
+  return selectActiveRiskQuestions(locale === "en" ? riskQuestionsEn : riskQuestions);
 }
 
 export function getRiskProfilesForLocale(locale: string) {

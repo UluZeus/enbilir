@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   calculateAverageScoreForQuestions,
   formatRiskScore,
@@ -19,10 +19,11 @@ type SavedRiskTestState = {
   answers: Answers;
   currentIndex: number;
   started: boolean;
+  showConfirmation: boolean;
   showResult: boolean;
 };
 
-const storageKey = "enbilir-risk-appetite-test:v1";
+const storageKey = "enbilir-risk-appetite-test:v2";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type RiskTestCopy = {
@@ -30,8 +31,12 @@ type RiskTestCopy = {
   completed: string;
   previous: string;
   restart: string;
-  next: string;
-  result: string;
+  autoAdvanceHint: string;
+  confirmKicker: string;
+  confirmTitle: string;
+  confirmBody: string;
+  confirmYes: string;
+  confirmNo: string;
   introKicker: string;
   introTitle: string;
   introBody: string;
@@ -72,16 +77,20 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
     completed: "Tamamlanan",
     previous: "Önceki Soru",
     restart: "Testi Yeniden Başlat",
-    next: "Sonraki Soru",
-    result: "Sonucu Gör",
+    autoAdvanceHint: "Yanıtını seçtiğinde bir sonraki soruya otomatik geçilir.",
+    confirmKicker: "Test tamamlandı",
+    confirmTitle: "Yanıtların tamam mı?",
+    confirmBody: "Onaylarsan risk profilin hesaplanıp yorumlanacak. Onaylamazsan test birinci sorudan yeniden başlayacak.",
+    confirmYes: "Evet, sonucu yorumla",
+    confirmNo: "Hayır, testi baştan başlat",
     introKicker: "Enbilir farkındalık aracı",
     introTitle: "Risk İştahı Testi",
     introBody: "Piyasalarda nasıl karar verdiğini, belirsizliğe nasıl tepki verdiğini ve sanal portföyünü hangi risk profiliyle yönetmen gerektiğini keşfet.",
     introWarning: "Bu test yatırım tavsiyesi değildir. Amaç, finansal karar alma eğilimlerini tanımana ve sanal portföy deneyimini daha bilinçli kullanmana yardımcı olmaktır.",
     start: "Teste Başla",
-    introFacts: ["35 soru", "5 risk seviyesi", "PDF/print raporu", "E-posta özeti"],
+    introFacts: ["20 soru", "5 risk seviyesi", "PDF/print raporu", "E-posta özeti"],
     howItWorks: [
-      ["1", "Cevapla", "Her soruda risk iştahını 1 ile 5 arasında temsil eden seçeneği işaretle."],
+      ["1", "Cevapla", "Seçeneğini işaretlediğinde test bir sonraki soruya otomatik geçer."],
       ["2", "Geri dön", "İstediğin soruya geri dönüp cevabını değiştirebilirsin."],
       ["3", "Rapor al", "Ortalama puanına göre risk profili, davranışsal riskler ve sanal portföy önerileri gösterilir."],
     ],
@@ -116,16 +125,20 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
     completed: "Completed",
     previous: "Previous Question",
     restart: "Restart Test",
-    next: "Next Question",
-    result: "See Result",
+    autoAdvanceHint: "Choosing an answer automatically moves you to the next question.",
+    confirmKicker: "Test complete",
+    confirmTitle: "Are your answers complete?",
+    confirmBody: "If you confirm, your risk profile will be calculated and interpreted. Otherwise, the test will restart from question one.",
+    confirmYes: "Yes, interpret my result",
+    confirmNo: "No, restart the test",
     introKicker: "Enbilir awareness tool",
     introTitle: "Risk Appetite Test",
     introBody: "Discover how you make decisions in markets, how you react to uncertainty, and which risk profile can guide your virtual portfolio practice.",
     introWarning: "This test is not investment advice. Its purpose is to help you understand your financial decision tendencies and use the virtual portfolio experience more consciously.",
     start: "Start Test",
-    introFacts: ["35 questions", "5 risk levels", "PDF/print report", "Email summary"],
+    introFacts: ["20 questions", "5 risk levels", "PDF/print report", "Email summary"],
     howItWorks: [
-      ["1", "Answer", "Choose the option that best represents your risk appetite from 1 to 5."],
+      ["1", "Answer", "Choose an option and the test automatically moves to the next question."],
       ["2", "Go back", "You can return to any question and change your answer."],
       ["3", "Get report", "Your average score becomes a risk profile with behavioral risks and virtual portfolio suggestions."],
     ],
@@ -159,12 +172,12 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
 
 function getInitialState(questions: RiskQuestion[], locale: Locale): SavedRiskTestState {
   if (typeof window === "undefined") {
-    return { answers: {}, currentIndex: 0, started: false, showResult: false };
+    return { answers: {}, currentIndex: 0, started: false, showConfirmation: false, showResult: false };
   }
 
   const saved = window.localStorage.getItem(`${storageKey}:${locale}`);
   if (!saved) {
-    return { answers: {}, currentIndex: 0, started: false, showResult: false };
+    return { answers: {}, currentIndex: 0, started: false, showConfirmation: false, showResult: false };
   }
 
   try {
@@ -173,15 +186,16 @@ function getInitialState(questions: RiskQuestion[], locale: Locale): SavedRiskTe
       answers: parsed.answers ?? {},
       currentIndex: Math.min(Math.max(parsed.currentIndex ?? 0, 0), questions.length - 1),
       started: Boolean(parsed.started),
+      showConfirmation: Boolean(parsed.showConfirmation),
       showResult: Boolean(parsed.showResult),
     };
   } catch {
     window.localStorage.removeItem(`${storageKey}:${locale}`);
-    return { answers: {}, currentIndex: 0, started: false, showResult: false };
+    return { answers: {}, currentIndex: 0, started: false, showConfirmation: false, showResult: false };
   }
 }
 
-export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
+export function RiskAppetiteTestClient({ locale, isSignedIn }: { locale: Locale; isSignedIn: boolean }) {
   const copy = copyByLocale[locale];
   const questions = useMemo(() => getRiskQuestionsForLocale(locale), [locale]);
   const legalWarning = getRiskLegalWarningForLocale(locale);
@@ -190,10 +204,14 @@ export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
   const [started, setStarted] = useState(initialState.started);
   const [currentIndex, setCurrentIndex] = useState(initialState.currentIndex);
   const [answers, setAnswers] = useState<Answers>(initialState.answers);
+  const [showConfirmation, setShowConfirmation] = useState(initialState.showConfirmation);
   const [showResult, setShowResult] = useState(initialState.showResult);
+  const [isAdvancing, setIsAdvancing] = useState(false);
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [emailMessage, setEmailMessage] = useState("");
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const questionSectionRef = useRef<HTMLElement>(null);
   const currentQuestion = questions[currentIndex];
   const answeredCount = questions.filter((question) => answers[question.id]).length;
   const progress = Math.round((answeredCount / questions.length) * 100);
@@ -202,11 +220,25 @@ export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
   const selectedScore = answers[currentQuestion.id];
 
   useEffect(() => {
-    window.localStorage.setItem(`${storageKey}:${locale}`, JSON.stringify({ answers, currentIndex, started, showResult }));
-  }, [answers, currentIndex, locale, started, showResult]);
+    window.localStorage.setItem(`${storageKey}:${locale}`, JSON.stringify({ answers, currentIndex, started, showConfirmation, showResult }));
+  }, [answers, currentIndex, locale, showConfirmation, started, showResult]);
+
+  useEffect(() => () => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!showResult || !profile || averageScore === null) return;
+    if (!started || showConfirmation || showResult) return;
+    const frame = window.requestAnimationFrame(() => {
+      questionSectionRef.current?.scrollIntoView({ block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentIndex, showConfirmation, showResult, started]);
+
+  useEffect(() => {
+    if (!isSignedIn || !showResult || !profile || averageScore === null) return;
     const completionKey = `enbilir:onboarding-risk:${profile.key}:${formatRiskScore(averageScore)}`;
     if (window.sessionStorage.getItem(completionKey) === "1") return;
     window.sessionStorage.setItem(completionKey, "1");
@@ -215,41 +247,58 @@ export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ step: "risk", score: averageScore, profile: profile.key, locale }),
     });
-  }, [averageScore, locale, profile, showResult]);
+  }, [averageScore, isSignedIn, locale, profile, showResult]);
 
   function chooseAnswer(score: number) {
-    setAnswers((current) => ({ ...current, [currentQuestion.id]: score }));
-  }
+    if (isAdvancing) return;
 
-  function nextQuestion() {
-    if (!selectedScore) {
-      return;
-    }
+    const nextAnswers = { ...answers, [currentQuestion.id]: score };
+    setAnswers(nextAnswers);
+    setIsAdvancing(true);
 
-    if (currentIndex === questions.length - 1) {
-      if (answeredCount === questions.length) {
-        setShowResult(true);
+    advanceTimerRef.current = setTimeout(() => {
+      const nextUnansweredIndex = questions.findIndex((question) => !nextAnswers[question.id]);
+
+      if (nextUnansweredIndex === -1) {
+        setShowConfirmation(true);
+      } else if (currentIndex < questions.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        setCurrentIndex(nextUnansweredIndex);
       }
-      return;
-    }
 
-    setCurrentIndex((index) => Math.min(index + 1, questions.length - 1));
+      setIsAdvancing(false);
+      advanceTimerRef.current = null;
+    }, 180);
   }
 
   function previousQuestion() {
     setCurrentIndex((index) => Math.max(index - 1, 0));
+    setShowConfirmation(false);
     setShowResult(false);
   }
 
   function restart() {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
     setAnswers({});
     setCurrentIndex(0);
-    setStarted(false);
+    setStarted(true);
+    setShowConfirmation(false);
     setShowResult(false);
+    setIsAdvancing(false);
     setEmail("");
     setEmailStatus("idle");
     setEmailMessage("");
     window.localStorage.removeItem(`${storageKey}:${locale}`);
+  }
+
+  function confirmAnswers() {
+    if (averageScore === null || !profile) return;
+    setShowConfirmation(false);
+    setShowResult(true);
   }
 
   function printReport() {
@@ -304,6 +353,10 @@ export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
     );
   }
 
+  if (showConfirmation) {
+    return <ConfirmationPanel copy={copy} onConfirm={confirmAnswers} onRestart={restart} />;
+  }
+
   if (showResult && profile && averageScore !== null) {
     return (
       <ResultReport
@@ -325,24 +378,24 @@ export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
   }
 
   return (
-    <div className="grid gap-6">
-      <section className="premium-card overflow-hidden p-5 md:p-7">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="mx-auto grid w-full max-w-4xl gap-4">
+      <section ref={questionSectionRef} className="premium-card scroll-mt-32 overflow-hidden p-4 md:scroll-mt-6 md:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.questionLabel} {currentIndex + 1}/{questions.length}</p>
-            <h2 className="mt-2 text-2xl font-black text-[#152033] md:text-3xl">{currentQuestion.question}</h2>
-            <p className="mt-2 text-sm font-bold text-slate-500">{currentQuestion.category}</p>
+            <h2 className="mt-1.5 text-lg font-black leading-6 text-[#152033] md:text-xl md:leading-7">{currentQuestion.question}</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500">{currentQuestion.category}</p>
           </div>
-          <div className="rounded-2xl border border-[#d1bfa7]/40 bg-[#fffaf6] p-4 text-sm font-black text-[#152033]">
+          <div className="shrink-0 rounded-lg border border-[#d1bfa7]/40 bg-[#fffaf6] px-3 py-2 text-xs font-black text-[#152033]">
             {copy.completed}: {answeredCount}/{questions.length}
           </div>
         </div>
 
-        <div className="mt-6 h-3 overflow-hidden rounded-full bg-slate-200">
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
           <div className="h-full rounded-full bg-gradient-to-r from-[#0f766e] via-[#38bdf8] to-[#f5a623] transition-all" style={{ width: `${progress}%` }} />
         </div>
 
-        <div className="mt-6 grid gap-3">
+        <div className="mt-4 grid gap-2">
           {currentQuestion.options.map((option) => {
             const isSelected = selectedScore === option.score;
             return (
@@ -350,48 +403,67 @@ export function RiskAppetiteTestClient({ locale }: { locale: Locale }) {
                 key={option.score}
                 type="button"
                 onClick={() => chooseAnswer(option.score)}
-                className={`grid gap-2 rounded-2xl border p-4 text-left shadow-sm transition md:grid-cols-[56px_1fr] md:items-center ${
+                disabled={isAdvancing}
+                aria-pressed={isSelected}
+                className={`grid grid-cols-[36px_1fr] items-center gap-3 rounded-lg border px-3 py-2.5 text-left shadow-sm transition disabled:cursor-wait ${
                   isSelected
                     ? "border-[#0f766e] bg-emerald-50 text-[#152033] ring-2 ring-emerald-100"
                     : "border-slate-200 bg-white text-slate-700 hover:border-[#0f766e] hover:bg-slate-50"
                 }`}
               >
-                <span className={`flex h-11 w-11 items-center justify-center rounded-full text-lg font-black ${isSelected ? "bg-[#0f766e] text-white" : "bg-slate-100 text-slate-500"}`}>
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black ${isSelected ? "bg-[#0f766e] text-white" : "bg-slate-100 text-slate-500"}`}>
                   {option.score}
                 </span>
-                <span className="text-base font-black leading-6">{option.label}</span>
+                <span className="text-sm font-bold leading-5">{option.label}</span>
               </button>
             );
           })}
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="mt-3 text-xs font-semibold text-slate-500" aria-live="polite">{copy.autoAdvanceHint}</p>
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={previousQuestion}
-            disabled={currentIndex === 0}
-            className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-[#152033] disabled:cursor-not-allowed disabled:opacity-45"
+            disabled={currentIndex === 0 || isAdvancing}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-[#152033] disabled:cursor-not-allowed disabled:opacity-45"
           >
             {copy.previous}
           </button>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={restart} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600">
-              {copy.restart}
-            </button>
-            <button
-              type="button"
-              onClick={nextQuestion}
-              disabled={!selectedScore || (currentIndex === questions.length - 1 && answeredCount !== questions.length)}
-              className="rounded-xl bg-[#0f766e] px-5 py-3 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {currentIndex === questions.length - 1 ? copy.result : copy.next}
-            </button>
-          </div>
+          <button type="button" onClick={restart} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">
+            {copy.restart}
+          </button>
         </div>
       </section>
 
-      <QuestionNavigator answers={answers} copy={copy} currentIndex={currentIndex} questions={questions} onGoTo={(index) => setCurrentIndex(index)} />
+      <QuestionNavigator
+        answers={answers}
+        copy={copy}
+        currentIndex={currentIndex}
+        disabled={isAdvancing}
+        questions={questions}
+        onGoTo={(index) => setCurrentIndex(index)}
+      />
     </div>
+  );
+}
+
+function ConfirmationPanel({ copy, onConfirm, onRestart }: { copy: RiskTestCopy; onConfirm: () => void; onRestart: () => void }) {
+  return (
+    <section className="premium-card mx-auto w-full max-w-xl p-5 text-center md:p-6" role="status">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.confirmKicker}</p>
+      <h2 className="mt-2 text-2xl font-black text-[#152033]">{copy.confirmTitle}</h2>
+      <p className="mx-auto mt-3 max-w-lg text-sm font-semibold leading-6 text-slate-600">{copy.confirmBody}</p>
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
+        <button type="button" onClick={onConfirm} className="rounded-lg bg-[#0f766e] px-4 py-3 text-sm font-black text-white shadow-sm">
+          {copy.confirmYes}
+        </button>
+        <button type="button" onClick={onRestart} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-black text-[#152033]">
+          {copy.confirmNo}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -445,25 +517,29 @@ function QuestionNavigator({
   answers,
   copy,
   currentIndex,
+  disabled,
   questions,
   onGoTo,
 }: {
   answers: Answers;
   copy: RiskTestCopy;
   currentIndex: number;
+  disabled: boolean;
   questions: RiskQuestion[];
   onGoTo: (index: number) => void;
 }) {
   return (
-    <section className="premium-card p-5">
+    <section className="premium-card p-4">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.questions}</p>
-      <div className="mt-4 grid grid-cols-5 gap-2 sm:grid-cols-7 md:grid-cols-10 lg:grid-cols-12">
+      <div className="mt-3 grid grid-cols-10 gap-1.5 sm:grid-cols-[repeat(20,minmax(0,1fr))]">
         {questions.map((question, index) => (
           <button
             key={question.id}
             type="button"
             onClick={() => onGoTo(index)}
-            className={`h-10 rounded-lg text-sm font-black ${
+            disabled={disabled}
+            aria-label={`${copy.questionLabel} ${index + 1}`}
+            className={`h-8 rounded-md text-xs font-black disabled:cursor-wait ${
               currentIndex === index
                 ? "bg-[#152033] text-white"
                 : answers[question.id]
@@ -471,7 +547,7 @@ function QuestionNavigator({
                   : "bg-slate-100 text-slate-500"
             }`}
           >
-            {question.id}
+            {index + 1}
           </button>
         ))}
       </div>

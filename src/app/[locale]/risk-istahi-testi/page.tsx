@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { RiskAppetiteTestClient } from "@/components/risk-test/RiskAppetiteTestClient";
 import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
+import { getSessionUser } from "@/lib/auth";
 import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -19,6 +20,7 @@ export default async function RiskAppetiteTestPage({ params }: { params: Promise
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const isEnglish = locale === "en";
+  const sessionUser = await getSessionUser();
 
   return (
     <div className="grid gap-6">
@@ -43,7 +45,7 @@ export default async function RiskAppetiteTestPage({ params }: { params: Promise
         </div>
       </section>
 
-      <RiskAppetiteTestClient locale={locale} />
+      <RiskAppetiteTestClient locale={locale} isSignedIn={Boolean(sessionUser)} />
     </div>
   );
 }
