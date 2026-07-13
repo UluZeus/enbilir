@@ -137,7 +137,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
         progress={onboardingProgress}
       />
       <header className="premium-site-header premium-site-header--advanced sticky top-0 z-30">
-        <div className="premium-finance-topbar hidden md:block">
+        <div className="premium-finance-topbar hidden xl:block">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="premium-support-copy flex flex-1 flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-black leading-6 tracking-[0.01em] sm:text-base lg:text-[17px] xl:text-lg">
               <span className="font-black">{ui.appShell.support}</span>
@@ -152,8 +152,8 @@ export async function AppShell({ children, locale }: AppShellProps) {
           </div>
         </div>
 
-        <div className="premium-finance-header mx-auto hidden w-full max-w-[92rem] gap-x-4 gap-y-3 px-4 py-3 md:grid lg:grid-cols-[178px_minmax(0,1fr)] lg:items-center xl:grid-cols-[190px_minmax(0,1fr)] xl:px-5">
-          <Link href={`/${locale}`} className="premium-brand-lockup flex shrink-0 items-center gap-2.5 lg:row-span-2 lg:self-center">
+        <div className="premium-finance-header mx-auto hidden w-full max-w-[92rem] items-center gap-3 px-5 py-3 xl:flex">
+          <Link href={`/${locale}`} className="premium-brand-lockup flex w-[190px] shrink-0 items-center gap-2.5">
             <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="premium-brand-mark h-12 w-12 rounded-md xl:h-11 xl:w-11" />
             <span>
               <span className="block text-xl font-black tracking-normal text-[#152033] xl:text-lg 2xl:text-xl">enbilir.com</span>
@@ -161,38 +161,85 @@ export async function AppShell({ children, locale }: AppShellProps) {
             </span>
           </Link>
 
-          <div className="flex min-w-0 flex-col gap-3 lg:col-start-2 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
-            <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center xl:flex-1 xl:gap-3">
-              <nav className="premium-main-nav flex flex-wrap items-center gap-0.5 overflow-visible text-sm font-semibold xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
-                {visiblePrimaryNav.map((item) => (
-                  <ActiveNavigationLink
-                    key={item.href}
-                    href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                    exact={item.href === ""}
-                    className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
-                    activeClassName="bg-white text-[#0f766e] shadow-sm ring-1 ring-[#0f766e]/30"
-                    dataNavKey={item.label}
-                  >
-                    {item.label === "community" ? <CommunityIcon /> : null}
-                    {item.href === "baslangic" ? (locale === "tr" ? "Başlangıç" : "Start") : item.href === "ogren" ? (locale === "tr" ? "Öğren" : "Learn") : dictionary.nav[item.label]}
-                  </ActiveNavigationLink>
-                ))}
-              </nav>
-            </div>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <nav className="premium-main-nav flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[13px] font-semibold">
+              {visiblePrimaryNav.map((item) => (
+                <ActiveNavigationLink
+                  key={item.href}
+                  href={`/${locale}${item.href ? `/${item.href}` : ""}`}
+                  exact={item.href === ""}
+                  className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
+                  activeClassName="bg-white text-[#0f766e] shadow-sm ring-1 ring-[#0f766e]/30"
+                  dataNavKey={item.label}
+                >
+                  {item.label === "community" ? <CommunityIcon /> : null}
+                  {item.href === "baslangic" ? (locale === "tr" ? "Başlangıç" : "Start") : item.href === "ogren" ? (locale === "tr" ? "Öğren" : "Learn") : dictionary.nav[item.label]}
+                </ActiveNavigationLink>
+              ))}
+            </nav>
 
-            <div className="flex flex-wrap items-center gap-1.5 text-sm xl:shrink-0 xl:flex-nowrap xl:whitespace-nowrap xl:text-[13px]">
+            <nav className="premium-secondary-nav flex min-w-0 shrink items-center gap-1 overflow-hidden whitespace-nowrap text-[12px] font-semibold 2xl:gap-1.5 2xl:text-[13px]">
+              {sessionUser ? productNav.map((item) => (
+                <ActiveNavigationLink
+                  key={item.href}
+                  href={`/${locale}/${item.href}`}
+                  className={`premium-product-nav premium-product-nav--${item.tone} inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-2 font-black 2xl:px-2.5`}
+                  activeClassName="ring-2 ring-[#0f766e] ring-offset-2"
+                  dataProductTone={item.tone}
+                >
+                  <span className="premium-product-nav-orb" aria-hidden="true" />
+                  {item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label]}
+                </ActiveNavigationLink>
+              )) : (
+                <>
+                  <span className="shrink-0 text-[11px] font-black uppercase text-slate-300">{locale === "tr" ? "Yeni misin?" : "New here?"}</span>
+                  <Link href={`/${locale}/kayit`} className="premium-product-nav premium-product-nav--trade inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-2 font-black">
+                    <span className="premium-product-nav-orb" aria-hidden="true" />
+                    {locale === "tr" ? "1. Ücretsiz üye ol" : "1. Create free account"}
+                  </Link>
+                  <Link href={`/${locale}/kullanim-kilavuzu`} className="premium-product-nav inline-flex shrink-0 items-center rounded-md px-2.5 py-2 font-black">
+                    {locale === "tr" ? "2. Nasıl kullanılır?" : "2. How does it work?"}
+                  </Link>
+                </>
+              )}
+              {sessionUser ? (
+                <>
+                  <Link
+                    href={macroReportHref}
+                    className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white 2xl:px-2.5"
+                    style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
+                    data-product-tone="macro"
+                  >
+                    <span className="premium-product-nav-orb" aria-hidden="true" />
+                    {locale === "en" ? "MACRO REPORT" : "MAKRO RAPOR"}
+                  </Link>
+                  <a
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`whatsapp-link inline-flex shrink-0 items-center justify-center rounded-md bg-[#25d366] px-2 py-2 font-bold text-white shadow-sm hover:bg-[#1fb65a] 2xl:px-2.5 ${
+                      visualSettings.whatsappButtonVariant === "image" ? "h-9 w-9 px-0 2xl:h-10 2xl:w-10" : ""
+                    }`}
+                  >
+                    {visualSettings.whatsappButtonVariant === "image" ? <span className="text-xs font-black">WA</span> : dictionary.whatsapp}
+                  </a>
+                </>
+              ) : null}
+            </nav>
+
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] 2xl:text-[13px]">
               {sessionUser ? (
                 <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap">
                   <ActiveNavigationLink
                     href={`/${locale}/panel`}
-                    className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e] 2xl:px-3 2xl:py-2"
+                    className="max-w-[170px] shrink-0 truncate rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e] 2xl:max-w-[220px] 2xl:px-2.5 2xl:py-2"
                     activeClassName="border-[#0f766e] bg-emerald-100 ring-2 ring-emerald-200"
                   >
                     {locale === "tr" ? "Merhaba" : "Hello"}, {getDisplayName(sessionUser)}
                   </ActiveNavigationLink>
                   <form action={logoutAction}>
                     <input type="hidden" name="locale" value={locale} />
-                    <button className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-3 2xl:py-2">
+                    <button className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-2.5 2xl:py-2">
                       {ui.appShell.logout}
                     </button>
                   </form>
@@ -211,55 +258,6 @@ export async function AppShell({ children, locale }: AppShellProps) {
               )}
             </div>
           </div>
-
-          <nav className="premium-secondary-nav flex flex-wrap items-center justify-start gap-2 border-t border-[#d1bfa7]/35 pt-3 text-sm font-semibold lg:col-start-2 xl:text-[13px]">
-            {sessionUser ? productNav.map((item) => (
-              <ActiveNavigationLink
-                key={item.href}
-                href={`/${locale}/${item.href}`}
-                className={`premium-product-nav premium-product-nav--${item.tone} inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black`}
-                activeClassName="ring-2 ring-[#0f766e] ring-offset-2"
-                dataProductTone={item.tone}
-              >
-                <span className="premium-product-nav-orb" aria-hidden="true" />
-                {item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label]}
-              </ActiveNavigationLink>
-            )) : (
-              <>
-                <span className="text-xs font-black uppercase text-slate-500">{locale === "tr" ? "Yeni misin?" : "New here?"}</span>
-                <Link href={`/${locale}/kayit`} className="premium-product-nav premium-product-nav--trade inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black">
-                  <span className="premium-product-nav-orb" aria-hidden="true" />
-                  {locale === "tr" ? "1. Ücretsiz üye ol" : "1. Create free account"}
-                </Link>
-                <Link href={`/${locale}/kullanim-kilavuzu`} className="premium-nav-link inline-flex shrink-0 items-center rounded-md px-3 py-2 font-black">
-                  {locale === "tr" ? "2. Nasıl kullanılır?" : "2. How does it work?"}
-                </Link>
-              </>
-            )}
-            {sessionUser ? (
-              <>
-                <Link
-                  href={macroReportHref}
-                  className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white"
-                  style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
-                  data-product-tone="macro"
-                >
-                  <span className="premium-product-nav-orb" aria-hidden="true" />
-                  {locale === "en" ? "MACRO REPORT" : "MAKRO RAPOR"}
-                </Link>
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`whatsapp-link inline-flex shrink-0 items-center justify-center rounded-md bg-[#25d366] px-3 py-2 font-bold text-white shadow-sm hover:bg-[#1fb65a] ${
-                    visualSettings.whatsappButtonVariant === "image" ? "inline-flex h-9 w-9 items-center justify-center px-0 2xl:h-10 2xl:w-10" : ""
-                  }`}
-                >
-                  {visualSettings.whatsappButtonVariant === "image" ? <span className="text-xs font-black">WA</span> : dictionary.whatsapp}
-                </a>
-              </>
-            ) : null}
-          </nav>
         </div>
         <MobileHeaderMenu
           locale={locale}

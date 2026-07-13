@@ -98,7 +98,7 @@ export function MobileHeaderMenu({
   };
 
   return (
-    <div className="mobile-site-header mobile-site-header--advanced border-b border-[#d1bfa7]/30 bg-[#fffaf6]/92 px-4 py-3 shadow-lg backdrop-blur-xl md:hidden">
+    <div className="mobile-site-header mobile-site-header--advanced border-b border-[#d1bfa7]/30 bg-[#fffaf6]/92 px-4 py-3 shadow-lg backdrop-blur-xl xl:hidden">
       <div className="flex items-center justify-between gap-3">
         <Link href={`/${locale}`} className="flex min-w-0 items-center gap-2.5" onClick={() => setIsOpen(false)}>
           <span className="mobile-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d1bfa7]/50 bg-white shadow-sm">
