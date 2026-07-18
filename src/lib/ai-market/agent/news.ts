@@ -18,17 +18,6 @@ const NEWS_FEEDS = [
   { category: "fx", query: "US dollar euro Turkish lira forex when:1d" },
 ];
 
-const FALLBACK_NEWS: AgentNewsItem[] = [
-  {
-    title: "Kuresel piyasalarda merkez bankasi patikasi ve risk istahi izleniyor",
-    link: "https://news.google.com",
-    source: "Google News",
-    publishedAt: new Date().toISOString(),
-    category: "macro",
-    relevance: 0.55,
-  },
-];
-
 function decodeXmlEntities(value: string) {
   return value
     .replace(/&amp;/g, "&")
@@ -121,5 +110,5 @@ export async function collectAgentNews(limit = 30, lookbackDays = 1) {
     .sort((left, right) => right.relevance - left.relevance)
     .slice(0, limit);
 
-  return items.length > 0 ? items : FALLBACK_NEWS;
+  return items;
 }

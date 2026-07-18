@@ -1,46 +1,41 @@
 import { NextResponse } from "next/server";
+import { FixedWindowRateLimiter, getRateLimitClientKey } from "@/lib/request-rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const rateLimitWindowMs = 60_000;
-const maxRequestsPerWindow = 12;
 const maxAudioSizeBytes = 8 * 1024 * 1024;
-const requestBuckets = new Map<string, { count: number; resetAt: number }>();
-
-function getClientKey(request: Request) {
-  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const realIp = request.headers.get("x-real-ip")?.trim();
-  return forwardedFor || realIp || "local";
-}
-
-function isRateLimited(key: string) {
-  const now = Date.now();
-  const bucket = requestBuckets.get(key);
-
-  if (!bucket || bucket.resetAt <= now) {
-    requestBuckets.set(key, { count: 1, resetAt: now + rateLimitWindowMs });
-    return false;
-  }
-
-  bucket.count += 1;
-  return bucket.count > maxRequestsPerWindow;
-}
+const allowedAudioTypes = new Set([
+  "audio/webm",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/m4a",
+  "audio/wav",
+  "audio/x-wav",
+]);
+const rateLimiter = new FixedWindowRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 12,
+  maxEntries: 10_000,
+});
 
 function normalizeLocale(value: FormDataEntryValue | null) {
   return value === "en" ? "en" : "tr";
 }
 
-function getErrorMessage(locale: "tr" | "en", key: "missing" | "size" | "config" | "failed") {
+function getErrorMessage(locale: "tr" | "en", key: "missing" | "size" | "type" | "config" | "failed") {
   const messages = {
     tr: {
       missing: "Ses kaydı alınamadı. Lütfen tekrar deneyin.",
       size: "Ses kaydı çok büyük. Daha kısa bir soru sorun.",
+      type: "Ses dosyası biçimi desteklenmiyor. WebM, MP4, MP3, M4A veya WAV kullanın.",
       config: "Ses çözümleme servisi yapılandırılmamış. OPENAI_API_KEY gerekli.",
       failed: "Ses yazıya çevrilemedi. Lütfen tekrar deneyin.",
     },
     en: {
       missing: "No audio recording was received. Please try again.",
       size: "The audio recording is too large. Please ask a shorter question.",
+      type: "This audio format is not supported. Use WebM, MP4, MP3, M4A, or WAV.",
       config: "Voice transcription is not configured. OPENAI_API_KEY is required.",
       failed: "Voice could not be transcribed. Please try again.",
     },
@@ -53,9 +48,9 @@ export async function POST(request: Request) {
   let locale: "tr" | "en" = "tr";
 
   try {
-    const clientKey = getClientKey(request);
+    const clientKey = getRateLimitClientKey(request.headers);
 
-    if (isRateLimited(clientKey)) {
+    if (rateLimiter.isRateLimited(clientKey)) {
       return NextResponse.json({ error: "Çok sık sesli soru gönderildi. Lütfen biraz sonra tekrar deneyin." }, { status: 429 });
     }
 
@@ -76,6 +71,12 @@ export async function POST(request: Request) {
 
     if (audio.size > maxAudioSizeBytes) {
       return NextResponse.json({ error: getErrorMessage(locale, "size") }, { status: 413 });
+    }
+
+    const audioType = audio.type.toLowerCase().split(";", 1)[0];
+
+    if (!allowedAudioTypes.has(audioType)) {
+      return NextResponse.json({ error: getErrorMessage(locale, "type") }, { status: 415 });
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
@@ -101,13 +102,16 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: openAiForm,
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(30_000)]),
     });
 
     const payload = await response.json() as { text?: unknown; error?: { message?: unknown } };
 
     if (!response.ok || typeof payload.text !== "string" || !payload.text.trim()) {
       const apiMessage = typeof payload.error?.message === "string" ? payload.error.message : null;
-      return NextResponse.json({ error: apiMessage || getErrorMessage(locale, "failed") }, { status: 502 });
+      return NextResponse.json({
+        error: process.env.NODE_ENV === "production" ? getErrorMessage(locale, "failed") : apiMessage || getErrorMessage(locale, "failed"),
+      }, { status: 502 });
     }
 
     return NextResponse.json({ text: payload.text.trim().slice(0, 700) });

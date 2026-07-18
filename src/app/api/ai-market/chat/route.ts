@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
-import { collectAgentNews } from "@/lib/ai-market/agent/news";
+import {
+  buildInstitutionalOpenAiRequest,
+  ensureInstitutionalChatDisclosure,
+  extractInstitutionalChatResult,
+  type InstitutionalChatCitation,
+  type InstitutionalChatResult,
+} from "@/lib/ai-market/institutional-chat-policy";
 import {
   buildContextFromMarketItems,
   buildLocalMarketChatAnswer,
   buildMarketChatContextText,
   getMarketChatSources,
+  selectMarketChatAgentPerformance,
   type MarketChatLocale,
 } from "@/lib/ai-market/market-chat";
 import { getSessionUser } from "@/lib/auth";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
+import { FixedWindowRateLimiter, getRateLimitClientKey } from "@/lib/request-rate-limit";
+import { getVipAgentSummaries } from "@/lib/vip-agents/dashboard";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 
 export const dynamic = "force-dynamic";
@@ -26,28 +35,11 @@ type ChatRequestBody = {
   history?: unknown;
 };
 
-const rateLimitWindowMs = 60_000;
-const maxRequestsPerWindow = 18;
-const requestBuckets = new Map<string, { count: number; resetAt: number }>();
-
-function getClientKey(request: Request) {
-  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const realIp = request.headers.get("x-real-ip")?.trim();
-  return forwardedFor || realIp || "local";
-}
-
-function isRateLimited(key: string) {
-  const now = Date.now();
-  const bucket = requestBuckets.get(key);
-
-  if (!bucket || bucket.resetAt <= now) {
-    requestBuckets.set(key, { count: 1, resetAt: now + rateLimitWindowMs });
-    return false;
-  }
-
-  bucket.count += 1;
-  return bucket.count > maxRequestsPerWindow;
-}
+const rateLimiter = new FixedWindowRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 18,
+  maxEntries: 10_000,
+});
 
 function normalizeLocale(value: unknown): MarketChatLocale {
   return value === "en" ? "en" : "tr";
@@ -78,11 +70,79 @@ function normalizeHistory(value: unknown) {
     .slice(-6);
 }
 
+function toStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 24) : [];
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function finiteNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function summarizeIndicatorSnapshot(sourcePayload: unknown) {
+  const payload = asRecord(sourcePayload);
+  const indicators = asRecord(payload?.indicators);
+
+  if (!indicators) {
+    return null;
+  }
+
+  const macd = asRecord(indicators.macd);
+  const volumeAnomaly = asRecord(indicators.volumeAnomaly);
+  const indicatorValues: Array<[string, number | null]> = [
+    ["EMA20", finiteNumber(indicators.ema20)],
+    ["EMA50", finiteNumber(indicators.ema50)],
+    ["EMA200", finiteNumber(indicators.ema200)],
+    ["RSI", finiteNumber(indicators.rsi)],
+    ["MACD", finiteNumber(macd?.macd)],
+    ["MACD signal", finiteNumber(macd?.signal)],
+    ["MACD histogram", finiteNumber(macd?.histogram)],
+    ["ATR", finiteNumber(indicators.atr)],
+    ["volume ratio", finiteNumber(volumeAnomaly?.ratio)],
+  ];
+  const values = indicatorValues.filter((entry): entry is [string, number] => entry[1] !== null);
+
+  return values.length > 0
+    ? values.map(([label, value]) => `${label}=${Math.round(value * 10_000) / 10_000}`).join(", ")
+    : null;
+}
+
 async function getLatestReport() {
   const report = await prisma.aiMarketReport.findFirst({
     where: { scope: "GLOBAL" },
     orderBy: { generatedAt: "desc" },
-    select: { generatedAt: true, marketRegime: true, riskAppetite: true },
+    select: {
+      generatedAt: true,
+      marketRegime: true,
+      riskAppetite: true,
+      macroSummary: true,
+      newsSummary: true,
+      keyTakeaways: true,
+      assets: {
+        orderBy: [{ opportunityScore: "desc" }, { symbol: "asc" }],
+        take: 24,
+        select: {
+          symbol: true,
+          displayName: true,
+          assetClass: true,
+          lastPrice: true,
+          changePercent: true,
+          signalType: true,
+          confidence: true,
+          riskScore: true,
+          opportunityScore: true,
+          technicalCommentary: true,
+          macroCommentary: true,
+          newsCommentary: true,
+          watchLevels: true,
+          scenarios: true,
+          sourcePayload: true,
+        },
+      },
+    },
   });
 
   return report
@@ -90,37 +150,82 @@ async function getLatestReport() {
         generatedAt: report.generatedAt.toISOString(),
         marketRegime: report.marketRegime,
         riskAppetite: report.riskAppetite,
+        macroSummary: report.macroSummary,
+        newsSummary: report.newsSummary,
+        keyTakeaways: toStringArray(report.keyTakeaways),
+        assets: report.assets.map((asset) => ({
+          symbol: asset.symbol,
+          displayName: asset.displayName,
+          assetClass: asset.assetClass,
+          lastPrice: asset.lastPrice,
+          changePercent: asset.changePercent,
+          signalType: asset.signalType,
+          confidence: asset.confidence,
+          riskScore: asset.riskScore,
+          opportunityScore: asset.opportunityScore,
+          technicalCommentary: asset.technicalCommentary,
+          macroCommentary: asset.macroCommentary,
+          newsCommentary: asset.newsCommentary,
+          watchLevels: toStringArray(asset.watchLevels),
+          scenarios: toStringArray(asset.scenarios),
+          indicatorSnapshot: summarizeIndicatorSnapshot(asset.sourcePayload),
+        })),
       }
     : null;
 }
 
-function getSystemInstruction(locale: MarketChatLocale, isVip: boolean) {
-  if (locale === "en") {
-    const vipContext = isVip
-      ? "VIP mode is active: you may also use the supplied public RSS news context. Still do not browse the web yourself and do not invent facts beyond the supplied context."
-      : "Standard mode is active: use only Enbilir live/cache site market data and internal macro labels.";
+async function getLatestVipResearch() {
+  const report = await prisma.vipResearchReport.findFirst({
+    where: { status: "COMPLETED" },
+    orderBy: { generatedAt: "desc" },
+    select: {
+      generatedAt: true,
+      marketContext: true,
+      executiveSummary: true,
+      fallbackUsed: true,
+      ideas: {
+        orderBy: { rank: "asc" },
+        take: 8,
+        select: {
+          symbol: true,
+          displayName: true,
+          assetClass: true,
+          rank: true,
+          stance: true,
+          thesisSummary: true,
+          negativeCase: true,
+          macroThesis: true,
+          fundamentalThesis: true,
+          technicalThesis: true,
+          catalysts: true,
+          exitPlan: true,
+          institutionalPerception: true,
+          shortInterestCommentary: true,
+          confidenceScore: true,
+          riskScore: true,
+          priceAtRecommendation: true,
+          entryLow: true,
+          entryHigh: true,
+          stopLoss: true,
+          targetPrice: true,
+          secondaryTargetPrice: true,
+        },
+      },
+    },
+  });
 
-    return [
-      "You are Enbilir AI Market Robot.",
-      vipContext,
-      "Use only the supplied context: live/cache market items, top risers/fallers, the latest internal macro report label, and VIP public RSS headlines when present.",
-      "Do not browse the web, do not invent news, and do not claim access to data outside the site context.",
-      "If the user asks for external news or unrelated topics, explain that you can only discuss Enbilir site data and market-literacy topics.",
-      "Do not provide investment advice, direct buy/sell orders, or certainty. Keep answers concise, practical, and educational.",
-    ].join(" ");
-  }
-  const vipContext = isVip
-    ? "VIP mod aktiftir: verilen public RSS haber bağlamını da kullanabilirsin. Yine de kendin web taraması yapma ve verilen bağlam dışında haber uydurma."
-    : "Standart mod aktiftir: yalnızca Enbilir canlı/cache site piyasa verilerini ve iç makro etiketleri kullan.";
-
-  return [
-    "Sen Enbilir AI Piyasa Robotusun.",
-    vipContext,
-    "Yalnızca verilen bağlamı kullan: canlı/cache piyasa verileri, yükselen/düşen listesi, sitedeki son makro rapor etiketi ve varsa VIP public RSS haber başlıkları.",
-    "Web taraması yapma, dış haber uydurma, site bağlamı dışındaki veriye eriştiğini söyleme.",
-    "Kullanıcı dış haber veya ilgisiz konu sorarsa sadece Enbilir site verileri ve piyasa okuryazarlığı konularında cevap verebildiğini açıkla.",
-    "Yatırım tavsiyesi, kesin yön veya doğrudan al/sat emri verme. Kısa, anlaşılır ve eğitim odaklı cevap ver.",
-  ].join(" ");
+  return report
+    ? {
+        generatedAt: report.generatedAt.toISOString(),
+        marketContext: report.marketContext,
+        executiveSummary: report.executiveSummary,
+        fallbackUsed: report.fallbackUsed,
+        ideas: report.ideas.map((idea) => ({
+          ...idea,
+          catalysts: toStringArray(idea.catalysts),
+        })),
+      }
+    : undefined;
 }
 
 async function askOpenAi({
@@ -129,78 +234,90 @@ async function askOpenAi({
   history,
   locale,
   isVip,
+  requestSignal,
 }: {
   question: string;
   contextText: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   locale: MarketChatLocale;
   isVip: boolean;
-}) {
+  requestSignal: AbortSignal;
+}): Promise<InstitutionalChatResult | null> {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
+    console.error("[ai-market-chat] OPENAI_API_KEY is not configured");
     return null;
   }
 
   const model = isVip
     ? (process.env.OPENAI_VIP_MARKET_CHAT_MODEL || "gpt-4.1")
     : (process.env.OPENAI_MARKET_CHAT_MODEL || "gpt-4.1-mini");
-  const historyText = history.map((message) => `${message.role}: ${message.content}`).join("\n").slice(-1800);
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      instructions: getSystemInstruction(locale, isVip),
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: [
-                "ENBILIR_SITE_CONTEXT",
-                contextText,
-                historyText ? `RECENT_CHAT\n${historyText}` : "",
-                `USER_QUESTION\n${question}`,
-              ].filter(Boolean).join("\n\n"),
-            },
-          ],
-        },
-      ],
-      max_output_tokens: 520,
-      temperature: 0.25,
-      store: false,
-    }),
+  const requestBody = buildInstitutionalOpenAiRequest({
+    model,
+    question,
+    contextText,
+    history,
+    locale,
+    tier: isVip ? "VIP" : "STANDARD",
   });
+  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
 
-  if (!response.ok) {
-    return null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const timeoutSignal = AbortSignal.timeout(isVip ? 95_000 : 45_000);
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.any([requestSignal, timeoutSignal]),
+      });
+
+      if (response.ok) {
+        return extractInstitutionalChatResult(await response.json());
+      }
+
+      let errorDetails: { error?: { type?: unknown; code?: unknown; param?: unknown } } = {};
+
+      try {
+        errorDetails = await response.json() as typeof errorDetails;
+      } catch {
+        errorDetails = {};
+      }
+
+      console.error("[ai-market-chat] OpenAI request failed", {
+        status: response.status,
+        type: errorDetails.error?.type,
+        code: errorDetails.error?.code,
+        param: errorDetails.error?.param,
+        requestId: response.headers.get("x-request-id"),
+      });
+
+      if (!retryableStatuses.has(response.status) || attempt === 1) {
+        return null;
+      }
+    } catch (error) {
+      console.error("[ai-market-chat] OpenAI request error", {
+        name: error instanceof Error ? error.name : "UnknownError",
+        message: error instanceof Error ? error.message : "Unknown request error",
+      });
+      if (attempt === 1 || requestSignal.aborted) {
+        return null;
+      }
+    }
   }
 
-  const payload = await response.json() as { output_text?: unknown; output?: Array<{ content?: Array<{ text?: unknown }> }> };
-
-  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const text = payload.output
-    ?.flatMap((item) => item.content ?? [])
-    .map((content) => typeof content.text === "string" ? content.text : "")
-    .join("\n")
-    .trim();
-
-  return text || null;
+  return null;
 }
 
 export async function POST(request: Request) {
   try {
-    const clientKey = getClientKey(request);
+    const clientKey = getRateLimitClientKey(request.headers);
 
-    if (isRateLimited(clientKey)) {
+    if (rateLimiter.isRateLimited(clientKey)) {
       return NextResponse.json({ error: "Çok sık soru soruldu. Lütfen biraz sonra tekrar deneyin." }, { status: 429 });
     }
 
@@ -229,23 +346,32 @@ export async function POST(request: Request) {
       : null;
     const membership = fullUser ? getMembershipSnapshot(fullUser) : null;
     const isVip = Boolean(membership?.isVipActive);
-    const [items, latestReport, vipNews] = await Promise.all([
+    const tier = isVip ? "VIP" as const : "STANDARD" as const;
+    const [items, latestReport, vipResearch, agentSummaries] = await Promise.all([
       getLiveMarketItems(),
       getLatestReport(),
-      isVip ? collectAgentNews(24) : Promise.resolve(undefined),
+      isVip ? getLatestVipResearch() : Promise.resolve(undefined),
+      getVipAgentSummaries().catch(() => []),
     ]);
-    const context = buildContextFromMarketItems(question, items, latestReport, vipNews);
-    const fallbackAnswer = buildLocalMarketChatAnswer(question, context, locale);
+    const agentPerformance = selectMarketChatAgentPerformance(agentSummaries, tier);
+    const context = buildContextFromMarketItems(question, items, latestReport, undefined, vipResearch, tier, agentPerformance);
+    const fallbackAnswer = ensureInstitutionalChatDisclosure(buildLocalMarketChatAnswer(question, context, locale), locale);
     const contextText = buildMarketChatContextText(context, locale);
 
     let answer = fallbackAnswer;
     let mode: "openai" | "local" = "local";
+    let citations: InstitutionalChatCitation[] = [];
+    let researched = false;
 
     try {
-      const aiAnswer = await askOpenAi({ question, contextText, history, locale, isVip });
+      const aiResult = await askOpenAi({ question, contextText, history, locale, isVip, requestSignal: request.signal });
 
-      if (aiAnswer) {
-        answer = aiAnswer;
+      const hasRequiredVipEvidence = !isVip || Boolean(aiResult?.researched && aiResult.citations.length > 0);
+
+      if (aiResult && hasRequiredVipEvidence) {
+        answer = ensureInstitutionalChatDisclosure(aiResult.answer, locale);
+        citations = aiResult.citations;
+        researched = aiResult.researched;
         mode = "openai";
       }
     } catch {
@@ -253,6 +379,13 @@ export async function POST(request: Request) {
     }
 
     const sources = getMarketChatSources(context, locale);
+
+    if (researched) {
+      sources.push({
+        label: locale === "tr" ? "Canlı web araştırması" : "Live web research",
+        value: locale === "tr" ? `${citations.length} kaynak bağlantısı` : `${citations.length} source links`,
+      });
+    }
 
     await recordSiteAnalyticsEvent({
       eventType: siteAnalyticsEvents.aiChat,
@@ -267,16 +400,23 @@ export async function POST(request: Request) {
         questionLength: question.length,
         historyLength: history.length,
         sourcesCount: sources.length,
+        citationCount: citations.length,
+        researchStatus: isVip ? (researched ? "completed" : "unavailable") : "site_only",
       },
     });
 
-    return NextResponse.json({
-      answer,
-      mode,
-      membership: isVip ? "VIP" : "STANDARD",
-      updatedAt: context.updatedAt,
-      sources,
-    });
+    return NextResponse.json(
+      {
+        answer,
+        mode,
+        membership: isVip ? "VIP" : "STANDARD",
+        updatedAt: context.updatedAt,
+        sources,
+        citations,
+        researchStatus: isVip ? (researched ? "completed" : "unavailable") : "site_only",
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     return NextResponse.json(
       {

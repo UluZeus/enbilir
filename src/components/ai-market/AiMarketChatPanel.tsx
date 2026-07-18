@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { getSafeLocale, type Locale } from "@/i18n/config";
 
 type AiMarketChatPanelProps = {
@@ -17,6 +17,14 @@ type ChatMessage = {
   id: string;
   role: ChatRole;
   content: string;
+  citations?: ChatCitation[];
+};
+
+type ChatCitation = {
+  title: string;
+  url: string;
+  startIndex: number;
+  endIndex: number;
 };
 
 type ChatSource = {
@@ -31,6 +39,8 @@ type ChatResponse = {
   membership?: "STANDARD" | "VIP";
   updatedAt?: string;
   sources?: ChatSource[];
+  citations?: ChatCitation[];
+  researchStatus?: "completed" | "unavailable" | "site_only";
 };
 
 type TranscribeResponse = {
@@ -40,16 +50,16 @@ type TranscribeResponse = {
 
 const quickPrompts = {
   tr: [
-    "Bugün piyasa genel olarak nasıl?",
-    "Bitcoin ve Ethereum ne durumda?",
-    "En çok yükselenler ve düşenler hangileri?",
-    "Altın, gümüş ve dolar tarafında resim nasıl?",
+    "Bugün en güçlü asimetrik fırsat hangisi; kanıt açığını da yaz.",
+    "Bitcoin için makro, 50/200 ortalama ve RSI/MACD resmi nasıl?",
+    "Olumlu verilere rağmen uzak durmam gereken varlık var mı?",
+    "Bir fikir için giriş, geçersizleşme, stop ve hedef karnesi hazırla.",
   ],
   en: [
-    "How does the market look today?",
-    "What is happening with Bitcoin and Ethereum?",
-    "Which assets are rising and falling most?",
-    "How do gold, silver, and the dollar look?",
+    "What is today's strongest asymmetric opportunity, including evidence gaps?",
+    "How do Bitcoin's macro, 50/200 averages, and RSI/MACD picture look?",
+    "Which asset should I avoid despite otherwise positive data?",
+    "Build an entry, invalidation, stop, target, and scorecard for one idea.",
   ],
 } as const;
 
@@ -58,26 +68,31 @@ const copy = {
     kicker: "Canlı veri sohbeti",
     title: "AI Robot ile piyasa verisini konuş",
     intro:
-      "Merhaba, ben Enbilir AI Piyasa Robotu. Yanıtlarımı bu sitedeki canlı/cache piyasa verileri, AI Asistan ekranı ve sitedeki makro bağlam üzerinden veririm. Harici haber taraması yapmam; sadece sitedeki piyasa ve eğitim konularında yardımcı olurum. Yazdıklarım yatırım tavsiyesi değildir.",
+      "Merhaba, ben Enbilir'in kurumsal karar-destek yapay zekâsıyım. Popülerlik yerine asimetrik risk/getiri, temel kanıt, kurumsal teknik yapı, olumsuz tez ve objektif kaçış planı ararım. Standart kapsamda yalnız Enbilir'in site içi ve zaman damgalı verilerini kullanırım; eksik kanıtı uydurmam.",
     vipIntro:
-      "Merhaba, ben Enbilir VIP AI Piyasa Robotu. Yanıtlarımı sitedeki canlı/cache piyasa verileri, AI Asistan ekranı, sitedeki makro bağlam ve ücretsiz public haber/veri başlıkları üzerinden üretirim. Yine de doğrulanmamış bilgi uydurmam; yazdıklarım yatırım tavsiyesi değildir.",
-    placeholder: "Örn: Bitcoin bugün güçlü mü, altın tarafında ne görüyorsun?",
+      "Merhaba, ben Enbilir VIP kurumsal karar-destek yapay zekâsıyım. Site içi kanıtı güncel internet araştırmasıyla birleştirir; temel, 50/200 ortalama, hacim, RSI/MACD, 3-12 aylık katalizör, olumsuz tez ve kaçış planını birlikte incelerim. Kaynaksız rakam veya sahte kesinlik üretmem.",
+    placeholder: "Örn: AAPL için iki ayaklı tez, olumsuz senaryo ve kaçış planı hazırla.",
     send: "Gönder",
-    thinking: "Veriyi okuyorum...",
+    thinking: "Site içindeki piyasa verilerini ve raporları karşılaştırıyorum; bu biraz sürebilir.",
+    vipThinking: "Güncel internet ve site kaynaklarını doğruluyorum; bu biraz sürebilir.",
+    waiting: "Bunu dikkatle değerlendirmek için biraz daha düşünmem gerekiyor; seni biraz bekleteceğim.",
+    synthesizing: "Makro, temel ve kurumsal teknik kanıtları tek bir tezde birleştiriyorum.",
+    researchUnavailable: "Canlı internet araştırması bu turda tamamlanamadı; yanıt yalnız site içi kanıtla sınırlandı.",
     empty: "Bir piyasa sorusu yazın.",
     failure: "Sohbet yanıtı alınamadı. Lütfen biraz sonra tekrar deneyin.",
-    sourceTitle: "Kullanılan site verisi",
+    sourceTitle: "Kullanılan kanıt",
+    citationTitle: "Tıklanabilir web kaynakları",
     localMode: "Yerel veri yorumu",
     aiMode: "AI yorum",
     standardTier: "Standart",
     vipTier: "VIP",
     standardTitle: "Standart AI sohbet",
-    standardBody: "Sitedeki canlı/cache piyasa verileriyle sınırlıdır. Gönüllü standart katkı aylık 70 TL'dir.",
+    standardBody: "Kurumsal analiz metodolojisi site içindeki veri ve raporlarla sınırlıdır. Gönüllü standart katkı aylık 70 TL'dir.",
     vipTitle: "VIP AI sohbet",
-    vipBody: "Sitedeki veriye ek olarak ücretsiz public haber/veri başlıklarıyla daha üst seviye yorum üretir. VIP üyelik aylık 100 TL'dir.",
+    vipBody: "Site içi kanıta güncel, kaynaklı internet araştırması ve özel VIP araştırma bağlamını ekler. VIP üyelik aylık 100 TL'dir.",
     standardPay: "70 TL katkı linki",
     vipPay: "100 TL VIP linki",
-    note: "Sohbet, Enbilir içindeki canlı/cache veriyi yorumlar; dış haber veya yatırım emri üretmez.",
+    note: "Her yanıt yatırım tavsiyesi değildir; nihai karar kullanıcıya aittir. Analiz, Dr. Hakan Ünsal tarafından eğitilmiş Enbilir yapay zekâsı tarafından üretilir.",
     voiceTitle: "Sesli AI sohbet",
     voiceStart: "Mikrofonla sor",
     voiceStop: "Durdur",
@@ -91,31 +106,37 @@ const copy = {
     voiceSpeakOn: "Sesli yanıt açık",
     voiceSpeakOff: "Sesli yanıt kapalı",
     voiceReplay: "Son yanıtı oku",
+    voiceStopSpeaking: "Sesli okumayı durdur",
   },
   en: {
     kicker: "Live data chat",
     title: "Talk with the AI Robot",
     intro:
-      "Hello, I am the Enbilir AI Market Robot. I answer from this site's live/cache market data, the AI Assistant screen, and internal macro context. I do not browse external news; I only help with market and education topics inside the site. Nothing here is investment advice.",
+      "Hello, I am Enbilir's institutional decision-support AI. I look beyond popularity for asymmetric risk/reward, fundamental evidence, institutional technical structure, a negative thesis, and an objective escape plan. Standard scope uses only timestamped evidence inside Enbilir and never invents missing data.",
     vipIntro:
-      "Hello, I am the Enbilir VIP AI Market Robot. I answer from this site's live/cache market data, the AI Assistant screen, internal macro context, and free public news/data headlines. I still do not invent unverified facts; nothing here is investment advice.",
-    placeholder: "Example: Is Bitcoin strong today, what do you see in gold?",
+      "Hello, I am Enbilir's VIP institutional decision-support AI. I combine site evidence with current web research and examine fundamentals, 50/200 averages, volume, RSI/MACD, 3-12 month catalysts, the negative case, and an escape plan. I do not invent unsourced figures or false certainty.",
+    placeholder: "Example: Build a two-leg AAPL thesis, negative case, and escape plan.",
     send: "Send",
-    thinking: "Reading site data...",
+    thinking: "Comparing Enbilir's internal market data and reports; this may take a moment.",
+    vipThinking: "Verifying current web and site sources; this may take a moment.",
+    waiting: "I need a little more time to assess this carefully; thank you for waiting.",
+    synthesizing: "Combining the macro, fundamental, and institutional technical evidence.",
+    researchUnavailable: "Live web research could not be completed in this turn; the answer was limited to site evidence.",
     empty: "Enter a market question.",
     failure: "Chat response could not be loaded. Please try again shortly.",
-    sourceTitle: "Site data used",
+    sourceTitle: "Evidence used",
+    citationTitle: "Clickable web sources",
     localMode: "Local data read",
     aiMode: "AI read",
     standardTier: "Standard",
     vipTier: "VIP",
     standardTitle: "Standard AI chat",
-    standardBody: "Limited to the site's live/cache market data. The voluntary standard contribution is 70 TL/month.",
+    standardBody: "The institutional methodology is limited to evidence and reports inside the site. The voluntary standard contribution is 70 TL/month.",
     vipTitle: "VIP AI chat",
-    vipBody: "Adds free public news/data headlines to the site data for a higher-level read. VIP membership is 100 TL/month.",
+    vipBody: "Adds current cited web research and private VIP research context to site evidence. VIP membership is 100 TL/month.",
     standardPay: "70 TL contribution link",
     vipPay: "100 TL VIP link",
-    note: "The chat interprets Enbilir live/cache data only; it does not create external news or trade orders.",
+    note: "Every response is not investment advice; the final decision belongs to the user. Analysis is generated by Enbilir AI trained by Dr. Hakan Unsal.",
     voiceTitle: "Voice AI chat",
     voiceStart: "Ask by voice",
     voiceStop: "Stop",
@@ -129,6 +150,7 @@ const copy = {
     voiceSpeakOn: "Voice answer on",
     voiceSpeakOff: "Voice answer off",
     voiceReplay: "Read last answer",
+    voiceStopSpeaking: "Stop reading",
   },
 } as const;
 
@@ -136,8 +158,78 @@ function newId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function formatMessage(content: string) {
-  return content.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
+function normalizeCitations(content: string, citations: ChatCitation[] | undefined) {
+  return (citations ?? [])
+    .filter((citation) => {
+      try {
+        const url = new URL(citation.url);
+        return url.protocol === "https:"
+          && Number.isInteger(citation.startIndex)
+          && Number.isInteger(citation.endIndex)
+          && citation.startIndex >= 0
+          && citation.endIndex > citation.startIndex
+          && citation.endIndex <= content.length;
+      } catch {
+        return false;
+      }
+    })
+    .sort((left, right) => left.startIndex - right.startIndex || left.endIndex - right.endIndex)
+    .filter((citation, index, all) => index === 0 || citation.startIndex >= all[index - 1].endIndex);
+}
+
+function renderMessageContent(message: ChatMessage): ReactNode {
+  const citations = normalizeCitations(message.content, message.citations);
+
+  if (citations.length === 0) {
+    return message.content;
+  }
+
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+
+  citations.forEach((citation, index) => {
+    if (citation.startIndex > cursor) {
+      nodes.push(message.content.slice(cursor, citation.startIndex));
+    }
+
+    nodes.push(
+      <a
+        key={`${citation.url}-${citation.startIndex}-${index}`}
+        href={citation.url}
+        target="_blank"
+        rel="noreferrer"
+        title={citation.title}
+        className="font-black text-cyan-200 underline decoration-cyan-400/60 underline-offset-2 hover:text-white"
+      >
+        {message.content.slice(citation.startIndex, citation.endIndex)}
+      </a>,
+    );
+    cursor = citation.endIndex;
+  });
+
+  if (cursor < message.content.length) {
+    nodes.push(message.content.slice(cursor));
+  }
+
+  return nodes;
+}
+
+function uniqueCitationSources(citations: ChatCitation[] | undefined) {
+  const sources = new Map<string, ChatCitation>();
+
+  for (const citation of citations ?? []) {
+    try {
+      const url = new URL(citation.url);
+
+      if (url.protocol === "https:" && !sources.has(url.toString())) {
+        sources.set(url.toString(), { ...citation, url: url.toString() });
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return Array.from(sources.values()).slice(0, 12);
 }
 
 function browserSupportsVoiceRecording() {
@@ -181,6 +273,8 @@ export function AiMarketChatPanel({
   const [sources, setSources] = useState<ChatSource[]>([]);
   const [mode, setMode] = useState<"openai" | "local" | null>(null);
   const [effectiveTier, setEffectiveTier] = useState<"STANDARD" | "VIP">(membershipTier);
+  const [progressText, setProgressText] = useState<string | null>(null);
+  const [researchNotice, setResearchNotice] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -193,7 +287,12 @@ export function AiMarketChatPanel({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  const voiceStartInFlightRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const progressTimersRef = useRef<number[]>([]);
+  const chatAbortControllerRef = useRef<AbortController | null>(null);
+  const transcriptionAbortControllerRef = useRef<AbortController | null>(null);
+  const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -203,14 +302,31 @@ export function AiMarketChatPanel({
     return () => window.clearTimeout(timer);
   }, []);
 
-  useEffect(() => () => {
-    if (recordingTimerRef.current) {
-      window.clearTimeout(recordingTimerRef.current);
-    }
-    mediaRecorderRef.current?.stop();
-    if (mediaStreamRef.current) {
-      stopMicrophonePreview(mediaStreamRef.current);
-    }
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      voiceStartInFlightRef.current = false;
+      if (recordingTimerRef.current) {
+        window.clearTimeout(recordingTimerRef.current);
+      }
+      progressTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      chatAbortControllerRef.current?.abort();
+      transcriptionAbortControllerRef.current?.abort();
+      window.speechSynthesis?.cancel();
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.ondataavailable = null;
+        mediaRecorderRef.current.onerror = null;
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      }
+      if (mediaStreamRef.current) {
+        stopMicrophonePreview(mediaStreamRef.current);
+      }
+    };
   }, []);
 
   const history = useMemo(
@@ -221,12 +337,34 @@ export function AiMarketChatPanel({
     [messages],
   );
 
+  function clearProgress() {
+    progressTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    progressTimersRef.current = [];
+    setProgressText(null);
+  }
+
+  function startProgress(tier: "STANDARD" | "VIP") {
+    clearProgress();
+    setProgressText(tier === "VIP" ? text.vipThinking : text.thinking);
+    progressTimersRef.current = [
+      window.setTimeout(() => setProgressText(text.waiting), 3_200),
+      window.setTimeout(() => setProgressText(text.synthesizing), 8_500),
+    ];
+  }
+
+  function stopSpeaking() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  }
+
   function speak(textToRead: string) {
     if (typeof window === "undefined" || !("speechSynthesis" in window) || !textToRead.trim()) {
       return;
     }
 
-    window.speechSynthesis.cancel();
+    stopSpeaking();
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = safeLocale === "tr" ? "tr-TR" : "en-US";
     utterance.rate = 0.96;
@@ -246,16 +384,22 @@ export function AiMarketChatPanel({
     }
 
     const userMessage: ChatMessage = { id: newId("user"), role: "user", content: cleanQuestion };
+    stopSpeaking();
     setMessages((current) => [...current, userMessage]);
     setInput("");
     setError(null);
+    setResearchNotice(null);
     setIsSending(true);
+    startProgress(effectiveTier);
+    const controller = new AbortController();
+    chatAbortControllerRef.current = controller;
 
     try {
       const response = await fetch("/api/ai-market/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ message: cleanQuestion, locale: safeLocale, history }),
+        signal: controller.signal,
       });
       const payload = await response.json() as ChatResponse;
 
@@ -263,11 +407,17 @@ export function AiMarketChatPanel({
         throw new Error(payload.error || text.failure);
       }
 
-      setMessages((current) => [...current, { id: newId("assistant"), role: "assistant", content: payload.answer ?? "" }]);
+      setMessages((current) => [...current, {
+        id: newId("assistant"),
+        role: "assistant",
+        content: payload.answer ?? "",
+        citations: payload.citations ?? [],
+      }]);
       setLastAnswer(payload.answer ?? "");
       setSources(payload.sources ?? []);
       setMode(payload.mode ?? null);
       setEffectiveTier(payload.membership ?? membershipTier);
+      setResearchNotice(payload.membership === "VIP" && payload.researchStatus === "unavailable" ? text.researchUnavailable : null);
       if (options?.speakAnswer && speakAnswers) {
         speak(payload.answer ?? "");
       }
@@ -276,6 +426,10 @@ export function AiMarketChatPanel({
       setError(message);
       setMessages((current) => [...current, { id: newId("assistant-error"), role: "assistant", content: message }]);
     } finally {
+      if (chatAbortControllerRef.current === controller) {
+        chatAbortControllerRef.current = null;
+      }
+      clearProgress();
       setIsSending(false);
       window.setTimeout(() => inputRef.current?.focus(), 0);
     }
@@ -294,7 +448,9 @@ export function AiMarketChatPanel({
     try {
       return await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      setVoiceError(text.voicePermissionDenied);
+      if (isMountedRef.current) {
+        setVoiceError(text.voicePermissionDenied);
+      }
       return null;
     }
   }
@@ -305,79 +461,137 @@ export function AiMarketChatPanel({
       return;
     }
 
-    if (isListening) {
-      mediaRecorderRef.current?.stop();
+    const activeRecorder = mediaRecorderRef.current;
+
+    if (isListening || activeRecorder) {
+      if (activeRecorder?.state === "recording") {
+        activeRecorder.stop();
+      }
       return;
     }
 
+    if (voiceStartInFlightRef.current) {
+      return;
+    }
+
+    voiceStartInFlightRef.current = true;
     setVoiceError(null);
     setVoiceTranscript("");
     audioChunksRef.current = [];
 
-    const stream = await requestMicrophoneAccess();
+    let stream: MediaStream | null = null;
 
-    if (!stream) {
-      return;
-    }
+    try {
+      stream = await requestMicrophoneAccess();
 
-    const mimeType = getPreferredAudioMimeType();
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-    mediaStreamRef.current = stream;
-    mediaRecorderRef.current = recorder;
-
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunksRef.current.push(event.data);
-      }
-    };
-
-    recorder.onerror = () => {
-      setVoiceError(text.voiceNetworkError);
-      setIsListening(false);
-      setIsTranscribing(false);
-      stopMicrophonePreview(stream);
-    };
-
-    recorder.onstop = () => {
-      if (recordingTimerRef.current) {
-        window.clearTimeout(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-
-      const chunks = audioChunksRef.current;
-      const recordedType = recorder.mimeType || mimeType || "audio/webm";
-      const audioBlob = new Blob(chunks, { type: recordedType });
-      stopMicrophonePreview(stream);
-      mediaStreamRef.current = null;
-      mediaRecorderRef.current = null;
-      setIsListening(false);
-
-      if (audioBlob.size < 1200) {
-        setVoiceError(text.voiceNoSpeech);
+      if (!stream || !isMountedRef.current) {
+        if (stream) {
+          stopMicrophonePreview(stream);
+        }
         return;
       }
 
-      void transcribeAndAsk(audioBlob, recordedType);
-    };
+      const activeStream = stream;
+      const mimeType = getPreferredAudioMimeType();
+      let recorder: MediaRecorder;
 
-    try {
-      recorder.start();
-      setIsListening(true);
-      recordingTimerRef.current = window.setTimeout(() => {
-        if (mediaRecorderRef.current?.state === "recording") {
-          mediaRecorderRef.current.stop();
+      try {
+        recorder = new MediaRecorder(activeStream, mimeType ? { mimeType } : undefined);
+      } catch {
+        stopMicrophonePreview(activeStream);
+        setVoiceError(text.voiceUnsupported);
+        return;
+      }
+
+      let recorderTimer: number | null = null;
+      const clearRecorderTimer = () => {
+        if (recorderTimer !== null) {
+          window.clearTimeout(recorderTimer);
+          if (recordingTimerRef.current === recorderTimer) {
+            recordingTimerRef.current = null;
+          }
+          recorderTimer = null;
         }
-      }, 15_000);
-    } catch {
-      stopMicrophonePreview(stream);
-      setVoiceError(text.voicePermissionDenied);
-      setIsListening(false);
+      };
+
+      mediaStreamRef.current = activeStream;
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        clearRecorderTimer();
+        setVoiceError(text.voiceNetworkError);
+        setIsListening(false);
+        setIsTranscribing(false);
+        stopMicrophonePreview(activeStream);
+        if (mediaStreamRef.current === activeStream) {
+          mediaStreamRef.current = null;
+        }
+        if (mediaRecorderRef.current === recorder) {
+          mediaRecorderRef.current = null;
+        }
+      };
+
+      recorder.onstop = () => {
+        clearRecorderTimer();
+
+        const chunks = audioChunksRef.current;
+        const recordedType = recorder.mimeType || mimeType || "audio/webm";
+        const audioBlob = new Blob(chunks, { type: recordedType });
+        stopMicrophonePreview(activeStream);
+        if (mediaStreamRef.current === activeStream) {
+          mediaStreamRef.current = null;
+        }
+        if (mediaRecorderRef.current === recorder) {
+          mediaRecorderRef.current = null;
+        }
+        setIsListening(false);
+
+        if (audioBlob.size < 1200) {
+          setVoiceError(text.voiceNoSpeech);
+          return;
+        }
+
+        void transcribeAndAsk(audioBlob, recordedType);
+      };
+
+      try {
+        recorder.start();
+        setIsListening(true);
+        recorderTimer = window.setTimeout(() => {
+          if (recorder.state === "recording") {
+            recorder.stop();
+          }
+        }, 15_000);
+        recordingTimerRef.current = recorderTimer;
+      } catch {
+        clearRecorderTimer();
+        stopMicrophonePreview(activeStream);
+        if (mediaStreamRef.current === activeStream) {
+          mediaStreamRef.current = null;
+        }
+        if (mediaRecorderRef.current === recorder) {
+          mediaRecorderRef.current = null;
+        }
+        setVoiceError(text.voicePermissionDenied);
+        setIsListening(false);
+      }
+    } finally {
+      voiceStartInFlightRef.current = false;
     }
   }
 
   async function transcribeAndAsk(audioBlob: Blob, mimeType: string) {
     setIsTranscribing(true);
     setVoiceError(null);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 35_000);
+    transcriptionAbortControllerRef.current = controller;
 
     try {
       const extension = mimeType.includes("mp4") ? "mp4" : mimeType.includes("mpeg") ? "mp3" : "webm";
@@ -388,6 +602,7 @@ export function AiMarketChatPanel({
       const response = await fetch("/api/ai-market/transcribe", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
       const payload = await response.json() as TranscribeResponse;
       const transcript = payload.text?.replace(/\s+/g, " ").trim() ?? "";
@@ -402,6 +617,10 @@ export function AiMarketChatPanel({
     } catch (transcribeError) {
       setVoiceError(transcribeError instanceof Error ? transcribeError.message : text.voiceNetworkError);
     } finally {
+      window.clearTimeout(timeoutId);
+      if (transcriptionAbortControllerRef.current === controller) {
+        transcriptionAbortControllerRef.current = null;
+      }
       setIsTranscribing(false);
     }
   }
@@ -420,25 +639,51 @@ export function AiMarketChatPanel({
             </span>
           </div>
 
-          <div className="mt-4 max-h-[420px] overflow-y-auto rounded-md border border-slate-800 bg-slate-950/65 p-3">
+          <div
+            className="mt-4 max-h-[420px] overflow-y-auto rounded-md border border-slate-800 bg-slate-950/65 p-3"
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-busy={isSending}
+          >
             <div className="grid gap-3">
-              {messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`max-w-[92%] rounded-md border px-3 py-2 text-sm leading-6 ${
-                    message.role === "user"
-                      ? "ml-auto border-cyan-300/20 bg-cyan-300/10 text-cyan-50"
-                      : "border-slate-700 bg-slate-900 text-slate-100"
-                  }`}
-                >
-                  {formatMessage(message.content).map((paragraph) => (
-                    <p key={paragraph} className="mb-2 last:mb-0 whitespace-pre-wrap">{paragraph}</p>
-                  ))}
-                </article>
-              ))}
+              {messages.map((message) => {
+                const citationSources = uniqueCitationSources(message.citations);
+
+                return (
+                  <article
+                    key={message.id}
+                    className={`max-w-[92%] rounded-md border px-3 py-2 text-sm leading-6 ${
+                      message.role === "user"
+                        ? "ml-auto border-cyan-300/20 bg-cyan-300/10 text-cyan-50"
+                        : "border-slate-700 bg-slate-900 text-slate-100"
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap">{renderMessageContent(message)}</p>
+                    {citationSources.length > 0 ? (
+                      <div className="mt-3 border-t border-slate-700 pt-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200">{text.citationTitle}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {citationSources.map((citation, index) => (
+                            <a
+                              key={citation.url}
+                              href={citation.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="max-w-full truncate rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/20"
+                            >
+                              [{index + 1}] {citation.title}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
               {isSending ? (
-                <div className="w-fit rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm font-bold text-amber-100">
-                  {text.thinking}
+                <div role="status" className="w-fit max-w-[92%] rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm font-bold leading-6 text-amber-100">
+                  {progressText ?? (effectiveTier === "VIP" ? text.vipThinking : text.thinking)}
                 </div>
               ) : null}
             </div>
@@ -451,6 +696,7 @@ export function AiMarketChatPanel({
               onChange={(event) => setInput(event.target.value)}
               rows={2}
               maxLength={700}
+              aria-label={safeLocale === "tr" ? "Piyasa sorunuzu yazın" : "Enter your market question"}
               placeholder={text.placeholder}
               className="min-h-[64px] resize-none rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-white outline-none transition focus:border-cyan-300"
             />
@@ -462,13 +708,20 @@ export function AiMarketChatPanel({
               {isSending ? "..." : text.send}
             </button>
           </form>
-          {error ? <p className="mt-2 text-xs font-bold text-rose-200">{error}</p> : null}
+          {error ? <p role="alert" className="mt-2 text-xs font-bold text-rose-200">{error}</p> : null}
+          {researchNotice ? <p role="status" className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-bold leading-5 text-amber-100">{researchNotice}</p> : null}
           <div className="mt-3 rounded-md border border-cyan-300/16 bg-cyan-300/8 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">{text.voiceTitle}</p>
               <button
                 type="button"
-                onClick={() => setSpeakAnswers((current) => !current)}
+                onClick={() => setSpeakAnswers((current) => {
+                  if (current) {
+                    stopSpeaking();
+                  }
+                  return !current;
+                })}
+                aria-pressed={speakAnswers}
                 className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-black text-white hover:bg-white/15"
               >
                 {speakAnswers ? text.voiceSpeakOn : text.voiceSpeakOff}
@@ -478,7 +731,8 @@ export function AiMarketChatPanel({
               <button
                 type="button"
                 onClick={() => void startVoiceQuestion()}
-                disabled={!voiceSupported || isSending || isTranscribing}
+                disabled={voiceSupported !== true || isSending || isTranscribing}
+                aria-pressed={isListening}
                 className={`rounded-md px-4 py-2 text-sm font-black ${
                   isListening
                     ? "border border-rose-200 bg-rose-100 text-rose-800"
@@ -489,18 +743,18 @@ export function AiMarketChatPanel({
               </button>
               <button
                 type="button"
-                onClick={() => speak(lastAnswer)}
-                disabled={!lastAnswer || isSpeaking}
+                onClick={() => isSpeaking ? stopSpeaking() : speak(lastAnswer)}
+                disabled={!lastAnswer}
                 className="rounded-md border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55"
               >
-                {isSpeaking ? "..." : text.voiceReplay}
+                {isSpeaking ? text.voiceStopSpeaking : text.voiceReplay}
               </button>
             </div>
             {isListening ? <p className="mt-2 text-xs font-bold text-cyan-100">{text.voiceListening}</p> : null}
             {isTranscribing ? <p className="mt-2 text-xs font-bold text-cyan-100">{text.voiceProcessing}</p> : null}
             {!isListening && !isTranscribing && voiceSupported ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">{text.voiceHint}</p> : null}
             {voiceTranscript ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-200">{voiceTranscript}</p> : null}
-            {voiceError || !voiceSupported ? (
+            {voiceError || voiceSupported === false ? (
               <p className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-5 text-amber-100">
                 {voiceError ?? text.voiceUnsupported}
               </p>
