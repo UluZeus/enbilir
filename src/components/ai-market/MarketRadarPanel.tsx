@@ -47,7 +47,7 @@ const initialTickerGroups: RadarTickerGroups = {
   hourly: [],
   mediumTerm: [],
 };
-const MAX_TICKER_SEGMENTS = 6;
+const MAX_TICKER_SEGMENTS = 2;
 
 const directionBoost: Record<SignalAlertType, number> = {
   STRONG_BUY: 34,
@@ -86,7 +86,7 @@ function getOpportunityScore(alert: MarketScanAlert) {
 }
 
 function selectTopOpportunities(alerts: MarketScanAlert[]) {
-  return [...alerts].sort((left, right) => getOpportunityScore(right) - getOpportunityScore(left)).slice(0, 5);
+  return [...alerts].sort((left, right) => getOpportunityScore(right) - getOpportunityScore(left)).slice(0, 3);
 }
 
 function groupAlerts(alerts: MarketScanAlert[]): RadarGroups {
@@ -131,6 +131,7 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
   const copy = getUiCopy(locale).ai;
   const [tickerGroups, setTickerGroups] = useState<RadarTickerGroups>(initialTickerGroups);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const inProgressRef = useRef(false);
   const scanSequenceRef = useRef(0);
@@ -176,6 +177,11 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
   }, []);
 
   useEffect(() => {
+    if (isPaused) {
+      controllerRef.current?.abort();
+      return;
+    }
+
     const initialId = window.setTimeout(() => {
       void loadOpportunities();
     }, 0);
@@ -188,7 +194,7 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
       window.clearInterval(refreshId);
       controllerRef.current?.abort();
     };
-  }, [loadOpportunities]);
+  }, [isPaused, loadOpportunities]);
 
   return (
     <section className="ai-market-radar-panel min-w-0 max-w-full overflow-hidden rounded-md border border-slate-800 bg-[#0b111d] p-3 text-slate-100 shadow-xl md:p-4">
@@ -204,6 +210,9 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
         .ai-market-radar-track:hover {
           animation-play-state: paused;
         }
+        @media (prefers-reduced-motion: reduce) {
+          .ai-market-radar-track { animation: none; transform: none; }
+        }
         .ai-market-radar-viewport {
           contain: layout paint;
           overflow: clip;
@@ -218,14 +227,27 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
               : "This section scans opportunities every 30 seconds; it is educational and not investment advice."}
           </p>
         </div>
-        <span className="ai-market-radar-status w-fit max-w-full self-start rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100 md:self-auto">
-          {copy.radarStatus}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="ai-market-radar-status w-fit max-w-full rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-100" role="status">
+            {isPaused ? (locale === "tr" ? "Akış duraklatıldı" : "Feed paused") : copy.radarStatus}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setIsPaused((current) => !current);
+              setIsLoading(false);
+            }}
+            aria-pressed={isPaused}
+            className="min-h-9 rounded-full border border-slate-700 bg-slate-900 px-3 text-[11px] font-bold text-slate-200 transition hover:border-cyan-300/50 hover:text-white"
+          >
+            {isPaused ? (locale === "tr" ? "Akışı sürdür" : "Resume feed") : (locale === "tr" ? "Akışı duraklat" : "Pause feed")}
+          </button>
+        </div>
       </div>
       <div className="mt-3 grid gap-2.5">
-        <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" segments={tickerGroups.shortTerm} isLoading={isLoading} />
-        <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" segments={tickerGroups.hourly} isLoading={isLoading} />
-        <RadarTickerRow locale={locale} title={copy.mediumTerm} subtitle="4h / 1d" segments={tickerGroups.mediumTerm} isLoading={isLoading} />
+        <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" segments={tickerGroups.shortTerm} isLoading={isLoading} isPaused={isPaused} />
+        <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" segments={tickerGroups.hourly} isLoading={isLoading} isPaused={isPaused} />
+        <RadarTickerRow locale={locale} title={copy.mediumTerm} subtitle="4h / 1d" segments={tickerGroups.mediumTerm} isLoading={isLoading} isPaused={isPaused} />
       </div>
     </section>
   );
@@ -237,12 +259,14 @@ function RadarTickerRow({
   subtitle,
   segments,
   isLoading,
+  isPaused,
 }: {
   locale: Locale;
   title: string;
   subtitle: string;
   segments: RadarTickerSegment[];
   isLoading: boolean;
+  isPaused: boolean;
 }) {
   const tickerSegments = segments.length > 0 ? segments : [{ id: "radar-fallback", alerts: [] }];
 
@@ -253,7 +277,7 @@ function RadarTickerRow({
         <p className="ai-market-radar-row-subtitle mt-0.5 text-[11px] font-bold text-slate-500">{subtitle}</p>
       </div>
       <div className="ai-market-radar-viewport min-w-0 overflow-hidden rounded-md border border-slate-800 bg-[#070b13] px-3 py-2">
-        <div className="ai-market-radar-track flex w-max min-w-full items-center gap-8">
+        <div className="ai-market-radar-track flex w-max min-w-full items-center gap-8" style={isPaused ? { animationPlayState: "paused" } : undefined}>
           <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="primary" />
           <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="mirror" ariaHidden />
         </div>

@@ -602,7 +602,24 @@ export default async function AdminPage({
     <div className="growth-page grid gap-6">
       <PageHeader title={copy.title} description={copy.description} locale={locale} />
       <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
-      <section className="admin-growth-command rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
+      <nav className="sticky top-20 z-30 -mx-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" aria-label={locale === "tr" ? "Yönetim bölümleri" : "Admin sections"}>
+        <div className="flex min-w-max gap-1">
+          {[
+            ["admin-overview", locale === "tr" ? "Özet" : "Overview"],
+            ["admin-health", locale === "tr" ? "Sistem sağlığı" : "System health"],
+            ["admin-payments", locale === "tr" ? "VIP ödemeleri" : "VIP payments"],
+            ["admin-moderation", locale === "tr" ? "Moderasyon" : "Moderation"],
+            ["admin-appearance", locale === "tr" ? "Görünüm" : "Appearance"],
+            ["admin-content", locale === "tr" ? "İçerik" : "Content"],
+            ["admin-competition", locale === "tr" ? "Yarışmalar" : "Competitions"],
+          ].map(([id, label]) => (
+            <a key={id} href={`#${id}`} className="rounded-xl px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100 hover:text-[#0f766e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0f766e]">
+              {label}
+            </a>
+          ))}
+        </div>
+      </nav>
+      <section id="admin-overview" className="admin-growth-command scroll-mt-40 rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">
@@ -635,7 +652,7 @@ export default async function AdminPage({
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <section id="admin-health" className="grid scroll-mt-40 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="premium-card p-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
             {locale === "tr" ? "Cron / Mail / Rapor sağlık durumu" : "Cron / Mail / Report health"}
@@ -712,7 +729,7 @@ export default async function AdminPage({
         </div>
       </section>
 
-      <section className="premium-card p-6">
+      <section id="admin-payments" className="premium-card scroll-mt-40 p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">Enbilir VIP · Param</p>
@@ -768,7 +785,7 @@ export default async function AdminPage({
         </div>
       </section>
 
-      <section className="premium-card p-6">
+      <section id="admin-moderation" className="premium-card scroll-mt-40 p-6">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
@@ -818,7 +835,7 @@ export default async function AdminPage({
         </div>
       </section>
 
-      <section className="premium-card p-6">
+      <section id="admin-appearance" className="premium-card scroll-mt-40 p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">{copy.visualManagement}</p>
@@ -880,7 +897,7 @@ export default async function AdminPage({
         </form>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <section id="admin-content" className="grid scroll-mt-40 gap-6 lg:grid-cols-[1fr_1fr]">
         <form action={createAdPlacementAction} className="glass-card rounded-lg p-6 shadow-sm">
           <input type="hidden" name="locale" value={locale} />
           <h2 className="text-xl font-black text-[#152033]">{copy.addAd}</h2>
@@ -918,7 +935,7 @@ export default async function AdminPage({
         </AdminList>
       </section>
 
-      <section className="premium-card premium-card--dark overflow-hidden text-white">
+      <section id="admin-competition" className="premium-card premium-card--dark scroll-mt-40 overflow-hidden text-white">
         <div className="border-b border-white/10 p-6">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f5a623]">{copy.competitionManagement}</p>
           <h2 className="mt-2 text-xl font-black">{copy.competitionPeriods}</h2>
@@ -1083,7 +1100,14 @@ function FunnelStep({ label, value, max }: { label: string; value: number; max: 
         <span className="font-black text-[#152033]">{label}</span>
         <span className="font-black text-[#0f766e]">{value} · {percent}%</span>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eee5dc]">
+      <div
+        className="mt-2 h-2 overflow-hidden rounded-full bg-[#eee5dc]"
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={value}
+      >
         <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${Math.min(100, percent)}%` }} />
       </div>
     </div>

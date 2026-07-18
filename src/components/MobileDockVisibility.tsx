@@ -10,5 +10,9 @@ export function MobileDockVisibility({ children, locale }: { children: ReactNode
 
   if (isAuthPage) return null;
 
-  return <div className="fixed inset-x-3 bottom-3 z-30 md:hidden">{children}</div>;
+  return (
+    <div className="mobile-dock-safe-v3 fixed inset-x-3 z-40 md:hidden">
+      {children}
+    </div>
+  );
 }

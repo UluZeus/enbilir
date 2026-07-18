@@ -5,7 +5,10 @@ import { getYahooProviderSymbolCandidates, resolveYahooProviderSymbol } from "@/
 export type AssetPerformanceChanges = {
   "1h": number | null;
   "1d": number | null;
+  "1w": number | null;
   "1m": number | null;
+  "3m": number | null;
+  "6m": number | null;
   "1y": number | null;
 };
 
@@ -60,7 +63,10 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const emptyChanges: AssetPerformanceChanges = {
   "1h": null,
   "1d": null,
+  "1w": null,
   "1m": null,
+  "3m": null,
+  "6m": null,
   "1y": null,
 };
 
@@ -246,7 +252,10 @@ async function getBinanceAssetPerformance(symbol: string): Promise<AssetPerforma
       changes: {
         "1h": calculateChange(currentPrice, getCloseFromEnd(hourlyCandles, 1)),
         "1d": calculateChange(currentPrice, getCloseFromEnd(hourlyCandles, 24)),
+        "1w": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 7 * ONE_DAY_MS)),
         "1m": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 30 * ONE_DAY_MS)),
+        "3m": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 90 * ONE_DAY_MS)),
+        "6m": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 180 * ONE_DAY_MS)),
         "1y": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 365 * ONE_DAY_MS)),
       },
       updatedAt: new Date().toISOString(),
@@ -282,7 +291,10 @@ async function getYahooAssetPerformance(symbol: string): Promise<AssetPerformanc
       changes: {
         "1h": calculateChange(currentPrice, getCloseAtOrBefore(intradayCandles.length > 0 ? intradayCandles : hourlyCandles, now - 60 * 60 * 1000)),
         "1d": calculateChange(currentPrice, getCloseAtOrBefore(hourlyCandles.length > 0 ? hourlyCandles : dailyCandles, now - ONE_DAY_MS)),
+        "1w": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 7 * ONE_DAY_MS)),
         "1m": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 30 * ONE_DAY_MS)),
+        "3m": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 90 * ONE_DAY_MS)),
+        "6m": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 180 * ONE_DAY_MS)),
         "1y": calculateChange(currentPrice, getCloseAtOrBefore(dailyCandles, now - 365 * ONE_DAY_MS)),
       },
       updatedAt: new Date().toISOString(),

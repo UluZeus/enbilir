@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { AdBanner } from "@/components/AdBanner";
 import { FormMessage } from "@/components/FormMessage";
 import { PortfolioDonut } from "@/components/PortfolioDonut";
+import { PortfolioPerformanceDashboard, type PortfolioPerformancePosition } from "@/components/portfolio/PortfolioPerformanceDashboard";
 import { LiveMarketOverview } from "@/components/market/LiveMarketOverview";
 import { SiteMotion } from "@/components/SiteMotion";
 import { TradeTicketForm } from "@/components/TradeTicketForm";
@@ -14,8 +15,10 @@ import { tradeAction, updateCashModeAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
 import { getFallbackMarketItems, getLiveMarketItems } from "@/lib/live-market";
 import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
+import { getPortfolioPerformancePeriods } from "@/lib/portfolio-history";
 import { buildPageMetadata } from "@/lib/seo";
 import { prisma } from "@/lib/prisma";
+import { getTradeAnalysisTarget } from "@/lib/trade-watch";
 import type { DisplayAd } from "@/lib/ads";
 import { localizeMarketText, type MarketItem } from "@/lib/market-data";
 
@@ -97,12 +100,50 @@ export default async function TradePage({
   const dataError = snapshotResult.status === "rejected"
     ? copy.trade.dataError
     : undefined;
+  const portfolioPeriods = snapshot
+    ? await getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd)
+    : [];
+  const performancePositions: PortfolioPerformancePosition[] = snapshot
+    ? snapshot.positions
+        .filter((position) => position.valueUsd > 0)
+        .sort((left, right) => right.valueUsd - left.valueUsd)
+        .map((position) => {
+          const marketItem = marketItems.find((item) => item.symbol.toUpperCase() === position.symbol.toUpperCase());
+          const target = marketItem ? getTradeAnalysisTarget(marketItem) : null;
+
+          return {
+            symbol: position.symbol,
+            name: localizeMarketText(position.name, locale),
+            performanceSymbol: target?.symbol,
+            exchange: target?.exchange,
+            currentValueUsd: position.valueUsd,
+            currentProfitLossUsd: position.profitLossUsd,
+            currentProfitLossPercent: position.competitionCostUsd > 0
+              ? (position.profitLossUsd / position.competitionCostUsd) * 100
+              : null,
+          };
+        })
+    : [];
 
   return (
     <div className="grid gap-6 overflow-x-hidden">
       <FormMessage message={query.error} />
       <FormMessage message={query.success} tone="success" />
       <FormMessage message={dataError} tone="info" />
+      <section className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#101827] px-4 py-3 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#f5c96b]">
+            {locale === "tr" ? "Sanal işlem laboratuvarı" : "Virtual trading lab"}
+          </p>
+          <p className="mt-1 text-sm font-bold text-slate-200">
+            {locale === "tr" ? "Gerçek para kullanılmaz; her karar öğrenme günlüğüne kaydedilir." : "No real money is used; every decision is saved to your learning journal."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs font-black">
+          <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5">1.000.000 USD {locale === "tr" ? "performans bazı" : "performance base"}</span>
+          <span className="rounded-full border border-[#f5c96b]/35 bg-[#f5c96b]/10 px-3 py-1.5 text-[#f9dfaa]">1.100.000 USD {locale === "tr" ? "işlem gücü" : "trading power"}</span>
+        </div>
+      </section>
       {tradeCount === 0 ? (
         <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
           <p className="text-xs font-black uppercase text-emerald-800">{locale === "tr" ? "İlk sanal işlem" : "First virtual trade"}</p>
@@ -114,11 +155,20 @@ export default async function TradePage({
           </div>
         </section>
       ) : null}
+      {snapshot ? (
+        <PortfolioPerformanceDashboard
+          locale={locale}
+          totalValueUsd={snapshot.totalValueUsd}
+          totalPeriods={portfolioPeriods}
+          positions={performancePositions}
+          variant="detailed"
+        />
+      ) : null}
       <div className="hidden md:block">
         <AdBanner ads={topAds} locale={locale} />
       </div>
       <section className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
-        <aside className="order-1 grid min-w-0 content-start gap-5 self-start xl:col-start-1 xl:row-start-1">
+        <aside className="order-1 grid min-w-0 content-start gap-5 self-start xl:sticky xl:top-24 xl:col-start-1 xl:row-start-1">
           <TradePortfolioPanel snapshot={snapshot} copy={copy.trade} locale={locale} />
         </aside>
 
@@ -151,9 +201,25 @@ export default async function TradePage({
             <form action={updateCashModeAction} className="mt-3 flex flex-wrap gap-2 md:mt-4 md:gap-3">
               <input type="hidden" name="locale" value={locale} />
               <input type="hidden" name="userId" value={user.id} />
-              {["USD", "EUR", "CHF", "TRY_REPO"].map((mode) => (
-                <button key={mode} name="cashMode" value={mode} className="rounded-md border border-slate-300 bg-white/70 px-3 py-2 text-xs font-black text-slate-700 hover:border-[#0f766e] hover:shadow-md md:px-4 md:text-sm">{mode}</button>
-              ))}
+              {["USD", "EUR", "CHF", "TRY_REPO"].map((mode) => {
+                const isActive = snapshot?.account.cashMode === mode;
+
+                return (
+                <button
+                  key={mode}
+                  name="cashMode"
+                  value={mode}
+                  aria-pressed={isActive}
+                  className={`rounded-md border px-3 py-2 text-xs font-black transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0f766e] md:px-4 md:text-sm ${
+                    isActive
+                      ? "border-[#0f766e] bg-[#0f766e] text-white shadow-sm"
+                      : "border-slate-300 bg-white/70 text-slate-700 hover:border-[#0f766e] hover:shadow-md"
+                  }`}
+                >
+                  {mode}
+                </button>
+                );
+              })}
             </form>
           </div>
           <AdBanner ads={bottomAds} locale={locale} variant="bottom" />

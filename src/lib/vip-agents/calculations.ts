@@ -69,6 +69,24 @@ export type VipAgentTradePnl = {
   pnlState: "OPEN" | "CLOSED" | "UNKNOWN";
 };
 
+export function calculateVipAgentMaximumDrawdown(snapshots: Snapshot[], performanceBaseUsd: number) {
+  const ordered = [...snapshots].sort((left, right) => left.capturedAt.getTime() - right.capturedAt.getTime());
+  let peak = Number.isFinite(performanceBaseUsd) && performanceBaseUsd > 0 ? performanceBaseUsd : 0;
+  let maximumDrawdownPercent = 0;
+
+  for (const snapshot of ordered) {
+    if (!Number.isFinite(snapshot.performanceEquityUsd) || snapshot.performanceEquityUsd <= 0) continue;
+    peak = Math.max(peak, snapshot.performanceEquityUsd);
+    if (peak <= 0) continue;
+    maximumDrawdownPercent = Math.max(
+      maximumDrawdownPercent,
+      ((peak - snapshot.performanceEquityUsd) / peak) * 100,
+    );
+  }
+
+  return Number(maximumDrawdownPercent.toFixed(4));
+}
+
 export function calculateVipAgentPeriods(
   snapshots: Snapshot[],
   performanceBaseUsd: number,

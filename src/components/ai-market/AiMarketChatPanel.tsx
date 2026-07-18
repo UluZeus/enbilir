@@ -84,6 +84,10 @@ const copy = {
     citationTitle: "Tıklanabilir web kaynakları",
     localMode: "Yerel veri yorumu",
     aiMode: "AI yorum",
+    readyMode: "Hazır",
+    latest: "Son mesaja git",
+    quickTitle: "Hızlı analiz soruları",
+    proofSummary: "Kapsam ve kullanılan kanıt",
     standardTier: "Standart",
     vipTier: "VIP",
     standardTitle: "Standart AI sohbet",
@@ -128,6 +132,10 @@ const copy = {
     citationTitle: "Clickable web sources",
     localMode: "Local data read",
     aiMode: "AI read",
+    readyMode: "Ready",
+    latest: "Jump to latest",
+    quickTitle: "Quick analysis questions",
+    proofSummary: "Scope and evidence used",
     standardTier: "Standard",
     vipTier: "VIP",
     standardTitle: "Standard AI chat",
@@ -177,41 +185,167 @@ function normalizeCitations(content: string, citations: ChatCitation[] | undefin
     .filter((citation, index, all) => index === 0 || citation.startIndex >= all[index - 1].endIndex);
 }
 
-function renderMessageContent(message: ChatMessage): ReactNode {
+function renderMessageRange(message: ChatMessage, rangeStart = 0, rangeEnd = message.content.length): ReactNode {
   const citations = normalizeCitations(message.content, message.citations);
+  const start = Math.max(0, Math.min(rangeStart, message.content.length));
+  const end = Math.max(start, Math.min(rangeEnd, message.content.length));
 
   if (citations.length === 0) {
-    return message.content;
+    return message.content.slice(start, end);
   }
 
   const nodes: ReactNode[] = [];
-  let cursor = 0;
+  let cursor = start;
 
-  citations.forEach((citation, index) => {
-    if (citation.startIndex > cursor) {
-      nodes.push(message.content.slice(cursor, citation.startIndex));
+  citations
+    .map((citation) => ({
+      ...citation,
+      scopedStart: Math.max(start, citation.startIndex),
+      scopedEnd: Math.min(end, citation.endIndex),
+    }))
+    .filter((citation) => citation.scopedEnd > citation.scopedStart)
+    .forEach((citation, index) => {
+    if (citation.scopedStart > cursor) {
+      nodes.push(message.content.slice(cursor, citation.scopedStart));
     }
 
     nodes.push(
       <a
-        key={`${citation.url}-${citation.startIndex}-${index}`}
+        key={`${citation.url}-${citation.scopedStart}-${index}`}
         href={citation.url}
         target="_blank"
         rel="noreferrer"
         title={citation.title}
         className="font-black text-cyan-200 underline decoration-cyan-400/60 underline-offset-2 hover:text-white"
       >
-        {message.content.slice(citation.startIndex, citation.endIndex)}
+        {message.content.slice(citation.scopedStart, citation.scopedEnd)}
       </a>,
     );
-    cursor = citation.endIndex;
+    cursor = citation.scopedEnd;
   });
 
-  if (cursor < message.content.length) {
-    nodes.push(message.content.slice(cursor));
+  if (cursor < end) {
+    nodes.push(message.content.slice(cursor, end));
   }
 
   return nodes;
+}
+
+type InstitutionalSectionKind = "thesis" | "fundamental" | "technical" | "catalyst" | "negative" | "exit" | "scorecard" | "sources";
+
+type InstitutionalSection = {
+  kind: InstitutionalSectionKind;
+  sectionStart: number;
+  titleStart: number;
+  titleEnd: number;
+  bodyStart: number;
+  end: number;
+};
+
+const sectionTone: Record<InstitutionalSectionKind, string> = {
+  thesis: "border-cyan-300/20 bg-cyan-300/8",
+  fundamental: "border-sky-300/20 bg-sky-300/8",
+  technical: "border-violet-300/20 bg-violet-300/8",
+  catalyst: "border-emerald-300/20 bg-emerald-300/8",
+  negative: "border-rose-300/20 bg-rose-300/8",
+  exit: "border-amber-300/20 bg-amber-300/8",
+  scorecard: "border-teal-300/20 bg-teal-300/8",
+  sources: "border-slate-600 bg-slate-800/55",
+};
+
+function normalizeSectionHeading(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/^[\s#>*_\-\d.)]+/, "")
+    .replace(/^[a-h]\s*[.)]\s*/i, "")
+    .replace(/[\s:*_#-]+$/, "")
+    .trim()
+    .toLocaleLowerCase("en-US");
+}
+
+function getSectionKind(value: string): InstitutionalSectionKind | null {
+  const heading = normalizeSectionHeading(value);
+
+  if (/^(tez|yatirim tezi|ana tez|thesis|investment thesis)/.test(heading)) return "thesis";
+  if (/^(temel|matematiksel|serbest nakit|temel kanit|temel analiz|fundamental|financial|free cash|macro|makro)/.test(heading)) return "fundamental";
+  if (/^(teknik|kurumsal teknik|technical|institutional technical|50.*200)/.test(heading)) return "technical";
+  if (/^(kataliz|fiyatlanmamis kataliz|catalyst|unpriced catalyst)/.test(heading)) return "catalyst";
+  if (/^(olumsuz|negatif|karsi tez|bear case|negative|downside)/.test(heading)) return "negative";
+  if (/^(kacis|cikis|gecersiz|stop|escape|exit|invalidation)/.test(heading)) return "exit";
+  if (/^(karne|skor|scorecard|confidence|risk score)/.test(heading)) return "scorecard";
+  if (/^(kaynak|sources|references)/.test(heading)) return "sources";
+  return null;
+}
+
+function splitInstitutionalSections(content: string) {
+  const starts: Array<Omit<InstitutionalSection, "end">> = [];
+  const linePattern = /[^\n]*(?:\n|$)/g;
+
+  for (const match of content.matchAll(linePattern)) {
+    const fullLine = match[0];
+    if (!fullLine) continue;
+    const line = fullLine.replace(/\r?\n$/, "");
+    const trimmed = line.trim();
+    const likelyHeading = trimmed.length > 0
+      && trimmed.length <= 100
+      && (/^(#{1,4}|\*\*|\d+[.)]|[A-Ha-h][.)]\s+|[A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s/&-]{3,}:?$)/.test(trimmed) || trimmed.endsWith(":"));
+
+    if (!likelyHeading) continue;
+    const kind = getSectionKind(trimmed);
+    if (!kind) continue;
+
+    const title = trimmed.replace(/^(#{1,4}\s*|\*\*|\d+[.)]\s*|[A-Ha-h][.)]\s*)/, "").replace(/\*\*$/, "").replace(/:$/, "").trim();
+    const titleOffset = line.indexOf(title);
+    const lineStart = match.index ?? 0;
+    starts.push({
+      kind,
+      sectionStart: lineStart,
+      titleStart: lineStart + Math.max(0, titleOffset),
+      titleEnd: lineStart + Math.max(0, titleOffset) + title.length,
+      bodyStart: lineStart + fullLine.length,
+    });
+  }
+
+  return starts.map((section, index) => ({
+    ...section,
+    end: starts[index + 1]?.sectionStart ?? content.length,
+  }));
+}
+
+function renderInstitutionalMessage(message: ChatMessage) {
+  if (message.role === "user") {
+    return <p className="whitespace-pre-wrap">{renderMessageRange(message)}</p>;
+  }
+
+  const sections = splitInstitutionalSections(message.content);
+  if (sections.length === 0) {
+    return <p className="whitespace-pre-wrap">{renderMessageRange(message)}</p>;
+  }
+
+  const firstSectionStart = sections[0].sectionStart;
+
+  return (
+    <div className="grid gap-2.5">
+      {firstSectionStart > 0 && message.content.slice(0, firstSectionStart).trim() ? (
+        <p className="whitespace-pre-wrap text-slate-200">{renderMessageRange(message, 0, firstSectionStart)}</p>
+      ) : null}
+      <div className="grid gap-2 md:grid-cols-2">
+        {sections.map((section, index) => (
+          <section key={`${section.kind}-${section.titleStart}-${index}`} className={`min-w-0 rounded-lg border p-3 ${sectionTone[section.kind]}`}>
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-white">
+              {renderMessageRange(message, section.titleStart, section.titleEnd)}
+            </h3>
+            {message.content.slice(section.bodyStart, section.end).trim() ? (
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                {renderMessageRange(message, section.bodyStart, section.end)}
+              </p>
+            ) : null}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function uniqueCitationSources(citations: ChatCitation[] | undefined) {
@@ -293,6 +427,10 @@ export function AiMarketChatPanel({
   const chatAbortControllerRef = useRef<AbortController | null>(null);
   const transcriptionAbortControllerRef = useRef<AbortController | null>(null);
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
+  const messageViewportRef = useRef<HTMLDivElement | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToLatestRef = useRef(true);
+  const [showLatestButton, setShowLatestButton] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -301,6 +439,13 @@ export function AiMarketChatPanel({
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (shouldStickToLatestRef.current) {
+      const viewport = messageViewportRef.current;
+      viewport?.scrollTo({ top: viewport.scrollHeight, behavior: messages.length > 1 ? "smooth" : "auto" });
+    }
+  }, [isSending, messages, progressText]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -384,6 +529,8 @@ export function AiMarketChatPanel({
     }
 
     const userMessage: ChatMessage = { id: newId("user"), role: "user", content: cleanQuestion };
+    shouldStickToLatestRef.current = true;
+    setShowLatestButton(false);
     stopSpeaking();
     setMessages((current) => [...current, userMessage]);
     setInput("");
@@ -438,6 +585,22 @@ export function AiMarketChatPanel({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void ask(input);
+  }
+
+  function handleMessageScroll() {
+    const viewport = messageViewportRef.current;
+    if (!viewport) return;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const isNearBottom = distanceFromBottom < 72;
+    shouldStickToLatestRef.current = isNearBottom;
+    setShowLatestButton(!isNearBottom);
+  }
+
+  function scrollToLatest() {
+    shouldStickToLatestRef.current = true;
+    setShowLatestButton(false);
+    const viewport = messageViewportRef.current;
+    viewport?.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
   }
 
   async function requestMicrophoneAccess() {
@@ -626,21 +789,39 @@ export function AiMarketChatPanel({
   }
 
   return (
-    <section className="ai-market-chat-panel mx-auto mb-4 max-w-[1600px] rounded-[1.25rem] border border-slate-800 bg-[#08111f] p-3 text-white shadow-2xl md:p-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">{text.kicker}</p>
-              <h2 className="mt-1 text-xl font-black text-white md:text-2xl">{text.title}</h2>
-            </div>
-            <span className="w-fit rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-100">
-              {effectiveTier === "VIP" ? text.vipTier : text.standardTier} · {mode === "openai" ? text.aiMode : text.localMode}
-            </span>
-          </div>
+    <section className={`ai-market-chat-panel mx-auto mb-4 w-full max-w-[1600px] rounded-2xl border p-3 text-white shadow-2xl md:p-4 ${effectiveTier === "VIP" ? "border-amber-300/25 bg-[linear-gradient(145deg,#08111f,#111827_68%,#241d10)]" : "border-slate-800 bg-[#08111f]"}`}>
+      <header className="flex flex-col gap-2 px-1 pb-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${effectiveTier === "VIP" ? "text-amber-200" : "text-cyan-200"}`}>{text.kicker}</p>
+          <h2 className="mt-1 text-xl font-bold tracking-tight text-white md:text-2xl">{text.title}</h2>
+        </div>
+        <span className={`w-fit rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${effectiveTier === "VIP" ? "border-amber-300/25 bg-amber-300/10 text-amber-100" : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>
+          {effectiveTier === "VIP" ? text.vipTier : text.standardTier} · {mode === null ? text.readyMode : mode === "openai" ? text.aiMode : text.localMode}
+        </span>
+      </header>
 
+      <div className="mb-3 overflow-x-auto pb-1" aria-label={text.quickTitle}>
+        <div className="flex min-w-max gap-2">
+          {prompts.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => void ask(prompt)}
+              disabled={isSending}
+              className="min-h-10 max-w-[300px] rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-left text-xs font-semibold leading-4 text-slate-200 transition hover:border-cyan-300/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="relative flex h-[clamp(540px,70vh,780px)] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950/65">
           <div
-            className="mt-4 max-h-[420px] overflow-y-auto rounded-md border border-slate-800 bg-slate-950/65 p-3"
+            ref={messageViewportRef}
+            onScroll={handleMessageScroll}
+            className="min-h-0 flex-1 overflow-y-auto p-3 md:p-4"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
@@ -653,24 +834,24 @@ export function AiMarketChatPanel({
                 return (
                   <article
                     key={message.id}
-                    className={`max-w-[92%] rounded-md border px-3 py-2 text-sm leading-6 ${
+                    className={`rounded-xl border px-3 py-3 text-sm leading-6 md:px-4 ${
                       message.role === "user"
-                        ? "ml-auto border-cyan-300/20 bg-cyan-300/10 text-cyan-50"
-                        : "border-slate-700 bg-slate-900 text-slate-100"
+                        ? "ml-auto max-w-[88%] border-cyan-300/20 bg-cyan-300/10 text-cyan-50"
+                        : "w-full border-slate-700 bg-slate-900/90 text-slate-100"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{renderMessageContent(message)}</p>
+                    {renderInstitutionalMessage(message)}
                     {citationSources.length > 0 ? (
-                      <div className="mt-3 border-t border-slate-700 pt-2">
-                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200">{text.citationTitle}</p>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <div className="mt-3 border-t border-slate-700 pt-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200">{text.citationTitle}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
                           {citationSources.map((citation, index) => (
                             <a
                               key={citation.url}
                               href={citation.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="max-w-full truncate rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/20"
+                              className="max-w-full truncate rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 transition hover:bg-cyan-300/20 hover:text-white"
                             >
                               [{index + 1}] {citation.title}
                             </a>
@@ -682,146 +863,127 @@ export function AiMarketChatPanel({
                 );
               })}
               {isSending ? (
-                <div role="status" className="w-fit max-w-[92%] rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm font-bold leading-6 text-amber-100">
+                <div role="status" className="w-fit max-w-[92%] rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm font-semibold leading-6 text-amber-100">
+                  <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" aria-hidden="true" />
                   {progressText ?? (effectiveTier === "VIP" ? text.vipThinking : text.thinking)}
                 </div>
               ) : null}
+              <div ref={messageEndRef} aria-hidden="true" />
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_110px]">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              rows={2}
-              maxLength={700}
-              aria-label={safeLocale === "tr" ? "Piyasa sorunuzu yazın" : "Enter your market question"}
-              placeholder={text.placeholder}
-              className="min-h-[64px] resize-none rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-white outline-none transition focus:border-cyan-300"
-            />
+          {showLatestButton ? (
             <button
-              type="submit"
-              disabled={isSending}
-              className="rounded-md border border-cyan-200 bg-cyan-100 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-55"
+              type="button"
+              onClick={scrollToLatest}
+              className="absolute bottom-36 right-4 z-10 rounded-full border border-cyan-300/30 bg-slate-900/95 px-3 py-2 text-xs font-bold text-cyan-100 shadow-xl backdrop-blur"
             >
-              {isSending ? "..." : text.send}
+              ↓ {text.latest}
             </button>
-          </form>
-          {error ? <p role="alert" className="mt-2 text-xs font-bold text-rose-200">{error}</p> : null}
-          {researchNotice ? <p role="status" className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-bold leading-5 text-amber-100">{researchNotice}</p> : null}
-          <div className="mt-3 rounded-md border border-cyan-300/16 bg-cyan-300/8 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">{text.voiceTitle}</p>
-              <button
-                type="button"
-                onClick={() => setSpeakAnswers((current) => {
-                  if (current) {
-                    stopSpeaking();
-                  }
-                  return !current;
-                })}
-                aria-pressed={speakAnswers}
-                className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-black text-white hover:bg-white/15"
-              >
-                {speakAnswers ? text.voiceSpeakOn : text.voiceSpeakOff}
-              </button>
+          ) : null}
+
+          <div className="sticky bottom-0 border-t border-slate-800 bg-[#0a1220]/95 p-2.5 backdrop-blur-xl md:p-3">
+            <form onSubmit={handleSubmit} className="grid gap-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                rows={2}
+                maxLength={700}
+                aria-label={safeLocale === "tr" ? "Piyasa sorunuzu yazın" : "Enter your market question"}
+                placeholder={text.placeholder}
+                className="min-h-[64px] resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium leading-6 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/10"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void startVoiceQuestion()}
+                  disabled={voiceSupported !== true || isSending || isTranscribing}
+                  aria-pressed={isListening}
+                  aria-label={isListening ? text.voiceStop : text.voiceStart}
+                  className={`min-h-10 rounded-lg border px-3 text-xs font-bold transition ${isListening ? "border-rose-200 bg-rose-100 text-rose-800" : "border-slate-700 bg-slate-900 text-slate-100 hover:border-cyan-300/60"} disabled:cursor-not-allowed disabled:opacity-45`}
+                >
+                  <span aria-hidden="true">●</span> {isListening ? text.voiceStop : text.voiceStart}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSpeakAnswers((current) => {
+                    if (current) stopSpeaking();
+                    return !current;
+                  })}
+                  aria-pressed={speakAnswers}
+                  className="min-h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-bold text-slate-100 transition hover:border-cyan-300/60"
+                >
+                  {speakAnswers ? text.voiceSpeakOn : text.voiceSpeakOff}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => isSpeaking ? stopSpeaking() : speak(lastAnswer)}
+                  disabled={!lastAnswer}
+                  className="min-h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-bold text-slate-100 transition hover:border-cyan-300/60 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {isSpeaking ? text.voiceStopSpeaking : text.voiceReplay}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSending}
+                  className={`min-h-10 flex-1 rounded-lg px-5 text-sm font-bold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55 sm:flex-none ${effectiveTier === "VIP" ? "bg-amber-200" : "bg-cyan-100"}`}
+                >
+                  {isSending ? "…" : text.send}
+                </button>
+              </div>
+            </form>
+            <div className="mt-2 min-h-5" aria-live="polite">
+              {isListening ? <p className="text-xs font-bold text-cyan-100">{text.voiceListening}</p> : null}
+              {isTranscribing ? <p className="text-xs font-bold text-cyan-100">{text.voiceProcessing}</p> : null}
+              {voiceTranscript && !isListening && !isTranscribing ? <p className="truncate text-xs text-slate-400">{voiceTranscript}</p> : null}
+              {voiceError || voiceSupported === false ? <p role="alert" className="text-xs font-semibold text-amber-100">{voiceError ?? text.voiceUnsupported}</p> : null}
+              {error ? <p role="alert" className="text-xs font-bold text-rose-200">{error}</p> : null}
+              {researchNotice ? <p role="status" className="text-xs font-semibold text-amber-100">{researchNotice}</p> : null}
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void startVoiceQuestion()}
-                disabled={voiceSupported !== true || isSending || isTranscribing}
-                aria-pressed={isListening}
-                className={`rounded-md px-4 py-2 text-sm font-black ${
-                  isListening
-                    ? "border border-rose-200 bg-rose-100 text-rose-800"
-                    : "border border-cyan-200 bg-cyan-100 text-slate-950"
-                } disabled:cursor-not-allowed disabled:opacity-55`}
-              >
-                {isListening ? text.voiceStop : text.voiceStart}
-              </button>
-              <button
-                type="button"
-                onClick={() => isSpeaking ? stopSpeaking() : speak(lastAnswer)}
-                disabled={!lastAnswer}
-                className="rounded-md border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55"
-              >
-                {isSpeaking ? text.voiceStopSpeaking : text.voiceReplay}
-              </button>
-            </div>
-            {isListening ? <p className="mt-2 text-xs font-bold text-cyan-100">{text.voiceListening}</p> : null}
-            {isTranscribing ? <p className="mt-2 text-xs font-bold text-cyan-100">{text.voiceProcessing}</p> : null}
-            {!isListening && !isTranscribing && voiceSupported ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">{text.voiceHint}</p> : null}
-            {voiceTranscript ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-200">{voiceTranscript}</p> : null}
-            {voiceError || voiceSupported === false ? (
-              <p className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-5 text-amber-100">
-                {voiceError ?? text.voiceUnsupported}
-              </p>
-            ) : null}
           </div>
         </div>
 
-        <aside className="grid content-start gap-3 rounded-md border border-slate-800 bg-slate-950/45 p-3">
-          <div className={`rounded-md border p-3 ${effectiveTier === "VIP" ? "border-emerald-300/25 bg-emerald-300/10" : "border-cyan-300/20 bg-cyan-300/10"}`}>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-200">
-              {effectiveTier === "VIP" ? text.vipTitle : text.standardTitle}
-            </p>
-            <p className="mt-2 text-xs font-semibold leading-5 text-slate-200">
-              {effectiveTier === "VIP" ? text.vipBody : text.standardBody}
-            </p>
+        <aside className="grid content-start gap-3">
+          <section className={`rounded-xl border p-3 ${effectiveTier === "VIP" ? "border-amber-300/25 bg-amber-300/10" : "border-cyan-300/20 bg-cyan-300/8"}`}>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white">{effectiveTier === "VIP" ? text.vipTitle : text.standardTitle}</p>
+            <p className="mt-2 text-xs font-medium leading-5 text-slate-300">{effectiveTier === "VIP" ? text.vipBody : text.standardBody}</p>
             {effectiveTier === "VIP" && vipPaidUntil ? (
-              <p className="mt-2 text-[11px] font-bold text-emerald-100">
+              <p className="mt-2 text-[11px] font-bold text-amber-100">
                 {safeLocale === "tr" ? "VIP bitiş" : "VIP until"}: {new Intl.DateTimeFormat(safeLocale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium" }).format(new Date(vipPaidUntil))}
               </p>
             ) : null}
-            <div className="mt-3 grid gap-2">
-              {standardPaymentLink ? (
-                <a href={standardPaymentLink} target="_blank" rel="noreferrer" className="rounded-md border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/15">
-                  {text.standardPay}
-                </a>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {effectiveTier !== "VIP" && standardPaymentLink ? (
+                <a href={standardPaymentLink} target="_blank" rel="noreferrer" className="min-h-9 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10">{text.standardPay}</a>
               ) : null}
-              {vipPaymentLink ? (
-                <a href={vipPaymentLink} target="_blank" rel="noreferrer" className="rounded-md border border-emerald-200 bg-emerald-100 px-3 py-2 text-xs font-black text-slate-950 hover:bg-white">
-                  {text.vipPay}
-                </a>
+              {effectiveTier !== "VIP" && vipPaymentLink ? (
+                <a href={vipPaymentLink} target="_blank" rel="noreferrer" className="min-h-9 rounded-lg border border-amber-200/30 bg-amber-200/10 px-3 py-2 text-xs font-bold text-amber-100 hover:bg-amber-200/15">{text.vipPay}</a>
               ) : null}
             </div>
-          </div>
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{text.sourceTitle}</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {(sources.length > 0
-                ? sources
-                : safeLocale === "tr"
-                  ? [{ label: "Veri", value: "Hazır" }, { label: "Kapsam", value: "Site içi" }]
-                  : [{ label: "Data", value: "Ready" }, { label: "Scope", value: "Site context" }]
-              ).map((source) => (
-                <div key={`${source.label}-${source.value}`} className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-2">
-                  <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{source.label}</p>
-                  <p className="mt-1 truncate text-xs font-black text-slate-100">{source.value}</p>
+          </section>
+
+          <details className="group rounded-xl border border-slate-800 bg-slate-950/45">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-300 marker:content-none">
+              {text.proofSummary}
+              <span aria-hidden="true" className="text-lg transition group-open:rotate-45">+</span>
+            </summary>
+            <div className="border-t border-slate-800 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{text.sourceTitle}</p>
+              {sources.length > 0 ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {sources.map((source) => (
+                    <div key={`${source.label}-${source.value}`} className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2">
+                      <p className="truncate text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{source.label}</p>
+                      <p className="mt-1 truncate text-xs font-semibold text-slate-100">{source.value}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : <p className="mt-2 text-xs leading-5 text-slate-400">{safeLocale === "tr" ? "İlk analizden sonra veri kapsamı burada görünür." : "Evidence scope appears here after the first analysis."}</p>}
             </div>
-          </div>
+          </details>
 
-          <div className="grid gap-2">
-            {prompts.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => void ask(prompt)}
-                disabled={isSending}
-                className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-left text-xs font-bold leading-5 text-slate-200 transition hover:border-cyan-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-
-          <p className="rounded-md border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-5 text-amber-100">
-            {text.note}
-          </p>
+          <p className="rounded-xl border border-amber-300/15 bg-amber-300/8 px-3 py-2.5 text-xs font-medium leading-5 text-amber-50">{text.note}</p>
         </aside>
       </div>
     </section>

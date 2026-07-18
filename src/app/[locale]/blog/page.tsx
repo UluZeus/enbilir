@@ -98,23 +98,23 @@ export default async function BlogPage({
   const evergreenNotes = getEvergreenNotes(locale);
 
   return (
-    <div className="grid gap-6">
-      <section className="premium-card premium-card--interactive p-6">
+    <div className="blog-page-v3 grid gap-7">
+      <section className="blog-hero-v3 p-6 md:p-8">
         <div className="site-page-hero-grid">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{locale === "en" ? "Enbilir reading room" : "Enbilir okuma alanı"}</p>
-            <h1 className="mt-2 text-3xl font-black text-[#152033]">{copy.title}</h1>
-            <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{copy.description}</p>
+            <p className="section-eyebrow-v3">{locale === "en" ? "Enbilir reading room" : "Enbilir okuma alanı"}</p>
+            <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-950 md:text-5xl">{copy.title}</h1>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">{copy.description}</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {categoryOptions.map(([code, label]) => (
                 <Link
                   key={code}
                   href={code === "ALL" ? `/${locale}/blog` : `/${locale}/blog?kategori=${code}`}
                   aria-current={selectedCategory === code ? "page" : undefined}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                     selectedCategory === code
-                      ? "border-[#0f766e] bg-[#0f766e] text-white"
-                      : "border-slate-200 bg-white/80 text-slate-700 hover:border-[#0f766e] hover:text-[#0f766e]"
+                      ? "border-teal-700 bg-teal-700 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-teal-700 hover:text-teal-800"
                   }`}
                 >
                   {label}
@@ -128,7 +128,7 @@ export default async function BlogPage({
         </div>
       </section>
       {selectedCategory === "COMMUNITY" ? (
-        <section className="premium-card premium-card--interactive p-6">
+        <section className="surface-card-v3 p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
@@ -149,11 +149,41 @@ export default async function BlogPage({
           </div>
         </section>
       ) : null}
-      <section className="premium-card premium-card--interactive p-6">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+
+      <section aria-labelledby="latest-articles-title" className="grid gap-4">
+        <div>
+          <p className="section-eyebrow-v3">{locale === "tr" ? "Güncel içerikler" : "Latest articles"}</p>
+          <h2 id="latest-articles-title" className="mt-2 text-2xl font-bold text-slate-950">{locale === "tr" ? "Önce okumak istediğini seç" : "Choose what you want to read first"}</h2>
+        </div>
+        {posts.length > 0 ? (
+          <ManagedContentList
+            items={filteredPosts}
+            emptyTitle={locale === "en" ? "No article in this category yet" : "Bu kategoride henüz yazı yok"}
+            emptyBody={locale === "en" ? "Try another category or return to all articles." : "Başka bir kategori seçebilir veya tüm yazılara dönebilirsin."}
+            featuredLabel={locale === "en" ? "Featured" : "Öne çıkan"}
+            showBody={false}
+            linkBasePath={`/${locale}/blog`}
+            linkLabel={locale === "en" ? "Read article" : "Yazıyı oku"}
+          />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {starterPosts.map((post) => (
+              <article key={post.title} className="surface-card-v3 flex min-h-64 flex-col p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal-700">{post.tag}</p>
+                <h3 className="mt-3 text-xl font-bold text-slate-950">{post.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{post.excerpt}</p>
+                <p className="mt-auto pt-5 text-xs font-semibold text-slate-500">{locale === "tr" ? "5 dk okuma" : "5 min read"}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="surface-card-v3 p-6">
+        <p className="section-eyebrow-v3">
           {locale === "tr" ? "Haftalık içerik takvimi" : "Weekly content calendar"}
         </p>
-        <h2 className="mt-2 text-2xl font-black text-[#152033]">
+        <h2 className="mt-2 text-2xl font-bold text-slate-950">
           {locale === "tr" ? "Her günün amacı farklı: oku, uygula, karşılaştır, değerlendir." : "Each day has a role: read, apply, compare, and review."}
         </h2>
         <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
@@ -163,21 +193,26 @@ export default async function BlogPage({
         </p>
         <div className="mt-5 grid gap-3 md:grid-cols-4">
           {contentCalendar.map((item) => (
-            <a key={item.day} href={`#${item.id}`} className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-200/70 transition hover:-translate-y-0.5 hover:ring-[#0f766e]/50">
-              <p className="text-sm font-black text-[#152033]">{item.day}</p>
-              <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">{item.theme}</p>
+            <div key={item.day} className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+              <p className="text-sm font-bold text-slate-950">{item.day}</p>
+              <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-teal-700">{item.theme}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
-            </a>
+            </div>
           ))}
         </div>
       </section>
-      <section className="grid gap-4">
+      <details className="blog-calendar-details-v3 surface-card-v3 p-5 md:p-6">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-bold text-slate-950">
+          <span>{locale === "tr" ? "Haftalık çalışma planının ayrıntılarını aç" : "Open the detailed weekly study plan"}</span>
+          <span aria-hidden="true" className="text-teal-700">＋</span>
+        </summary>
+      <section className="mt-5 grid gap-4">
         {contentCalendar.map((item) => (
-          <article key={item.id} id={item.id} className="premium-card premium-card--interactive p-6 scroll-mt-32">
+          <article key={item.id} id={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 scroll-mt-24 md:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{item.day} · {item.theme}</p>
-                <h2 className="mt-2 text-2xl font-black text-[#152033]">{item.title}</h2>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal-700">{item.day} · {item.theme}</p>
+                <h2 className="mt-2 text-2xl font-bold text-slate-950">{item.title}</h2>
                 <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{item.body}</p>
               </div>
               <Link href={item.ctaHref} className="premium-action inline-flex shrink-0 px-4 py-2 text-xs font-black">
@@ -205,42 +240,18 @@ export default async function BlogPage({
           </article>
         ))}
       </section>
+      </details>
       <section className="grid gap-4 md:grid-cols-2">
         {evergreenNotes.map((item) => (
-          <article key={item.title} className="premium-card premium-card--interactive p-6">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{item.eyebrow}</p>
-            <h2 className="mt-2 text-xl font-black text-[#152033]">{item.title}</h2>
+          <article key={item.title} className="surface-card-v3 p-6">
+            <p className="section-eyebrow-v3">{item.eyebrow}</p>
+            <h2 className="mt-2 text-xl font-bold text-slate-950">{item.title}</h2>
             <div className="mt-3 grid gap-3 text-sm leading-7 text-slate-600">
               {item.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
             </div>
           </article>
         ))}
       </section>
-      {posts.length > 0 ? (
-        <ManagedContentList
-          items={filteredPosts}
-          emptyTitle={locale === "en" ? "No article in this category yet" : "Bu kategoride henüz yazı yok"}
-          emptyBody={locale === "en" ? "Try another category or return to all articles." : "Başka bir kategori seçebilir veya tüm yazılara dönebilirsin."}
-          featuredLabel={locale === "en" ? "Featured" : "Öne çıkan"}
-          showBody={false}
-          linkBasePath={`/${locale}/blog`}
-          linkLabel={locale === "en" ? "Read article" : "Yazıyı oku"}
-        />
-      ) : (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {starterPosts.map((post) => (
-            <article key={post.title} className="premium-card premium-card--interactive p-6">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{post.tag}</p>
-              <h2 className="mt-2 text-xl font-black text-[#152033]">{post.title}</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{post.excerpt}</p>
-              <div className="mt-4 rounded-xl bg-[#f8fafc] p-3">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{locale === "tr" ? "SEO anahtarları" : "SEO keywords"}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{post.keywords.join(" • ")}</p>
-              </div>
-            </article>
-          ))}
-        </section>
-      )}
     </div>
   );
 }

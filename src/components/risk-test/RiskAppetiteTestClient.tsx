@@ -15,6 +15,7 @@ import {
 import type { Locale } from "@/i18n/config";
 
 type Answers = Record<number, number>;
+type RiskDimension = { label: string; score: number; note: string };
 type SavedRiskTestState = {
   answers: Answers;
   currentIndex: number;
@@ -45,6 +46,7 @@ type RiskTestCopy = {
   introFacts: string[];
   howItWorks: Array<[string, string, string]>;
   questions: string;
+  questionNavigatorHint: string;
   scoreLabel: string;
   scoreScale: string;
   low: string;
@@ -61,6 +63,7 @@ type RiskTestCopy = {
   pdf: string;
   pdfHint: string;
   emailTitle: string;
+  emailLabel: string;
   emailPlaceholder: string;
   emailButton: string;
   emailSending: string;
@@ -69,6 +72,9 @@ type RiskTestCopy = {
   emailError: string;
   emailSentFallback: string;
   printTitle: string;
+  dimensionsTitle: string;
+  dimensionLabels: [string, string, string, string];
+  dimensionNote: string;
 };
 
 const copyByLocale: Record<Locale, RiskTestCopy> = {
@@ -95,6 +101,7 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
       ["3", "Rapor al", "Ortalama puanına göre risk profili, davranışsal riskler ve sanal portföy önerileri gösterilir."],
     ],
     questions: "Sorular",
+    questionNavigatorHint: "Soruları gözden geçir",
     scoreLabel: "Ortalama puan",
     scoreScale: "1.00 düşük, 5.00 yüksek risk iştahı",
     low: "Çok düşük",
@@ -111,6 +118,7 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
     pdf: "PDF Olarak İndir",
     pdfHint: "PDF butonu tarayıcının yazdırma ekranını açar; hedef olarak PDF kaydet seçilebilir.",
     emailTitle: "Raporu E-Postama Gönder",
+    emailLabel: "Raporun gönderileceği e-posta adresi",
     emailPlaceholder: "ornek@eposta.com",
     emailButton: "Raporu E-Postama Gönder",
     emailSending: "Gönderiliyor...",
@@ -119,6 +127,9 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
     emailError: "Rapor gönderilemedi.",
     emailSentFallback: "Rapor özeti e-posta adresine gönderildi.",
     printTitle: "Enbilir Risk İştahı Testi",
+    dimensionsTitle: "Yanıtlarının dört davranışsal görünümü",
+    dimensionLabels: ["Vade", "Kayıp tepkisi", "Çeşitlendirme", "Risk toleransı"],
+    dimensionNote: "Eğitsel gruplama · 1 düşük · 5 yüksek",
   },
   en: {
     questionLabel: "Question",
@@ -143,6 +154,7 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
       ["3", "Get report", "Your average score becomes a risk profile with behavioral risks and virtual portfolio suggestions."],
     ],
     questions: "Questions",
+    questionNavigatorHint: "Review questions",
     scoreLabel: "Average score",
     scoreScale: "1.00 low, 5.00 high risk appetite",
     low: "Very low",
@@ -159,6 +171,7 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
     pdf: "Download as PDF",
     pdfHint: "The PDF button opens your browser print screen; choose Save as PDF as the destination.",
     emailTitle: "Send Report to My Email",
+    emailLabel: "Email address for the report",
     emailPlaceholder: "name@email.com",
     emailButton: "Send Report to My Email",
     emailSending: "Sending...",
@@ -167,8 +180,37 @@ const copyByLocale: Record<Locale, RiskTestCopy> = {
     emailError: "The report could not be sent.",
     emailSentFallback: "The report summary was sent to your email address.",
     printTitle: "Enbilir Risk Appetite Test",
+    dimensionsTitle: "Four behavioral views of your answers",
+    dimensionLabels: ["Time horizon", "Loss response", "Diversification", "Risk tolerance"],
+    dimensionNote: "Educational grouping · 1 low · 5 high",
   },
 };
+
+function averageDimensionScore(questions: RiskQuestion[], answers: Answers, questionIds: ReadonlySet<number>, fallback: number) {
+  const scores = questions
+    .filter((question) => questionIds.has(question.id))
+    .map((question) => answers[question.id])
+    .filter((score): score is number => Number.isFinite(score));
+
+  return scores.length > 0 ? scores.reduce((total, score) => total + score, 0) / scores.length : fallback;
+}
+
+function buildRiskDimensions(questions: RiskQuestion[], answers: Answers, locale: Locale, fallback: number): RiskDimension[] {
+  const labels = copyByLocale[locale].dimensionLabels;
+  // The active 20-question set is partitioned exactly once across these four
+  // educational lenses. Stable question IDs avoid locale-dependent category matching.
+  const questionGroups = [
+    new Set([3, 14]),
+    new Set([2, 10, 12, 16, 32]),
+    new Set([5, 9, 17]),
+    new Set([1, 6, 8, 11, 13, 18, 20, 21, 27, 35]),
+  ];
+
+  return labels.map((label, index) => {
+    const score = averageDimensionScore(questions, answers, questionGroups[index], fallback);
+    return { label, score, note: `${formatRiskScore(score)} / 5` };
+  });
+}
 
 function getInitialState(questions: RiskQuestion[], locale: Locale): SavedRiskTestState {
   if (typeof window === "undefined") {
@@ -217,6 +259,10 @@ export function RiskAppetiteTestClient({ locale, isSignedIn }: { locale: Locale;
   const progress = Math.round((answeredCount / questions.length) * 100);
   const averageScore = useMemo(() => calculateAverageScoreForQuestions(questions, answers), [answers, questions]);
   const profile = averageScore === null ? null : getRiskProfileForLocale(averageScore, locale);
+  const riskDimensions = useMemo(
+    () => buildRiskDimensions(questions, answers, locale, averageScore ?? 3),
+    [answers, averageScore, locale, questions],
+  );
   const selectedScore = answers[currentQuestion.id];
 
   useEffect(() => {
@@ -361,6 +407,7 @@ export function RiskAppetiteTestClient({ locale, isSignedIn }: { locale: Locale;
     return (
       <ResultReport
         averageScore={averageScore}
+        dimensions={riskDimensions}
         profile={profile}
         email={email}
         emailStatus={emailStatus}
@@ -380,22 +427,24 @@ export function RiskAppetiteTestClient({ locale, isSignedIn }: { locale: Locale;
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-4">
       <section ref={questionSectionRef} className="premium-card scroll-mt-32 overflow-hidden p-4 md:scroll-mt-6 md:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.questionLabel} {currentIndex + 1}/{questions.length}</p>
-            <h2 className="mt-1.5 text-lg font-black leading-6 text-[#152033] md:text-xl md:leading-7">{currentQuestion.question}</h2>
-            <p className="mt-1 text-xs font-bold text-slate-500">{currentQuestion.category}</p>
-          </div>
-          <div className="shrink-0 rounded-lg border border-[#d1bfa7]/40 bg-[#fffaf6] px-3 py-2 text-xs font-black text-[#152033]">
-            {copy.completed}: {answeredCount}/{questions.length}
-          </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0f766e]">{copy.questionLabel} {currentIndex + 1}/{questions.length}</p>
+          <h2 id="risk-question-title" className="mt-1.5 text-lg font-bold leading-6 text-[#152033] md:text-xl md:leading-7">{currentQuestion.question}</h2>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{currentQuestion.category}</p>
         </div>
 
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+        <div
+          className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"
+          role="progressbar"
+          aria-label={`${copy.completed}: ${answeredCount}/${questions.length}`}
+          aria-valuemin={0}
+          aria-valuemax={questions.length}
+          aria-valuenow={answeredCount}
+        >
           <div className="h-full rounded-full bg-gradient-to-r from-[#0f766e] via-[#38bdf8] to-[#f5a623] transition-all" style={{ width: `${progress}%` }} />
         </div>
 
-        <div className="mt-4 grid gap-2">
+        <div className="mt-4 grid gap-2" role="group" aria-labelledby="risk-question-title">
           {currentQuestion.options.map((option) => {
             const isSelected = selectedScore === option.score;
             return (
@@ -405,7 +454,7 @@ export function RiskAppetiteTestClient({ locale, isSignedIn }: { locale: Locale;
                 onClick={() => chooseAnswer(option.score)}
                 disabled={isAdvancing}
                 aria-pressed={isSelected}
-                className={`grid grid-cols-[36px_1fr] items-center gap-3 rounded-lg border px-3 py-2.5 text-left shadow-sm transition disabled:cursor-wait ${
+                className={`grid min-h-12 grid-cols-[36px_1fr] items-center gap-3 rounded-lg border px-3 py-2.5 text-left shadow-sm transition disabled:cursor-wait ${
                   isSelected
                     ? "border-[#0f766e] bg-emerald-50 text-[#152033] ring-2 ring-emerald-100"
                     : "border-slate-200 bg-white text-slate-700 hover:border-[#0f766e] hover:bg-slate-50"
@@ -469,26 +518,26 @@ function ConfirmationPanel({ copy, onConfirm, onRestart }: { copy: RiskTestCopy;
 
 function IntroPanel({ copy, onStart }: { copy: RiskTestCopy; onStart: () => void }) {
   return (
-    <section className="risk-print-hide overflow-hidden rounded-2xl border border-white/70 bg-[#08111f] p-6 text-white shadow-2xl md:p-8">
-      <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
+    <section className="risk-print-hide overflow-hidden rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#08111f,#112033)] p-5 text-white shadow-2xl md:p-7">
+      <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr] lg:items-center">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#67e8f9]">{copy.introKicker}</p>
-          <h1 className="mt-3 text-4xl font-black leading-tight md:text-6xl">{copy.introTitle}</h1>
-          <p className="mt-4 max-w-4xl text-base leading-8 text-slate-200 md:text-lg">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#67e8f9]">{copy.introKicker}</p>
+          <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight md:text-5xl">{copy.introTitle}</h1>
+          <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-200 md:text-base">
             {copy.introBody}
           </p>
-          <p className="mt-4 max-w-3xl rounded-2xl border border-amber-200/25 bg-amber-200/10 p-4 text-sm font-semibold leading-6 text-amber-50">
+          <p className="mt-4 max-w-3xl rounded-xl border border-amber-200/20 bg-amber-200/8 p-3 text-sm font-medium leading-6 text-amber-50">
             {copy.introWarning}
           </p>
-          <button type="button" onClick={onStart} className="mt-6 rounded-xl bg-[#67e8f9] px-6 py-3 text-sm font-black text-[#08111f] shadow-lg shadow-cyan-950/30">
+          <button type="button" onClick={onStart} className="mt-5 min-h-12 rounded-xl bg-[#67e8f9] px-6 py-3 text-sm font-bold text-[#08111f] shadow-lg shadow-cyan-950/30 transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">
             {copy.start}
           </button>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/8 p-5">
+        <div className="rounded-xl border border-white/10 bg-white/6 p-4">
           <div className="h-3 rounded-full bg-gradient-to-r from-emerald-300 via-sky-300 to-amber-300" />
-          <div className="mt-5 grid gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-1">
             {copy.introFacts.map((item) => (
-              <div key={item} className="rounded-xl border border-white/10 bg-white/8 px-4 py-3 text-sm font-black text-slate-100">
+              <div key={item} className="rounded-lg border border-white/10 bg-white/6 px-3 py-2.5 text-sm font-semibold text-slate-100">
                 {item}
               </div>
             ))}
@@ -529,9 +578,17 @@ function QuestionNavigator({
   onGoTo: (index: number) => void;
 }) {
   return (
-    <section className="premium-card p-4">
-      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.questions}</p>
-      <div className="mt-3 grid grid-cols-10 gap-1.5 sm:grid-cols-[repeat(20,minmax(0,1fr))]">
+    <details className="group premium-card overflow-hidden">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:content-none">
+        <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#0f766e]">{copy.questionNavigatorHint}</span>
+        <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          {Object.keys(answers).length}/{questions.length}
+          <span aria-hidden="true" className="text-lg transition group-open:rotate-45">+</span>
+        </span>
+      </summary>
+      <div className="border-t border-slate-200 p-4">
+      <p className="sr-only">{copy.questions}</p>
+      <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
         {questions.map((question, index) => (
           <button
             key={question.id}
@@ -539,7 +596,8 @@ function QuestionNavigator({
             onClick={() => onGoTo(index)}
             disabled={disabled}
             aria-label={`${copy.questionLabel} ${index + 1}`}
-            className={`h-8 rounded-md text-xs font-black disabled:cursor-wait ${
+            aria-current={currentIndex === index ? "step" : undefined}
+            className={`min-h-11 rounded-lg text-xs font-bold transition disabled:cursor-wait ${
               currentIndex === index
                 ? "bg-[#152033] text-white"
                 : answers[question.id]
@@ -551,12 +609,14 @@ function QuestionNavigator({
           </button>
         ))}
       </div>
-    </section>
+      </div>
+    </details>
   );
 }
 
 function ResultReport({
   averageScore,
+  dimensions,
   profile,
   email,
   emailStatus,
@@ -571,6 +631,7 @@ function ResultReport({
   recommendedSteps,
 }: {
   averageScore: number;
+  dimensions: RiskDimension[];
   profile: RiskProfile;
   email: string;
   emailStatus: "idle" | "sending" | "sent" | "error";
@@ -635,6 +696,30 @@ function ResultReport({
             <ReportCard title={copy.behavioralRisks} items={profile.behavioralRisks} />
           </div>
 
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <h2 className="text-xl font-bold text-[#152033]">{copy.dimensionsTitle}</h2>
+              <p className="text-xs font-semibold text-slate-500">{copy.dimensionNote}</p>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {dimensions.map((dimension) => {
+                const percent = Math.max(0, Math.min(100, ((dimension.score - 1) / 4) * 100));
+                return (
+                  <div key={dimension.label} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-bold text-[#152033]">{dimension.label}</h3>
+                      <span className="text-xs font-bold tabular-nums text-[#0f766e]">{formatRiskScore(dimension.score)}</span>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`${dimension.label}: ${dimension.note}`} aria-valuemin={1} aria-valuemax={5} aria-valuenow={dimension.score}>
+                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-sky-300 to-amber-400" style={{ width: `${percent}%` }} />
+                    </div>
+                    <p className="mt-2 text-xs font-medium text-slate-500">{dimension.note}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
           <section className="mt-6 rounded-2xl border border-[#d1bfa7]/45 bg-[#fffaf6] p-5">
             <h2 className="text-xl font-black text-[#152033]">{copy.portfolioSuggestion}</h2>
             <ul className="mt-4 grid gap-2 md:grid-cols-2">
@@ -680,7 +765,7 @@ function ResultReport({
       <section className="risk-print-hide grid gap-4 lg:grid-cols-[1fr_1fr]">
         <div className="premium-card p-5">
           <h2 className="text-xl font-black text-[#152033]">{copy.getReport}</h2>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row">
             <button type="button" onClick={onPrint} className="rounded-xl bg-[#152033] px-5 py-3 text-sm font-black text-white">
               {copy.pdf}
             </button>
@@ -693,12 +778,16 @@ function ResultReport({
 
         <div className="premium-card p-5">
           <h2 className="text-xl font-black text-[#152033]">{copy.emailTitle}</h2>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <label htmlFor="risk-report-email" className="mt-4 block text-sm font-bold text-slate-700">{copy.emailLabel}</label>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row">
             <input
+              id="risk-report-email"
               type="email"
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
               placeholder={copy.emailPlaceholder}
+              aria-describedby="risk-email-privacy risk-email-status"
+              aria-invalid={emailStatus === "error"}
               className="min-h-12 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-[#152033] outline-none focus:border-[#0f766e]"
             />
             <button
@@ -710,10 +799,10 @@ function ResultReport({
               {emailStatus === "sending" ? copy.emailSending : copy.emailButton}
             </button>
           </div>
-          <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">
+          <p id="risk-email-privacy" className="mt-3 text-xs font-semibold leading-5 text-slate-500">
             {copy.emailPrivacy}
           </p>
-          {emailMessage ? <p className={`mt-3 text-sm font-black ${emailStatus === "error" ? "text-red-600" : "text-[#0f766e]"}`}>{emailMessage}</p> : null}
+          <p id="risk-email-status" role={emailStatus === "error" ? "alert" : "status"} aria-live="polite" className={`mt-3 min-h-5 text-sm font-bold ${emailStatus === "error" ? "text-red-600" : "text-[#0f766e]"}`}>{emailMessage}</p>
         </div>
       </section>
     </div>

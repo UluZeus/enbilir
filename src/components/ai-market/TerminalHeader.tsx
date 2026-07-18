@@ -143,14 +143,14 @@ export function TerminalHeader({
   const tradeHref = `/${safeLocale}/islem-yap?symbol=${encodeURIComponent(selectedSymbol)}&q=${encodeURIComponent(selectedSymbol)}`;
 
   return (
-    <section className="terminal-header-panel rounded-md border border-slate-800 bg-[#0b111d] shadow-2xl">
+    <section className="terminal-header-panel rounded-xl border border-slate-800 bg-[#0b111d] shadow-2xl">
       <div className="grid gap-3 border-b border-slate-800 p-4 xl:grid-cols-[minmax(320px,1fr)_minmax(520px,1.4fr)_auto] xl:items-end">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{copy.terminal}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-300">{copy.terminal}</p>
           <div className="mt-2 flex flex-wrap items-end gap-3">
-            <p className="text-3xl font-black tracking-normal text-white md:text-4xl">{selectedSymbol}</p>
+            <p className="text-3xl font-bold tracking-tight text-white md:text-4xl">{selectedSymbol}</p>
           </div>
-          <p className="mt-1 text-2xl font-black tabular-nums text-white">{currentPrice === null ? "—" : `$${formatPrice(currentPrice)}`}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-white">{currentPrice === null ? "—" : `$${formatPrice(currentPrice)}`}</p>
           <div className="mt-3 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
             <PerformanceChip label="1s" value={performance?.changes["1h"] ?? null} />
             <PerformanceChip label="1g" value={performance?.changes["1d"] ?? null} />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendMorningMacroReportEmails, sendWeeklyMacroReportEmails } from "@/lib/ai-market/agent/morning-report-email";
 import { runAiMarketAgent } from "@/lib/ai-market/agent/report-agent";
+import { captureActivePortfolioEquitySnapshots } from "@/lib/portfolio-history";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,13 @@ export async function POST(request: Request) {
   const triggeredAt = new Date();
   const url = new URL(request.url);
   const force = url.searchParams.get("force") === "true";
+  const portfolioEquityCapture = await captureActivePortfolioEquitySnapshots(triggeredAt).catch((error: unknown) => ({
+    capturedAt: triggeredAt.toISOString(),
+    eligibleUsers: 0,
+    capturedUsers: 0,
+    failedUsers: 0,
+    error: error instanceof Error ? error.message : "Portföy geçmişi snapshot işlemi tamamlanamadı.",
+  }));
 
   if (!force && !isScheduledReportTime(triggeredAt)) {
     const { hour, minute } = getIstanbulTimeParts(triggeredAt);
@@ -72,6 +80,7 @@ export async function POST(request: Request) {
       message: "AI piyasa raporu yalnizca Turkiye saatiyle 07:00, 12:00 ve 18:00 zamanlarinda uretilir.",
       currentTurkeyTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
       scheduleTurkeyTime: REPORT_SCHEDULE_LABELS,
+      portfolioEquityCapture,
     });
   }
 
@@ -115,6 +124,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ranAt: triggeredAt.toISOString(),
     scheduled: true,
+    portfolioEquityCapture,
     globalReport,
     morningEmailResult,
     weeklyReport,

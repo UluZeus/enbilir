@@ -7,7 +7,6 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { MobileHeaderMenu } from "@/components/MobileHeaderMenu";
 import { MobileDockVisibility } from "@/components/MobileDockVisibility";
 import { MobileMenuDockButton } from "@/components/MobileMenuDockButton";
-import { SiteMotion } from "@/components/SiteMotion";
 import { GuidedHelp } from "@/components/onboarding/GuidedHelp";
 import type { Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -55,9 +54,9 @@ function imageVariable(url: string) {
   return url ? `url("${url.replaceAll('"', "%22")}")` : "none";
 }
 
-function CommunityIcon() {
+function CommunityIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -81,6 +80,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
   ]);
   const animationsEnabled = isVisualEnabled(visualSettings, "animationsEnabled");
   const card3dEnabled = isVisualEnabled(visualSettings, "card3dEnabled");
+  const whatsappButtonIsImage = visualSettings.whatsappButtonVariant === "image";
   const whatsappUrl = "https://wa.me/905322825555";
   const macroReportHref = latestMacroReport
     ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
@@ -113,9 +113,9 @@ export async function AppShell({ children, locale }: AppShellProps) {
     label: dictionary.nav[item.label],
   }));
   const shellStyle = {
-    "--visual-gradient-primary": "#d1bfa7",
-    "--visual-gradient-secondary": "#bd8c7d",
-    "--visual-accent": "#bd8c7d",
+    "--visual-gradient-primary": visualSettings.gradientPrimary,
+    "--visual-gradient-secondary": visualSettings.gradientSecondary,
+    "--visual-accent": visualSettings.accentColor,
     "--visual-hero-image": imageVariable(visualSettings.heroBackgroundImageUrl),
     "--visual-home-overlay-image": imageVariable(visualSettings.homeOverlayImageUrl),
     "--visual-ad-image": imageVariable(visualSettings.adImageUrl),
@@ -123,149 +123,97 @@ export async function AppShell({ children, locale }: AppShellProps) {
 
   return (
     <div
-      className={`visual-shell site-modern-academy ${animationsEnabled ? "" : "visual-motion-off"} ${card3dEnabled ? "" : "visual-card3d-off"}`}
+      className={`visual-shell enbilir-shell-v3 ${animationsEnabled ? "" : "visual-motion-off"} ${card3dEnabled ? "" : "visual-card3d-off"}`}
       style={shellStyle}
     >
       <AnimatedBackground settings={visualSettings} />
-      <div className="site-ambient-layer" aria-hidden="true">
-        <SiteMotion variant="macro" className="site-ambient-motion site-ambient-motion--one" />
-        <SiteMotion variant="network" className="site-ambient-motion site-ambient-motion--two" />
-        <SiteMotion variant="trend" className="site-ambient-motion site-ambient-motion--three" />
-      </div>
       <GuidedHelp
         locale={locale}
         userId={sessionUser?.id}
         progress={onboardingProgress}
       />
-      <header className="premium-site-header premium-site-header--advanced sticky top-0 z-30">
-        <div className="premium-finance-topbar hidden xl:block">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="premium-support-copy flex flex-1 flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-black leading-6 tracking-[0.01em] sm:text-base lg:text-[17px] xl:text-lg">
-              <span className="font-black">{ui.appShell.support}</span>
-              <span className="font-black">{ui.appShell.tagline}</span>
-            </div>
-            <div className="flex shrink-0 items-center justify-end gap-2">
-              <span className="premium-topbar-signal hidden items-center gap-2 rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.12em] xl:inline-flex">
-                {locale === "tr" ? "Canlı öğrenme" : "Live learning"}
-              </span>
-              <LanguageSwitcher locale={locale} labels={dictionary.language} />
-            </div>
-          </div>
-        </div>
-
-        <div className="premium-finance-header mx-auto hidden w-full max-w-[92rem] items-center gap-3 px-5 py-3 xl:flex">
-          <Link href={`/${locale}`} className="premium-brand-lockup flex w-[190px] shrink-0 items-center gap-2.5">
-            <Image src="/logo.svg" alt="Enbilir logo" width={56} height={56} priority className="premium-brand-mark h-12 w-12 rounded-md xl:h-11 xl:w-11" />
-            <span>
-              <span className="block text-xl font-black tracking-normal text-[#152033] xl:text-lg 2xl:text-xl">enbilir.com</span>
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0f766e] 2xl:text-xs">{ui.appShell.academy}</span>
+      <header className="site-header-v3 sticky top-0 z-50">
+        <div className="site-container-v3 hidden h-[72px] items-center gap-5 xl:flex">
+          <Link href={`/${locale}`} className="site-brand-v3 flex shrink-0 items-center gap-2.5" aria-label={dictionary.brand}>
+            <Image src="/logo.svg" alt="" width={42} height={42} priority className="h-10 w-10 rounded-xl" />
+            <span className="min-w-0">
+              <span className="block text-[17px] font-bold leading-none text-white">enbilir.com</span>
+              <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-200">{ui.appShell.academy}</span>
             </span>
           </Link>
 
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <nav className="premium-main-nav flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[13px] font-semibold">
-              {visiblePrimaryNav.map((item) => (
-                <ActiveNavigationLink
+          <nav className="site-primary-nav-v3 flex min-w-0 items-center gap-1" aria-label={locale === "tr" ? "Ana menü" : "Main menu"}>
+            {visiblePrimaryNav.map((item) => (
+              <ActiveNavigationLink
+                key={item.href}
+                href={`/${locale}${item.href ? `/${item.href}` : ""}`}
+                exact={item.href === ""}
+                className="site-nav-link-v3 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold"
+                activeClassName="site-nav-link-v3--active"
+                dataNavKey={item.label}
+              >
+                {item.label === "community" ? <CommunityIcon /> : null}
+                {item.href === "baslangic" ? (locale === "tr" ? "Başlangıç" : "Start") : item.href === "ogren" ? (locale === "tr" ? "Öğren" : "Learn") : dictionary.nav[item.label]}
+              </ActiveNavigationLink>
+            ))}
+          </nav>
+
+          <details className="site-products-menu-v3 relative shrink-0">
+            <summary className="site-nav-link-v3 flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold">
+              {locale === "tr" ? "Ürünler" : "Products"}
+              <span aria-hidden="true" className="site-products-chevron-v3 text-xs">⌄</span>
+            </summary>
+            <nav className="site-products-popover-v3 absolute left-0 top-[calc(100%+12px)] grid w-72 gap-1 p-2" aria-label={locale === "tr" ? "Ürünler" : "Products"}>
+              {productLinks.map((item) => item.href.startsWith("http") ? (
+                <a
                   key={item.href}
-                  href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                  exact={item.href === ""}
-                  className="premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 2xl:px-2.5 2xl:py-2"
-                  activeClassName="bg-white text-[#0f766e] shadow-sm ring-1 ring-[#0f766e]/30"
-                  dataNavKey={item.label}
+                  href={item.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={item.label}
+                  className="site-product-link-v3"
+                  data-tone={item.tone}
+                  data-variant={whatsappButtonIsImage ? "image" : "text"}
                 >
-                  {item.label === "community" ? <CommunityIcon /> : null}
-                  {item.href === "baslangic" ? (locale === "tr" ? "Başlangıç" : "Start") : item.href === "ogren" ? (locale === "tr" ? "Öğren" : "Learn") : dictionary.nav[item.label]}
+                  {item.tone === "whatsapp" && whatsappButtonIsImage ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span aria-hidden="true" className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-[10px] font-black text-white">WA</span>
+                      <span>{item.label}</span>
+                    </span>
+                  ) : item.label}
+                </a>
+              ) : (
+                <ActiveNavigationLink key={item.href} href={item.href} className="site-product-link-v3" activeClassName="site-product-link-v3--active" dataProductTone={item.tone}>
+                  {item.label}
                 </ActiveNavigationLink>
               ))}
             </nav>
+          </details>
 
-            <nav className="premium-secondary-nav flex min-w-0 shrink items-center gap-1 overflow-hidden whitespace-nowrap text-[12px] font-semibold 2xl:gap-1.5 2xl:text-[13px]">
-              {sessionUser ? productNav.map((item) => (
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="site-language-v3"><LanguageSwitcher locale={locale} labels={dictionary.language} /></div>
+            {sessionUser ? (
+              <>
+                <ActiveNavigationLink href={`/${locale}/panel`} className="site-user-link-v3 max-w-[190px] truncate px-3 py-2 text-sm font-semibold" activeClassName="site-user-link-v3--active">
+                  {getDisplayName(sessionUser)}
+                </ActiveNavigationLink>
+                <form action={logoutAction}>
+                  <input type="hidden" name="locale" value={locale} />
+                  <button className="site-header-button-v3 px-3 py-2 text-sm font-semibold">{ui.appShell.logout}</button>
+                </form>
+              </>
+            ) : (
+              accountNav.map((item) => (
                 <ActiveNavigationLink
                   key={item.href}
                   href={`/${locale}/${item.href}`}
-                  className={`premium-product-nav premium-product-nav--${item.tone} inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-2 font-black 2xl:px-2.5`}
-                  activeClassName="ring-2 ring-[#0f766e] ring-offset-2"
-                  dataProductTone={item.tone}
+                  className={item.label === "register" ? "site-header-cta-v3 px-4 py-2.5 text-sm font-bold" : "site-header-button-v3 px-3 py-2 text-sm font-semibold"}
+                  activeClassName="site-header-control-v3--active"
                 >
-                  <span className="premium-product-nav-orb" aria-hidden="true" />
-                  {item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label]}
+                  {dictionary.nav[item.label]}
                 </ActiveNavigationLink>
-              )) : (
-                <>
-                  <span className="shrink-0 text-[11px] font-black uppercase text-slate-300">{locale === "tr" ? "Yeni misin?" : "New here?"}</span>
-                  <Link href={`/${locale}/kayit`} className="premium-product-nav premium-product-nav--trade inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-2 font-black">
-                    <span className="premium-product-nav-orb" aria-hidden="true" />
-                    {locale === "tr" ? "1. Ücretsiz üye ol" : "1. Create free account"}
-                  </Link>
-                  <Link href={`/${locale}/kullanim-kilavuzu`} className="premium-product-nav inline-flex shrink-0 items-center rounded-md px-2.5 py-2 font-black">
-                    {locale === "tr" ? "2. Nasıl kullanılır?" : "2. How does it work?"}
-                  </Link>
-                </>
-              )}
-              {sessionUser ? (
-                <>
-                  <ActiveNavigationLink
-                    href={`/${locale}/vip`}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-[#111827] px-2 py-2 font-black text-amber-300 shadow-sm 2xl:px-2.5"
-                    activeClassName="ring-2 ring-amber-300 ring-offset-2"
-                  >
-                    <span className="premium-product-nav-orb" aria-hidden="true" />
-                    VIP
-                  </ActiveNavigationLink>
-                  <Link
-                    href={macroReportHref}
-                    className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white 2xl:px-2.5"
-                    style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
-                    data-product-tone="macro"
-                  >
-                    <span className="premium-product-nav-orb" aria-hidden="true" />
-                    {locale === "en" ? "MACRO REPORT" : "MAKRO RAPOR"}
-                  </Link>
-                  <a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`whatsapp-link inline-flex shrink-0 items-center justify-center rounded-md bg-[#25d366] px-2 py-2 font-bold text-white shadow-sm hover:bg-[#1fb65a] 2xl:px-2.5 ${
-                      visualSettings.whatsappButtonVariant === "image" ? "h-9 w-9 px-0 2xl:h-10 2xl:w-10" : ""
-                    }`}
-                  >
-                    {visualSettings.whatsappButtonVariant === "image" ? <span className="text-xs font-black">WA</span> : dictionary.whatsapp}
-                  </a>
-                </>
-              ) : null}
-            </nav>
-
-            <div className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] 2xl:text-[13px]">
-              {sessionUser ? (
-                <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap">
-                  <ActiveNavigationLink
-                    href={`/${locale}/panel`}
-                    className="max-w-[170px] shrink-0 truncate rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 font-black text-[#0f766e] shadow-sm hover:border-[#0f766e] 2xl:max-w-[220px] 2xl:px-2.5 2xl:py-2"
-                    activeClassName="border-[#0f766e] bg-emerald-100 ring-2 ring-emerald-200"
-                  >
-                    {locale === "tr" ? "Merhaba" : "Hello"}, {getDisplayName(sessionUser)}
-                  </ActiveNavigationLink>
-                  <form action={logoutAction}>
-                    <input type="hidden" name="locale" value={locale} />
-                    <button className="shrink-0 rounded-md border border-white/60 bg-white/70 px-2 py-1.5 font-semibold shadow-sm backdrop-blur hover:border-[#0f766e] hover:text-[#0f766e] 2xl:px-2.5 2xl:py-2">
-                      {ui.appShell.logout}
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                accountNav.map((item) => (
-                  <ActiveNavigationLink
-                    key={item.href}
-                    href={`/${locale}/${item.href}`}
-                    className={`premium-account-link ${item.label === "register" ? "premium-account-link--cta" : ""} shrink-0 rounded-md border border-white/60 bg-white/70 px-2.5 py-1.5 font-semibold shadow-sm backdrop-blur 2xl:px-3 2xl:py-2`}
-                    activeClassName="ring-2 ring-[#0f766e] ring-offset-1"
-                  >
-                    {dictionary.nav[item.label]}
-                  </ActiveNavigationLink>
-                ))
-              )}
-            </div>
+              ))
+            )}
           </div>
         </div>
         <MobileHeaderMenu
@@ -282,29 +230,29 @@ export async function AppShell({ children, locale }: AppShellProps) {
         />
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-5 py-8 pb-24 md:pb-8">{children}</main>
+      <main className="site-main-v3 site-container-v3 w-full py-6 pb-28 md:py-8 md:pb-10">{children}</main>
 
       <MobileDockVisibility locale={locale}>
-        <div className={`premium-mobile-dock grid ${sessionUser ? "grid-cols-4" : "grid-cols-3"} gap-2 rounded-2xl border border-white/60 bg-white/88 p-2 shadow-2xl backdrop-blur-xl`}>
+        <nav aria-label={locale === "tr" ? "Hızlı erişim" : "Quick access"} className={`mobile-dock-v3 grid ${sessionUser ? "grid-cols-4" : "grid-cols-3"} gap-1.5 p-1.5`}>
           {sessionUser ? (
             <>
           <ActiveNavigationLink
             href={`/${locale}/${onboardingProgress?.nextStep ? "baslangic" : "panel"}`}
-            className="premium-cta flex items-center justify-center px-3 py-3 text-center text-xs font-black"
+            className="mobile-dock-link-v3 mobile-dock-link-v3--primary flex items-center justify-center px-2 py-3 text-center text-xs font-bold"
             activeClassName="ring-2 ring-[#0f766e] ring-offset-1"
           >
             {onboardingProgress?.nextStep ? (locale === "tr" ? "Başlangıç" : "Start") : (locale === "tr" ? "Panel" : "Dashboard")}
           </ActiveNavigationLink>
           <ActiveNavigationLink
             href={`/${locale}/islem-yap`}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-xs font-black text-[#152033]"
+            className="mobile-dock-link-v3 flex items-center justify-center px-2 py-3 text-center text-xs font-bold"
             activeClassName="border-[#0f766e] bg-emerald-50 ring-2 ring-[#0f766e] ring-offset-1"
           >
             {dictionary.nav.trade}
           </ActiveNavigationLink>
           <ActiveNavigationLink
             href={`/${locale}/ai-piyasa-asistani`}
-            className="rounded-xl border border-slate-200 bg-[#101827] px-3 py-3 text-center text-xs font-black text-white"
+            className="mobile-dock-link-v3 mobile-dock-link-v3--dark flex items-center justify-center px-2 py-3 text-center text-xs font-bold"
             activeClassName="ring-2 ring-cyan-400 ring-offset-1"
           >
             {ui.appShell.aiAssistant}
@@ -313,31 +261,56 @@ export async function AppShell({ children, locale }: AppShellProps) {
             </>
           ) : (
             <>
-              <ActiveNavigationLink href={`/${locale}/kayit`} className="premium-cta flex items-center justify-center px-3 py-3 text-center text-xs font-black">
+              <ActiveNavigationLink href={`/${locale}/kayit`} className="mobile-dock-link-v3 mobile-dock-link-v3--primary flex items-center justify-center px-2 py-3 text-center text-xs font-bold">
                 {dictionary.nav.register}
               </ActiveNavigationLink>
-              <ActiveNavigationLink href={`/${locale}/ogren`} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-xs font-black text-[#152033]">
+              <ActiveNavigationLink href={`/${locale}/ogren`} className="mobile-dock-link-v3 flex items-center justify-center px-2 py-3 text-center text-xs font-bold">
                 {locale === "tr" ? "Öğren" : "Learn"}
               </ActiveNavigationLink>
               <MobileMenuDockButton label={locale === "tr" ? "Menü" : "Menu"} />
             </>
           )}
-        </div>
+        </nav>
       </MobileDockVisibility>
 
-      <footer className="mt-8 border-t border-white/60 bg-white/78 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-6 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between">
-          <span>(c) 2026 {dictionary.brand}</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {legalLinks.map((item) => (
-              <Link key={item.href} href={`/${locale}/${item.href}`} className="hover:text-[#0f766e]">
-                {ui.appShell.legalLinks[item.label]}
-              </Link>
-            ))}
+      <footer className="site-footer-v3 mt-10">
+        <div className="site-container-v3 grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1.2fr]">
+          <div>
+            <Link href={`/${locale}`} className="inline-flex items-center gap-3 text-white">
+              <Image src="/logo.svg" alt="" width={40} height={40} className="h-10 w-10 rounded-xl" />
+              <span><strong className="block text-lg">enbilir.com</strong><span className="text-xs text-slate-400">{ui.appShell.academy}</span></span>
+            </Link>
+            <p className="mt-4 max-w-sm text-sm leading-6 text-slate-400">{ui.appShell.tagline}</p>
           </div>
+          <nav className="site-footer-links-v3" aria-label={locale === "tr" ? "Ürünler" : "Products"}>
+            <p className="site-footer-title-v3">{locale === "tr" ? "Ürünler" : "Products"}</p>
+            <Link href={`/${locale}/islem-yap`}>{dictionary.nav.trade}</Link>
+            <Link href={`/${locale}/ai-piyasa-asistani`}>{ui.appShell.aiAssistant}</Link>
+            <Link href={`/${locale}/vip`}>VIP</Link>
+            <Link href={macroReportHref}>{locale === "tr" ? "Makro rapor" : "Macro report"}</Link>
+          </nav>
+          <nav className="site-footer-links-v3" aria-label={locale === "tr" ? "Öğrenme" : "Learning"}>
+            <p className="site-footer-title-v3">{locale === "tr" ? "Öğrenme" : "Learning"}</p>
+            <Link href={`/${locale}/ogren`}>{locale === "tr" ? "Öğren" : "Learn"}</Link>
+            <Link href={`/${locale}/egitim`}>{dictionary.nav.education}</Link>
+            <Link href={`/${locale}/blog`}>{dictionary.nav.blog}</Link>
+            <Link href={`/${locale}/kullanim-kilavuzu`}>{dictionary.nav.usageGuide}</Link>
+          </nav>
+          <nav className="site-footer-links-v3" aria-label={locale === "tr" ? "Destek ve yasal" : "Support and legal"}>
+            <p className="site-footer-title-v3">{locale === "tr" ? "Destek ve yasal" : "Support & legal"}</p>
+            <Link href={`/${locale}/iletisim`}>{dictionary.nav.contact}</Link>
+            <a href={whatsappUrl} target="_blank" rel="noreferrer">{dictionary.whatsapp}</a>
+            <span className="text-sm text-slate-400">{ui.appShell.support}</span>
+          </nav>
         </div>
-        <div className="border-t border-slate-100">
-          <div className="mx-auto max-w-7xl px-5 py-4 text-xs leading-6 text-slate-500">{ui.appShell.footer}</div>
+        <div className="border-t border-white/10">
+          <div className="site-container-v3 flex flex-col gap-4 py-5 text-xs leading-5 text-slate-400 lg:flex-row lg:items-center lg:justify-between">
+            <span>© 2026 {dictionary.brand}. {locale === "tr" ? "Tüm hakları saklıdır." : "All rights reserved."}</span>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {legalLinks.map((item) => <Link key={item.href} href={`/${locale}/${item.href}`} className="hover:text-white">{ui.appShell.legalLinks[item.label]}</Link>)}
+            </div>
+          </div>
+          <div className="site-container-v3 pb-6 text-xs leading-5 text-slate-500">{ui.appShell.footer}</div>
         </div>
       </footer>
     </div>

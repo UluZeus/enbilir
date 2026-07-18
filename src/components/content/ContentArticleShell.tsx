@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ReadingProgress } from "@/components/content/ReadingProgress";
 import { SiteMotion, type SiteMotionVariant } from "@/components/SiteMotion";
 
 type ContentArticleShellProps = {
@@ -45,18 +46,19 @@ export function ContentArticleShell({
   const motionVariant = getArticleMotionVariant(`${eyebrow} ${title}`);
 
   return (
-    <article className="content-article-shell grid gap-6">
+    <article className="content-article-shell content-article-v3 grid gap-6" data-reading-article>
+      <ReadingProgress label={isEnglish ? "Article reading progress" : "Makale okuma ilerlemesi"} />
       {children}
-      <section className="content-article-hero premium-card premium-card--interactive p-6 md:p-8">
+      <section className="content-article-hero article-hero-v3 p-6 md:p-8 lg:p-10">
         <div className="content-article-hero-grid">
           <div>
-            <Link href={backHref} className="text-sm font-black text-[#0f766e] hover:text-[#0b5f59]">
-              {backLabel}
+            <Link href={backHref} className="inline-flex items-center gap-2 text-sm font-bold text-teal-700 hover:text-teal-900">
+              <span aria-hidden="true">←</span> {backLabel}
             </Link>
-            <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{eyebrow}</p>
-            <h1 className="mt-2 max-w-5xl text-3xl font-black leading-tight text-[#152033] md:text-5xl">{title}</h1>
-            {excerpt ? <p className="mt-4 max-w-4xl text-base font-bold leading-8 text-slate-600">{excerpt}</p> : null}
-            <div className="mt-5 flex flex-wrap gap-2 text-xs font-black text-slate-600">
+            <p className="section-eyebrow-v3 mt-6">{eyebrow}</p>
+            <h1 className="mt-3 max-w-4xl text-3xl font-bold leading-[1.08] tracking-[-0.04em] text-slate-950 md:text-5xl">{title}</h1>
+            {excerpt ? <p className="mt-4 max-w-3xl text-base font-medium leading-8 text-slate-600 md:text-lg">{excerpt}</p> : null}
+            <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
               <span className="rounded-full border border-[#d1bfa7]/70 bg-[#fffaf6] px-3 py-1.5">
                 {readingMinutes} {isEnglish ? "min read" : "dk okuma"}
               </span>
@@ -74,9 +76,9 @@ export function ContentArticleShell({
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="content-article-body premium-card p-6 md:p-8">
-          <div className="mx-auto grid max-w-4xl gap-5 text-[15px] leading-8 text-slate-700">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_272px] lg:items-start">
+        <div className="content-article-body article-body-v3 p-6 md:p-10">
+          <div className="mx-auto grid max-w-[760px] gap-6 text-[17px] leading-[1.82] text-slate-700">
             {paragraphs.map((paragraph, index) => (
               <p key={`${index}-${paragraph}`} id={`p-${index + 1}`} className="scroll-mt-36">
                 {paragraph}
@@ -85,27 +87,27 @@ export function ContentArticleShell({
           </div>
         </div>
 
-        <aside className="content-article-sidebar premium-card p-5 lg:sticky lg:top-32 lg:self-start">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">
+        <aside className="content-article-sidebar article-sidebar-v3 p-5 lg:sticky lg:top-24 lg:self-start">
+          <p className="section-eyebrow-v3">
             {isEnglish ? "Reading map" : "Okuma haritası"}
           </p>
-          <div className="mt-4 grid gap-2">
+          <nav className="mt-4 grid gap-2" aria-label={isEnglish ? "Article sections" : "Makale bölümleri"}>
             {markers.map((marker, markerIndex) => (
               <a
                 key={`${marker.index}-${marker.paragraph}`}
                 href={`#p-${marker.index + 1}`}
-                className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-bold leading-5 text-slate-700 hover:border-[#0f766e] hover:text-[#0f766e]"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold leading-5 text-slate-700 hover:border-teal-700 hover:text-teal-800"
               >
-                {markerIndex + 1}. {marker.paragraph.slice(0, 72)}
-                {marker.paragraph.length > 72 ? "..." : ""}
+                <span className="mr-1 text-teal-700">0{markerIndex + 1}</span> {marker.paragraph.slice(0, 58)}
+                {marker.paragraph.length > 58 ? "…" : ""}
               </a>
             ))}
-          </div>
+          </nav>
           <div className="mt-5 grid gap-2 border-t border-slate-100 pt-4">
-            <Link href={`/${locale}/islem-yap`} className="premium-action px-4 py-2 text-center text-xs font-black">
+            <Link href={`/${locale}/islem-yap`} className="button-primary-v3 px-4 py-2.5 text-center text-xs font-bold">
               {isEnglish ? "Try in virtual portfolio" : "Sanal portföyde dene"}
             </Link>
-            <Link href={`/${locale}/ai-piyasa-asistani`} className="rounded-md border border-slate-800 bg-[#101827] px-4 py-2 text-center text-xs font-black text-white">
+            <Link href={`/${locale}/ai-piyasa-asistani`} className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-center text-xs font-bold text-white">
               {isEnglish ? "Review with AI" : "AI ile gözden geçir"}
             </Link>
           </div>

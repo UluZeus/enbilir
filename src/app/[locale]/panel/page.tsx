@@ -19,7 +19,7 @@ import { getFriendDashboard } from "@/lib/friends";
 import { getUserLeagues, leagueTypes } from "@/lib/leagues";
 import { getMembershipLabel, getMembershipSnapshot, membershipConfig } from "@/lib/membership";
 import { calculatePortfolioHealth } from "@/lib/portfolio-health";
-import { formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
+import { getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
 import { getOnboardingProgress } from "@/lib/onboarding";
@@ -259,6 +259,14 @@ export default async function DashboardPage({
     hasReportRead: reportReadCount > 0,
     concentrationRatio: portfolioHealth.concentrationRatio,
   });
+  const sortedPortfolioPositions = portfolioSnapshot
+    ? [...portfolioSnapshot.positions].sort((a, b) => b.valueUsd - a.valueUsd)
+    : [];
+  const portfolioTotal = portfolioSnapshot?.totalValueUsd ?? 0;
+  const cashAllocationPercent = portfolioTotal > 0
+    ? ((portfolioSnapshot?.cashValueUsd ?? 0) / portfolioTotal) * 100
+    : 0;
+  const investedAllocationPercent = Math.max(0, 100 - cashAllocationPercent);
 
   return (
     <div className="growth-page grid gap-6">
@@ -269,14 +277,22 @@ export default async function DashboardPage({
       />
       <FormMessage message={query.error} />
 
-      <nav className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-4" aria-label={locale === "tr" ? "Panel bölümleri" : "Dashboard sections"}>
+      <nav className="sticky top-20 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" aria-label={locale === "tr" ? "Panel bölümleri" : "Dashboard sections"}>
         {[
           ["overview", locale === "tr" ? "Genel bakış" : "Overview"],
           ["portfolio", locale === "tr" ? "Portföy" : "Portfolio"],
           ["community", locale === "tr" ? "Topluluk" : "Community"],
           ["settings", locale === "tr" ? "Hesap" : "Account"],
         ].map(([view, label]) => (
-          <Link key={view} href={`/${locale}/panel?view=${view}`} style={activeView === view ? { color: "#fffaf6" } : undefined} className={`flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-sm font-black ${activeView === view ? "bg-[#101827]" : "text-slate-700 hover:bg-slate-100"}`}>{label}</Link>
+          <Link
+            key={view}
+            href={`/${locale}/panel?view=${view}`}
+            aria-current={activeView === view ? "page" : undefined}
+            style={activeView === view ? { color: "#fffaf6" } : undefined}
+            className={`flex min-h-11 min-w-[9rem] flex-1 items-center justify-center rounded-xl px-4 py-2 text-sm font-black transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0f766e] ${activeView === view ? "bg-[#101827] shadow-sm" : "text-slate-700 hover:bg-slate-100"}`}
+          >
+            {label}
+          </Link>
         ))}
       </nav>
 
@@ -376,11 +392,26 @@ export default async function DashboardPage({
                 : "This area does not provide investment advice; it only shows the next learning steps for using the platform more deliberately."}
             </p>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {todayActions.map((action) => (
-                <Link key={action.title} href={action.href} className="rounded-2xl border border-[#d1bfa7]/40 bg-white/78 p-4 hover:border-[#0f766e]/45">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">{action.kicker}</p>
-                  <h3 className="mt-2 text-base font-black text-[#152033]">{action.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{action.body}</p>
+              {todayActions.map((action, index) => (
+                <Link
+                  key={action.title}
+                  href={action.href}
+                  className={`rounded-2xl border p-4 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0f766e] ${
+                    index === 0
+                      ? "border-[#101827] bg-[#101827] text-white shadow-lg md:col-span-2 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:gap-5 md:p-5"
+                      : "border-[#d1bfa7]/40 bg-white/78 hover:border-[#0f766e]/45 hover:bg-white"
+                  }`}
+                >
+                  <div>
+                    <p className={`text-xs font-black uppercase tracking-[0.14em] ${index === 0 ? "text-[#f5c96b]" : "text-[#0f766e]"}`}>{action.kicker}</p>
+                    <h3 className={`mt-2 font-black ${index === 0 ? "text-lg text-white" : "text-base text-[#152033]"}`}>{action.title}</h3>
+                    <p className={`mt-2 text-sm leading-6 ${index === 0 ? "text-slate-300" : "text-slate-600"}`}>{action.body}</p>
+                  </div>
+                  {index === 0 ? (
+                    <span className="mt-4 inline-flex w-fit rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-black text-white md:mt-0">
+                      {locale === "tr" ? "Öncelikli adım →" : "Priority step →"}
+                    </span>
+                  ) : null}
                 </Link>
               ))}
             </div>
@@ -413,8 +444,29 @@ export default async function DashboardPage({
             <p className="mt-2 text-sm font-black text-[#152033]">
               {locale === "tr" ? portfolioHealth.riskLabelTr : portfolioHealth.riskLabelEn}
             </p>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
-              <div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${portfolioHealth.score}%` }} />
+            <div
+              className="mt-4"
+              role="progressbar"
+              aria-label={locale === "tr" ? "Portföy sağlık skoru" : "Portfolio health score"}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={portfolioHealth.score}
+            >
+              <div className="relative h-3 overflow-hidden rounded-full bg-white shadow-inner">
+                <div className="absolute inset-y-0 left-0 w-1/3 bg-rose-300/75" />
+                <div className="absolute inset-y-0 left-1/3 w-1/3 bg-amber-300/75" />
+                <div className="absolute inset-y-0 right-0 w-1/3 bg-emerald-500/75" />
+                <span
+                  className="absolute top-1/2 h-5 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#101827] shadow"
+                  style={{ left: `${portfolioHealth.score}%` }}
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="mt-1.5 grid grid-cols-3 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                <span>{locale === "tr" ? "Kırılgan" : "Fragile"}</span>
+                <span className="text-center">{locale === "tr" ? "Dengeli" : "Balanced"}</span>
+                <span className="text-right">{locale === "tr" ? "Güçlü" : "Strong"}</span>
+              </div>
             </div>
             <div className="mt-4 grid gap-2 text-xs font-bold text-slate-700">
               <div className="flex justify-between gap-3">
@@ -442,6 +494,133 @@ export default async function DashboardPage({
         </div>
       </section>
 
+      <section className={`${activeView === "portfolio" ? "block" : "hidden"} premium-card overflow-hidden`}>
+        <div className="border-b border-slate-200/80 p-5 sm:p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">
+                {locale === "tr" ? "Portföy görünümü" : "Portfolio overview"}
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-[#152033]">
+                {locale === "tr" ? "Değer, nakit ve yoğunlaşmayı tek bakışta gör." : "See value, cash, and concentration at a glance."}
+              </h2>
+            </div>
+            <p className="max-w-xl text-sm leading-6 text-slate-600">
+              {locale === "tr"
+                ? "Kâr/zarar 1.000.000 USD performans bazı üzerinden hesaplanır; 100.000 USD ek işlem gücü getiriye dahil edilmez."
+                : "Profit/loss uses the USD 1,000,000 performance base; the extra USD 100,000 trading power is excluded from returns."}
+            </p>
+          </div>
+        </div>
+
+        {portfolioSnapshot ? (
+          <div className="grid gap-5 p-5 sm:p-6">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <PortfolioSummaryMetric
+                label={locale === "tr" ? "Toplam değer" : "Total value"}
+                value={formatDashboardMoney(portfolioSnapshot.totalValueUsd, locale)}
+                note={locale === "tr" ? "Nakit + açık pozisyonlar" : "Cash + open positions"}
+              />
+              <PortfolioSummaryMetric
+                label={locale === "tr" ? "Toplam kâr / zarar" : "Total profit / loss"}
+                value={`${portfolioSnapshot.profitLossUsd >= 0 ? "+" : ""}${formatDashboardMoney(portfolioSnapshot.profitLossUsd, locale)}`}
+                note={`${portfolioSnapshot.profitLossPercent >= 0 ? "+" : ""}${portfolioSnapshot.profitLossPercent.toFixed(2)}%`}
+                tone={portfolioSnapshot.profitLossUsd >= 0 ? "positive" : "negative"}
+              />
+              <PortfolioSummaryMetric
+                label={locale === "tr" ? "Kullanılabilir nakit" : "Available cash"}
+                value={formatDashboardMoney(portfolioSnapshot.cashValueUsd, locale)}
+                note={`${cashAllocationPercent.toFixed(1)}% · ${portfolioSnapshot.cashCurrency}`}
+              />
+              <PortfolioSummaryMetric
+                label={locale === "tr" ? "Açık pozisyon" : "Open positions"}
+                value={String(sortedPortfolioPositions.length)}
+                note={formatDashboardMoney(portfolioSnapshot.positionsValueUsd, locale)}
+              />
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                      {locale === "tr" ? "Varlık dağılımı" : "Asset allocation"}
+                    </p>
+                    <p className="mt-2 text-lg font-black text-[#152033]">
+                      {locale === "tr" ? "Nakit / yatırım dengesi" : "Cash / invested balance"}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-600">
+                    {sortedPortfolioPositions.length} {locale === "tr" ? "varlık" : "assets"}
+                  </span>
+                </div>
+                <div className="mt-5 flex h-4 overflow-hidden rounded-full bg-slate-200" role="img" aria-label={`${locale === "tr" ? "Nakit" : "Cash"} ${cashAllocationPercent.toFixed(1)}%, ${locale === "tr" ? "yatırım" : "invested"} ${investedAllocationPercent.toFixed(1)}%`}>
+                  <span className="h-full bg-[#0f766e]" style={{ width: `${cashAllocationPercent}%` }} />
+                  <span className="h-full bg-[#d9a441]" style={{ width: `${investedAllocationPercent}%` }} />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-xs font-bold text-slate-600">
+                  <div><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#0f766e]" />{locale === "tr" ? "Nakit" : "Cash"} · {cashAllocationPercent.toFixed(1)}%</div>
+                  <div className="text-right"><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#d9a441]" />{locale === "tr" ? "Yatırım" : "Invested"} · {investedAllocationPercent.toFixed(1)}%</div>
+                </div>
+                <div className="mt-5 border-t border-slate-200 pt-4">
+                  <div className="flex items-center justify-between gap-4 text-xs font-black uppercase tracking-[0.1em] text-slate-500">
+                    <span>{locale === "tr" ? "Başlangıç bazı" : "Starting base"}</span>
+                    <span>{locale === "tr" ? "Bugün" : "Today"}</span>
+                  </div>
+                  <div className="mt-2 flex items-end justify-between gap-4">
+                    <span className="font-black text-slate-600">{formatDashboardMoney(portfolioSnapshot.initialCapitalUsd, locale)}</span>
+                    <span className={`text-lg font-black ${portfolioSnapshot.profitLossUsd >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{formatDashboardMoney(portfolioSnapshot.totalValueUsd, locale)}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    {locale === "tr" ? "Gün içi seri bulunmadığı için doğrulanmamış günlük değişim gösterilmez." : "Unverified daily change is not shown because an intraday series is unavailable."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <h3 className="text-sm font-black text-[#152033]">{locale === "tr" ? "Pozisyon dağılımı" : "Position breakdown"}</h3>
+                </div>
+                {sortedPortfolioPositions.length === 0 ? (
+                  <p className="p-5 text-sm leading-6 text-slate-600">
+                    {locale === "tr" ? "Henüz açık pozisyon yok. İlk sanal alımdan sonra dağılım burada görünecek." : "No open positions yet. Allocation will appear after the first virtual buy."}
+                  </p>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {sortedPortfolioPositions.slice(0, 8).map((position) => {
+                      const weight = portfolioTotal > 0 ? (position.valueUsd / portfolioTotal) * 100 : 0;
+                      const positionReturn = position.competitionCostUsd > 0 ? (position.profitLossUsd / position.competitionCostUsd) * 100 : 0;
+
+                      return (
+                        <div key={position.symbol} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_110px_110px] sm:items-center">
+                          <div className="min-w-0">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="truncate text-sm font-black text-[#152033]">{position.symbol}</p>
+                              <span className="text-xs font-black text-slate-500 sm:hidden">{weight.toFixed(1)}%</span>
+                            </div>
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div className="h-full rounded-full bg-[#d9a441]" style={{ width: `${Math.min(100, weight)}%` }} />
+                            </div>
+                          </div>
+                          <p className="text-sm font-black text-[#152033] sm:text-right">{formatDashboardMoney(position.valueUsd, locale)}</p>
+                          <p className={`text-sm font-black sm:text-right ${position.profitLossUsd >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                            {positionReturn >= 0 ? "+" : ""}{positionReturn.toFixed(2)}%
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="p-6 text-sm leading-6 text-slate-600">
+            {locale === "tr" ? "Portföy verisi şu anda alınamıyor. İşlem günlüğü korunmaya devam ediyor." : "Portfolio data is unavailable right now. Your trade journal remains intact."}
+          </p>
+        )}
+      </section>
+
       <section className={`${activeView === "portfolio" ? "block" : "hidden"} panel-trade-journal premium-card p-6`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -462,47 +641,72 @@ export default async function DashboardPage({
           </Link>
         </div>
 
-        <div className="mt-5 grid gap-3">
-          {latestTrades.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-5 text-sm leading-6 text-slate-600">
-              {locale === "tr"
-                ? "Henüz işlem günlüğü oluşmadı. İlk sanal işlemini yaparken kısa bir gerekçe yazarsan bu alan karar defterine dönüşür."
-                : "No trade journal yet. Add a short reason with your first virtual trade and this area becomes your decision log."}
-            </p>
-          ) : (
-            latestTrades.map((trade) => (
-              <article key={trade.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 lg:grid-cols-[160px_minmax(0,1fr)_160px] lg:items-start">
-                <div>
-                  <p className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
-                    trade.side === "BUY" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                  }`}>
-                    {trade.side === "BUY" ? (locale === "tr" ? "ALIM" : "BUY") : (locale === "tr" ? "SATIŞ" : "SELL")}
-                  </p>
-                  <p className="mt-3 text-lg font-black text-[#152033]">{trade.symbol}</p>
-                  <p className="text-xs font-semibold text-slate-500">{trade.market}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="font-black text-[#152033]">{trade.name}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {trade.reason ?? (locale === "tr" ? "Bu işlemde gerekçe notu yazılmamış." : "No decision note was written for this trade.")}
-                  </p>
-                  <p className="mt-2 text-xs font-bold text-slate-500">
-                    {new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium", timeStyle: "short" }).format(trade.createdAt)}
-                  </p>
-                </div>
-                <div className="lg:text-right">
-                  <p className="text-sm font-black text-[#0f766e]">{formatMoney(trade.totalUsd)}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {locale === "tr" ? "Fiyat" : "Price"}: {formatMoney(trade.priceUsd)}
-                  </p>
-                  <Link href={`/${locale}/islem-yap?symbol=${encodeURIComponent(trade.symbol)}&q=${encodeURIComponent(trade.symbol)}`} className="mt-3 inline-flex rounded-md border border-[#0f766e]/30 bg-emerald-50 px-3 py-2 text-xs font-black text-[#0f766e]">
-                    {locale === "tr" ? "Tekrar incele" : "Review again"}
-                  </Link>
-                </div>
-              </article>
-            ))
-          )}
-        </div>
+        {latestTrades.length === 0 ? (
+          <p className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white/70 p-5 text-sm leading-6 text-slate-600">
+            {locale === "tr"
+              ? "Henüz işlem günlüğü oluşmadı. İlk sanal işlemini yaparken kısa bir gerekçe yazarsan bu alan karar defterine dönüşür."
+              : "No trade journal yet. Add a short reason with your first virtual trade and this area becomes your decision log."}
+          </p>
+        ) : (
+          <>
+            <div className="mt-5 grid gap-3 lg:hidden">
+              {latestTrades.map((trade) => (
+                <article key={trade.id} className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className={`w-fit rounded-full px-3 py-1 text-xs font-black ${trade.side === "BUY" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                        {trade.side === "BUY" ? (locale === "tr" ? "ALIM" : "BUY") : (locale === "tr" ? "SATIŞ" : "SELL")}
+                      </p>
+                      <p className="mt-3 text-lg font-black text-[#152033]">{trade.symbol}</p>
+                      <p className="text-xs font-semibold text-slate-500">{trade.market}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-[#0f766e]">{formatDashboardMoney(trade.totalUsd, locale)}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">{formatDashboardMoney(trade.priceUsd, locale)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm font-black text-[#152033]">{trade.name}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{trade.reason ?? (locale === "tr" ? "Bu işlemde gerekçe notu yazılmamış." : "No decision note was written for this trade.")}</p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                    <p className="text-xs font-bold text-slate-500">{new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium", timeStyle: "short" }).format(trade.createdAt)}</p>
+                    <Link href={`/${locale}/islem-yap?symbol=${encodeURIComponent(trade.symbol)}&q=${encodeURIComponent(trade.symbol)}`} className="rounded-md border border-[#0f766e]/30 bg-emerald-50 px-3 py-2 text-xs font-black text-[#0f766e]">
+                      {locale === "tr" ? "Tekrar incele" : "Review again"}
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-5 hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white lg:block">
+              <table className="w-full min-w-[920px] border-collapse text-left">
+                <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">{locale === "tr" ? "İşlem" : "Trade"}</th>
+                    <th className="px-4 py-3">{locale === "tr" ? "Varlık" : "Asset"}</th>
+                    <th className="px-4 py-3">{locale === "tr" ? "Karar notu" : "Decision note"}</th>
+                    <th className="px-4 py-3 text-right">{locale === "tr" ? "Fiyat" : "Price"}</th>
+                    <th className="px-4 py-3 text-right">{locale === "tr" ? "Tutar" : "Amount"}</th>
+                    <th className="px-4 py-3 text-right">{locale === "tr" ? "Tarih" : "Date"}</th>
+                    <th className="px-4 py-3"><span className="sr-only">{locale === "tr" ? "Eylem" : "Action"}</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {latestTrades.map((trade) => (
+                    <tr key={trade.id} className="align-top transition hover:bg-slate-50">
+                      <td className="px-4 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${trade.side === "BUY" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{trade.side === "BUY" ? (locale === "tr" ? "ALIM" : "BUY") : (locale === "tr" ? "SATIŞ" : "SELL")}</span></td>
+                      <td className="px-4 py-4"><p className="font-black text-[#152033]">{trade.symbol}</p><p className="mt-1 text-xs font-semibold text-slate-500">{trade.name} · {trade.market}</p></td>
+                      <td className="max-w-sm px-4 py-4 text-sm leading-6 text-slate-600">{trade.reason ?? (locale === "tr" ? "Gerekçe yazılmamış." : "No reason provided.")}</td>
+                      <td className="px-4 py-4 text-right text-sm font-bold text-slate-700">{formatDashboardMoney(trade.priceUsd, locale)}</td>
+                      <td className="px-4 py-4 text-right text-sm font-black text-[#0f766e]">{formatDashboardMoney(trade.totalUsd, locale)}</td>
+                      <td className="whitespace-nowrap px-4 py-4 text-right text-xs font-bold text-slate-500">{new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium", timeStyle: "short" }).format(trade.createdAt)}</td>
+                      <td className="px-4 py-4 text-right"><Link href={`/${locale}/islem-yap?symbol=${encodeURIComponent(trade.symbol)}&q=${encodeURIComponent(trade.symbol)}`} className="inline-flex rounded-md border border-[#0f766e]/30 bg-emerald-50 px-3 py-2 text-xs font-black text-[#0f766e]">{locale === "tr" ? "İncele" : "Review"}</Link></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
 
       <section className={`${activeView === "settings" ? "grid" : "hidden"} glass-card gap-4 rounded-lg p-6 shadow-sm md:grid-cols-3`}>
@@ -737,6 +941,40 @@ function PanelMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#d1bfa7]">{label}</p>
     </div>
   );
+}
+
+function PortfolioSummaryMetric({
+  label,
+  value,
+  note,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  note: string;
+  tone?: "neutral" | "positive" | "negative";
+}) {
+  const valueClass = tone === "positive"
+    ? "text-emerald-700"
+    : tone === "negative"
+      ? "text-rose-700"
+      : "text-[#152033]";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className={`mt-2 text-xl font-black sm:text-2xl ${valueClass}`}>{value}</p>
+      <p className="mt-1 text-xs font-semibold text-slate-500">{note}</p>
+    </div>
+  );
+}
+
+function formatDashboardMoney(value: number, locale: "tr" | "en") {
+  return new Intl.NumberFormat(locale === "tr" ? "tr-TR" : "en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function PanelSoftMetric({ label, value }: { label: string; value: string }) {

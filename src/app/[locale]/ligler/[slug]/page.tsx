@@ -325,24 +325,54 @@ export default async function LeagueDetailPage({
           <div className="border-b border-slate-200 p-6">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0f766e]">{copy.innerLeaderboard}</p>
             <h2 className="mt-2 text-2xl font-black text-[#152033]">{copy.ranking}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {locale === "tr" ? "Portföy değeri ve yüzde getiri birlikte gösterilir; böylece büyüklük ile performans birbirine karışmaz." : "Portfolio value and percentage return are shown together so size is not confused with performance."}
+            </p>
+          </div>
+          {leaderboard.rows.length > 0 ? (
+            <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-5 md:grid-cols-3">
+              {leaderboard.rows.slice(0, 3).map((row) => {
+                const isCurrentUser = row.userId === user.id;
+
+                return (
+                  <article key={row.membershipId} className={`rounded-2xl border bg-white p-4 text-center shadow-sm ${row.rank === 1 ? "border-[#d9a441]" : "border-slate-200"} ${isCurrentUser ? "ring-2 ring-[#0f766e] ring-offset-2" : ""}`}>
+                    <span className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full text-sm font-black ${row.rank === 1 ? "bg-[#101827] text-[#f5c96b]" : "bg-slate-100 text-slate-700"}`}>#{row.rank}</span>
+                    <p className="mt-3 truncate font-black text-[#152033]">{row.displayName}</p>
+                    {isCurrentUser ? <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0f766e]">{locale === "tr" ? "Sen" : "You"}</p> : null}
+                    <p className={`mt-2 text-lg font-black ${row.profitLossPercent >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{row.profitLossPercent >= 0 ? "+" : ""}{row.profitLossPercent.toFixed(2)}%</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{formatMoney(row.totalValueUsd)}</p>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+          <div className="hidden grid-cols-[80px_minmax(0,1fr)_160px_160px] gap-3 border-b border-slate-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.1em] text-slate-500 md:grid">
+            <span>{locale === "tr" ? "Sıra" : "Rank"}</span>
+            <span>{locale === "tr" ? "Katılımcı" : "Participant"}</span>
+            <span>{locale === "tr" ? "Portföy" : "Portfolio"}</span>
+            <span>{locale === "tr" ? "Getiri" : "Return"}</span>
           </div>
           <div className="divide-y divide-slate-100">
             {leaderboard.rows.length === 0 ? (
               <p className="p-6 text-sm text-slate-600">{copy.noMembers}</p>
             ) : (
-              leaderboard.rows.map((row) => (
-                <div key={row.membershipId} className="grid gap-3 p-5 md:grid-cols-[80px_1fr_160px_160px] md:items-center">
+              leaderboard.rows.map((row) => {
+                const isCurrentUser = row.userId === user.id;
+
+                return (
+                <div key={row.membershipId} className={`grid gap-3 p-5 md:grid-cols-[80px_minmax(0,1fr)_160px_160px] md:items-center ${isCurrentUser ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : "hover:bg-slate-50"}`}>
                   <p className="text-2xl font-black text-[#f5a623]">#{row.rank}</p>
                   <div>
                     <p className="font-black text-[#152033]">{row.displayName}</p>
-                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{row.role}</p>
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{row.role}{isCurrentUser ? ` · ${locale === "tr" ? "Sen" : "You"}` : ""}</p>
                   </div>
                   <p className="font-black text-[#152033]">{formatMoney(row.totalValueUsd)}</p>
                   <p className={row.profitLossUsd >= 0 ? "font-black text-[#0f766e]" : "font-black text-red-600"}>
-                    {row.profitLossPercent.toFixed(2)}%
+                    {row.profitLossPercent >= 0 ? "+" : ""}{row.profitLossPercent.toFixed(2)}%
                   </p>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </section>

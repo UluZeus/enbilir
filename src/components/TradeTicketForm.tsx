@@ -340,13 +340,15 @@ export function TradeTicketForm({
   return (
     <div className="grid min-w-0 gap-4 md:gap-5">
       <form action={formAction} className="trade-ticket-terminal dashboard-shell grid min-w-0 p-3 md:p-4 lg:p-5">
-        <div className="hidden flex-col gap-2 md:flex lg:flex-row lg:items-start lg:justify-between">
+        <div className="trade-ticket-heading hidden flex-col gap-2 md:flex lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f766e]">{copy.title}</p>
             <h2 className="mt-1 text-lg font-black text-[#152033] sm:text-xl md:mt-2 md:text-2xl">
               {effectiveSelectedItem ? `${effectiveSelectedItem.symbol} · ${effectiveSelectedItem.name}` : copy.description}
             </h2>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 md:mt-2 md:text-sm md:leading-6">{copy.description}</p>
+            <p className="trade-ticket-description mt-1 max-w-3xl text-xs leading-5 text-slate-600 md:mt-2 md:text-sm md:leading-6">
+              {copy.description}
+            </p>
           </div>
           <div className="grid gap-1 text-left text-xs font-bold text-slate-500 lg:text-right">
             <p>{safeLocale === "en" ? "Last update" : "Son güncelleme"}</p>
@@ -356,8 +358,11 @@ export function TradeTicketForm({
 
         {state.message ? (
           <div
+            data-tone={state.ok ? "success" : "error"}
             className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold leading-6 ${
-              state.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"
+              state.ok
+                ? "trade-ticket-status border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "trade-ticket-status border-red-200 bg-red-50 text-red-900"
             }`}
           >
             {state.message}
@@ -368,14 +373,24 @@ export function TradeTicketForm({
         <input type="hidden" name="userId" value={userId} />
         <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 
-        <div className="order-1 mt-3 grid gap-2 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,0.9fr)_auto] md:order-2 md:mt-4 md:gap-3 xl:items-end">
-          <label className="trade-terminal-field grid min-w-0 gap-1.5 text-sm font-bold text-slate-700 md:gap-2">
-            {copy.action}
-            <select name="side" className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#0f766e] md:py-2.5">
-              <option value="BUY">{copy.buy}</option>
-              <option value="SELL">{copy.sell}</option>
-            </select>
-          </label>
+        <div className="order-1 mt-3 grid gap-2 sm:grid-cols-[minmax(0,1.05fr)_minmax(0,0.9fr)_auto] md:order-2 md:mt-4 md:gap-3 xl:items-end">
+          <fieldset className="trade-terminal-field grid min-w-0 gap-1.5 text-sm font-bold text-slate-700 md:gap-2">
+            <legend>{copy.action}</legend>
+            <div className="grid grid-cols-2 gap-2" aria-label={copy.action}>
+              <label className="cursor-pointer">
+                <input className="peer sr-only" type="radio" name="side" value="BUY" defaultChecked />
+                <span className="trade-side-option trade-side-option--buy flex min-h-10 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 transition peer-checked:border-emerald-700 peer-checked:bg-emerald-700 peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-700 md:min-h-11 md:text-sm">
+                  {copy.buy}
+                </span>
+              </label>
+              <label className="cursor-pointer">
+                <input className="peer sr-only" type="radio" name="side" value="SELL" />
+                <span className="trade-side-option trade-side-option--sell flex min-h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-800 transition peer-checked:border-rose-700 peer-checked:bg-rose-700 peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-rose-700 md:min-h-11 md:text-sm">
+                  {copy.sell}
+                </span>
+              </label>
+            </div>
+          </fieldset>
 
           <label className="trade-terminal-field grid min-w-0 gap-1.5 text-sm font-bold text-slate-700 md:gap-2">
             {copy.amountUsd}
@@ -385,7 +400,9 @@ export function TradeTicketForm({
               min="1"
               step="1"
               required
-              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#0f766e] md:py-2.5"
+              inputMode="decimal"
+              aria-describedby="trade-amount-help"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#0f766e]/15 md:py-2.5"
             />
           </label>
 
@@ -400,6 +417,12 @@ export function TradeTicketForm({
           </div>
         </div>
 
+        <p id="trade-amount-help" className="order-1 mt-2 text-xs font-semibold leading-5 text-slate-500 md:order-2">
+          {safeLocale === "tr"
+            ? "Tutar USD cinsindendir. Emir gönderilmeden önce seçili varlığı ve alım/satım yönünü kontrol et."
+            : "Amount is in USD. Review the selected asset and buy/sell direction before submitting."}
+        </p>
+
         <label className="order-2 mt-3 grid gap-1.5 text-sm font-bold text-slate-700 md:order-3 md:mt-4 md:gap-2">
           {safeLocale === "tr" ? "İşlem gerekçesi" : "Decision note"}
           <textarea
@@ -413,7 +436,7 @@ export function TradeTicketForm({
             }
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal leading-6 outline-none focus:border-[#0f766e] md:py-2.5"
           />
-          <span className="text-xs font-semibold leading-5 text-slate-500">
+          <span className="trade-ticket-note text-xs font-semibold leading-5 text-slate-500">
             {safeLocale === "tr"
               ? "Bu not yatırım tavsiyesi değildir; kendi karar sürecini sonradan değerlendirebilmen için saklanır."
               : "This note is not investment advice; it is saved so you can review your own decision process later."}

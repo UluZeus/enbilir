@@ -133,30 +133,32 @@ export function AiScenarioLab({ locale }: AiScenarioLabProps) {
   }
 
   return (
-    <section className="ai-scenario-lab mx-auto mb-4 max-w-[1600px] rounded-[1.5rem] border border-cyan-300/16 bg-[#08111f] p-4 text-white shadow-2xl md:p-5">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d1bfa7]">{text.kicker}</p>
-          <h2 className="mt-2 max-w-4xl text-2xl font-black md:text-3xl">{text.title}</h2>
-          <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">{text.body}</p>
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
+    <details className="ai-scenario-lab group mx-auto mb-4 w-full max-w-[1600px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 marker:content-none md:px-5">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#0f766e]">{text.kicker}</p>
+          <h2 className="mt-0.5 text-base font-bold text-[#152033] md:text-lg">{text.title}</h2>
+        </div>
+        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-lg text-slate-600 transition group-open:rotate-45">+</span>
+      </summary>
+      <section className="border-t border-slate-200 bg-slate-50/70 p-4 md:p-5" aria-label={text.kicker}>
+        <p className="max-w-4xl text-sm leading-6 text-slate-600">{text.body}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
             {text.cards.map((card) => (
               <button
                 key={card.title}
                 type="button"
                 onClick={() => void runScenario(card.prompt)}
                 disabled={isLoading}
-                className="ai-scenario-card rounded-2xl border border-white/10 bg-white/7 p-4 text-left hover:border-cyan-300/40 disabled:cursor-wait disabled:opacity-60"
+                className="min-h-11 rounded-full border border-slate-200 bg-white px-4 py-2 text-left text-xs font-bold text-slate-700 shadow-sm transition hover:border-[#0f766e] hover:text-[#0f766e] disabled:cursor-wait disabled:opacity-60"
               >
-                <p className="text-sm font-black text-white">{card.title}</p>
-                <p className="mt-2 text-xs leading-5 text-slate-300">{card.prompt}</p>
+                {card.title}
               </button>
             ))}
           </div>
-        </div>
-
-        <aside className="grid content-start gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-          <label className="grid gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
+          <div className="grid content-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+          <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
             {text.customLabel}
             <textarea
               value={scenario}
@@ -164,35 +166,40 @@ export function AiScenarioLab({ locale }: AiScenarioLabProps) {
               rows={5}
               maxLength={700}
               placeholder={text.placeholder}
-              className="resize-none rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold normal-case leading-6 tracking-normal text-white outline-none focus:border-cyan-300"
+              className="min-h-24 resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium normal-case leading-6 tracking-normal text-slate-900 outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-emerald-100"
             />
           </label>
           <button
             type="button"
             onClick={() => void runScenario()}
             disabled={isLoading}
-            className="rounded-md border border-cyan-200 bg-cyan-100 px-4 py-3 text-sm font-black text-slate-950 hover:bg-white disabled:cursor-wait disabled:opacity-60"
+            className="min-h-11 rounded-lg bg-[#0f766e] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#0b5f59] disabled:cursor-wait disabled:opacity-60"
           >
             {isLoading ? text.thinking : text.ask}
           </button>
-          {error ? <p className="rounded-md border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-bold text-rose-100">{error}</p> : null}
+          {error ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
+          </div>
           {answer ? (
-            <article className="rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3">
+            <article className="rounded-xl border border-emerald-200 bg-emerald-50 p-4" aria-live="polite">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-100">{text.result}</p>
-                <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-800">{text.result}</p>
+                <span className="rounded-full border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-800">
                   {text.mode}: {mode ?? "local"} {membership ? `· ${membership}` : ""}
                 </span>
               </div>
-              <div className="mt-3 grid gap-2 text-sm leading-6 text-slate-100">
+              <div className="mt-3 grid max-h-80 gap-2 overflow-y-auto pr-1 text-sm leading-6 text-slate-700">
                 {paragraphs(answer).map((paragraph) => (
                   <p key={paragraph}>{paragraph}</p>
                 ))}
               </div>
             </article>
-          ) : null}
-        </aside>
-      </div>
-    </section>
+          ) : (
+            <div className="hidden rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm leading-6 text-slate-500 xl:block">
+              {safeLocale === "tr" ? "Bir senaryo seçtiğinde sonuç bu alanda görünür." : "Choose a scenario to see its result here."}
+            </div>
+          )}
+        </div>
+      </section>
+    </details>
   );
 }

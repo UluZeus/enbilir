@@ -93,8 +93,8 @@ export default async function WeeklyLeadersPage({ params }: { params: Promise<{ 
                 </p>
               </div>
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                <RankingPanel title={isEnglish ? "Weekly gain leaders" : "Haftalık kazanç liderleri"} rows={weeklyRows} />
-                <RankingPanel title={isEnglish ? "Overall gain leaders" : "Toplam kazanç liderleri"} rows={totalRows} />
+                <RankingPanel title={isEnglish ? "Weekly gain leaders" : "Haftalık kazanç liderleri"} rows={weeklyRows} locale={locale} />
+                <RankingPanel title={isEnglish ? "Overall gain leaders" : "Toplam kazanç liderleri"} rows={totalRows} locale={locale} />
               </div>
               {publication.note ? (
                 <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">
@@ -109,17 +109,24 @@ export default async function WeeklyLeadersPage({ params }: { params: Promise<{ 
   );
 }
 
-function RankingPanel({ title, rows }: { title: string; rows: Array<{ id: string; rank: number; displayName: string; valueUsd: number; returnPercent: number }> }) {
+function RankingPanel({ title, rows, locale }: { title: string; rows: Array<{ id: string; rank: number; displayName: string; valueUsd: number; returnPercent: number }>; locale: "tr" | "en" }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#8a6a5d]">{title}</h3>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+      <div className="border-b border-slate-200 bg-white px-4 py-3">
+        <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#8a6a5d]">{title}</h3>
+      </div>
       <div className="mt-3 grid gap-2">
-        {rows.map((row) => (
-          <div key={row.id} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 rounded-lg bg-white p-3 shadow-sm">
-            <span className="text-xl font-black text-[#f5a623]">#{row.rank}</span>
+        {rows.length === 0 ? (
+          <p className="px-4 pb-4 text-sm text-slate-500">{locale === "tr" ? "Bu dönem için sonuç yok." : "No result for this period."}</p>
+        ) : rows.map((row) => (
+          <div key={row.id} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 last:border-b-0">
+            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-black ${row.rank === 1 ? "bg-[#101827] text-[#f5c96b]" : "bg-slate-100 text-slate-700"}`}>#{row.rank}</span>
             <span className="truncate text-sm font-black text-[#152033]">{row.displayName}</span>
-            <span className={row.valueUsd >= 0 ? "text-sm font-black text-[#0f766e]" : "text-sm font-black text-red-600"}>
-              {formatMoney(row.valueUsd)}
+            <span className="text-right">
+              <span className={`block text-sm font-black ${row.returnPercent >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                {row.returnPercent >= 0 ? "+" : ""}{row.returnPercent.toFixed(2)}%
+              </span>
+              <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{formatMoney(row.valueUsd)}</span>
             </span>
           </div>
         ))}

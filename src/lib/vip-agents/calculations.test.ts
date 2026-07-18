@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateVipAgentTradePnl,
+  calculateVipAgentMaximumDrawdown,
   calculateVipAgentAccount,
   calculateVipAgentPeriods,
   calculateVipAgentSplitAdjustment,
@@ -54,6 +55,16 @@ describe("VIP agent capital invariants", () => {
 });
 
 describe("VIP agent period P/L", () => {
+  it("measures drawdown from the fixed performance base and keeps the historic peak", () => {
+    const snapshots = [
+      { capturedAt: new Date("2026-01-01T00:00:00.000Z"), performanceEquityUsd: 950_000 },
+      { capturedAt: new Date("2026-02-01T00:00:00.000Z"), performanceEquityUsd: 1_100_000 },
+      { capturedAt: new Date("2026-03-01T00:00:00.000Z"), performanceEquityUsd: 990_000 },
+    ];
+
+    expect(calculateVipAgentMaximumDrawdown(snapshots, 1_000_000)).toBe(10);
+  });
+
   it("uses the latest snapshot before each cutoff and the fixed performance base", () => {
     const now = new Date("2026-07-18T12:00:00.000Z");
     const snapshots = [

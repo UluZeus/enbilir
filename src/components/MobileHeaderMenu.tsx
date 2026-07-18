@@ -104,7 +104,7 @@ export function MobileHeaderMenu({
   const menuOverlay = isOpen
     ? createPortal(
         <div
-          className="fixed inset-0 z-[120] bg-slate-950/55 p-3 pb-24 backdrop-blur-sm"
+          className="mobile-menu-overlay-v3 fixed inset-0 z-[120] bg-slate-950/70 p-3 backdrop-blur-sm"
           onMouseDown={(event) => {
             if (event.currentTarget === event.target) setIsOpen(false);
           }}
@@ -115,16 +115,16 @@ export function MobileHeaderMenu({
             role="dialog"
             aria-modal="true"
             aria-labelledby={menuTitleId}
-            className="mobile-menu-panel mx-auto flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#d1bfa7]/38 bg-white shadow-2xl"
+            className="mobile-menu-panel mobile-menu-panel-v3 mx-auto flex max-h-full w-full max-w-lg flex-col overflow-hidden"
           >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-[#101827] px-4 py-3 text-white">
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1320] px-4 py-4 text-white">
               <div>
-                <p className="text-xs font-bold uppercase text-cyan-200">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-200">
                   {locale === "tr" ? "Gezinme" : "Navigation"}
                 </p>
                 <h2
                   id={menuTitleId}
-                  className="mt-0.5 text-lg font-black text-white"
+                  className="mt-1 text-lg font-bold text-white"
                 >
                   {locale === "tr"
                     ? "Nereye gitmek istersin?"
@@ -136,15 +136,16 @@ export function MobileHeaderMenu({
                 type="button"
                 onClick={() => setIsOpen(false)}
                 aria-label={locale === "tr" ? "Menüyü kapat" : "Close menu"}
-                className="mobile-menu-close-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/10 text-xl font-black text-white"
+                className="mobile-menu-close-button inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-xl font-semibold text-white"
               >
                 ×
               </button>
             </div>
-            <div className="grid gap-3 overflow-y-auto p-3">
-              <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-700">
+            <div className="grid gap-4 overflow-y-auto p-4">
+              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-medium leading-5 text-slate-700">
                 {tagline}
               </p>
+              <p className="mobile-menu-section-label-v3">{locale === "tr" ? "Keşfet" : "Explore"}</p>
               <nav
                 className="grid grid-cols-2 gap-2"
                 aria-label={locale === "tr" ? "Ana menü" : "Main menu"}
@@ -158,6 +159,7 @@ export function MobileHeaderMenu({
                   />
                 ))}
               </nav>
+              <p className="mobile-menu-section-label-v3">{locale === "tr" ? "Ürünler ve araçlar" : "Products and tools"}</p>
               <nav
                 className="grid gap-2"
                 aria-label={locale === "tr" ? "Ürün menüsü" : "Product menu"}
@@ -179,7 +181,7 @@ export function MobileHeaderMenu({
                     setIsOpen(false);
                     window.dispatchEvent(new Event("enbilir:open-help"));
                   }}
-                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-left text-sm font-black text-cyan-900"
+                  className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-left text-sm font-bold text-teal-900"
                 >
                   {locale === "tr" ? "Yardımı aç" : "Open help"}
                 </button>
@@ -190,14 +192,14 @@ export function MobileHeaderMenu({
                       aria-current={
                         isCurrent(`/${locale}/panel`) ? "page" : undefined
                       }
-                      className={`rounded-xl border px-3 py-2 text-sm font-black ${isCurrent(`/${locale}/panel`) ? "border-[#0f766e] bg-emerald-100 text-[#075c56] ring-2 ring-emerald-200" : "border-emerald-200 bg-emerald-50 text-[#0f766e]"}`}
+                      className={`rounded-xl border px-3 py-2.5 text-sm font-bold ${isCurrent(`/${locale}/panel`) ? "border-teal-700 bg-teal-100 text-teal-950 ring-2 ring-teal-200" : "border-teal-200 bg-teal-50 text-teal-900"}`}
                       onClick={() => setIsOpen(false)}
                     >
                       {userLabel}
                     </Link>
                     <form action={logoutAction}>
                       <input type="hidden" name="locale" value={locale} />
-                      <button className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-sm font-black text-slate-700">
+                      <button className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-slate-700">
                         {logoutLabel}
                       </button>
                     </form>
@@ -214,6 +216,7 @@ export function MobileHeaderMenu({
                     ))}
                   </div>
                 )}
+                <p className="px-1 pt-1 text-xs leading-5 text-slate-500">{supportLabel}</p>
               </div>
             </div>
           </section>
@@ -224,14 +227,14 @@ export function MobileHeaderMenu({
 
   return (
     <>
-      <div className="mobile-site-header mobile-site-header--advanced border-b border-[#d1bfa7]/30 bg-[#fffaf6]/92 px-4 py-3 shadow-lg backdrop-blur-xl xl:hidden">
-        <div className="flex items-center justify-between gap-3">
+      <div className="mobile-site-header mobile-site-header--advanced site-mobile-header-v3 px-4 xl:hidden">
+        <div className="flex h-16 items-center justify-between gap-3">
           <Link
             href={`/${locale}`}
             className="flex min-w-0 items-center gap-2.5"
             onClick={() => setIsOpen(false)}
           >
-            <span className="mobile-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d1bfa7]/50 bg-white shadow-sm">
+            <span className="mobile-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-sm">
               <Image
                 src="/logo.svg"
                 alt="Enbilir logo"
@@ -241,10 +244,10 @@ export function MobileHeaderMenu({
               />
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-lg font-black tracking-normal text-[#152033]">
+              <span className="block truncate text-base font-bold tracking-normal text-white">
                 {brandLine}
               </span>
-              <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em] text-[#0f766e]">
+              <span className="mt-1 block truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-teal-200">
                 {academyLabel}
               </span>
             </span>
@@ -256,10 +259,10 @@ export function MobileHeaderMenu({
                 key={language}
                 href={getLocalizedPath(pathname, language, locale)}
                 aria-label={language === "tr" ? "Türkçe" : "English"}
-                className={`rounded-md border px-2.5 py-1.5 text-xs font-black ${
+                className={`inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-[11px] font-bold ${
                   language === locale
-                    ? "border-[#0f766e] bg-emerald-50 text-[#0f766e]"
-                    : "border-slate-200 bg-white text-slate-600"
+                    ? "border-teal-300/60 bg-teal-300/15 text-teal-100"
+                    : "border-white/15 bg-white/5 text-slate-300"
                 }`}
                 onClick={() => setIsOpen(false)}
               >
@@ -280,7 +283,7 @@ export function MobileHeaderMenu({
               aria-expanded={isOpen}
               aria-controls={menuId}
               onClick={() => setIsOpen((current) => !current)}
-              className="mobile-menu-button mobile-menu-button--advanced inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#d1bfa7]/60 bg-white text-[#152033] shadow-sm"
+              className="mobile-menu-button mobile-menu-button--advanced inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white shadow-sm"
             >
               <span className="grid gap-1.5">
                 <span
@@ -297,12 +300,6 @@ export function MobileHeaderMenu({
           </div>
         </div>
 
-        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-bold text-slate-600">
-          <span className="truncate">{supportLabel}</span>
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[#0f766e]">
-            {locale === "tr" ? "Canlı" : "Live"}
-          </span>
-        </div>
       </div>
       {menuOverlay}
     </>
@@ -322,15 +319,17 @@ function MobileMenuLink({
 }) {
   const toneClass =
     item.tone === "trade"
-      ? "border-emerald-200 bg-emerald-50 text-[#0f766e]"
+      ? "border-teal-200 bg-teal-50 text-teal-900"
       : item.tone === "ai"
         ? "border-slate-800 bg-[#101827] text-white"
         : item.tone === "chat"
-          ? "border-cyan-200 bg-cyan-50 text-cyan-800"
+          ? "border-sky-200 bg-sky-50 text-sky-900"
           : item.tone === "macro"
-            ? "border-red-200 bg-red-600 text-white"
+            ? "border-indigo-200 bg-indigo-50 text-indigo-950"
+            : item.tone === "vip"
+              ? "border-amber-300 bg-[#111827] text-amber-200"
             : item.tone === "whatsapp"
-              ? "border-emerald-300 bg-[#25d366] text-white"
+              ? "border-slate-200 bg-white text-slate-800"
               : "border-slate-200 bg-white text-[#152033]";
 
   return (
@@ -339,7 +338,7 @@ function MobileMenuLink({
       onClick={onClick}
       aria-current={current ? "page" : undefined}
       data-tone={item.tone ?? "default"}
-      className={`rounded-xl border px-3 py-2 text-sm font-black shadow-sm ${toneClass} ${wide ? "block" : ""} ${current ? "ring-2 ring-[#0f766e] ring-offset-1" : ""}`}
+      className={`rounded-xl border px-3 py-2.5 text-sm font-bold shadow-sm ${toneClass} ${wide ? "block" : ""} ${current ? "ring-2 ring-teal-700 ring-offset-1" : ""}`}
     >
       {item.label}
     </Link>

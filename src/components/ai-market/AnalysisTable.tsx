@@ -217,6 +217,7 @@ export function AnalysisTable({ locale, interval = FALLBACK_INTERVAL }: Analysis
   const favorites = useMemo(() => normalizeFavorites(JSON.parse(favoritesSnapshot)), [favoritesSnapshot]);
   const [state, setState] = useState<TableState>({ status: "idle", response: null, error: null, updatedAt: null });
   const [refreshTick, setRefreshTick] = useState(0);
+  const [selectedChartSymbol, setSelectedChartSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     const refreshId = window.setInterval(() => {
@@ -324,8 +325,22 @@ export function AnalysisTable({ locale, interval = FALLBACK_INTERVAL }: Analysis
       {favorites.length > 0 && state.status === "error" ? <ErrorState title={copy.favoriteAnalysisLoadError} message={state.error ?? copy.favoriteAnalysisLoadError} /> : null}
       {results.length > 0 ? (
         <>
-          <DesktopTable copy={copy} signalLabels={signalLabels} results={results} locale={safeLocale} />
-          <MobileCards copy={copy} signalLabels={signalLabels} results={results} locale={safeLocale} />
+          <DesktopTable
+            copy={copy}
+            signalLabels={signalLabels}
+            results={results}
+            locale={safeLocale}
+            selectedChartSymbol={selectedChartSymbol}
+            onToggleChart={(symbol) => setSelectedChartSymbol((current) => current === symbol ? null : symbol)}
+          />
+          <MobileCards
+            copy={copy}
+            signalLabels={signalLabels}
+            results={results}
+            locale={safeLocale}
+            selectedChartSymbol={selectedChartSymbol}
+            onToggleChart={(symbol) => setSelectedChartSymbol((current) => current === symbol ? null : symbol)}
+          />
         </>
       ) : null}
       </section>
@@ -338,11 +353,15 @@ function DesktopTable({
   signalLabels,
   results,
   locale,
+  selectedChartSymbol,
+  onToggleChart,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   results: BatchResult[];
   locale: Locale;
+  selectedChartSymbol: string | null;
+  onToggleChart: (symbol: string) => void;
 }) {
   return (
     <div className="mt-4 hidden overflow-x-auto md:block">
@@ -373,7 +392,15 @@ function DesktopTable({
         </thead>
         <tbody>
           {results.map((result) => (
-            <DesktopResultRows key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} locale={locale} />
+            <DesktopResultRows
+              key={result.symbol}
+              copy={copy}
+              signalLabels={signalLabels}
+              result={result}
+              locale={locale}
+              isChartOpen={selectedChartSymbol === result.symbol}
+              onToggleChart={onToggleChart}
+            />
           ))}
         </tbody>
       </table>
@@ -386,11 +413,15 @@ function DesktopResultRows({
   signalLabels,
   result,
   locale,
+  isChartOpen,
+  onToggleChart,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   result: BatchResult;
   locale: Locale;
+  isChartOpen: boolean;
+  onToggleChart: (symbol: string) => void;
 }) {
   if (!result.ok) {
     const asset = getAssetLabel(result.symbol);
@@ -442,10 +473,21 @@ function DesktopResultRows({
         <span className="mt-2 block rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1.5 text-[11px] font-bold leading-4 text-cyan-900">
           {getSignalReadingGuide(signal, locale)}
         </span>
+        {analysis.technicalSeries ? (
+          <button
+            type="button"
+            onClick={() => onToggleChart(analysis.symbol)}
+            aria-expanded={isChartOpen}
+            aria-controls={`analysis-chart-${analysis.symbol}`}
+            className="mt-2 min-h-9 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 transition hover:border-[#0f766e] hover:text-[#0f766e]"
+          >
+            {isChartOpen ? (locale === "en" ? "Hide chart" : "Grafiği kapat") : (locale === "en" ? "Open chart" : "Grafiği aç")}
+          </button>
+        ) : null}
       </td>
       </tr>
-      {analysis.technicalSeries ? (
-        <tr>
+      {analysis.technicalSeries && isChartOpen ? (
+        <tr id={`analysis-chart-${analysis.symbol}`}>
           <td className="border-b border-slate-200 px-2 py-3" colSpan={9}>
             <TechnicalIndicatorCharts locale={locale} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
           </td>
@@ -460,16 +502,28 @@ function MobileCards({
   signalLabels,
   results,
   locale,
+  selectedChartSymbol,
+  onToggleChart,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   results: BatchResult[];
   locale: Locale;
+  selectedChartSymbol: string | null;
+  onToggleChart: (symbol: string) => void;
 }) {
   return (
     <div className="mt-4 grid gap-3 md:hidden">
       {results.map((result) => (
-        <MobileCard key={result.symbol} copy={copy} signalLabels={signalLabels} result={result} locale={locale} />
+        <MobileCard
+          key={result.symbol}
+          copy={copy}
+          signalLabels={signalLabels}
+          result={result}
+          locale={locale}
+          isChartOpen={selectedChartSymbol === result.symbol}
+          onToggleChart={onToggleChart}
+        />
       ))}
     </div>
   );
@@ -480,11 +534,15 @@ function MobileCard({
   signalLabels,
   result,
   locale,
+  isChartOpen,
+  onToggleChart,
 }: {
   copy: ReturnType<typeof getUiCopy>["ai"];
   signalLabels: Record<SignalType, string>;
   result: BatchResult;
   locale: Locale;
+  isChartOpen: boolean;
+  onToggleChart: (symbol: string) => void;
 }) {
   if (!result.ok) {
     const asset = getAssetLabel(result.symbol);
@@ -530,7 +588,18 @@ function MobileCard({
         {getSignalReadingGuide(signal, locale)}
       </p>
       {analysis.technicalSeries ? (
-        <div className="relative left-1/2 mt-3 w-[calc(100vw-1.5rem)] max-w-[480px] -translate-x-1/2">
+        <button
+          type="button"
+          onClick={() => onToggleChart(analysis.symbol)}
+          aria-expanded={isChartOpen}
+          aria-controls={`mobile-analysis-chart-${analysis.symbol}`}
+          className="mt-3 min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-[#0f766e] hover:text-[#0f766e]"
+        >
+          {isChartOpen ? (locale === "en" ? "Hide technical chart" : "Teknik grafiği kapat") : (locale === "en" ? "Open technical chart" : "Teknik grafiği aç")}
+        </button>
+      ) : null}
+      {analysis.technicalSeries && isChartOpen ? (
+        <div id={`mobile-analysis-chart-${analysis.symbol}`} className="relative left-1/2 mt-3 w-[calc(100vw-1.5rem)] max-w-[480px] -translate-x-1/2">
           <TechnicalIndicatorCharts locale={locale} symbol={analysis.symbol} interval={analysis.interval} series={analysis.technicalSeries} />
         </div>
       ) : null}

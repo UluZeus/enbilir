@@ -30,7 +30,10 @@ export async function GET(request: Request) {
         changes: {
           "1h": null,
           "1d": null,
+          "1w": null,
           "1m": null,
+          "3m": null,
+          "6m": null,
           "1y": null,
         },
         updatedAt: new Date().toISOString(),

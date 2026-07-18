@@ -45,22 +45,31 @@ export default async function AiMarketAssistantPage({
   ]);
   const membership = fullUser ? getMembershipSnapshot(fullUser) : null;
 
+  const isVip = membership?.effectiveTier === "VIP";
+
   return (
-    <div className="mx-auto grid max-w-[1600px] gap-4">
+    <div className="mx-auto grid max-w-[1600px] gap-3 md:gap-4">
       {user ? <OnboardingVisitTracker step={activeTab === "chat" ? "chat" : "assistant"} locale={locale} /> : null}
-      <section className="rounded-lg border border-slate-800 bg-[#07101d] p-5 text-white shadow-xl md:p-7">
-        <p className="text-xs font-black uppercase text-[#d1bfa7]">{isEnglish ? "AI market workspace" : "AI piyasa çalışma alanı"}</p>
-        <h1 className="mt-2 text-3xl font-black md:text-4xl">{copy.terminal}</h1>
-        <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
+      <section className={`overflow-hidden rounded-xl border p-4 text-white shadow-xl md:p-5 ${isVip ? "border-amber-300/25 bg-[linear-gradient(120deg,#07101d_0%,#101827_62%,#2a2111_140%)]" : "border-slate-800 bg-[linear-gradient(120deg,#07101d,#101827)]"}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${isVip ? "text-amber-200" : "text-cyan-200"}`}>{isEnglish ? "AI market workspace" : "AI piyasa çalışma alanı"}</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{copy.terminal}</h1>
+          </div>
+          <span className={`w-fit rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${isVip ? "border-amber-300/30 bg-amber-300/10 text-amber-100" : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>
+            {isVip ? "VIP · WEB + ENBİLİR" : isEnglish ? "STANDARD · ENBİLİR DATA" : "STANDART · ENBİLİR VERİSİ"}
+          </span>
+        </div>
+        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">
           {isEnglish
             ? "Start with the summary, open the terminal for detail, and use chat to question the evidence. AI output is educational context, never an automatic order."
             : "Özetle başla, ayrıntı için terminali aç ve kanıtı sorgulamak için sohbeti kullan. AI çıktısı eğitim bağlamıdır; otomatik işlem emri değildir."}
         </p>
       </section>
 
-      <nav className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-4" aria-label={isEnglish ? "AI workspace tabs" : "AI çalışma alanı sekmeleri"}>
+      <nav className="sticky top-[4.5rem] z-30 grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 p-1.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl sm:grid-cols-4" aria-label={isEnglish ? "AI workspace tabs" : "AI çalışma alanı sekmeleri"}>
         {getTabLabels(locale).map((tab) => (
-          <Link key={tab.id} href={`/${locale}/ai-piyasa-asistani?tab=${tab.id}`} style={activeTab === tab.id ? { color: "#fffaf6" } : undefined} className={`flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-sm font-black ${activeTab === tab.id ? "bg-[#101827]" : "text-slate-700 hover:bg-slate-100"}`}>
+          <Link key={tab.id} href={`/${locale}/ai-piyasa-asistani?tab=${tab.id}`} aria-current={activeTab === tab.id ? "page" : undefined} className={`flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-sm font-bold transition ${activeTab === tab.id ? "bg-[#101827] text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`}>
             {tab.label}
           </Link>
         ))}
@@ -94,12 +103,8 @@ export default async function AiMarketAssistantPage({
 
       {activeTab === "chat" ? (
         <div className="grid gap-4">
-          <section className="rounded-lg border border-cyan-200 bg-cyan-50 p-5 text-cyan-950">
-            <h2 className="text-lg font-black">{isEnglish ? "Ask questions that improve judgement" : "Karar kalitesini artıran sorular sor"}</h2>
-            <p className="mt-2 text-sm leading-6">{isEnglish ? "Try: What evidence supports this view? What could invalidate it? How would a shorter time frame change the risk?" : "Şunları dene: Bu görüşü hangi kanıt destekliyor? Hangi durumda geçersiz olur? Daha kısa vade riski nasıl değiştirir?"}</p>
-          </section>
-          <AiScenarioLab locale={locale} />
           <AiMarketChatPanel locale={locale} membershipTier={membership?.effectiveTier ?? "STANDARD"} vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null} standardPaymentLink={membershipConfig.standardPaymentLink} vipPaymentLink={membershipConfig.vipPaymentLink} />
+          <AiScenarioLab locale={locale} />
         </div>
       ) : null}
 
