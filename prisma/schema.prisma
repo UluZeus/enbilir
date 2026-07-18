@@ -129,13 +129,13 @@ model User {
   electronicCommunicationConsent   Boolean                      @default(false)
   electronicCommunicationConsentAt DateTime?
   onboardingGuideCompletedAt       DateTime?
-  riskAppetiteCompletedAt           DateTime?
-  riskAppetiteScore                 Float?
-  riskAppetiteProfile               String?
-  aiAssistantOnboardingCompletedAt  DateTime?
-  aiChatOnboardingCompletedAt       DateTime?
-  leaderboardOnboardingCompletedAt  DateTime?
-  onboardingCompletedAt             DateTime?
+  riskAppetiteCompletedAt          DateTime?
+  riskAppetiteScore                Float?
+  riskAppetiteProfile              String?
+  aiAssistantOnboardingCompletedAt DateTime?
+  aiChatOnboardingCompletedAt      DateTime?
+  leaderboardOnboardingCompletedAt DateTime?
+  onboardingCompletedAt            DateTime?
   createdAt                        DateTime                     @default(now())
   updatedAt                        DateTime                     @updatedAt
   virtualAccount                   VirtualAccount?
@@ -164,6 +164,8 @@ model User {
   hiddenChatMessages               ChatMessage[]                @relation("HiddenChatMessages")
   blockedChatUsers                 ChatUserBlock[]              @relation("ChatUserBlocksByBlocker")
   blockedByChatUsers               ChatUserBlock[]              @relation("ChatUserBlocksByBlocked")
+  vipResearchEmailLogs             VipResearchEmailLog[]
+  vipSubscriptionPayments          VipSubscriptionPayment[]
 }
 
 model OAuthAccount {
@@ -624,6 +626,223 @@ model SubscriptionEmailLog {
   @@unique([userId, emailType, periodKey])
   @@index([emailType, periodKey])
   @@index([sentAt])
+}
+
+model VipResearchReport {
+  id                 String                @id @default(cuid())
+  periodKey          String                @unique
+  status             String                @default("COMPLETED")
+  model              String?
+  generatedAt        DateTime              @default(now())
+  marketContext      String
+  executiveSummary   String
+  methodologyVersion String                @default("vip-asymmetric-v1")
+  sourceSnapshot     Json?
+  rawAiPayload       Json?
+  fallbackUsed       Boolean               @default(false)
+  disclaimer         String
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  ideas              VipResearchIdea[]
+  emailLogs          VipResearchEmailLog[]
+
+  @@index([generatedAt])
+  @@index([status, generatedAt])
+}
+
+model VipResearchIdea {
+  id                      String                      @id @default(cuid())
+  reportId                String
+  symbol                  String
+  providerSymbol          String
+  displayName             String
+  assetClass              String                      @default("EQUITY")
+  currency                String                      @default("USD")
+  rank                    Int
+  stance                  String
+  thesisSummary           String
+  negativeCase            String
+  macroThesis             String
+  fundamentalThesis       String
+  technicalThesis         String
+  catalysts               Json
+  exitPlan                String
+  institutionalPerception String
+  shortInterestCommentary String
+  confidenceScore         Int
+  riskScore               Int
+  priceAtRecommendation   Float
+  entryLow                Float
+  entryHigh               Float
+  stopLoss                Float
+  targetPrice             Float
+  secondaryTargetPrice    Float?
+  fundamentalSnapshot     Json
+  technicalSnapshot       Json
+  institutionalSnapshot   Json?
+  shortInterestSnapshot   Json?
+  sources                 Json
+  createdAt               DateTime                    @default(now())
+  report                  VipResearchReport           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  evaluations             VipResearchIdeaEvaluation[]
+
+  @@unique([reportId, symbol])
+  @@unique([reportId, rank])
+  @@index([symbol, createdAt])
+  @@index([stance, confidenceScore, riskScore])
+}
+
+model VipResearchIdeaEvaluation {
+  id                String          @id @default(cuid())
+  ideaId            String
+  horizon           String
+  dueAt             DateTime
+  status            String          @default("PENDING")
+  evaluatedAt       DateTime?
+  priceAtEvaluation Float?
+  returnPercent     Float?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  idea              VipResearchIdea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, horizon])
+  @@index([status, dueAt])
+  @@index([horizon, evaluatedAt])
+}
+
+model VipResearchEmailLog {
+  id        String            @id @default(cuid())
+  reportId  String
+  userId    String
+  email     String
+  status    String            @default("SENT")
+  error     String?
+  sentAt    DateTime          @default(now())
+  createdAt DateTime          @default(now())
+  report    VipResearchReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+  @@index([status, sentAt])
+  @@index([userId, sentAt])
+}
+
+model VipSubscriptionPayment {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String   @default("PARAM")
+  providerReference String   @unique
+  amountTry         Float
+  paidAt            DateTime
+  paidUntil         DateTime
+  rawPayload        Json?
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, paidAt])
+  @@index([paidUntil])
+}
+
+model VipTradingAgent {
+  id                 String                    @id
+  slug               String                    @unique
+  name               String
+  riskProfile        String
+  description        String
+  startingBalanceUsd Float                     @default(1100000)
+  performanceBaseUsd Float                     @default(1000000)
+  reserveUsd         Float                     @default(100000)
+  cashUsd            Float                     @default(1100000)
+  isActive           Boolean                   @default(true)
+  lastRunAt          DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  positions          VipTradingAgentPosition[]
+  trades             VipTradingAgentTrade[]
+  decisions          VipTradingAgentDecision[]
+  snapshots          VipTradingAgentSnapshot[]
+
+  @@index([isActive, lastRunAt])
+}
+
+model VipTradingAgentPosition {
+  id              String          @id @default(cuid())
+  agentId         String
+  symbol          String
+  providerSymbol  String
+  displayName     String
+  quantity        Float
+  averagePriceUsd Float
+  lastPriceUsd    Float
+  stopLossUsd     Float
+  targetPriceUsd  Float
+  secondaryTarget Float?
+  sourceIdeaId    String?
+  openedAt        DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  agent           VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, symbol])
+  @@index([symbol, updatedAt])
+}
+
+model VipTradingAgentTrade {
+  id                 String          @id @default(cuid())
+  agentId            String
+  symbol             String
+  displayName        String
+  side               String
+  quantity           Float
+  priceUsd           Float
+  grossUsd           Float
+  costBasisUsd       Float?
+  realizedPnlUsd     Float?
+  realizedPnlPercent Float?
+  cashAfterUsd       Float
+  portfolioAfterUsd  Float
+  reason             String
+  sourceIdeaId       String?
+  executedAt         DateTime        @default(now())
+  agent              VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, executedAt])
+  @@index([symbol, executedAt])
+}
+
+model VipTradingAgentDecision {
+  id           String          @id @default(cuid())
+  agentId      String
+  runKey       String
+  symbol       String
+  action       String
+  priceUsd     Float?
+  reason       String
+  sourceIdeaId String?
+  createdAt    DateTime        @default(now())
+  agent        VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, runKey, symbol])
+  @@index([agentId, createdAt])
+  @@index([action, createdAt])
+}
+
+model VipTradingAgentSnapshot {
+  id                   String          @id @default(cuid())
+  agentId              String
+  periodKey            String
+  cashUsd              Float
+  reserveUsd           Float
+  positionsValueUsd    Float
+  totalBalanceUsd      Float
+  performanceEquityUsd Float
+  pnlUsd               Float
+  returnPercent        Float
+  capturedAt           DateTime        @default(now())
+  agent                VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, periodKey])
+  @@index([agentId, capturedAt])
+  @@index([periodKey, returnPercent])
 }
 
 model SiteAnalyticsEvent {

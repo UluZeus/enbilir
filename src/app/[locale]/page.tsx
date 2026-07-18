@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { HomeHeroDataFlow } from "@/components/home/HomeMotion";
+import { VipAgentPublicSummary } from "@/components/vip-agents/VipAgentViews";
 import { getSafeLocale } from "@/i18n/config";
 import { getSessionUser } from "@/lib/auth";
 import { getOnboardingProgress } from "@/lib/onboarding";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
+import { getVipAgentSummaries } from "@/lib/vip-agents/dashboard";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
@@ -17,17 +19,20 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const user = await getSessionUser();
-  const latestReport = await prisma.aiMarketReport.findFirst({ where: { scope: "GLOBAL" }, orderBy: { generatedAt: "desc" }, select: { id: true } });
+  const [latestReport, vipAgents] = await Promise.all([
+    prisma.aiMarketReport.findFirst({ where: { scope: "GLOBAL" }, orderBy: { generatedAt: "desc" }, select: { id: true } }),
+    getVipAgentSummaries(),
+  ]);
 
   if (user) {
     const progress = await getOnboardingProgress(user.id);
-    return <MemberHome locale={locale} name={user.name} progress={progress} latestReportId={latestReport?.id} />;
+    return <MemberHome locale={locale} name={user.name} progress={progress} latestReportId={latestReport?.id} vipAgents={vipAgents} />;
   }
 
-  return <GuestHome locale={locale} latestReportId={latestReport?.id} />;
+  return <GuestHome locale={locale} latestReportId={latestReport?.id} vipAgents={vipAgents} />;
 }
 
-function GuestHome({ locale, latestReportId }: { locale: "tr" | "en"; latestReportId?: string }) {
+function GuestHome({ locale, latestReportId, vipAgents }: { locale: "tr" | "en"; latestReportId?: string; vipAgents: Awaited<ReturnType<typeof getVipAgentSummaries>> }) {
   const tr = locale === "tr";
   const reportHref = latestReportId ? `/${locale}/ai-piyasa-asistani/raporlar/${latestReportId}` : `/${locale}/ai-piyasa-asistani/raporlar`;
   const features = tr ? [
@@ -59,6 +64,8 @@ function GuestHome({ locale, latestReportId }: { locale: "tr" | "en"; latestRepo
         </div>
       </section>
 
+      <VipAgentPublicSummary agents={vipAgents} locale={locale} />
+
       <section className="grid gap-3 md:grid-cols-3">
         {features.map(([title, body], index) => (
           <article key={title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -85,7 +92,7 @@ function GuestHome({ locale, latestReportId }: { locale: "tr" | "en"; latestRepo
   );
 }
 
-function MemberHome({ locale, name, progress, latestReportId }: { locale: "tr" | "en"; name: string; progress: Awaited<ReturnType<typeof getOnboardingProgress>>; latestReportId?: string }) {
+function MemberHome({ locale, name, progress, latestReportId, vipAgents }: { locale: "tr" | "en"; name: string; progress: Awaited<ReturnType<typeof getOnboardingProgress>>; latestReportId?: string; vipAgents: Awaited<ReturnType<typeof getVipAgentSummaries>> }) {
   const tr = locale === "tr";
   const actions = [
     { href: progress.nextStep ? "baslangic" : "panel", title: progress.nextStep ? (tr ? "Başlangıca devam et" : "Continue getting started") : (tr ? "Paneli aç" : "Open dashboard"), body: tr ? `%${progress.percent} tamamlandı` : `${progress.percent}% complete` },
@@ -100,6 +107,7 @@ function MemberHome({ locale, name, progress, latestReportId }: { locale: "tr" |
         <h1 className="mt-2 text-3xl font-black md:text-4xl">{tr ? `Hoş geldin, ${name}` : `Welcome, ${name}`}</h1>
         <p className="mt-3 text-sm leading-7 text-slate-300">{tr ? "Bugün tek bir anlamlı adım seç ve öğrenme düzenini sürdür." : "Choose one meaningful step today and keep your learning rhythm."}</p>
       </section>
+      <VipAgentPublicSummary agents={vipAgents} locale={locale} />
       <section className="grid gap-3 sm:grid-cols-2">
         {actions.map((action) => <Link key={action.href} href={`/${locale}/${action.href}`} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-[#0f766e]"><h2 className="text-lg font-black text-[#152033]">{action.title}</h2><p className="mt-2 text-sm text-slate-600">{action.body}</p></Link>)}
       </section>

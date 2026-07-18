@@ -93,13 +93,14 @@ export async function AppShell({ children, locale }: AppShellProps) {
     label: item.href === "baslangic" ? (locale === "tr" ? "Başlangıç" : "Start") : item.href === "ogren" ? (locale === "tr" ? "Öğren" : "Learn") : dictionary.nav[item.label],
   }));
   const mobilePrimaryLinks = primaryLinks;
-  const productLinks: Array<{ href: string; label: string; tone: "trade" | "ai" | "chat" | "macro" | "whatsapp" }> = sessionUser
+  const productLinks: Array<{ href: string; label: string; tone: "trade" | "ai" | "chat" | "macro" | "vip" | "whatsapp" }> = sessionUser
     ? [
         ...productNav.map((item) => ({
           href: `/${locale}/${item.href}`,
           label: item.label === "ai" ? ui.appShell.aiAssistant : dictionary.nav[item.label],
           tone: item.tone,
         })),
+        { href: `/${locale}/vip`, label: "VIP", tone: "vip" },
         { href: macroReportHref, label: locale === "en" ? "MACRO REPORT" : "MAKRO RAPOR", tone: "macro" },
         { href: whatsappUrl, label: dictionary.whatsapp, tone: "whatsapp" },
       ]
@@ -204,6 +205,14 @@ export async function AppShell({ children, locale }: AppShellProps) {
               )}
               {sessionUser ? (
                 <>
+                  <ActiveNavigationLink
+                    href={`/${locale}/vip`}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-[#111827] px-2 py-2 font-black text-amber-300 shadow-sm 2xl:px-2.5"
+                    activeClassName="ring-2 ring-amber-300 ring-offset-2"
+                  >
+                    <span className="premium-product-nav-orb" aria-hidden="true" />
+                    VIP
+                  </ActiveNavigationLink>
                   <Link
                     href={macroReportHref}
                     className="macro-report-nav-link premium-nav-link inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-2 font-black text-white shadow-sm ring-1 ring-red-300/60 hover:text-white 2xl:px-2.5"

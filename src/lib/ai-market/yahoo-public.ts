@@ -106,6 +106,52 @@ async function fetchYahooCandlesForProviderSymbol(symbol: string, interval: stri
   return aggregateCandles(candles, interval === "4h" ? 4 : 1);
 }
 
+export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeoutMs = 7000): Promise<Candle[]> {
+  const candidates = getYahooProviderSymbolCandidates(symbol);
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}`);
+      url.searchParams.set("range", range);
+      url.searchParams.set("interval", "1d");
+      url.searchParams.set("includePrePost", "false");
+
+      const data = await fetchJsonWithFallback<YahooChartResponse>(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        },
+        next: { revalidate: 3600 },
+        timeoutMs,
+      });
+      const result = data.chart?.result?.[0];
+      const timestamps = result?.timestamp ?? [];
+      const quote = result?.indicators?.quote?.[0];
+
+      if (!quote || timestamps.length === 0) {
+        continue;
+      }
+
+      return timestamps
+        .map((timestamp, index) => ({
+          openTime: timestamp * 1000,
+          open: toNumber(quote.open?.[index]),
+          high: toNumber(quote.high?.[index]),
+          low: toNumber(quote.low?.[index]),
+          close: toNumber(quote.close?.[index]),
+          volume: toNumber(quote.volume?.[index]),
+        }))
+        .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
+        .sort((left, right) => left.openTime - right.openTime);
+    } catch (error) {
+      errors.push(`${candidate}: ${error instanceof Error ? error.message : "Yahoo daily data unavailable"}`);
+    }
+  }
+
+  throw new Error(errors.length > 0 ? errors.join("; ") : "Yahoo daily data unavailable");
+}
+
 export async function fetchYahooCandles(symbol: string, interval = "1h", timeoutMs = 5000): Promise<Candle[]> {
   const candidates = getYahooProviderSymbolCandidates(symbol);
   const errors: string[] = [];

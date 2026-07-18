@@ -96,8 +96,15 @@ async function runJob(label, url) {
 }
 
 const agentOk = await runJob("ai-agent-cron", agentUrl);
+const vipUrl = new URL("/api/vip-research/run", siteUrl);
+
+if (process.argv.includes("--force")) {
+  vipUrl.searchParams.set("force", "true");
+}
+
+const vipOk = await runJob("vip-research-cron", vipUrl);
 const evaluationOk = await runJob("ai-signal-evaluation-cron", new URL("/api/ai-market/evaluate-signals", siteUrl));
 
-if (!agentOk || !evaluationOk) {
+if (!agentOk || !vipOk || !evaluationOk) {
   process.exit(1);
 }

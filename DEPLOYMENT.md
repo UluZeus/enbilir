@@ -131,6 +131,12 @@ AUTH_SECRET="buraya-en-az-32-karakterlik-guvenli-rastgele-bir-deger-yazin"
 MASTER_ADMIN_EMAIL="hakan@ultraakil.com"
 GOOGLE_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="your-google-oauth-client-secret"
+OPENAI_API_KEY="your-openai-api-key"
+AI_AGENT_CRON_SECRET="guvenli-rastgele-cron-secret"
+VIP_RESEARCH_MODEL="gpt-5.6-terra"
+VIP_SUBSCRIPTION_WEBHOOK_SECRET="guvenli-rastgele-vip-webhook-secret"
+PARAM_CLIENT_CODE="param-client-code"
+PARAM_GUID="param-uye-isyeri-guid"
 ```
 
 Degisken aciklamalari:
@@ -140,6 +146,11 @@ Degisken aciklamalari:
 - `AUTH_SECRET`: Oturum ve token imzalama islemleri icin kullanilir. En az 32 karakterlik, tahmin edilemez bir deger olmalidir.
 - `MASTER_ADMIN_EMAIL`: Master admin kabul edilecek e-posta adresidir. Gercek admin e-postasi ile degistirilmelidir.
 - `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET`: Google ile giris icin gerekli OAuth kimlik bilgileri.
+- `OPENAI_API_KEY`: VIP katalizor ve makro arastirmasindaki kaynakli web aramasi icin kullanilir. Anahtar yoksa rapor nicel izleme moduna duser ve `AL` notu uretmez.
+- `AI_AGENT_CRON_SECRET`: AI ve VIP zamanlanmis route'larini korur.
+- `VIP_RESEARCH_MODEL`: VIP arastirma modelidir; varsayilan `gpt-5.6-terra` degeridir.
+- `VIP_SUBSCRIPTION_WEBHOOK_SECRET`: Odeme dogrulama katmaninin `/api/vip/subscription/activate` JSON endpoint'ine yaptigi cagrilari korur.
+- `PARAM_CLIENT_CODE` ve `PARAM_GUID`: Param form callback hash dogrulamasi icin gereklidir. Param Return/Callback URL'i `https://enbilir.com/api/vip/subscription/activate` olmalidir; Enbilir e-postasi callback `Ext_Data` ilk alaninda iletilmelidir.
 
 Guvenli secret uretmek icin:
 
@@ -189,6 +200,23 @@ Ardindan production migration calistirin:
 ```bash
 npm run db:deploy
 ```
+
+### VIP sabah raporu cron'u
+
+Mevcut AI cron kurulumu VIP route'unu da her saat kontrol eder; route yalnizca Europe/Istanbul saat diliminde 07.00'de rapor uretir, aktif VIP uyelere e-posta yollar, vadesi gelen 1/3/6/12 aylik performans kayitlarini kapatir ve SABİT/OLGUN/YILDIRIM sanal portfoylerini calistirir. Her ajan 1.100.000 USD toplam bakiye ile baslar; 100.000 USD rezerve edilir ve butun pozisyon/getiri hesaplari sabit 1.000.000 USD performans tabani uzerinden yapilir:
+
+```bash
+cd /srv/enbilir/app
+npm run agent:install-cron
+```
+
+Cron'u beklemeden kontrollu test icin:
+
+```bash
+npm run agent:run -- --force
+```
+
+Yalnizca ajanlari idempotent olarak elle calistirmak gerekirse `AI_AGENT_CRON_SECRET` ile korunan `POST /api/vip-agents/run` endpoint'i kullanilabilir.
 
 Bu komut `prisma/migrations` altindaki migration dosyalarini `DATABASE_URL` ile belirtilen SQLite veritabanina uygular.
 

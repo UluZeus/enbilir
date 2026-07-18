@@ -12,7 +12,7 @@ import { logoutAction } from "@/lib/actions";
 type HeaderLink = {
   href: string;
   label: string;
-  tone?: "default" | "trade" | "ai" | "chat" | "macro" | "whatsapp";
+  tone?: "default" | "trade" | "ai" | "chat" | "macro" | "vip" | "whatsapp";
 };
 
 type MobileHeaderMenuProps = {

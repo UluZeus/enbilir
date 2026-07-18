@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260629103000_add_site_analytics_events";
+const prismaSchemaVersion = "20260718143509_add_vip_trading_agents";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -54,6 +54,16 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     chatMessageReport?: unknown;
     chatUserBlock?: unknown;
     siteAnalyticsEvent?: unknown;
+    vipResearchReport?: unknown;
+    vipResearchIdea?: unknown;
+    vipResearchIdeaEvaluation?: unknown;
+    vipResearchEmailLog?: unknown;
+    vipSubscriptionPayment?: unknown;
+    vipTradingAgent?: unknown;
+    vipTradingAgentPosition?: unknown;
+    vipTradingAgentTrade?: unknown;
+    vipTradingAgentDecision?: unknown;
+    vipTradingAgentSnapshot?: unknown;
   };
 
   return Boolean(
@@ -91,7 +101,17 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.weeklyCompetitionResultRow &&
       candidate?.chatMessageReport &&
       candidate?.chatUserBlock &&
-      candidate?.siteAnalyticsEvent,
+      candidate?.siteAnalyticsEvent &&
+      candidate?.vipResearchReport &&
+      candidate?.vipResearchIdea &&
+      candidate?.vipResearchIdeaEvaluation &&
+      candidate?.vipResearchEmailLog &&
+      candidate?.vipSubscriptionPayment &&
+      candidate?.vipTradingAgent &&
+      candidate?.vipTradingAgentPosition &&
+      candidate?.vipTradingAgentTrade &&
+      candidate?.vipTradingAgentDecision &&
+      candidate?.vipTradingAgentSnapshot,
   );
 }
 
