@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 const marker = "# enbilir-subscription-emails-cron";
 const appDir = "/srv/enbilir/app";
-const cronLine = `10 6 * * * cd ${appDir} && node scripts/run-subscription-emails-cron.mjs >> /var/log/enbilir-subscription-emails-cron.log 2>&1 ${marker}`;
+const cronLine = `10 6 * * * cd ${appDir} && flock -n /tmp/enbilir-subscription-emails.lock node scripts/run-subscription-emails-cron.mjs >> /var/log/enbilir-subscription-emails-cron.log 2>&1 ${marker}`;
 
 function getCurrentCrontab() {
   try {

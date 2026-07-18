@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
+import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
 import { getRequestOrigin } from "@/lib/site-url";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -14,18 +15,10 @@ function getRedirectUri(request: NextRequest) {
   return new URL("/api/auth/google/callback", getRequestOrigin(request)).toString();
 }
 
-function getSafeReturnPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
-
-  return value;
-}
-
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const locale = getSafeLocale(request.nextUrl.searchParams.get("locale") ?? "tr");
-  const returnTo = getSafeReturnPath(request.nextUrl.searchParams.get("returnTo"));
+  const returnTo = getSafeLocaleReturnPath(request.nextUrl.searchParams.get("returnTo"), locale);
   const origin = getRequestOrigin(request);
 
   if (!isConfiguredGoogleValue(clientId)) {

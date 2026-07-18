@@ -48,6 +48,14 @@ function values(row: NasdaqRow | undefined) {
   return [parseNumber(row?.value2), parseNumber(row?.value3), parseNumber(row?.value4), parseNumber(row?.value5)];
 }
 
+export function combineNasdaqDebt(shortTermDebt: number | null, longTermDebt: number | null) {
+  if (shortTermDebt === null && longTermDebt === null) {
+    return null;
+  }
+
+  return (shortTermDebt ?? 0) + (longTermDebt ?? 0);
+}
+
 export async function fetchNasdaqFundamentals(symbol: string): Promise<VipFundamentalSnapshot | null> {
   type FinancialData = {
     incomeStatementTable?: NasdaqTable;
@@ -74,7 +82,7 @@ export async function fetchNasdaqFundamentals(symbol: string): Promise<VipFundam
     const longDebt = values(rowByLabel(data.balanceSheetTable, ["Long-Term Debt"]));
     const currentFcf = operatingCash[0] !== null && capitalExpenditures[0] !== null ? operatingCash[0] + capitalExpenditures[0] : null;
     const previousFcf = operatingCash[1] !== null && capitalExpenditures[1] !== null ? operatingCash[1] + capitalExpenditures[1] : null;
-    const currentDebt = (shortDebt[0] ?? 0) + (longDebt[0] ?? 0);
+    const currentDebt = combineNasdaqDebt(shortDebt[0], longDebt[0]);
     const currentNetMargin = revenue[0] && netIncome[0] !== null ? (netIncome[0] / revenue[0]) * 100 : null;
     const previousNetMargin = revenue[1] && netIncome[1] !== null ? (netIncome[1] / revenue[1]) * 100 : null;
     const periodEnd = String(data.incomeStatementTable?.headers?.value2 ?? "") || null;
@@ -87,9 +95,9 @@ export async function fetchNasdaqFundamentals(symbol: string): Promise<VipFundam
       freeCashFlowGrowthPct: percentChange(currentFcf, previousFcf),
       netMarginPct: currentNetMargin,
       netMarginExpansionBps: currentNetMargin !== null && previousNetMargin !== null ? (currentNetMargin - previousNetMargin) * 100 : null,
-      totalDebt: currentDebt || null,
-      debtToAssetsPct: totalAssets[0] ? (currentDebt / totalAssets[0]) * 100 : null,
-      debtToFreeCashFlow: currentFcf && currentFcf > 0 ? currentDebt / currentFcf : null,
+      totalDebt: currentDebt,
+      debtToAssetsPct: currentDebt !== null && totalAssets[0] ? (currentDebt / totalAssets[0]) * 100 : null,
+      debtToFreeCashFlow: currentDebt !== null && currentFcf && currentFcf > 0 ? currentDebt / currentFcf : null,
       researchAndDevelopment: researchAndDevelopment[0],
       researchAndDevelopmentGrowthPct: percentChange(researchAndDevelopment[0], researchAndDevelopment[1]),
       sourceUrl: `https://www.nasdaq.com/market-activity/stocks/${symbol.toLowerCase()}/financials`,

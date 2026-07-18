@@ -2,11 +2,22 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  calculateVipAsymmetryRank,
+  calculateVipQuantitativeScore,
+  hasRequiredVipResearchInputs,
+  hasVipFundamentalVeto,
+} from "@/lib/vip-research/candidate-policy";
+import {
   fetchNasdaqFundamentals,
   fetchNasdaqInstitutional,
   fetchNasdaqShortInterest,
 } from "@/lib/vip-research/nasdaq-research";
-import { screenVipEquities } from "@/lib/vip-research/technical-screener";
+import {
+  applyVipBuyEvidenceGate,
+  getVerifiedCandidateSources,
+  normalizeVipResearchSource,
+} from "@/lib/vip-research/evidence-policy";
+import { screenVipAssets } from "@/lib/vip-research/technical-screener";
 import type {
   VipIdeaDraft,
   VipReportDraft,
@@ -15,9 +26,9 @@ import type {
 } from "@/lib/vip-research/types";
 
 const DISCLAIMER = "Bu VIP araştırma raporu eğitim ve karar-destek amacıyla hazırlanır; kişiye özel yatırım danışmanlığı değildir. Veri gecikmesi, model hatası ve piyasa boşluğu riski vardır. Seviyeler garanti değil, önceden tanımlanmış risk disiplinidir.";
-const METHODOLOGY_VERSION = "vip-asymmetric-v1";
+const METHODOLOGY_VERSION = "vip-asymmetric-v2-multi-asset-crowding";
 const DEFAULT_MODEL = "gpt-5.6-terra";
-const MAX_RESEARCH_CANDIDATES = 10;
+const MAX_RESEARCH_CANDIDATES = 15;
 
 type OpenAiResponse = {
   output_text?: string;
@@ -45,65 +56,17 @@ function getIstanbulDateKey(date = new Date()) {
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
-function fundamentalScore(candidate: VipResearchCandidate) {
-  const snapshot = candidate.fundamental;
-
-  if (!snapshot) {
-    return 0;
-  }
-
-  let score = 35;
-  const fcfGrowth = snapshot.freeCashFlowGrowthPct;
-  const revenueGrowth = snapshot.revenueGrowthPct;
-  const marginExpansion = snapshot.netMarginExpansionBps;
-  const debtToAssets = snapshot.debtToAssetsPct;
-
-  score += fcfGrowth !== null ? clamp(fcfGrowth / 3, -18, 22) : -20;
-  score += revenueGrowth !== null ? clamp(revenueGrowth / 2, -10, 14) : -10;
-  score += marginExpansion !== null ? clamp(marginExpansion / 50, -12, 14) : -10;
-  score += debtToAssets !== null ? debtToAssets <= 25 ? 15 : debtToAssets <= 45 ? 7 : debtToAssets >= 70 ? -15 : 0 : -10;
-
-  if (snapshot.freeCashFlow !== null && snapshot.freeCashFlow <= 0) {
-    score -= 25;
-  }
-
-  if (snapshot.netMarginPct !== null && snapshot.netMarginPct <= 0) {
-    score -= 22;
-  }
-
-  if (snapshot.netMarginExpansionBps !== null && snapshot.netMarginExpansionBps <= -500) {
-    score -= 12;
-  }
-
-  if (snapshot.debtToFreeCashFlow !== null && snapshot.debtToFreeCashFlow > 10) {
-    score -= 12;
-  }
-
-  return clamp(score, 0, 100);
-}
-
-function hasMandatoryFundamentals(candidate: VipResearchCandidate) {
-  const item = candidate.fundamental;
-
-  return Boolean(
-    item &&
-    item.freeCashFlow !== null &&
-    item.freeCashFlowGrowthPct !== null &&
-    item.debtToAssetsPct !== null &&
-    item.netMarginPct !== null &&
-    item.netMarginExpansionBps !== null,
-  );
-}
-
 async function enrichCandidates() {
-  const screened = await screenVipEquities();
+  const screened = await screenVipAssets();
   const enriched = await Promise.all(
     screened.map(async (item): Promise<VipResearchCandidate> => {
-      const [fundamental, institutional, shortInterest] = await Promise.all([
-        fetchNasdaqFundamentals(item.symbol),
-        fetchNasdaqInstitutional(item.symbol),
-        fetchNasdaqShortInterest(item.symbol),
-      ]);
+      const [fundamental, institutional, shortInterest] = item.assetClass === "EQUITY"
+        ? await Promise.all([
+            fetchNasdaqFundamentals(item.symbol),
+            fetchNasdaqInstitutional(item.symbol),
+            fetchNasdaqShortInterest(item.symbol),
+          ])
+        : [null, null, null];
       const preliminary = {
         ...item,
         fundamental,
@@ -111,21 +74,30 @@ async function enrichCandidates() {
         shortInterest,
         quantitativeScore: 0,
       };
-      const institutionalAdjustment = institutional?.perception === "POSITIVE" ? 5 : institutional?.perception === "NEGATIVE" ? -5 : 0;
-      const shortAdjustment = (shortInterest?.daysToCover ?? 0) >= 6 ? -6 : 0;
 
       return {
         ...preliminary,
-        quantitativeScore: round(
-          clamp(item.technical.technicalScore * 0.52 + fundamentalScore(preliminary) * 0.48 + institutionalAdjustment + shortAdjustment, 0, 100),
-          1,
-        ),
+        quantitativeScore: calculateVipQuantitativeScore(preliminary),
       };
     }),
   );
 
-  return enriched
-    .filter(hasMandatoryFundamentals)
+  const ranked = enriched
+    .filter(hasRequiredVipResearchInputs)
+    .sort((left, right) => right.quantitativeScore - left.quantitativeScore);
+  const selected = new Map(ranked.slice(0, MAX_RESEARCH_CANDIDATES - 5).map((candidate) => [candidate.symbol, candidate]));
+
+  for (const assetClass of ["BROAD_MARKET", "COMMODITY", "BOND", "FX", "CRYPTO"] as const) {
+    const strongestInClass = ranked.find((candidate) => candidate.assetClass === assetClass);
+    if (strongestInClass) selected.set(strongestInClass.symbol, strongestInClass);
+  }
+
+  for (const candidate of ranked) {
+    if (selected.size >= MAX_RESEARCH_CANDIDATES) break;
+    selected.set(candidate.symbol, candidate);
+  }
+
+  return Array.from(selected.values())
     .sort((left, right) => right.quantitativeScore - left.quantitativeScore)
     .slice(0, MAX_RESEARCH_CANDIDATES);
 }
@@ -159,11 +131,12 @@ function promptFor(candidates: VipResearchCandidate[]) {
   return [
     "Rolün: milyarlarca dolarlık portföy yöneten, sosyal medya gürültüsünü dışlayan kıdemli bir hedge fon araştırma yöneticisi.",
     "Amaç: popülerlik değil, önümüzdeki 3-12 ay için asimetrik risk/getiri. En güçlü fırsat ilk sırada. Güçlü sayılar olsa bile tez kötüyse UZAK_DUR de.",
-    "ZORUNLU İKİ AYAK: (A) serbest nakit akışı büyümesi, gelir büyümesi, borç/varlık, borç/FCF, net marj ve marj genişlemesi; (B) günlük 50/200 ortalama, hacimli kırılım, RSI ve MACD uyumsuzluğu.",
-    "Katalizör araştırması: yalnızca gelecek 3-12 ayda devreye girebilecek yeni ürün, geri alım, kapasite/Ar-Ge yatırımı, regülasyon veya bilanço dönüm noktası. Şirket IR/SEC gibi birincil kaynaklara öncelik ver.",
-    "Kalabalık ve fiyatı şişmiş isimleri reddet. Teknik veri fiyatın SMA50'den %18 veya SMA200'den %40 fazla uzaklaştığını gösteriyorsa AL deme. Kaynaksız kesin iddia kurma.",
+    "HİSSELER İÇİN ZORUNLU İKİ AYAK: (A) serbest nakit akışı büyümesi, gelir büyümesi, borç/varlık, borç/FCF, net marj ve marj genişlemesi; (B) günlük 50/200 ortalama, hacimli kırılım, RSI ve MACD uyumsuzluğu. Verilen hisse adayları bu temel veri kapısından geçmiştir; iki ayaktan birini gevşetme.",
+    "HİSSE DIŞI VARLIKLAR: Şirket FCF, net marj, Ar-Ge veya kurumsal sahiplik verisi uydurma. A ayağını varlık türüne uygun makro/temel yapı ile kur: geniş piyasa için değerleme-kâr/faiz rejimi; emtia için arz-talep/stok/reel faiz; tahvil için getiri eğrisi-enflasyon-kredi spreadi; döviz için faiz farkı/merkez bankası/ödemeler dengesi; kripto için ağ kullanımı-likidite-regülasyon. B teknik ayağı aynen zorunludur.",
+    "Katalizör araştırması: yalnızca gelecek 3-12 ayda devreye girebilecek yeni ürün, geri alım, kapasite/Ar-Ge yatırımı, regülasyon veya bilanço dönüm noktası. Her katalizörde somut olay ve takvim belirt; her fikrin sources alanına yalnızca o fikri destekleyen güvenli HTTPS kaynaklarını koy. Şirket IR/SEC gibi birincil kaynaklara öncelik ver.",
+    "Kalabalık ve fiyatı şişmiş isimleri reddet. crowdingScore fiyatın 50/200 günlük ortalamalardan uzaklığı, RSI, 20/60 günlük momentum, 52 hafta zirvesi, hacim ve negatif uyumsuzluklardan hesaplanır. crowdingLevel HIGH ise ilave iskonto/giriş teyidi iste; EXTREME adaylar zaten filtrelenmiştir. Teknik veri fiyatın SMA50'den %18 veya SMA200'den %40 fazla uzaklaştığını gösteriyorsa AL deme. Kaynaksız kesin iddia kurma.",
     "Her fikirde olumsuz senaryo ve objektif kaçış planı zorunlu. Stop, giriş aralığı ve hedefler mevcut fiyat/ATR/destek-direnç ile tutarlı olmalı. Skorlar 1-100 arası tam sayı.",
-    "En fazla 5 fikir seç; kaliteli fırsat yoksa daha az fikir döndür. Sadece verilen aday sembollerini kullan. Türkçe yaz. JSON dışında çıktı verme.",
+    "En fazla 5 fikir seç; kaliteli fırsat yoksa daha az fikir döndür. Farklı varlık sınıflarını sırf çeşitlendirme için seçme; tüm sınıflar arasında risk ayarlı en güçlü asimetrik fırsatı ilk sıraya koy. Sadece verilen aday sembollerini kullan. Türkçe yaz. JSON dışında çıktı verme.",
     `Bugünün tarihi: ${new Date().toISOString()}.`,
     JSON.stringify({ candidates }),
   ].join("\n\n");
@@ -189,7 +162,7 @@ const reportSchema = {
           macroThesis: { type: "string" },
           fundamentalThesis: { type: "string" },
           technicalThesis: { type: "string" },
-          catalysts: { type: "array", items: { type: "string" }, maxItems: 5 },
+          catalysts: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 5 },
           exitPlan: { type: "string" },
           institutionalPerception: { type: "string" },
           shortInterestCommentary: { type: "string" },
@@ -202,6 +175,7 @@ const reportSchema = {
           secondaryTargetPrice: { type: ["number", "null"] },
           sources: {
             type: "array",
+            minItems: 1,
             items: {
               type: "object",
               additionalProperties: false,
@@ -288,21 +262,32 @@ function formatMetric(value: number | null, suffix = "%") {
   return value === null ? "veri yok" : `${round(value, 1)}${suffix}`;
 }
 
+function nonEquityFramework(candidate: VipResearchCandidate) {
+  const labels = {
+    BROAD_MARKET: "değerleme, şirket kâr döngüsü, faiz rejimi ve piyasa genişliği",
+    COMMODITY: "fiziksel arz-talep, stoklar, üretim disiplini, dolar ve reel faiz",
+    BOND: "getiri eğrisi, enflasyon beklentisi, vade primi ve kredi spreadi",
+    FX: "faiz farkı, merkez bankası patikası, dış denge ve dolar likiditesi",
+    CRYPTO: "ağ kullanımı, arz dinamiği, piyasa likiditesi ve regülasyon",
+  } as const;
+
+  return candidate.assetClass === "EQUITY" ? "kurumsal finansallar" : labels[candidate.assetClass];
+}
+
 function fallbackIdea(candidate: VipResearchCandidate): VipIdeaDraft {
   const technical = candidate.technical;
-  const fundamental = candidate.fundamental!;
+  const fundamental = candidate.fundamental;
   const atrAmount = technical.lastPrice * technical.atr14Pct / 100;
   const entryLow = Math.max(technical.support, technical.lastPrice - atrAmount * 0.65);
   const entryHigh = technical.lastPrice + atrAmount * 0.2;
   const stopLoss = Math.max(entryLow - atrAmount * 1.2, technical.support * 0.97);
   const minimumTarget = entryHigh + Math.max(entryLow - stopLoss, atrAmount) * 2;
   const firstTarget = Math.max(technical.resistance, minimumTarget);
-  const fundamentalVeto =
-    (fundamental.freeCashFlow ?? 0) <= 0 ||
-    (fundamental.netMarginPct ?? 0) <= 0 ||
-    (fundamental.netMarginExpansionBps ?? 0) <= -500 ||
-    (fundamental.debtToFreeCashFlow ?? 0) > 10;
-  const stance = !fundamentalVeto && candidate.quantitativeScore >= 72 && technical.distanceFromSma50Pct <= 14 ? "IZLE" : "UZAK_DUR";
+  const fundamentalVeto = hasVipFundamentalVeto(candidate);
+  const stance = !fundamentalVeto && !technical.crowdingVeto && candidate.quantitativeScore >= 72 && technical.distanceFromSma50Pct <= 14 ? "IZLE" : "UZAK_DUR";
+  const fundamentalThesis = candidate.assetClass === "EQUITY" && fundamental
+    ? `FCF büyümesi ${formatMetric(fundamental.freeCashFlowGrowthPct)}, gelir büyümesi ${formatMetric(fundamental.revenueGrowthPct)}, net marj ${formatMetric(fundamental.netMarginPct)}, marj değişimi ${formatMetric(fundamental.netMarginExpansionBps, " bp")}, borç/varlık ${formatMetric(fundamental.debtToAssetsPct)}.`
+    : `${candidate.assetClass} için şirket FCF/net marj verisi uygulanamaz. Uygun A ayağı ${nonEquityFramework(candidate)} verileridir; canlı kaynak doğrulaması tamamlanmadığı için bu araç yalnız izleme/kaçınma statüsündedir.`;
 
   return {
     symbol: candidate.symbol,
@@ -310,12 +295,12 @@ function fallbackIdea(candidate: VipResearchCandidate): VipIdeaDraft {
     thesisSummary: `${candidate.symbol}, iki ayaklı nicel kontrolde ${candidate.quantitativeScore}/100 aldı. Katalizörler kaynaklı web araştırmasıyla doğrulanamadığı için bu kayıt doğrudan AL değil, ${stance === "IZLE" ? "disiplinli izleme" : "kaçınma"} statüsündedir.`,
     negativeCase: "Katalizör doğrulaması yok; olumlu teknik ve temel görünüm tek başına yeniden fiyatlama garantisi vermez.",
     macroThesis: "Canlı makro araştırma üretilemedi. Faiz, dolar likiditesi ve sektör döngüsü teyidi olmadan pozisyon büyütülmemelidir.",
-    fundamentalThesis: `FCF büyümesi ${formatMetric(fundamental.freeCashFlowGrowthPct)}, gelir büyümesi ${formatMetric(fundamental.revenueGrowthPct)}, net marj ${formatMetric(fundamental.netMarginPct)}, marj değişimi ${formatMetric(fundamental.netMarginExpansionBps, " bp")}, borç/varlık ${formatMetric(fundamental.debtToAssetsPct)}.`,
-    technicalThesis: `Fiyat ${technical.lastPrice}; SMA50 ${technical.sma50}, SMA200 ${technical.sma200}, RSI ${technical.rsi14}, hacim oranı ${technical.volumeRatio20d}x, RSI uyumsuzluğu ${technical.rsiDivergence}, MACD uyumsuzluğu ${technical.macdDivergence}.`,
+    fundamentalThesis,
+    technicalThesis: `Fiyat ${technical.lastPrice}; SMA50 ${technical.sma50}, SMA200 ${technical.sma200}, RSI ${technical.rsi14}, hacim oranı ${technical.volumeRatio20d}x, 20/60 günlük momentum ${technical.momentum20dPct}%/${technical.momentum60dPct}%, RSI uyumsuzluğu ${technical.rsiDivergence}, MACD uyumsuzluğu ${technical.macdDivergence}, veri temelli crowding ${technical.crowdingScore}/100 (${technical.crowdingLevel}).`,
     catalysts: ["Kaynaklı katalizör araştırması yeniden çalıştırılmalı."],
     exitPlan: `Günlük kapanış ${round(stopLoss)} altına inerse tez iptal; ${round(firstTarget)} çevresinde hacim teyidi yoksa kâr/risk azaltımı değerlendirilmeli.`,
-    institutionalPerception: candidate.institutional?.perception ?? "UNAVAILABLE",
-    shortInterestCommentary: `Short değişimi ${formatMetric(candidate.shortInterest?.changePercent ?? null)}, kapama süresi ${formatMetric(candidate.shortInterest?.daysToCover ?? null, " gün")}.`,
+    institutionalPerception: candidate.assetClass === "EQUITY" ? candidate.institutional?.perception ?? "UNAVAILABLE" : "Bu varlık türünde tek şirket kurumsal sahiplik metriği uygulanamaz; fon akımı/pozisyonlanma ayrıca kaynaklanmalıdır.",
+    shortInterestCommentary: candidate.assetClass === "EQUITY" ? `Short değişimi ${formatMetric(candidate.shortInterest?.changePercent ?? null)}, kapama süresi ${formatMetric(candidate.shortInterest?.daysToCover ?? null, " gün")}.` : "Tek şirket short-interest metriği uygulanamaz; vadeli pozisyonlanma veya ürün bazlı açık pozisyon kaynağı doğrulanmadan çıkarım yapılmadı.",
     confidenceScore: clamp(Math.round(candidate.quantitativeScore * 0.72), 1, 100),
     riskScore: clamp(Math.round(100 - candidate.quantitativeScore * 0.55 + technical.atr14Pct * 2), 1, 100),
     entryLow: round(entryLow),
@@ -324,20 +309,11 @@ function fallbackIdea(candidate: VipResearchCandidate): VipIdeaDraft {
     targetPrice: round(firstTarget),
     secondaryTargetPrice: round(firstTarget + (firstTarget - stopLoss) * 0.5),
     sources: [
-      { title: `${candidate.symbol} finansallar`, url: fundamental.sourceUrl },
+      ...(fundamental ? [{ title: `${candidate.symbol} finansallar`, url: fundamental.sourceUrl }] : [{ title: `${candidate.symbol} tarihsel piyasa verisi`, url: candidate.marketDataSourceUrl }]),
       ...(candidate.institutional ? [{ title: `${candidate.symbol} kurumsal sahiplik`, url: candidate.institutional.sourceUrl }] : []),
       ...(candidate.shortInterest ? [{ title: `${candidate.symbol} short interest`, url: candidate.shortInterest.sourceUrl }] : []),
     ],
   };
-}
-
-function normalizeSource(source: VipSource) {
-  try {
-    const url = new URL(source.url);
-    return url.protocol === "https:" ? { ...source, url: url.toString() } : null;
-  } catch {
-    return null;
-  }
 }
 
 function normalizeDraft(draft: VipReportDraft, candidates: VipResearchCandidate[], annotatedSources: VipSource[]) {
@@ -353,8 +329,9 @@ function normalizeDraft(draft: VipReportDraft, candidates: VipResearchCandidate[
 
     used.add(symbol);
     const fallback = fallbackIdea(candidate);
-    const sources = [...idea.sources, ...annotatedSources]
-      .map(normalizeSource)
+    const verifiedAnnotatedSources = getVerifiedCandidateSources(annotatedSources, candidate);
+    const sources = [...idea.sources, ...verifiedAnnotatedSources]
+      .map(normalizeVipResearchSource)
       .filter((source): source is VipSource => source !== null);
     const uniqueSources = Array.from(new Map(sources.map((source) => [source.url, source])).values()).slice(0, 12);
     const entryLow = idea.entryLow > 0 ? idea.entryLow : fallback.entryLow;
@@ -362,18 +339,22 @@ function normalizeDraft(draft: VipReportDraft, candidates: VipResearchCandidate[
     const stopLoss = idea.stopLoss > 0 && idea.stopLoss < entryLow ? idea.stopLoss : fallback.stopLoss;
     const minimumTarget = entryHigh + (entryLow - stopLoss) * 2;
     const targetPrice = idea.targetPrice >= minimumTarget ? idea.targetPrice : Math.max(fallback.targetPrice, minimumTarget);
-    const fundamental = candidate.fundamental!;
-    const fundamentalVeto =
-      fundamental.freeCashFlow !== null && fundamental.freeCashFlow <= 0 ||
-      fundamental.netMarginPct !== null && fundamental.netMarginPct <= 0 ||
-      fundamental.netMarginExpansionBps !== null && fundamental.netMarginExpansionBps <= -500 ||
-      fundamental.debtToFreeCashFlow !== null && fundamental.debtToFreeCashFlow > 10;
+    const fundamentalVeto = hasVipFundamentalVeto(candidate);
     const stretchedVeto = candidate.technical.distanceFromSma50Pct > 18 || candidate.technical.distanceFromSma200Pct > 40;
+    const crowdingVeto = candidate.technical.crowdingVeto || candidate.technical.crowdingLevel === "EXTREME";
+    const normalizedStance = applyVipBuyEvidenceGate({
+      stance: idea.stance,
+      riskVeto: fundamentalVeto || stretchedVeto || crowdingVeto,
+      catalysts: idea.catalysts,
+      // Model-authored URLs may be useful context, but only citations emitted by
+      // the web-search response and matched to this candidate may authorize AL.
+      sources: verifiedAnnotatedSources,
+    });
 
     return [{
       ...idea,
       symbol,
-      stance: idea.stance === "AL" && (fundamentalVeto || stretchedVeto) ? "UZAK_DUR" : idea.stance,
+      stance: normalizedStance,
       confidenceScore: clamp(Math.round(idea.confidenceScore), 1, 100),
       riskScore: clamp(Math.round(idea.riskScore), 1, 100),
       entryLow: round(entryLow),
@@ -385,6 +366,14 @@ function normalizeDraft(draft: VipReportDraft, candidates: VipResearchCandidate[
     }];
   });
 
+  ideas.sort((left, right) => {
+    const leftCandidate = bySymbol.get(left.symbol)!;
+    const rightCandidate = bySymbol.get(right.symbol)!;
+    const rankDifference = calculateVipAsymmetryRank(rightCandidate, right) - calculateVipAsymmetryRank(leftCandidate, left);
+
+    return rankDifference || left.symbol.localeCompare(right.symbol);
+  });
+
   return { ...draft, ideas };
 }
 
@@ -394,12 +383,23 @@ function addMonths(date: Date, months: number) {
   return next;
 }
 
-export async function runVipResearchReport(options: { force?: boolean } = {}) {
+export async function runVipResearchReport() {
   const periodKey = getIstanbulDateKey();
-  const existing = await prisma.vipResearchReport.findUnique({ where: { periodKey }, select: { id: true, fallbackUsed: true } });
+  const existing = await prisma.vipResearchReport.findUnique({
+    where: { periodKey },
+    select: { id: true, fallbackUsed: true },
+  });
 
-  if (existing && !options.force) {
-    return { reportId: existing.id, periodKey, reused: true, fallbackUsed: existing.fallbackUsed };
+  if (existing) {
+    return {
+      reportId: existing.id,
+      periodKey,
+      schedulePeriodKey: periodKey,
+      reused: true,
+      sameDayRegeneration: false,
+      emailSuppressed: false,
+      fallbackUsed: existing.fallbackUsed,
+    };
   }
 
   const candidates = await enrichCandidates();
@@ -432,70 +432,107 @@ export async function runVipResearchReport(options: { force?: boolean } = {}) {
 
   const candidateBySymbol = new Map(candidates.map((candidate) => [candidate.symbol, candidate]));
   const generatedAt = new Date();
-  const report = await prisma.$transaction(async (transaction) => {
-    if (existing) {
-      await transaction.vipResearchReport.delete({ where: { id: existing.id } });
-    }
+  let report: { id: string };
 
-    return transaction.vipResearchReport.create({
+  try {
+    report = await prisma.vipResearchReport.create({
       data: {
-        periodKey,
-        model,
-        generatedAt,
-        marketContext: draft.marketContext,
-        executiveSummary: draft.executiveSummary,
-        methodologyVersion: METHODOLOGY_VERSION,
-        sourceSnapshot: candidates as unknown as Prisma.InputJsonValue,
-        rawAiPayload: rawAiPayload as Prisma.InputJsonValue,
-        fallbackUsed,
-        disclaimer: DISCLAIMER,
-        ideas: {
-          create: draft.ideas.map((idea, index) => {
-            const candidate = candidateBySymbol.get(idea.symbol)!;
+      periodKey,
+      model,
+      generatedAt,
+      marketContext: draft.marketContext,
+      executiveSummary: draft.executiveSummary,
+      methodologyVersion: METHODOLOGY_VERSION,
+      sourceSnapshot: candidates as unknown as Prisma.InputJsonValue,
+      rawAiPayload: rawAiPayload as Prisma.InputJsonValue,
+      fallbackUsed,
+      disclaimer: DISCLAIMER,
+      ideas: {
+        create: draft.ideas.map((idea, index) => {
+          const candidate = candidateBySymbol.get(idea.symbol)!;
 
-            return {
-              symbol: idea.symbol,
-              providerSymbol: candidate.providerSymbol,
-              displayName: candidate.displayName,
-              rank: index + 1,
-              stance: idea.stance,
-              thesisSummary: idea.thesisSummary,
-              negativeCase: idea.negativeCase,
-              macroThesis: idea.macroThesis,
-              fundamentalThesis: idea.fundamentalThesis,
-              technicalThesis: idea.technicalThesis,
-              catalysts: idea.catalysts as Prisma.InputJsonValue,
-              exitPlan: idea.exitPlan,
-              institutionalPerception: idea.institutionalPerception,
-              shortInterestCommentary: idea.shortInterestCommentary,
-              confidenceScore: idea.confidenceScore,
-              riskScore: idea.riskScore,
-              priceAtRecommendation: candidate.technical.lastPrice,
-              entryLow: idea.entryLow,
-              entryHigh: idea.entryHigh,
-              stopLoss: idea.stopLoss,
-              targetPrice: idea.targetPrice,
-              secondaryTargetPrice: idea.secondaryTargetPrice,
-              fundamentalSnapshot: candidate.fundamental as unknown as Prisma.InputJsonValue,
-              technicalSnapshot: candidate.technical as unknown as Prisma.InputJsonValue,
-              institutionalSnapshot: candidate.institutional as unknown as Prisma.InputJsonValue,
-              shortInterestSnapshot: candidate.shortInterest as unknown as Prisma.InputJsonValue,
-              sources: idea.sources as unknown as Prisma.InputJsonValue,
-              evaluations: {
-                create: [
-                  { horizon: "1M", dueAt: addMonths(generatedAt, 1) },
-                  { horizon: "3M", dueAt: addMonths(generatedAt, 3) },
-                  { horizon: "6M", dueAt: addMonths(generatedAt, 6) },
-                  { horizon: "1Y", dueAt: addMonths(generatedAt, 12) },
-                ],
-              },
-            };
-          }),
-        },
+          return {
+            symbol: idea.symbol,
+            providerSymbol: candidate.providerSymbol,
+            displayName: candidate.displayName,
+            assetClass: candidate.assetClass,
+            currency: candidate.currency,
+            rank: index + 1,
+            stance: idea.stance,
+            thesisSummary: idea.thesisSummary,
+            negativeCase: idea.negativeCase,
+            macroThesis: idea.macroThesis,
+            fundamentalThesis: idea.fundamentalThesis,
+            technicalThesis: idea.technicalThesis,
+            catalysts: idea.catalysts as Prisma.InputJsonValue,
+            exitPlan: idea.exitPlan,
+            institutionalPerception: idea.institutionalPerception,
+            shortInterestCommentary: idea.shortInterestCommentary,
+            confidenceScore: idea.confidenceScore,
+            riskScore: idea.riskScore,
+            priceAtRecommendation: candidate.technical.lastPrice,
+            entryLow: idea.entryLow,
+            entryHigh: idea.entryHigh,
+            stopLoss: idea.stopLoss,
+            targetPrice: idea.targetPrice,
+            secondaryTargetPrice: idea.secondaryTargetPrice,
+            fundamentalSnapshot: candidate.fundamental
+              ? candidate.fundamental as unknown as Prisma.InputJsonValue
+              : Prisma.JsonNull,
+            technicalSnapshot: candidate.technical as unknown as Prisma.InputJsonValue,
+            institutionalSnapshot: candidate.institutional
+              ? candidate.institutional as unknown as Prisma.InputJsonValue
+              : Prisma.DbNull,
+            shortInterestSnapshot: candidate.shortInterest
+              ? candidate.shortInterest as unknown as Prisma.InputJsonValue
+              : Prisma.DbNull,
+            sources: idea.sources as unknown as Prisma.InputJsonValue,
+            evaluations: {
+              create: [
+                { horizon: "1M", dueAt: addMonths(generatedAt, 1) },
+                { horizon: "3M", dueAt: addMonths(generatedAt, 3) },
+                { horizon: "6M", dueAt: addMonths(generatedAt, 6) },
+                { horizon: "1Y", dueAt: addMonths(generatedAt, 12) },
+              ],
+            },
+          };
+        }),
+      },
       },
       select: { id: true },
     });
-  });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const concurrentReport = await prisma.vipResearchReport.findUnique({
+        where: { periodKey },
+        select: { id: true, fallbackUsed: true },
+      });
 
-  return { reportId: report.id, periodKey, reused: false, fallbackUsed, candidateCount: candidates.length, ideaCount: draft.ideas.length };
+      if (concurrentReport) {
+        return {
+          reportId: concurrentReport.id,
+          periodKey,
+          schedulePeriodKey: periodKey,
+          reused: true,
+          sameDayRegeneration: false,
+          emailSuppressed: false,
+          fallbackUsed: concurrentReport.fallbackUsed,
+        };
+      }
+    }
+
+    throw error;
+  }
+
+  return {
+    reportId: report.id,
+    periodKey,
+    schedulePeriodKey: periodKey,
+    reused: false,
+    sameDayRegeneration: false,
+    emailSuppressed: false,
+    fallbackUsed,
+    candidateCount: candidates.length,
+    ideaCount: draft.ideas.length,
+  };
 }

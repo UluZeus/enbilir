@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "agent:run": "node scripts/run-ai-agent-cron.mjs",
     "agent:install-cron": "node scripts/install-ai-agent-cron.mjs",
     "agent:ensure-secret": "node scripts/ensure-ai-agent-secret.mjs",
@@ -49,7 +50,8 @@
     "eslint-config-next": "^16.2.9",
     "playwright": "^1.60.0",
     "tailwindcss": "^4.3.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "@hono/node-server": "1.19.13",

@@ -27,6 +27,8 @@ import { defaultVisualSettings, getSettingDefinition } from "@/lib/site-visual-s
 import { adSlots } from "@/lib/ads";
 import { isManagedContentType } from "@/lib/managed-content";
 import { reconcileOnboardingCompletion } from "@/lib/onboarding";
+import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
+import { reviewVipSubscriptionClaim, submitVipSubscriptionClaim } from "@/lib/vip-subscription-claims";
 
 export type TradeActionState = {
   ok: boolean;
@@ -172,7 +174,13 @@ function normalizeVisualSettingValue(value: string, type: "TEXT" | "COLOR" | "IM
   return value;
 }
 
-function getRedirect(localeValue: FormDataEntryValue | null, path: string, error?: string, message?: string) {
+function getRedirect(
+  localeValue: FormDataEntryValue | null,
+  path: string,
+  error?: string,
+  message?: string,
+  extraParams?: Record<string, string | null | undefined>,
+) {
   const locale = getSafeLocale(String(localeValue ?? "tr"));
   const params = new URLSearchParams();
 
@@ -182,6 +190,10 @@ function getRedirect(localeValue: FormDataEntryValue | null, path: string, error
 
   if (message) {
     params.set("message", message);
+  }
+
+  for (const [key, value] of Object.entries(extraParams ?? {})) {
+    if (value) params.set(key, value);
   }
 
   const query = params.toString() ? `?${params.toString()}` : "";
@@ -350,11 +362,14 @@ export async function registerAction(formData: FormData) {
 
 export async function loginAction(formData: FormData) {
   const locale = formData.get("locale");
+  const safeLocale = getSafeLocale(String(locale ?? "tr"));
+  const returnTo = getSafeLocaleReturnPath(formData.get("returnTo"), safeLocale);
   const email = normalizeEmail(formData.get("email"));
   const password = String(formData.get("password") ?? "");
+  const loginRedirect = (error?: string, message?: string) => getRedirect(locale, "giris", error, message, { returnTo });
 
   if (!email || !password) {
-    redirect(getRedirect(locale, "giris", "E-posta ve şifre zorunludur."));
+    redirect(loginRedirect("E-posta ve şifre zorunludur."));
   }
 
   const user = await prisma.user.findUnique({
@@ -373,28 +388,23 @@ export async function loginAction(formData: FormData) {
   });
 
   if (!user) {
-    redirect(getRedirect(locale, "giris", "E-posta veya şifre hatalı."));
+    redirect(loginRedirect("E-posta veya şifre hatalı."));
   }
 
   if (!user.passwordHash) {
-    redirect(getRedirect(locale, "giris", "Bu hesap Google ile giriş için oluşturulmuş. Lütfen Google ile giriş yapın."));
+    redirect(loginRedirect("Bu hesap Google ile giriş için oluşturulmuş. Lütfen Google ile giriş yapın."));
   }
 
   if (!user.isActive) {
     redirect(
-      getRedirect(
-        locale,
-        "giris",
-        undefined,
-        "Hesabın henüz aktif değil. E-posta kutundaki doğrulama bağlantısına tıklayarak hesabını aktif et.",
-      ),
+      loginRedirect(undefined, "Hesabın henüz aktif değil. E-posta kutundaki doğrulama bağlantısına tıklayarak hesabını aktif et."),
     );
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {
-    redirect(getRedirect(locale, "giris", "E-posta veya şifre hatalı."));
+    redirect(loginRedirect("E-posta veya şifre hatalı."));
   }
 
   await createSession({
@@ -406,13 +416,97 @@ export async function loginAction(formData: FormData) {
     role: user.role,
   });
 
-  redirect(getRedirect(locale, user.onboardingCompletedAt ? "panel" : "baslangic"));
+  redirect(returnTo ?? getRedirect(locale, user.onboardingCompletedAt ? "panel" : "baslangic"));
 }
 
 export async function logoutAction(formData: FormData) {
   const locale = formData.get("locale");
   await destroySession();
   redirect(getRedirect(locale, "giris"));
+}
+
+export async function submitVipPaymentClaimAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const safeLocale = getSafeLocale(String(locale ?? "tr"));
+  const sessionUser = await getSessionUser();
+
+  if (!sessionUser) {
+    redirect(getRedirect(locale, "giris", "Ödeme bildirimi için giriş yapmalısınız.", undefined, { returnTo: `/${safeLocale}/vip` }));
+  }
+
+  let claimResult: Awaited<ReturnType<typeof submitVipSubscriptionClaim>>;
+
+  try {
+    claimResult = await submitVipSubscriptionClaim({
+      userId: sessionUser.id,
+      providerReference: normalizeText(formData.get("providerReference")),
+      userNote: normalizeText(formData.get("userNote")),
+    });
+  } catch (error) {
+    redirect(getRedirect(locale, "vip", error instanceof Error ? error.message : "Ödeme bildirimi kaydedilemedi."));
+  }
+
+  revalidatePath(`/${safeLocale}/vip`);
+  revalidatePath(`/${safeLocale}/admin`);
+  redirect(getRedirect(
+    locale,
+    "vip",
+    undefined,
+    claimResult.reused
+      ? "Bu ödeme bildirimi zaten kayıtlı ve doğrulama durumunu koruyor."
+      : "Ödeme bildiriminiz alındı. Param dekontu doğrulandıktan sonra VIP erişiminiz açılacak.",
+  ));
+}
+
+export async function reviewVipPaymentClaimAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const admin = await requireAdminSession(locale);
+  const decision = normalizeText(formData.get("decision"));
+
+  if (decision !== "APPROVE" && decision !== "REJECT") {
+    redirect(getRedirect(locale, "admin", "Geçerli bir VIP ödeme kararı seçilmedi."));
+  }
+
+  let reviewResult: Awaited<ReturnType<typeof reviewVipSubscriptionClaim>>;
+
+  try {
+    reviewResult = await reviewVipSubscriptionClaim({
+      claimId: normalizeText(formData.get("claimId")),
+      reviewerEmail: admin.email,
+      decision,
+      amountTry: normalizeOptionalNumber(formData.get("amountTry"), 0),
+      adminNote: normalizeText(formData.get("adminNote")),
+      payerIdentityConfirmed: formData.get("payerIdentityConfirmed") === "yes",
+    });
+  } catch (error) {
+    redirect(getRedirect(locale, "admin", error instanceof Error ? error.message : "VIP ödeme bildirimi işlenemedi."));
+  }
+
+  if (!reviewResult.reused) {
+    const approved = reviewResult.status === "APPROVED";
+    await sendEmail({
+      to: reviewResult.user.email,
+      subject: approved ? "Enbilir VIP erişiminiz açıldı" : "Enbilir VIP ödeme bildiriminiz incelendi",
+      text: approved
+        ? "Param ödemeniz doğrulandı ve Enbilir VIP erişiminiz açıldı. VIP araştırma ve ajan masasına hesabınızla giriş yaparak ulaşabilirsiniz."
+        : "VIP ödeme bildiriminiz Param kayıtlarıyla doğrulanamadı. Lütfen dekont numaranızı kontrol edip yeniden bildirin.",
+      html: approved
+        ? "<p>Param ödemeniz doğrulandı ve <strong>Enbilir VIP erişiminiz açıldı.</strong></p><p>VIP araştırma ve ajan masasına hesabınızla giriş yaparak ulaşabilirsiniz.</p>"
+        : "<p>VIP ödeme bildiriminiz Param kayıtlarıyla doğrulanamadı.</p><p>Lütfen dekont numaranızı kontrol edip yeniden bildirin.</p>",
+    }).catch((error: unknown) => console.error("[vip-claim-email]", error instanceof Error ? error.message : error));
+  }
+
+  for (const currentLocale of ["tr", "en"] as const) {
+    revalidatePath(`/${currentLocale}/admin`);
+    revalidatePath(`/${currentLocale}/vip`);
+    revalidatePath(`/${currentLocale}/vip/ajanlar`);
+  }
+  const reviewMessage = reviewResult.reused
+    ? `Bu ödeme bildirimi daha önce ${reviewResult.status === "APPROVED" ? "onaylanmış" : "reddedilmiş"}. Yeni işlem ve e-posta oluşturulmadı.`
+    : reviewResult.status === "APPROVED"
+      ? "VIP ödeme doğrulandı ve erişim açıldı."
+      : "VIP ödeme bildirimi reddedildi.";
+  redirect(getRedirect(locale, "admin", undefined, reviewMessage));
 }
 
 export async function tradeAction(previousState: TradeActionState = initialTradeActionState, formData: FormData): Promise<TradeActionState> {
@@ -1268,6 +1362,7 @@ export async function joinLeagueAction(formData: FormData) {
   const leagueId = normalizeText(formData.get("leagueId"));
   const leagueSlug = normalizeText(formData.get("leagueSlug"));
   const redirectTo = normalizeText(formData.get("redirectTo"));
+  const safeRedirectTo = getSafeLocaleReturnPath(redirectTo, safeLocale);
   const sessionUser = await getSessionUser();
 
   if (!sessionUser) {
@@ -1318,7 +1413,7 @@ export async function joinLeagueAction(formData: FormData) {
 
   if (existingMembership) {
     revalidateSocialViews(locale);
-    redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : getRedirect(locale, `ligler/${league.slug}`, "Bu lige zaten üyesin.").toString());
+    redirect(safeRedirectTo ?? getRedirect(locale, `ligler/${league.slug}`, "Bu lige zaten üyesin.").toString());
   }
 
   await prisma.leagueMembership.create({
@@ -1347,7 +1442,7 @@ export async function joinLeagueAction(formData: FormData) {
   await reconcileOnboardingCompletion(sessionUser.id);
   revalidateSocialViews(locale);
 
-  redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : getRedirect(locale, `ligler/${league.slug}`).toString());
+  redirect(safeRedirectTo ?? getRedirect(locale, `ligler/${league.slug}`).toString());
 }
 
 export async function changeLeagueAction(formData: FormData) {

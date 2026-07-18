@@ -1,3 +1,9 @@
+export type VipAssetClass = "EQUITY" | "BROAD_MARKET" | "COMMODITY" | "BOND" | "FX" | "CRYPTO";
+
+export type VipFundamentalFramework = "CORPORATE_FINANCIALS" | "MACRO_MARKET_STRUCTURE";
+
+export type VipCrowdingLevel = "LOW" | "MODERATE" | "HIGH" | "EXTREME";
+
 export type VipTechnicalSnapshot = {
   asOf: string;
   lastPrice: number;
@@ -14,12 +20,18 @@ export type VipTechnicalSnapshot = {
   breakoutLevel: number;
   high52Week: number;
   distanceFrom52WeekHighPct: number;
+  momentum20dPct: number;
+  momentum60dPct: number;
   atr14Pct: number;
   rsiDivergence: "BULLISH" | "BEARISH" | "NONE";
   macdDivergence: "BULLISH" | "BEARISH" | "NONE";
   support: number;
   resistance: number;
   technicalScore: number;
+  crowdingScore: number;
+  crowdingLevel: VipCrowdingLevel;
+  crowdingSignals: string[];
+  crowdingVeto: boolean;
 };
 
 export type VipFundamentalSnapshot = {
@@ -60,6 +72,10 @@ export type VipResearchCandidate = {
   symbol: string;
   providerSymbol: string;
   displayName: string;
+  assetClass: VipAssetClass;
+  currency: string;
+  fundamentalFramework: VipFundamentalFramework;
+  marketDataSourceUrl: string;
   technical: VipTechnicalSnapshot;
   fundamental: VipFundamentalSnapshot | null;
   institutional: VipInstitutionalSnapshot | null;

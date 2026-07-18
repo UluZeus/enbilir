@@ -1,42 +1,14 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import {
+  calculateVipAgentTradePnl,
+  calculateVipAgentPeriods,
+  getVipAgentHistoryPagination,
+  VIP_AGENT_DECISION_PAGE_SIZE,
+  VIP_AGENT_TRADE_PAGE_SIZE,
+} from "@/lib/vip-agents/calculations";
 import { VIP_AGENT_STRATEGIES } from "@/lib/vip-agents/config";
-
-export const VIP_AGENT_PERIODS = [
-  { key: "daily", labelTr: "Günlük", labelEn: "Daily", days: 1 },
-  { key: "weekly", labelTr: "Haftalık", labelEn: "Weekly", days: 7 },
-  { key: "monthly", labelTr: "Aylık", labelEn: "Monthly", days: 30 },
-  { key: "threeMonth", labelTr: "3 Aylık", labelEn: "3 Months", days: 90 },
-  { key: "sixMonth", labelTr: "6 Aylık", labelEn: "6 Months", days: 180 },
-  { key: "yearly", labelTr: "Yıllık", labelEn: "Yearly", days: 365 },
-] as const;
-
-type Snapshot = {
-  performanceEquityUsd: number;
-  capturedAt: Date;
-};
-
-function calculatePeriods(snapshots: Snapshot[], performanceBaseUsd: number, createdAt: Date, now = new Date()) {
-  const ordered = [...snapshots].sort((left, right) => left.capturedAt.getTime() - right.capturedAt.getTime());
-  const current = ordered.at(-1);
-  const currentEquity = current?.performanceEquityUsd ?? performanceBaseUsd;
-
-  return VIP_AGENT_PERIODS.map((period) => {
-    const cutoff = new Date(now.getTime() - period.days * 86_400_000);
-    const eligible = ordered.filter((snapshot) => snapshot.capturedAt <= cutoff);
-    const baseline = eligible.at(-1);
-    const baselineEquity = baseline?.performanceEquityUsd ?? performanceBaseUsd;
-    const pnlUsd = Number((currentEquity - baselineEquity).toFixed(2));
-    return {
-      ...period,
-      pnlUsd,
-      returnPercent: Number(((pnlUsd / performanceBaseUsd) * 100).toFixed(4)),
-      isPartial: !baseline && createdAt > cutoff,
-      baselineAt: baseline?.capturedAt ?? createdAt,
-    };
-  });
-}
 
 export async function getVipAgentSummaries() {
   const agents = await prisma.vipTradingAgent.findMany({
@@ -67,31 +39,79 @@ export async function getVipAgentSummaries() {
         lastRunAt: agent.lastRunAt,
         openPositionCount: agent._count.positions,
         tradeCount: agent._count.trades,
-        periods: calculatePeriods(agent.snapshots, agent.performanceBaseUsd, agent.createdAt),
+        periods: calculateVipAgentPeriods(agent.snapshots, agent.performanceBaseUsd, agent.createdAt),
       };
     });
 }
 
-export async function getVipAgentDetail(slug: string) {
+export async function getVipAgentDetail(
+  slug: string,
+  history: { tradePage?: unknown; decisionPage?: unknown } = {},
+) {
   const agent = await prisma.vipTradingAgent.findUnique({
     where: { slug },
     include: {
       positions: { orderBy: { openedAt: "desc" } },
-      trades: { orderBy: { executedAt: "desc" }, take: 250 },
-      decisions: { orderBy: { createdAt: "desc" }, take: 250 },
       snapshots: { orderBy: { capturedAt: "desc" }, take: 400 },
+      _count: { select: { trades: true, decisions: true } },
     },
   });
   if (!agent) return null;
+  const tradePagination = getVipAgentHistoryPagination(history.tradePage, agent._count.trades, VIP_AGENT_TRADE_PAGE_SIZE);
+  const decisionPagination = getVipAgentHistoryPagination(history.decisionPage, agent._count.decisions, VIP_AGENT_DECISION_PAGE_SIZE);
+  const [trades, decisions] = await Promise.all([
+    prisma.vipTradingAgentTrade.findMany({
+      where: { agentId: agent.id },
+      orderBy: [{ executedAt: "desc" }, { id: "desc" }],
+      skip: tradePagination.skip,
+      take: tradePagination.pageSize,
+    }),
+    prisma.vipTradingAgentDecision.findMany({
+      where: { agentId: agent.id },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: decisionPagination.skip,
+      take: decisionPagination.pageSize,
+    }),
+  ]);
+  const buyCycleIds = trades
+    .filter((trade) => trade.side === "BUY")
+    .map((trade) => trade.positionCycleId);
+  const closingTrades = buyCycleIds.length > 0
+    ? await prisma.vipTradingAgentTrade.findMany({
+        where: {
+          agentId: agent.id,
+          side: "SELL",
+          positionCycleId: { in: buyCycleIds },
+        },
+        select: {
+          positionCycleId: true,
+          realizedPnlUsd: true,
+          realizedPnlPercent: true,
+        },
+      })
+    : [];
+  const openPositionByCycle = new Map(agent.positions.map((position) => [position.positionCycleId, position]));
+  const closingTradeByCycle = new Map(closingTrades.map((trade) => [trade.positionCycleId, trade]));
   const latest = agent.snapshots[0];
 
   return {
     ...agent,
+    trades: trades.map((trade) => ({
+      ...trade,
+      ...calculateVipAgentTradePnl(
+        trade,
+        openPositionByCycle.get(trade.positionCycleId),
+        closingTradeByCycle.get(trade.positionCycleId),
+      ),
+    })),
+    decisions,
+    tradePagination,
+    decisionPagination,
     totalBalanceUsd: latest?.totalBalanceUsd ?? agent.cashUsd,
     totalPnlUsd: latest?.pnlUsd ?? 0,
     totalReturnPercent: latest?.returnPercent ?? 0,
     positionsValueUsd: latest?.positionsValueUsd ?? 0,
-    periods: calculatePeriods(agent.snapshots, agent.performanceBaseUsd, agent.createdAt),
+    periods: calculateVipAgentPeriods(agent.snapshots, agent.performanceBaseUsd, agent.createdAt),
     positions: agent.positions.map((position) => {
       const unrealizedPnlUsd = Number(((position.lastPriceUsd - position.averagePriceUsd) * position.quantity).toFixed(2));
       const cost = position.averagePriceUsd * position.quantity;

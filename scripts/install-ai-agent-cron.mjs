@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 const marker = "# enbilir-ai-agent-cron";
 const appDir = "/srv/enbilir/app";
-const cronLine = `0 * * * * cd ${appDir} && node scripts/run-ai-agent-cron.mjs >> /var/log/enbilir-ai-agent-cron.log 2>&1 ${marker}`;
+const cronLine = `0 * * * * cd ${appDir} && flock -n /tmp/enbilir-ai-agent.lock node scripts/run-ai-agent-cron.mjs >> /var/log/enbilir-ai-agent-cron.log 2>&1 ${marker}`;
 
 function getCurrentCrontab() {
   try {

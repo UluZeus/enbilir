@@ -5,8 +5,9 @@ import { join } from "node:path";
 
 const marker = "# enbilir-weekly-competition-cron";
 const appDir = "/srv/enbilir/app";
-// The production host uses UTC. 04:10 UTC is 07:10 in Europe/Istanbul.
-const cronLine = `10 4 * * 1 cd ${appDir} && node scripts/publish-weekly-competition-results.mjs --apply --confirm-production >> /var/log/enbilir-weekly-competition-cron.log 2>&1 ${marker}`;
+// The production host uses UTC. 05:30 UTC is 08:30 in Europe/Istanbul and
+// leaves the 07:00 VIP research window clear.
+const cronLine = `30 5 * * 1 cd ${appDir} && flock -n /tmp/enbilir-weekly-competition.lock node scripts/publish-weekly-competition-results.mjs --apply --confirm-production >> /var/log/enbilir-weekly-competition-cron.log 2>&1 ${marker}`;
 
 function getCurrentCrontab() {
   try {

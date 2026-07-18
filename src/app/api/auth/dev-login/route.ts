@@ -3,19 +3,12 @@ import { getSafeLocale } from "@/i18n/config";
 import { setSessionCookie } from "@/lib/auth";
 import { ensureVirtualAccount } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
+import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
 import { getRequestOrigin } from "@/lib/site-url";
 
 const DEV_LOGIN_EMAIL = "dev-user@enbilir.local";
 const DEV_LOGIN_NAME = "Geliştirme Kullanıcısı";
 const DEV_LOGIN_NICKNAME = "DevUser";
-
-function getSafeReturnPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
-
-  return value;
-}
 
 function getRedirect(request: NextRequest, localeValue: string | null, path: string, error?: string) {
   const locale = getSafeLocale(localeValue ?? "tr");
@@ -34,7 +27,7 @@ export async function GET(request: NextRequest) {
   }
 
   const locale = getSafeLocale(request.nextUrl.searchParams.get("locale") ?? "tr");
-  const returnTo = getSafeReturnPath(request.nextUrl.searchParams.get("returnTo"));
+  const returnTo = getSafeLocaleReturnPath(request.nextUrl.searchParams.get("returnTo"), locale);
 
   try {
     const user = await prisma.user.upsert({

@@ -3,6 +3,7 @@ import type { getVipAgentDetail, getVipAgentSummaries } from "@/lib/vip-agents/d
 
 type AgentSummary = Awaited<ReturnType<typeof getVipAgentSummaries>>[number];
 type AgentDetail = NonNullable<Awaited<ReturnType<typeof getVipAgentDetail>>>;
+type AgentHistoryPagination = AgentDetail["tradePagination"];
 
 function money(value: number, maximumFractionDigits = 0) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits }).format(value);
@@ -20,6 +21,77 @@ function profileTone(profile: string) {
   if (profile === "MUHAFAZAKAR") return "border-sky-200 bg-sky-50 text-sky-900";
   if (profile === "AGRESIF") return "border-rose-200 bg-rose-50 text-rose-900";
   return "border-amber-200 bg-amber-50 text-amber-900";
+}
+
+function historyPageHref({
+  locale,
+  slug,
+  tradePage,
+  decisionPage,
+  anchor,
+}: {
+  locale: "tr" | "en";
+  slug: string;
+  tradePage: number;
+  decisionPage: number;
+  anchor: string;
+}) {
+  const query = new URLSearchParams();
+  if (tradePage > 1) query.set("tradePage", String(tradePage));
+  if (decisionPage > 1) query.set("decisionPage", String(decisionPage));
+  const serialized = query.toString();
+  return `/${locale}/vip/ajanlar/${slug}${serialized ? `?${serialized}` : ""}#${anchor}`;
+}
+
+function HistoryPagination({
+  pagination,
+  kind,
+  locale,
+  slug,
+  tradePage,
+  decisionPage,
+}: {
+  pagination: AgentHistoryPagination;
+  kind: "trades" | "decisions";
+  locale: "tr" | "en";
+  slug: string;
+  tradePage: number;
+  decisionPage: number;
+}) {
+  if (pagination.totalItems === 0) return null;
+  const tr = locale === "tr";
+  const anchor = kind === "trades" ? "islem-gunlugu" : "karar-izi";
+  const itemLabel = kind === "trades" ? (tr ? "işlem" : "trades") : (tr ? "karar" : "decisions");
+  const href = (page: number) => historyPageHref({
+    locale,
+    slug,
+    tradePage: kind === "trades" ? page : tradePage,
+    decisionPage: kind === "decisions" ? page : decisionPage,
+    anchor,
+  });
+
+  return (
+    <nav className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4" aria-label={tr ? `${itemLabel} sayfaları` : `${itemLabel} pages`}>
+      <p className="text-xs font-bold text-slate-500">
+        {pagination.firstItem.toLocaleString(tr ? "tr-TR" : "en-US")}–{pagination.lastItem.toLocaleString(tr ? "tr-TR" : "en-US")} / {pagination.totalItems.toLocaleString(tr ? "tr-TR" : "en-US")} {itemLabel}
+        <span className="ml-2 text-slate-400">· {tr ? "Sayfa" : "Page"} {pagination.page}/{pagination.totalPages}</span>
+      </p>
+      {pagination.totalPages > 1 ? (
+        <div className="flex items-center gap-2">
+          {pagination.hasPreviousPage ? (
+            <Link prefetch={false} href={href(pagination.page - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:border-amber-400 hover:text-slate-950">
+              ← {tr ? "Önceki" : "Previous"}
+            </Link>
+          ) : <span className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-black text-slate-400">← {tr ? "Önceki" : "Previous"}</span>}
+          {pagination.hasNextPage ? (
+            <Link prefetch={false} href={href(pagination.page + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:border-amber-400 hover:text-slate-950">
+              {tr ? "Sonraki" : "Next"} →
+            </Link>
+          ) : <span className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-black text-slate-400">{tr ? "Sonraki" : "Next"} →</span>}
+        </div>
+      ) : null}
+    </nav>
+  );
 }
 
 export function VipAgentPublicSummary({ agents, locale }: { agents: AgentSummary[]; locale: "tr" | "en" }) {
@@ -88,7 +160,6 @@ export function VipAgentOverview({ agents, locale }: { agents: AgentSummary[]; l
 
 export function VipAgentDetailView({ agent, locale }: { agent: AgentDetail; locale: "tr" | "en" }) {
   const tr = locale === "tr";
-  const openBySymbol = new Map(agent.positions.map((position) => [position.symbol, position]));
   const date = (value: Date) => new Intl.DateTimeFormat(tr ? "tr-TR" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" }).format(value);
   return (
     <div className="space-y-7" data-testid={`vip-agent-${agent.slug}`}>
@@ -101,11 +172,11 @@ export function VipAgentDetailView({ agent, locale }: { agent: AgentDetail; loca
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-2xl font-black text-slate-950">{tr ? "Açık pozisyonlar" : "Open positions"}</h2><div className="mt-5 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Varlık</th><th className="px-4 py-3">Adet</th><th className="px-4 py-3">Maliyet</th><th className="px-4 py-3">Son fiyat</th><th className="px-4 py-3">P/L</th><th className="px-4 py-3">Stop</th><th className="px-4 py-3">Hedef</th></tr></thead><tbody>{agent.positions.length ? agent.positions.map((position) => <tr key={position.id} className="border-t border-slate-100"><td className="px-4 py-4 font-black">{position.symbol}<span className="block text-xs font-normal text-slate-500">{position.displayName}</span></td><td className="px-4 py-4">{position.quantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}</td><td className="px-4 py-4">{money(position.averagePriceUsd, 2)}</td><td className="px-4 py-4">{money(position.lastPriceUsd, 2)}</td><td className={`px-4 py-4 font-black ${pnlTone(position.unrealizedPnlUsd)}`}>{money(position.unrealizedPnlUsd)}<span className="block text-xs">{percent(position.unrealizedPnlPercent)}</span></td><td className="px-4 py-4 text-rose-700">{money(position.stopLossUsd, 2)}</td><td className="px-4 py-4 text-emerald-700">{money(position.targetPriceUsd, 2)}</td></tr>) : <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">{tr ? "Ajan şu anda nakitte bekliyor." : "The agent is currently waiting in cash."}</td></tr>}</tbody></table></div></section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-2xl font-black text-slate-950">{tr ? "Eksiksiz alım-satım günlüğü" : "Complete trade log"}</h2><p className="mt-2 text-sm text-slate-500">{tr ? "Satış satırları gerçekleşen işlem kâr/zararını; açık alımlar ise güncel gerçekleşmemiş sonucu gösterir." : "Sell rows show realized P/L; open buys show current unrealized P/L."}</p><div className="mt-5 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">İşlem</th><th className="px-4 py-3">Varlık</th><th className="px-4 py-3">Adet / fiyat</th><th className="px-4 py-3">Tutar</th><th className="px-4 py-3">İşlem P/L</th><th className="px-4 py-3">Gerekçe</th></tr></thead><tbody>{agent.trades.length ? agent.trades.map((trade) => { const open = trade.side === "BUY" ? openBySymbol.get(trade.symbol) : null; const pnlUsd = trade.side === "SELL" ? trade.realizedPnlUsd : open?.unrealizedPnlUsd; const pnlPercent = trade.side === "SELL" ? trade.realizedPnlPercent : open?.unrealizedPnlPercent; return <tr key={trade.id} className="border-t border-slate-100 align-top"><td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{date(trade.executedAt)}</td><td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${trade.side === "BUY" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{trade.side}</span></td><td className="px-4 py-4 font-black">{trade.symbol}</td><td className="whitespace-nowrap px-4 py-4">{trade.quantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}<span className="block text-xs text-slate-500">@ {money(trade.priceUsd, 2)}</span></td><td className="px-4 py-4">{money(trade.grossUsd)}</td><td className={`px-4 py-4 font-black ${typeof pnlUsd === "number" ? pnlTone(pnlUsd) : "text-slate-400"}`}>{typeof pnlUsd === "number" ? money(pnlUsd) : tr ? "Kapandı" : "Closed"}<span className="block text-xs">{typeof pnlPercent === "number" ? percent(pnlPercent) : "-"}</span></td><td className="min-w-72 px-4 py-4 text-xs leading-5 text-slate-600">{trade.reason}</td></tr>; }) : <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">{tr ? "Henüz işlem yok." : "No trades yet."}</td></tr>}</tbody></table></div></section>
+      <section id="islem-gunlugu" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-2xl font-black text-slate-950">{tr ? "Eksiksiz alım-satım günlüğü" : "Complete trade log"}</h2><p className="mt-2 text-sm text-slate-500">{tr ? "Her alım yalnızca kendi pozisyon döngüsüne bağlıdır: açık döngüler güncel gerçekleşmemiş, kapanmış döngüler gerçekleşen sonucu gösterir." : "Each buy is tied only to its own position cycle: open cycles show current unrealized P/L and closed cycles show realized P/L."}</p><div className="mt-5 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">İşlem</th><th className="px-4 py-3">Varlık</th><th className="px-4 py-3">Adet / fiyat</th><th className="px-4 py-3">Tutar</th><th className="px-4 py-3">İşlem P/L</th><th className="px-4 py-3">Gerekçe</th></tr></thead><tbody>{agent.trades.length ? agent.trades.map((trade) => <tr key={trade.id} className="border-t border-slate-100 align-top"><td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{date(trade.executedAt)}</td><td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${trade.side === "BUY" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{trade.side}</span></td><td className="px-4 py-4 font-black">{trade.symbol}</td><td className="whitespace-nowrap px-4 py-4">{trade.quantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}<span className="block text-xs text-slate-500">@ {money(trade.priceUsd, 2)}</span></td><td className="px-4 py-4">{money(trade.grossUsd)}</td><td className={`px-4 py-4 font-black ${typeof trade.pnlUsd === "number" ? pnlTone(trade.pnlUsd) : "text-slate-400"}`}>{typeof trade.pnlUsd === "number" ? money(trade.pnlUsd) : tr ? "Veri yok" : "Unavailable"}<span className="block text-xs">{typeof trade.pnlPercent === "number" ? percent(trade.pnlPercent) : "-"}</span><span className="mt-1 block text-[10px] font-bold uppercase text-slate-400">{trade.pnlState === "OPEN" ? (tr ? "Gerçekleşmemiş" : "Unrealized") : trade.pnlState === "CLOSED" ? (tr ? "Gerçekleşen" : "Realized") : (tr ? "Eşleşmedi" : "Unmatched")}</span></td><td className="min-w-72 px-4 py-4 text-xs leading-5 text-slate-600">{trade.reason}</td></tr>) : <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">{tr ? "Henüz işlem yok." : "No trades yet."}</td></tr>}</tbody></table></div><HistoryPagination pagination={agent.tradePagination} kind="trades" locale={locale} slug={agent.slug} tradePage={agent.tradePagination.page} decisionPage={agent.decisionPagination.page} /></section>
 
-      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6"><h2 className="text-xl font-black text-slate-950">{tr ? "Günlük karar izi" : "Daily decision trail"}</h2><div className="mt-4 space-y-3">{agent.decisions.slice(0, 80).map((decision) => <article key={decision.id} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-black text-slate-950">{decision.symbol} · {decision.action}</p><p className="text-xs text-slate-500">{date(decision.createdAt)}</p></div><p className="mt-2 text-sm leading-6 text-slate-600">{decision.reason}</p></article>)}</div></section>
+      <section id="karar-izi" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-slate-50 p-6"><h2 className="text-xl font-black text-slate-950">{tr ? "Günlük karar izi" : "Daily decision trail"}</h2><div className="mt-4 space-y-3">{agent.decisions.map((decision) => <article key={decision.id} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-black text-slate-950">{decision.symbol} · {decision.action}</p><p className="text-xs text-slate-500">{date(decision.createdAt)}</p></div><p className="mt-2 text-sm leading-6 text-slate-600">{decision.reason}</p></article>)}</div><HistoryPagination pagination={agent.decisionPagination} kind="decisions" locale={locale} slug={agent.slug} tradePage={agent.tradePagination.page} decisionPage={agent.decisionPagination.page} /></section>
 
-      <p className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-xs leading-6 text-amber-950">{tr ? "Bu portföy gerçek para emri göndermez. Fiyatlar son erişilebilir piyasa kapanışından alınan sanal gerçekleşmelerdir; komisyon, vergi ve kayma dahil değildir." : "This portfolio never sends real-money orders. Executions are simulated at the latest available market close; fees, taxes, and slippage are excluded."}</p>
+      <p className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-xs leading-6 text-amber-950">{tr ? "Bu portföy gerçek para emri göndermez. Fiyatlar son erişilebilir piyasa kapanışından alınan sanal gerçekleşmelerdir; hisse bölünmeleri pozisyonlara uygulanır, temettü nakit akışları getiriye dahil edilmez. Komisyon, vergi ve kayma da dahil değildir." : "This portfolio never sends real-money orders. Executions are simulated at the latest available market close; stock splits are applied to positions, while dividend cash flows are excluded from returns. Fees, taxes, and slippage are also excluded."}</p>
     </div>
   );
 }

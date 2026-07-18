@@ -9,6 +9,7 @@ import { getUiCopy } from "@/i18n/ui-copy";
 import { loginAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
 import { buildPageMetadata } from "@/lib/seo";
+import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
@@ -21,17 +22,19 @@ export default async function LoginPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ error?: string; message?: string }>;
+  searchParams?: Promise<{ error?: string; message?: string; returnTo?: string }>;
 }) {
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
   const locale = getSafeLocale(rawLocale);
+  const returnTo = getSafeLocaleReturnPath(query.returnTo, locale);
   const sessionUser = await getSessionUser();
-  if (sessionUser) redirect(`/${locale}/panel`);
+  if (sessionUser) redirect(returnTo ?? `/${locale}/panel`);
   const dictionary = getDictionary(locale);
   const copy = getUiCopy(locale).auth;
   const isDevelopment = process.env.NODE_ENV !== "production";
-  const devLoginHref = `/api/auth/dev-login?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/baslangic`)}`;
+  const loginReturnTo = returnTo ?? `/${locale}/baslangic`;
+  const devLoginHref = `/api/auth/dev-login?locale=${locale}&returnTo=${encodeURIComponent(loginReturnTo)}`;
 
   return (
     <div className="grid gap-6">
@@ -75,7 +78,7 @@ export default async function LoginPage({
           </div>
           <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
           <a
-            href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(`/${locale}/baslangic`)}`}
+            href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(loginReturnTo)}`}
             className="rounded-md border border-slate-300 bg-white px-5 py-3 text-center text-sm font-black text-[#152033] shadow-sm hover:border-[#0f766e] hover:text-[#0f766e]"
           >
             {copy.google}
@@ -94,6 +97,7 @@ export default async function LoginPage({
             <span className="h-px flex-1 bg-slate-200" />
           </div>
           <input type="hidden" name="locale" value={locale} />
+          <input type="hidden" name="returnTo" value={returnTo ?? ""} />
           <label className="grid gap-2 text-sm font-bold text-slate-700">
             {copy.email}
             <input name="email" type="email" required autoComplete="email" className="rounded-md border border-slate-300 px-4 py-3 font-normal outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-emerald-100" />

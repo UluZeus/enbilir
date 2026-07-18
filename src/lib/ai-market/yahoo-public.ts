@@ -37,6 +37,8 @@ const yahooIntervals: Record<string, string> = {
   "1d": "1d",
 };
 
+const YAHOO_CHART_HOSTS = ["query2.finance.yahoo.com", "query1.finance.yahoo.com"] as const;
+
 function toNumber(value: number | null | undefined) {
   return Number.isFinite(value) && value !== null && value !== undefined ? value : 0;
 }
@@ -71,58 +73,19 @@ function aggregateCandles(candles: Candle[], groupSize: number) {
 }
 
 async function fetchYahooCandlesForProviderSymbol(symbol: string, interval: string, timeoutMs: number): Promise<Candle[]> {
-  const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
-  url.searchParams.set("range", intervalRanges[interval] ?? "1mo");
-  url.searchParams.set("interval", yahooIntervals[interval] ?? "1h");
-
-  const data = await fetchJsonWithFallback<YahooChartResponse>(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-    },
-    next: { revalidate: 60 },
-    timeoutMs,
-  });
-  const result = data.chart?.result?.[0];
-  const timestamps = result?.timestamp ?? [];
-  const quote = result?.indicators?.quote?.[0];
-
-  if (!quote || timestamps.length === 0) {
-    return [];
-  }
-
-  const candles = timestamps
-    .map((timestamp, index) => ({
-      openTime: timestamp * 1000,
-      open: toNumber(quote.open?.[index]),
-      high: toNumber(quote.high?.[index]),
-      low: toNumber(quote.low?.[index]),
-      close: toNumber(quote.close?.[index]),
-      volume: toNumber(quote.volume?.[index]),
-    }))
-    .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
-    .sort((a, b) => a.openTime - b.openTime);
-
-  return aggregateCandles(candles, interval === "4h" ? 4 : 1);
-}
-
-export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeoutMs = 7000): Promise<Candle[]> {
-  const candidates = getYahooProviderSymbolCandidates(symbol);
   const errors: string[] = [];
 
-  for (const candidate of candidates) {
+  for (const host of YAHOO_CHART_HOSTS) {
     try {
-      const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}`);
-      url.searchParams.set("range", range);
-      url.searchParams.set("interval", "1d");
-      url.searchParams.set("includePrePost", "false");
-
+      const url = new URL(`https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}`);
+      url.searchParams.set("range", intervalRanges[interval] ?? "1mo");
+      url.searchParams.set("interval", yahooIntervals[interval] ?? "1h");
       const data = await fetchJsonWithFallback<YahooChartResponse>(url, {
         headers: {
           Accept: "application/json",
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
         },
-        next: { revalidate: 3600 },
+        next: { revalidate: 60 },
         timeoutMs,
       });
       const result = data.chart?.result?.[0];
@@ -133,7 +96,7 @@ export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeo
         continue;
       }
 
-      return timestamps
+      const candles = timestamps
         .map((timestamp, index) => ({
           openTime: timestamp * 1000,
           open: toNumber(quote.open?.[index]),
@@ -143,9 +106,59 @@ export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeo
           volume: toNumber(quote.volume?.[index]),
         }))
         .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
-        .sort((left, right) => left.openTime - right.openTime);
+        .sort((a, b) => a.openTime - b.openTime);
+
+      return aggregateCandles(candles, interval === "4h" ? 4 : 1);
     } catch (error) {
-      errors.push(`${candidate}: ${error instanceof Error ? error.message : "Yahoo daily data unavailable"}`);
+      errors.push(`${host}: ${error instanceof Error ? error.message : "Yahoo public data unavailable"}`);
+    }
+  }
+
+  throw new Error(errors.join("; ") || "Yahoo public data unavailable");
+}
+
+export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeoutMs = 7000): Promise<Candle[]> {
+  const candidates = getYahooProviderSymbolCandidates(symbol);
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    for (const host of YAHOO_CHART_HOSTS) {
+      try {
+        const url = new URL(`https://${host}/v8/finance/chart/${encodeURIComponent(candidate)}`);
+        url.searchParams.set("range", range);
+        url.searchParams.set("interval", "1d");
+        url.searchParams.set("includePrePost", "false");
+
+        const data = await fetchJsonWithFallback<YahooChartResponse>(url, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          },
+          next: { revalidate: 3600 },
+          timeoutMs,
+        });
+        const result = data.chart?.result?.[0];
+        const timestamps = result?.timestamp ?? [];
+        const quote = result?.indicators?.quote?.[0];
+
+        if (!quote || timestamps.length === 0) {
+          continue;
+        }
+
+        return timestamps
+          .map((timestamp, index) => ({
+            openTime: timestamp * 1000,
+            open: toNumber(quote.open?.[index]),
+            high: toNumber(quote.high?.[index]),
+            low: toNumber(quote.low?.[index]),
+            close: toNumber(quote.close?.[index]),
+            volume: toNumber(quote.volume?.[index]),
+          }))
+          .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
+          .sort((left, right) => left.openTime - right.openTime);
+      } catch (error) {
+        errors.push(`${candidate}@${host}: ${error instanceof Error ? error.message : "Yahoo daily data unavailable"}`);
+      }
     }
   }
 

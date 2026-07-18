@@ -8,6 +8,7 @@ import {
   createAdPlacementAction,
   createCompetitionPeriodAction,
   hideReportedChatMessageAction,
+  reviewVipPaymentClaimAction,
   toggleAdPlacementAction,
   toggleBadgeAction,
   toggleCompetitionPeriodAction,
@@ -483,7 +484,7 @@ export default async function AdminPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ error?: string; message?: string }>;
 }) {
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
@@ -526,6 +527,7 @@ export default async function AdminPage({
     chatRoomCount,
     recentChatMessages,
     chatReports,
+    vipPaymentClaims,
   ] = await Promise.all([
     prisma.adPlacement.findMany({ orderBy: [{ slot: "asc" }, { priority: "desc" }, { createdAt: "desc" }] }),
     prisma.managedContentItem.findMany({ orderBy: [{ type: "asc" }, { locale: "asc" }, { sortOrder: "desc" }, { createdAt: "desc" }] }),
@@ -565,6 +567,12 @@ export default async function AdminPage({
         },
       },
     }),
+    prisma.vipSubscriptionClaim.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+      include: { user: { select: { name: true, email: true, membershipTier: true, vipPaidUntil: true } } },
+    }),
   ]);
   const activeAds = ads.filter((ad) => ad.isActive).length;
   const publishedItems = managedItems.filter((item) => item.isActive).length;
@@ -581,7 +589,7 @@ export default async function AdminPage({
   return (
     <div className="growth-page grid gap-6">
       <PageHeader title={copy.title} description={copy.description} locale={locale} />
-      <FormMessage message={query.error} />
+      <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
       <section className="admin-growth-command rounded-[1.5rem] border border-white/10 p-5 text-white shadow-2xl">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -689,6 +697,62 @@ export default async function AdminPage({
               <FunnelStep key={step.label} label={step.label} value={step.value} max={Math.max(userCount, 1)} />
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="premium-card p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">Enbilir VIP · Param</p>
+            <h2 className="mt-2 text-2xl font-black text-[#152033]">{locale === "tr" ? "Bekleyen ödeme doğrulamaları" : "Pending payment verifications"}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+              {locale === "tr"
+                ? "Dekontu Param i-Şube kayıtlarından doğrula. İşlem numarası, tutar ve ödeyen e-postası Enbilir hesabıyla birebir eşleşmeden onaylama; onay VIP erişimini bir ay açar."
+                : "Verify the receipt against Param i-Şube. Approve only when the transaction, amount and payer email exactly match the Enbilir account; approval opens VIP access for one month."}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-center">
+            <p className="text-2xl font-black text-amber-900">{vipPaymentClaims.length}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">{locale === "tr" ? "Bekleyen" : "Pending"}</p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-4">
+          {vipPaymentClaims.length === 0 ? (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">{locale === "tr" ? "Bekleyen VIP ödeme bildirimi yok." : "There are no pending VIP payment claims."}</p>
+          ) : vipPaymentClaims.map((claim) => (
+            <form key={claim.id} action={reviewVipPaymentClaimAction} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <input type="hidden" name="locale" value={locale} />
+              <input type="hidden" name="claimId" value={claim.id} />
+              <div className="grid gap-4 xl:grid-cols-[1fr_.7fr_.7fr_1.2fr_auto] xl:items-end">
+                <div>
+                  <p className="text-xs font-black uppercase text-slate-500">{locale === "tr" ? "Kullanıcı" : "User"}</p>
+                  <p className="mt-1 font-black text-slate-950">{claim.user.name}</p>
+                  <p className="text-xs text-slate-600">{claim.user.email}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{formatAdminDate(claim.createdAt, locale)}</p>
+                </div>
+                <label className="grid gap-1 text-xs font-black text-slate-600">
+                  {locale === "tr" ? "Dekont / işlem no" : "Receipt / transaction"}
+                  <input value={claim.providerReference} readOnly className="rounded-md border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm text-slate-950" />
+                </label>
+                <label className="grid gap-1 text-xs font-black text-slate-600">
+                  {locale === "tr" ? "Doğrulanan tutar" : "Verified amount"}
+                  <input name="amountTry" type="number" min="100" step="0.01" defaultValue={claim.amountTry} required className="rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950" />
+                </label>
+                <label className="grid gap-1 text-xs font-black text-slate-600">
+                  {locale === "tr" ? "Admin notu" : "Admin note"}
+                  <input name="adminNote" maxLength={500} placeholder={claim.userNote ?? ""} className="rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950" />
+                </label>
+                <div className="flex gap-2">
+                  <button name="decision" value="REJECT" className="rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-black text-rose-700">{locale === "tr" ? "Reddet" : "Reject"}</button>
+                  <button name="decision" value="APPROVE" className="rounded-md bg-emerald-700 px-4 py-2.5 text-xs font-black text-white">{locale === "tr" ? "Doğrula ve VIP aç" : "Verify and activate"}</button>
+                </div>
+              </div>
+              <label className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-950">
+                <input name="payerIdentityConfirmed" value="yes" type="checkbox" className="mt-0.5 h-4 w-4 accent-emerald-700" />
+                <span>{locale === "tr" ? `Param i-Şube kaydındaki ödeyen e-postasının ${claim.user.email} olduğunu doğruladım. Bu kutu yalnız onay işlemi için zorunludur.` : `I verified that the payer email in Param i-Şube is ${claim.user.email}. This confirmation is required only for approval.`}</span>
+              </label>
+            </form>
+          ))}
         </div>
       </section>
 

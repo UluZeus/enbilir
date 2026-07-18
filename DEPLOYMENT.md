@@ -133,10 +133,9 @@ GOOGLE_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="your-google-oauth-client-secret"
 OPENAI_API_KEY="your-openai-api-key"
 AI_AGENT_CRON_SECRET="guvenli-rastgele-cron-secret"
+AI_AGENT_CRON_ORIGIN="http://127.0.0.1:3006"
 VIP_RESEARCH_MODEL="gpt-5.6-terra"
 VIP_SUBSCRIPTION_WEBHOOK_SECRET="guvenli-rastgele-vip-webhook-secret"
-PARAM_CLIENT_CODE="param-client-code"
-PARAM_GUID="param-uye-isyeri-guid"
 ```
 
 Degisken aciklamalari:
@@ -148,9 +147,13 @@ Degisken aciklamalari:
 - `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET`: Google ile giris icin gerekli OAuth kimlik bilgileri.
 - `OPENAI_API_KEY`: VIP katalizor ve makro arastirmasindaki kaynakli web aramasi icin kullanilir. Anahtar yoksa rapor nicel izleme moduna duser ve `AL` notu uretmez.
 - `AI_AGENT_CRON_SECRET`: AI ve VIP zamanlanmis route'larini korur.
+- `AI_AGENT_CRON_ORIGIN`: Sunucu icindeki cron isteklerinin ulastigi lokal Enbilir adresidir; mevcut production PM2 portu icin `http://127.0.0.1:3006` kullanilir.
 - `VIP_RESEARCH_MODEL`: VIP arastirma modelidir; varsayilan `gpt-5.6-terra` degeridir.
-- `VIP_SUBSCRIPTION_WEBHOOK_SECRET`: Odeme dogrulama katmaninin `/api/vip/subscription/activate` JSON endpoint'ine yaptigi cagrilari korur.
-- `PARAM_CLIENT_CODE` ve `PARAM_GUID`: Param form callback hash dogrulamasi icin gereklidir. Param Return/Callback URL'i `https://enbilir.com/api/vip/subscription/activate` olmalidir; Enbilir e-postasi callback `Ext_Data` ilk alaninda iletilmelidir.
+- `VIP_SUBSCRIPTION_WEBHOOK_SECRET`: Guvenilir bir odeme dogrulama katmaninin `/api/vip/subscription/activate` JSON endpoint'ine yaptigi cagrilari korur.
+
+Mevcut 100 TL Param `paymentrequest` baglantisi bir i-Sube Odeme Talebi baglantisidir; callback, hesap kimligi veya imzali ozel alan tasimaz. Kullanici odemeden sonra Param dekont numarasini VIP paywall uzerinden bildirir. Admin, i-Sube kaydinda tutar ve dekontu dogrulayip admin panelindeki VIP odeme kuyrugundan onaylar; onay bir aylik VIP erisimini idempotent olarak acar.
+
+Odeme Talebi formunun `Ext_Data` veya e-posta alaniyla otomatik VIP acmayin: bu alanlar Param callback hash kapsaminda degildir. Tam otomatik aktivasyon ancak Param'in kullaniciya ozel `Order_ID`/`TransactionId` ureten API entegrasyonu, `CLIENT_CODE`, `CLIENT_USERNAME`, `CLIENT_PASSWORD`, `GUID`, IP/domain tanimi ve hesap baglantili checkout kaydi ile kurulabilir. Mevcut form callback route'u bu guvenli esleme yoksa istegi reddeder.
 
 Guvenli secret uretmek icin:
 
@@ -210,10 +213,12 @@ cd /srv/enbilir/app
 npm run agent:install-cron
 ```
 
+AI/VIP cron'u kendi `/tmp/enbilir-ai-agent.lock` kilidini kullanir; bu sayede ayni is bir onceki calisma bitmeden tekrar baslamaz. Abonelik ve haftalik yarismalar ayri kilitler kullanir. Haftalik is Pazartesi 08.30 Istanbul saatine kurulur ve 07.00 VIP penceresiyle cakisma riski azaltılır.
+
 Cron'u beklemeden kontrollu test icin:
 
 ```bash
-npm run agent:run -- --force
+flock -n /tmp/enbilir-ai-agent.lock npm run agent:run -- --force
 ```
 
 Yalnizca ajanlari idempotent olarak elle calistirmak gerekirse `AI_AGENT_CRON_SECRET` ile korunan `POST /api/vip-agents/run` endpoint'i kullanilabilir.
@@ -239,22 +244,22 @@ Build basarili olmadan PM2 veya reverse proxy adimina gecilmemelidir.
 
 ### Production server baslatma
 
-Next.js varsayilan olarak `3000` portunda calisir:
+Enbilir production servisi reverse proxy arkasinda `3006` portunda calisir; portu acikca belirtin:
 
 ```bash
-npm run start
+PORT=3006 npm run start
 ```
 
 Farkli port kullanmak icin:
 
 ```bash
-PORT=3000 npm run start
+PORT=3006 npm run start
 ```
 
 Sunucu icinden test:
 
 ```bash
-curl -I http://127.0.0.1:3000
+curl -I http://127.0.0.1:3006
 ```
 
 ## 7. Surekli calistirma
@@ -269,14 +274,14 @@ sudo npm install -g pm2
 
 ```bash
 cd /srv/enbilir/app
-pm2 start npm --name enbilir -- run start
+PORT=3006 pm2 start npm --name enbilir -- run start
 ```
 
 Port belirtmek istenirse:
 
 ```bash
 cd /srv/enbilir/app
-PORT=3000 pm2 start npm --name enbilir -- run start
+PORT=3006 pm2 start npm --name enbilir -- run start
 ```
 
 Durum kontrolu:
@@ -350,7 +355,7 @@ DNS degisiklikleri genellikle birkac dakika ile 24 saat arasinda yayilir.
 
 ## 9. Reverse proxy
 
-Next.js uygulamasi lokal olarak `127.0.0.1:3000` uzerinde calismali, dis trafigi Nginx veya Apache HTTPS uzerinden almalidir.
+Next.js uygulamasi lokal olarak `127.0.0.1:3006` uzerinde calismali, dis trafigi Nginx veya Apache HTTPS uzerinden almalidir.
 
 ### Nginx ornek config
 
@@ -373,7 +378,7 @@ server {
     client_max_body_size 20m;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3006;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -425,8 +430,8 @@ sudo systemctl reload apache2
     ProxyPreserveHost On
     RequestHeader set X-Forwarded-Proto "http"
 
-    ProxyPass / http://127.0.0.1:3000/
-    ProxyPassReverse / http://127.0.0.1:3000/
+    ProxyPass / http://127.0.0.1:3006/
+    ProxyPassReverse / http://127.0.0.1:3006/
 </VirtualHost>
 ```
 
@@ -631,7 +636,7 @@ Kontrol:
 ```bash
 pm2 status
 pm2 logs enbilir
-curl -I http://127.0.0.1:3000
+curl -I http://127.0.0.1:3006
 sudo nginx -t
 sudo systemctl status nginx
 ```

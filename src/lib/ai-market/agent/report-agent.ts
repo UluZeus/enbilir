@@ -241,15 +241,15 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
       scope,
       userId,
     },
-    select: { id: true },
+    select: { id: true, fallbackUsed: true },
   });
 
-  if (existing && !options.force) {
+  if (existing) {
     return {
       reportId: existing.id,
       periodKey,
       reused: true,
-      fallbackUsed: false,
+      fallbackUsed: existing.fallbackUsed,
     };
   }
 
@@ -277,10 +277,6 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
     fallbackUsed = true;
     rawAiPayload = { error: error instanceof Error ? error.message : "AI raporu uretilemedi." };
     draft = buildFallbackDraft(assets, news, reportMode);
-  }
-
-  if (existing && options.force) {
-    await prisma.aiMarketReport.delete({ where: { id: existing.id } });
   }
 
   const report = await prisma.aiMarketReport.create({

@@ -1,8 +1,11 @@
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { formatTryAmount, membershipConfig } from "@/lib/membership";
+import { submitVipPaymentClaimAction } from "@/lib/actions";
 
-export function VipPaywall({ locale, isSignedIn }: { locale: Locale; isSignedIn: boolean }) {
+type LatestClaim = { status: string; providerReference: string; createdAt: Date } | null;
+
+export function VipPaywall({ locale, isSignedIn, latestClaim }: { locale: Locale; isSignedIn: boolean; latestClaim?: LatestClaim }) {
   const isEnglish = locale === "en";
 
   return (
@@ -34,15 +37,38 @@ export function VipPaywall({ locale, isSignedIn }: { locale: Locale; isSignedIn:
           <p className="mt-3 text-4xl font-black">{formatTryAmount(membershipConfig.vipMonthlyAmountTry)}</p>
           <p className="mt-2 text-sm leading-6 text-slate-300">{isEnglish ? "Secure payment on Param. Access opens after payment verification." : "Param üzerinden güvenli ödeme. Ödeme doğrulamasından sonra erişim açılır."}</p>
           {isSignedIn ? (
-            <a href={membershipConfig.vipPaymentLink} target="_blank" rel="noreferrer" className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-amber-300 px-5 py-3 font-black text-slate-950 hover:bg-amber-200">
-              {isEnglish ? "Subscribe for 100 TL" : "100 TL ile VIP ol"}
-            </a>
+            <>
+              <a href={membershipConfig.vipPaymentLink} target="_blank" rel="noreferrer" className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-amber-300 px-5 py-3 font-black text-slate-950 hover:bg-amber-200">
+                {isEnglish ? "1. Pay 100 TL on Param" : "1. Param'da 100 TL öde"}
+              </a>
+              {latestClaim?.status === "PENDING" ? (
+                <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
+                  <strong>{isEnglish ? "Payment verification pending" : "Ödeme doğrulaması bekliyor"}</strong>
+                  <span className="mt-1 block text-xs text-slate-300">{isEnglish ? "Receipt" : "Dekont"}: {latestClaim.providerReference}</span>
+                </div>
+              ) : (
+                <form action={submitVipPaymentClaimAction} className="mt-4 grid gap-3 rounded-xl border border-white/10 bg-black/20 p-4">
+                  <input type="hidden" name="locale" value={locale} />
+                  <label className="grid gap-1 text-xs font-black text-slate-200">
+                    {isEnglish ? "2. Param receipt / transaction number" : "2. Param dekont / işlem numarası"}
+                    <input name="providerReference" required minLength={4} maxLength={100} autoComplete="off" className="rounded-lg border border-white/15 bg-white px-3 py-2.5 text-sm font-semibold text-slate-950 outline-none focus:border-amber-300" />
+                  </label>
+                  <label className="grid gap-1 text-xs font-black text-slate-200">
+                    {isEnglish ? "Optional note" : "İsteğe bağlı not"}
+                    <input name="userNote" maxLength={500} className="rounded-lg border border-white/15 bg-white px-3 py-2.5 text-sm font-semibold text-slate-950 outline-none focus:border-amber-300" />
+                  </label>
+                  <button className="rounded-lg border border-amber-300 px-4 py-2.5 text-sm font-black text-amber-300 hover:bg-amber-300 hover:text-slate-950">
+                    {isEnglish ? "Submit payment for verification" : "Ödemeyi doğrulamaya gönder"}
+                  </button>
+                </form>
+              )}
+            </>
           ) : (
             <Link href={`/${locale}/giris?returnTo=/${locale}/vip`} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-amber-300 px-5 py-3 font-black text-slate-950 hover:bg-amber-200">
               {isEnglish ? "Sign in to subscribe" : "Abonelik için giriş yap"}
             </Link>
           )}
-          <p className="mt-4 text-xs leading-5 text-slate-400">{isEnglish ? "Use the same email address as your Enbilir account during payment." : "Ödeme sırasında Enbilir hesabınızdaki e-posta adresini kullanın."}</p>
+          <p className="mt-4 text-xs leading-5 text-slate-400">{isEnglish ? "Use the same email as your Enbilir account. Access opens only after the Param receipt is verified; a receipt number alone never grants access." : "Ödemede Enbilir hesabınızdaki e-postayı kullanın. Erişim yalnız Param dekontu doğrulandıktan sonra açılır; yalnızca dekont numarası yazmak erişim sağlamaz."}</p>
         </aside>
       </div>
     </section>

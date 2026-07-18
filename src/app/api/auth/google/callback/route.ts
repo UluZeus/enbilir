@@ -4,6 +4,7 @@ import { masterAdminEmail, setSessionCookie } from "@/lib/auth";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import { prisma } from "@/lib/prisma";
 import { ensureVirtualAccount } from "@/lib/portfolio";
+import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
 import { getRequestOrigin } from "@/lib/site-url";
 import { sendGoogleWelcomeEmail } from "@/lib/welcome-email";
 
@@ -61,10 +62,12 @@ function parseState(value: string | undefined): GoogleState | null {
       return null;
     }
 
+    const locale = getSafeLocale(parsed.locale);
+
     return {
       state: parsed.state,
-      locale: getSafeLocale(parsed.locale),
-      returnTo: typeof parsed.returnTo === "string" ? parsed.returnTo : null,
+      locale,
+      returnTo: getSafeLocaleReturnPath(parsed.returnTo, locale),
     };
   } catch {
     return null;

@@ -12,21 +12,20 @@ function isWebhookAuthorized(request: Request) {
     return true;
   }
 
-  if (!expected || expected.length !== received.length) {
+  const expectedBuffer = Buffer.from(expected ?? "");
+  const receivedBuffer = Buffer.from(received);
+
+  if (!expected || expectedBuffer.length !== receivedBuffer.length) {
     return false;
   }
 
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+  return timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 function safeEqual(left: string, right: string) {
-  return left.length === right.length && timingSafeEqual(Buffer.from(left), Buffer.from(right));
-}
-
-function parseTryAmount(value: string) {
-  const cleaned = value.replace(/[^0-9,.-]/g, "");
-  const normalized = cleaned.includes(",") ? cleaned.replaceAll(".", "").replace(",", ".") : cleaned.replaceAll(",", "");
-  return Number(normalized);
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 async function handleParamCallback(request: Request) {
@@ -41,8 +40,6 @@ async function handleParamCallback(request: Request) {
   const orderId = field("TURKPOS_RETVAL_Siparis_ID");
   const transactionId = field("TURKPOS_RETVAL_Islem_ID");
   const postedHash = field("TURKPOS_RETVAL_Hash");
-  const extData = field("TURKPOS_RETVAL_Ext_Data");
-  const email = field("email") || field("Email") || extData.split("|")[0]?.trim();
   const expectedHash = createHash("sha1")
     .update(`${clientCode}${merchantGuid}${receiptId}${amountText}${orderId}${transactionId}`, "utf8")
     .digest("base64");
@@ -55,14 +52,10 @@ async function handleParamCallback(request: Request) {
     return NextResponse.json({ error: "Param ödemesi başarılı değil." }, { status: 400 });
   }
 
-  await activateVipSubscription({
-    email,
-    providerReference: `PARAM:${receiptId}`,
-    amountTry: parseTryAmount(amountText),
-    rawPayload: Object.fromEntries(form.entries()),
-  });
-
-  return NextResponse.redirect(new URL("/tr/vip?payment=success", request.url), 303);
+  return NextResponse.json({
+    error: "Bu Param bildirimi hesap bağlantılı bir sipariş kaydı içermiyor. Güvenlik nedeniyle e-posta veya Ext_Data ile VIP erişimi açılamaz.",
+    code: "ACCOUNT_BOUND_CHECKOUT_REQUIRED",
+  }, { status: 409 });
 }
 
 export async function POST(request: Request) {
@@ -79,6 +72,7 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json() as {
       email?: string;
+      provider?: string;
       providerReference?: string;
       amountTry?: number;
       paidAt?: string;
@@ -86,6 +80,7 @@ export async function POST(request: Request) {
     };
     const result = await activateVipSubscription({
       email: payload.email ?? "",
+      provider: payload.provider ?? "PARAM",
       providerReference: payload.providerReference ?? "",
       amountTry: Number(payload.amountTry),
       paidAt: payload.paidAt ? new Date(payload.paidAt) : undefined,

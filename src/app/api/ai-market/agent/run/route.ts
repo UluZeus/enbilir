@@ -18,10 +18,7 @@ function isAuthorized(request: Request) {
     return true;
   }
 
-  const headerSecret = request.headers.get("x-ai-agent-secret");
-  const urlSecret = new URL(request.url).searchParams.get("secret");
-
-  return Boolean(secret && (headerSecret === secret || urlSecret === secret));
+  return Boolean(secret && request.headers.get("x-ai-agent-secret") === secret);
 }
 
 function getIstanbulTimeParts(date = new Date()) {
@@ -128,8 +125,4 @@ export async function POST(request: Request) {
         : { userId: users[index].id, error: result.reason instanceof Error ? result.reason.message : "Kullanici raporu uretilemedi." },
     ),
   });
-}
-
-export async function GET(request: Request) {
-  return POST(request);
 }
