@@ -4,21 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
+import { getLocalizedPath } from "@/i18n/localized-path";
 
 export function LanguageSwitcher({ locale, labels }: { locale: Locale; labels: Record<Locale, string> }) {
   const pathname = usePathname();
-
-  const localizedPath = (language: Locale) => {
-    const path = pathname.replace(/^\/(tr|en)(?=\/|$)/, `/${language}`);
-    return path === pathname && !pathname.startsWith(`/${locale}`) ? `/${language}` : path;
-  };
 
   return (
     <div className="flex items-center gap-2" aria-label={locale === "tr" ? "Dil seçimi" : "Language selection"}>
       {locales.map((language) => (
         <Link
           key={language}
-          href={localizedPath(language)}
+          href={getLocalizedPath(pathname, language, locale)}
           hrefLang={language}
           aria-label={labels[language]}
           aria-current={language === locale ? "page" : undefined}

@@ -1,5 +1,34 @@
 import type { NextConfig } from "next";
 
+const legacyLocalizedRoutePrefixes = [
+  "acik-riza",
+  "admin",
+  "ai-piyasa-asistani",
+  "baslangic",
+  "blog",
+  "cerez-politikasi",
+  "egitim",
+  "giris",
+  "haftalik-liderler",
+  "icerik-merkezi",
+  "iletisim",
+  "islem-yap",
+  "kayit",
+  "kullanim-kilavuzu",
+  "kullanim-sartlari",
+  "kvkk",
+  "liderlik-tablosu",
+  "ligler",
+  "ogren",
+  "panel",
+  "risk-istahi-testi",
+  "siteyi-anlamak",
+  "sohbet",
+  "topluluk",
+  "vip",
+  "yatirim-tavsiyesi-degildir",
+] as const;
+
 const scriptSrc =
   process.env.NODE_ENV === "production"
     ? "script-src 'self' 'unsafe-inline'"
@@ -14,6 +43,25 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "100mb",
     },
+  },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.enbilir.com" }],
+        destination: "https://enbilir.com/:path*",
+        permanent: true,
+      },
+      { source: "/", destination: "/tr", permanent: true },
+      ...legacyLocalizedRoutePrefixes.map((prefix) => ({
+        source: `/${prefix}/:path*`,
+        destination: `/tr/${prefix}/:path*`,
+        permanent: true,
+      })),
+      { source: "/ai-asistani/:path*", destination: "/tr/ai-piyasa-asistani/:path*", permanent: true },
+      { source: "/tr/ai-asistani/:path*", destination: "/tr/ai-piyasa-asistani/:path*", permanent: true },
+      { source: "/en/ai-asistani/:path*", destination: "/en/ai-piyasa-asistani/:path*", permanent: true },
+    ];
   },
   async headers() {
     return [

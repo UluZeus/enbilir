@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { VipPaywall } from "@/components/vip/VipPaywall";
 import { VipResearchReportView } from "@/components/vip/VipResearchReportView";
 import { getSafeLocale } from "@/i18n/config";
@@ -7,6 +8,16 @@ import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
+  const { locale: rawLocale, id } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return {
+    title: locale === "tr" ? "VIP Araştırma Raporu | Enbilir" : "VIP Research Report | Enbilir",
+    alternates: { canonical: `/${locale}/vip/raporlar/${id}` },
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function VipReportDetail({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;

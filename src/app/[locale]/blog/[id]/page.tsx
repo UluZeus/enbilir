@@ -1,7 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { ContentArticleShell } from "@/components/content/ContentArticleShell";
-import { getSafeLocale } from "@/i18n/config";
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getManagedContentIdForLocale, getManagedContentLocalizedIds } from "@/i18n/localized-path";
 import { getManagedContentItemById } from "@/lib/managed-content";
 import { buildPageMetadata, buildSeoDescription, buildSeoTitleWithSuffix, defaultOpenGraphImage, seoBrand, stringifyJsonLd } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
@@ -13,26 +14,43 @@ function paragraphs(body: string) {
     .filter(Boolean);
 }
 
-function getLocalizedBlogIds(id: string) {
-  const baseId = id.endsWith("-en") ? id.slice(0, -3) : id;
+async function getBlogPostOrHandle(locale: Locale, id: string) {
+  const post = await getManagedContentItemById({ id, type: "BLOG", locale });
 
-  return {
-    tr: baseId,
-    en: `${baseId}-en`,
-  };
+  if (post) {
+    return post;
+  }
+
+  const localizedId = getManagedContentIdForLocale(id, locale);
+
+  if (localizedId !== id) {
+    const localizedPost = await getManagedContentItemById({ id: localizedId, type: "BLOG", locale });
+
+    if (localizedPost) {
+      permanentRedirect(`/${locale}/blog/${localizedId}`);
+    }
+  }
+
+  const sourceLocale = locale === "tr" ? "en" : "tr";
+  const sourceId = getManagedContentIdForLocale(id, sourceLocale);
+  const sourcePost = await getManagedContentItemById({ id: sourceId, type: "BLOG", locale: sourceLocale });
+
+  if (sourcePost) {
+    permanentRedirect(`/${locale}/blog`);
+  }
+
+  notFound();
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const post = await getManagedContentItemById({ id, type: "BLOG", locale });
-
-  if (!post) {
-    return buildPageMetadata({ locale, path: "/blog", page: "blog" });
-  }
+  const post = await getBlogPostOrHandle(locale, id);
 
   const siteUrl = getSiteUrl();
-  const localizedIds = getLocalizedBlogIds(id);
+  const localizedIds = getManagedContentLocalizedIds(id);
+  const counterpartLocale = locale === "tr" ? "en" : "tr";
+  const counterpart = await getManagedContentItemById({ id: localizedIds[counterpartLocale], type: "BLOG", locale: counterpartLocale });
   const canonical = `/${locale}/blog/${id}`;
   const seoTitle = buildSeoTitleWithSuffix(post.title, "Enbilir Blog");
   const description = buildSeoDescription(post.excerpt ?? paragraphs(post.body)[0]);
@@ -43,10 +61,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     description,
     alternates: {
       canonical,
-      languages: {
+      ...(counterpart ? { languages: {
         tr: `/tr/blog/${localizedIds.tr}`,
         en: `/en/blog/${localizedIds.en}`,
-      },
+      } } : {}),
     },
     openGraph: {
       type: "article",
@@ -78,11 +96,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function BlogPostPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const post = await getManagedContentItemById({ id, type: "BLOG", locale });
-
-  if (!post) {
-    notFound();
-  }
+  const post = await getBlogPostOrHandle(locale, id);
 
   const published = post.publishedAt
     ? new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "long" }).format(post.publishedAt)

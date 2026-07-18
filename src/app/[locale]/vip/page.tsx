@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { VipPaywall } from "@/components/vip/VipPaywall";
 import { VipResearchReportView } from "@/components/vip/VipResearchReportView";
 import { FormMessage } from "@/components/FormMessage";
@@ -6,10 +7,17 @@ import { getSafeLocale } from "@/i18n/config";
 import { canAccessAdmin, getSessionUser } from "@/lib/auth";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
+import { buildPageMetadata } from "@/lib/seo";
 import { getVipAgentSummaries } from "@/lib/vip-agents/dashboard";
 
 export const dynamic = "force-dynamic";
 const VIP_ARCHIVE_PAGE_SIZE = 20;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+  return buildPageMetadata({ locale, path: "/vip", page: "vip" });
+}
 
 function getArchivePage(value: string | string[] | undefined) {
   const raw = Array.isArray(value) ? value[0] : value;

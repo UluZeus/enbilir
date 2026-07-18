@@ -8,7 +8,7 @@ import { buildPageMetadata, buildStructuredData, stringifyJsonLd } from "@/lib/s
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   if (!isLocale(rawLocale)) {
-    return {};
+    notFound();
   }
 
   const locale = getSafeLocale(rawLocale);

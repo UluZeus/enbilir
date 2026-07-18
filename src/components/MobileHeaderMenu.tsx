@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
+import { getLocalizedPath } from "@/i18n/localized-path";
 import { logoutAction } from "@/lib/actions";
 
 type HeaderLink = {
@@ -92,13 +93,6 @@ export function MobileHeaderMenu({
       document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
-
-  const localizedPath = (language: Locale) => {
-    const path = pathname.replace(/^\/(tr|en)(?=\/|$)/, `/${language}`);
-    return path === pathname && !pathname.startsWith(`/${locale}`)
-      ? `/${language}`
-      : path;
-  };
 
   const isCurrent = (href: string) => {
     if (!href.startsWith("/")) return false;
@@ -260,7 +254,7 @@ export function MobileHeaderMenu({
             {locales.map((language) => (
               <Link
                 key={language}
-                href={localizedPath(language)}
+                href={getLocalizedPath(pathname, language, locale)}
                 aria-label={language === "tr" ? "Türkçe" : "English"}
                 className={`rounded-md border px-2.5 py-1.5 text-xs font-black ${
                   language === locale

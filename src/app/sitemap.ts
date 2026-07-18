@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { getManagedContentLocalizedIds } from "@/i18n/localized-path";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -28,11 +29,11 @@ const staticRoutes = [
   { path: "/cerez-politikasi", frequency: "yearly", priority: 0.35 },
   { path: "/kullanim-sartlari", frequency: "yearly", priority: 0.35 },
   { path: "/yatirim-tavsiyesi-degildir", frequency: "yearly", priority: 0.45 },
+  { path: "/vip", frequency: "daily", priority: 0.84 },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
-  const now = new Date();
   const managedContentItems = await prisma.managedContentItem.findMany({
     where: { type: { in: ["BLOG", "EDUCATION"] }, isActive: true },
     orderBy: { updatedAt: "desc" },
@@ -49,6 +50,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     orderBy: { updatedAt: "desc" },
     select: { slug: true, updatedAt: true, createdAt: true },
   });
+  const managedContentKeys = new Set(
+    managedContentItems.map((item) => `${item.type}:${item.locale}:${item.id}`),
+  );
 
   const staticItems = ["tr", "en"].flatMap((locale) =>
     staticRoutes.map((route) => {
@@ -56,7 +60,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
       return {
         url: `${siteUrl}/${locale}${path}`,
-        lastModified: now,
         changeFrequency: route.frequency as MetadataRoute.Sitemap[number]["changeFrequency"],
         priority: route.priority,
         alternates: {
@@ -70,22 +73,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   );
 
   const contentItems = managedContentItems.map((item) => {
-    const baseId = item.locale === "en" && item.id.endsWith("-en") ? item.id.slice(0, -3) : item.id;
-    const trId = baseId;
-    const enId = `${baseId}-en`;
+    const localizedIds = getManagedContentLocalizedIds(item.id);
     const path = item.type === "EDUCATION" ? "egitim" : "blog";
+    const hasCompleteTranslationPair =
+      managedContentKeys.has(`${item.type}:tr:${localizedIds.tr}`)
+      && managedContentKeys.has(`${item.type}:en:${localizedIds.en}`);
 
     return {
       url: `${siteUrl}/${item.locale}/${path}/${item.id}`,
-      lastModified: item.updatedAt ?? item.publishedAt ?? now,
+      lastModified: item.updatedAt ?? item.publishedAt,
       changeFrequency: "monthly" as const,
       priority: item.type === "EDUCATION" ? 0.72 : 0.68,
-      alternates: {
+      ...(hasCompleteTranslationPair ? { alternates: {
         languages: {
-          tr: `${siteUrl}/tr/${path}/${trId}`,
-          en: `${siteUrl}/en/${path}/${enId}`,
+          tr: `${siteUrl}/tr/${path}/${localizedIds.tr}`,
+          en: `${siteUrl}/en/${path}/${localizedIds.en}`,
         },
-      },
+      } } : {}),
     };
   });
 

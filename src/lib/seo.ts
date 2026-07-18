@@ -401,6 +401,18 @@ const pageSeo = {
         "General and private chat rooms for Enbilir members with AI market chat, files, images, video, location, contact cards, polls, and respectful community conversation.",
     },
   },
+  vip: {
+    tr: {
+      title: "Enbilir VIP | Günlük Araştırma Raporları ve Sanal Yatırım Ajanları",
+      description:
+        "Enbilir VIP ile günlük kurumsal araştırma raporlarını, asimetrik fırsat karnelerini ve SABİT, OLGUN, YILDIRIM sanal ajanlarının şeffaf performansını keşfedin.",
+    },
+    en: {
+      title: "Enbilir VIP | Daily Research Reports and Virtual Investment Agents",
+      description:
+        "Explore daily institutional research, asymmetric opportunity scorecards, and the transparent virtual performance of SABİT, OLGUN, and YILDIRIM with Enbilir VIP.",
+    },
+  },
   contact: {
     tr: {
       title: "İletişim | Enbilir Piyasa Akademisi Destek ve İş Birliği",

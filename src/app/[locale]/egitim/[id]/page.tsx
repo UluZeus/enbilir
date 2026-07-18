@@ -1,7 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { ContentArticleShell } from "@/components/content/ContentArticleShell";
-import { getSafeLocale } from "@/i18n/config";
+import { getSafeLocale, type Locale } from "@/i18n/config";
+import { getManagedContentIdForLocale, getManagedContentLocalizedIds } from "@/i18n/localized-path";
 import { getManagedContentItemById } from "@/lib/managed-content";
 import { buildPageMetadata, buildSeoDescription, buildSeoTitleWithSuffix, defaultOpenGraphImage, seoBrand, stringifyJsonLd } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site-url";
@@ -13,26 +14,43 @@ function paragraphs(body: string) {
     .filter(Boolean);
 }
 
-function getLocalizedEducationIds(id: string) {
-  const baseId = id.endsWith("-en") ? id.slice(0, -3) : id;
+async function getEducationItemOrHandle(locale: Locale, id: string) {
+  const item = await getManagedContentItemById({ id, type: "EDUCATION", locale });
 
-  return {
-    tr: baseId,
-    en: `${baseId}-en`,
-  };
+  if (item) {
+    return item;
+  }
+
+  const localizedId = getManagedContentIdForLocale(id, locale);
+
+  if (localizedId !== id) {
+    const localizedItem = await getManagedContentItemById({ id: localizedId, type: "EDUCATION", locale });
+
+    if (localizedItem) {
+      permanentRedirect(`/${locale}/egitim/${localizedId}`);
+    }
+  }
+
+  const sourceLocale = locale === "tr" ? "en" : "tr";
+  const sourceId = getManagedContentIdForLocale(id, sourceLocale);
+  const sourceItem = await getManagedContentItemById({ id: sourceId, type: "EDUCATION", locale: sourceLocale });
+
+  if (sourceItem) {
+    permanentRedirect(`/${locale}/egitim`);
+  }
+
+  notFound();
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const item = await getManagedContentItemById({ id, type: "EDUCATION", locale });
-
-  if (!item) {
-    return buildPageMetadata({ locale, path: "/egitim", page: "education" });
-  }
+  const item = await getEducationItemOrHandle(locale, id);
 
   const siteUrl = getSiteUrl();
-  const localizedIds = getLocalizedEducationIds(id);
+  const localizedIds = getManagedContentLocalizedIds(id);
+  const counterpartLocale = locale === "tr" ? "en" : "tr";
+  const counterpart = await getManagedContentItemById({ id: localizedIds[counterpartLocale], type: "EDUCATION", locale: counterpartLocale });
   const canonical = `/${locale}/egitim/${id}`;
   const sectionName = locale === "en" ? "Enbilir Education" : "Enbilir Eğitim";
   const authorName = locale === "en" ? "Dr. Hakan Unsal" : seoBrand.founder;
@@ -45,10 +63,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     description,
     alternates: {
       canonical,
-      languages: {
+      ...(counterpart ? { languages: {
         tr: `/tr/egitim/${localizedIds.tr}`,
         en: `/en/egitim/${localizedIds.en}`,
-      },
+      } } : {}),
     },
     openGraph: {
       type: "article",
@@ -80,11 +98,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function EducationDetailPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const item = await getManagedContentItemById({ id, type: "EDUCATION", locale });
-
-  if (!item) {
-    notFound();
-  }
+  const item = await getEducationItemOrHandle(locale, id);
 
   const articleParagraphs = paragraphs(item.body);
   const authorName = locale === "en" ? "Dr. Hakan Unsal" : seoBrand.founder;

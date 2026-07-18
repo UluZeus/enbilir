@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { FormMessage } from "@/components/FormMessage";
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import {
@@ -24,6 +25,17 @@ import { prisma } from "@/lib/prisma";
 import { defaultVisualSettings, getSiteVisualSettings } from "@/lib/site-visual-settings";
 import { adSlots, type AdSlot } from "@/lib/ads";
 import { managedContentTypes, type ManagedContentTypeCode } from "@/lib/managed-content";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = getSafeLocale(rawLocale);
+
+  return {
+    title: locale === "tr" ? "Yönetim Paneli | Enbilir" : "Admin Dashboard | Enbilir",
+    alternates: { canonical: `/${locale}/admin` },
+    robots: { index: false, follow: false },
+  };
+}
 
 function getAdminCopy(locale: "tr" | "en") {
   return locale === "en"
