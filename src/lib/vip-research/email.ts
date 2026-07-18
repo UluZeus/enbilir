@@ -1,28 +1,22 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { sendEmail } from "@/lib/email";
+import { getLiveMarketItems } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
+import {
+  buildVipAgentDigest,
+  buildVipUniversePulse,
+  extractVipTechnicalCandidates,
+  renderVipDailyDigest,
+  type VipDigestIdea,
+  type VipDigestMacroReport,
+} from "@/lib/vip-research/daily-digest";
 
 const EMAIL_DELIVERY_LEASE_MS = 30 * 60 * 1000;
 
-function escapeHtml(value: string) {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-}
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
-
-function assetClassLabel(assetClass: string) {
-  return ({
-    EQUITY: "Hisse",
-    BROAD_MARKET: "Geniş piyasa",
-    COMMODITY: "Emtia",
-    BOND: "Tahvil",
-    FX: "Döviz",
-    CRYPTO: "Kripto",
-  } as Record<string, string>)[assetClass] ?? assetClass;
+function stringArray(value: Prisma.JsonValue): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 async function claimEmailDelivery(reportId: string, recipient: { id: string; email: string }) {
@@ -83,7 +77,124 @@ export async function sendVipResearchEmails(reportId: string) {
     throw new Error("VIP raporu bulunamadı.");
   }
 
-  const reportUrl = `${getSiteUrl()}/tr/vip/raporlar/${report.id}`;
+  const macroFreshAfter = new Date(report.generatedAt.getTime() - 36 * 60 * 60 * 1000);
+  const [macroRecord, agentRecords, marketItems] = await Promise.all([
+    prisma.aiMarketReport.findFirst({
+      where: {
+        scope: "GLOBAL",
+        status: "COMPLETED",
+        generatedAt: { gte: macroFreshAfter, lte: report.generatedAt },
+      },
+      orderBy: { generatedAt: "desc" },
+      include: {
+        newsItems: {
+          orderBy: [{ relevance: "desc" }, { publishedAt: "desc" }],
+          take: 10,
+        },
+      },
+    }),
+    prisma.vipTradingAgent.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        riskProfile: true,
+        description: true,
+        decisions: {
+          where: { runKey: report.periodKey },
+          select: { symbol: true, action: true, priceUsd: true, reason: true, sourceIdeaId: true },
+        },
+        positions: {
+          select: { symbol: true, stopLossUsd: true, targetPriceUsd: true },
+        },
+        snapshots: {
+          where: { periodKey: report.periodKey },
+          select: { pnlUsd: true, returnPercent: true },
+          take: 1,
+        },
+      },
+    }),
+    getLiveMarketItems().catch(() => []),
+  ]);
+  const ideas: VipDigestIdea[] = report.ideas.map((idea) => ({
+    id: idea.id,
+    symbol: idea.symbol,
+    displayName: idea.displayName,
+    currency: idea.currency,
+    rank: idea.rank,
+    stance: idea.stance,
+    thesisSummary: idea.thesisSummary,
+    confidenceScore: idea.confidenceScore,
+    riskScore: idea.riskScore,
+    entryLow: idea.entryLow,
+    entryHigh: idea.entryHigh,
+    stopLoss: idea.stopLoss,
+    targetPrice: idea.targetPrice,
+  }));
+  const currentIdeaIds = new Set(ideas.map((idea) => idea.id));
+  const historicalIdeaIds = Array.from(new Set(agentRecords.flatMap((agent) =>
+    agent.decisions
+      .map((decision) => decision.sourceIdeaId)
+      .filter((ideaId): ideaId is string => typeof ideaId === "string" && !currentIdeaIds.has(ideaId)),
+  )));
+  const historicalAgentIdeaRecords = historicalIdeaIds.length > 0
+    ? await prisma.vipResearchIdea.findMany({
+        where: { id: { in: historicalIdeaIds } },
+        select: {
+          id: true,
+          symbol: true,
+          displayName: true,
+          currency: true,
+          rank: true,
+          stance: true,
+          thesisSummary: true,
+          confidenceScore: true,
+          riskScore: true,
+          entryLow: true,
+          entryHigh: true,
+          stopLoss: true,
+          targetPrice: true,
+        },
+      })
+    : [];
+  const agentIdeas: VipDigestIdea[] = [
+    ...ideas,
+    ...historicalAgentIdeaRecords,
+  ];
+  const universePulse = buildVipUniversePulse(
+    marketItems.map((item) => ({
+      symbol: item.symbol,
+      name: item.name,
+      category: item.category,
+      source: item.source,
+      dataStatus: item.dataStatus,
+      priceUsd: item.priceUsd,
+      changePercent: item.changePercent,
+    })),
+    extractVipTechnicalCandidates(report.sourceSnapshot),
+  );
+  const agentDigest = buildVipAgentDigest(agentRecords, agentIdeas);
+  const macroReport: VipDigestMacroReport = macroRecord ? {
+    id: macroRecord.id,
+    generatedAt: macroRecord.generatedAt,
+    macroSummary: macroRecord.macroSummary,
+    marketRegime: macroRecord.marketRegime,
+    riskAppetite: macroRecord.riskAppetite,
+    keyTakeaways: stringArray(macroRecord.keyTakeaways),
+    newsItems: macroRecord.newsItems,
+  } : null;
+  const siteUrl = getSiteUrl();
+  const reportUrl = `${siteUrl}/tr/vip/raporlar/${report.id}`;
+  const urls = {
+    home: `${siteUrl}/tr/vip`,
+    report: reportUrl,
+    macroReport: macroReport ? `${siteUrl}/tr/ai-piyasa-asistani/raporlar/${macroReport.id}` : null,
+    agents: `${siteUrl}/tr/vip/ajanlar`,
+    agent: (slug: string) => `${siteUrl}/tr/vip/ajanlar/${encodeURIComponent(slug)}#karar-izi`,
+    idea: (ideaId: string) => `${reportUrl}#idea-${encodeURIComponent(ideaId)}`,
+    asset: (symbol: string) => `${siteUrl}/tr/islem-yap?symbol=${encodeURIComponent(symbol)}`,
+  };
   let sent = 0;
   let failed = 0;
 
@@ -92,44 +203,25 @@ export async function sendVipResearchEmails(reportId: string) {
       continue;
     }
 
-    const rows = report.ideas.map((idea) => `
-      <tr>
-        <td style="padding:10px;border-bottom:1px solid #e2e8f0;font-weight:800">${idea.rank}. ${escapeHtml(idea.symbol)}</td>
-        <td style="padding:10px;border-bottom:1px solid #e2e8f0">${escapeHtml(assetClassLabel(idea.assetClass))}</td>
-        <td style="padding:10px;border-bottom:1px solid #e2e8f0">${escapeHtml(idea.stance)}</td>
-        <td style="padding:10px;border-bottom:1px solid #e2e8f0">${idea.confidenceScore}/100</td>
-        <td style="padding:10px;border-bottom:1px solid #e2e8f0">${idea.riskScore}/100</td>
-        <td style="padding:10px;border-bottom:1px solid #e2e8f0">${formatPrice(idea.entryLow)}-${formatPrice(idea.entryHigh)}</td>
-        <td style="padding:10px;border-bottom:1px solid #e2e8f0">${formatPrice(idea.stopLoss)} / ${formatPrice(idea.targetPrice)}</td>
-      </tr>`).join("");
-    const text = [
-      `Merhaba ${recipient.name},`,
-      "",
-      "Enbilir VIP Asimetrik Fırsatlar raporu hazırlandı.",
-      report.executiveSummary,
-      "",
-      ...report.ideas.map((idea) => `${idea.rank}. ${idea.symbol} · ${assetClassLabel(idea.assetClass)} · ${idea.stance} · Güven ${idea.confidenceScore}/100 · Risk ${idea.riskScore}/100 · Giriş ${formatPrice(idea.entryLow)}-${formatPrice(idea.entryHigh)} · Stop ${formatPrice(idea.stopLoss)} · Hedef ${formatPrice(idea.targetPrice)}`),
-      "",
-      `Tam rapor ve performans takibi: ${reportUrl}`,
-      "",
-      report.disclaimer,
-    ].join("\n");
-    const html = `
-      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:760px;margin:auto">
-        <p>Merhaba ${escapeHtml(recipient.name)},</p>
-        <p style="font-size:12px;font-weight:900;letter-spacing:.16em;color:#8a6418">ENBİLİR VIP · ASİMETRİK FIRSATLAR</p>
-        <h1 style="font-size:24px;margin:6px 0 12px">Gürültüsüz, iki ayaklı sabah araştırması</h1>
-        <p>${escapeHtml(report.executiveSummary)}</p>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:#172033;color:white"><th>Sembol</th><th>Tür</th><th>Not</th><th>Güven</th><th>Risk</th><th>Giriş</th><th>Stop / Hedef</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <p style="margin:24px 0"><a href="${reportUrl}" style="display:inline-block;background:#b58a32;color:white;text-decoration:none;padding:13px 20px;border-radius:10px;font-weight:900">Tam VIP raporu ve performansı aç</a></p>
-        <p style="font-size:12px;color:#64748b">${escapeHtml(report.disclaimer)}</p>
-      </div>`;
+    const digest = renderVipDailyDigest({
+      recipientName: recipient.name,
+      report: {
+        id: report.id,
+        periodKey: report.periodKey,
+        fallbackUsed: report.fallbackUsed,
+        executiveSummary: report.executiveSummary,
+        marketContext: report.marketContext,
+        disclaimer: report.disclaimer,
+        ideas,
+      },
+      macroReport,
+      universePulse,
+      agents: agentDigest,
+      urls,
+    });
 
     try {
-      await sendEmail({ to: recipient.email, subject: "Enbilir VIP sabah araştırması: Asimetrik fırsatlar", text, html });
+      await sendEmail({ to: recipient.email, subject: digest.subject, text: digest.text, html: digest.html });
       await prisma.vipResearchEmailLog.upsert({
         where: { reportId_userId: { reportId, userId: recipient.id } },
         create: { reportId, userId: recipient.id, email: recipient.email, status: "SENT" },
@@ -146,5 +238,13 @@ export async function sendVipResearchEmails(reportId: string) {
     }
   }
 
-  return { recipients: recipients.length, sent, failed };
+  return {
+    recipients: recipients.length,
+    sent,
+    failed,
+    universeSize: universePulse.universeSize,
+    verifiedQuoteCount: universePulse.verifiedQuoteCount,
+    alertCount: universePulse.totalAlertCount,
+    agentCount: agentDigest.length,
+  };
 }

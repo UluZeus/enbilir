@@ -105,7 +105,7 @@ function portfolioValue(
 async function runAgent(
   strategy: VipAgentStrategy,
   now: Date,
-  report: Awaited<ReturnType<typeof getLatestReport>>,
+  report: NonNullable<Awaited<ReturnType<typeof getReportForRun>>>,
   force: boolean,
 ) {
   const runKey = getIstanbulDateKey(now);
@@ -384,20 +384,31 @@ async function runAgent(
   return { agent: strategy.name, reused: false, trades: tradeCount, decisions: decisionCount, totalBalanceUsd, pnlUsd, returnPercent };
 }
 
-async function getLatestReport() {
-  return prisma.vipResearchReport.findFirst({
-    where: { status: "COMPLETED" },
-    orderBy: { generatedAt: "desc" },
+async function getReportForRun(runKey: string) {
+  return prisma.vipResearchReport.findUnique({
+    where: { periodKey: runKey },
     include: { ideas: { orderBy: { rank: "asc" } } },
   });
 }
 
 export async function runVipTradingAgents(now = new Date(), options: { force?: boolean } = {}) {
   await ensureVipTradingAgents();
-  const report = await getLatestReport();
+  const runKey = getIstanbulDateKey(now);
+  const report = await getReportForRun(runKey);
+
+  if (!report || report.status !== "COMPLETED") {
+    return {
+      reportId: null,
+      runKey,
+      deferred: true,
+      reason: "Bugünün tamamlanmış VIP raporu henüz bulunmadığı için ajanlar önceki günün tezleriyle çalıştırılmadı.",
+      agents: [],
+    };
+  }
+
   const results = [];
   for (const strategy of VIP_AGENT_STRATEGIES) {
     results.push(await runAgent(strategy, now, report, options.force === true));
   }
-  return { reportId: report?.id ?? null, runKey: getIstanbulDateKey(now), agents: results };
+  return { reportId: report.id, runKey, deferred: false, agents: results };
 }

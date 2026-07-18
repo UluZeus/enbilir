@@ -97,15 +97,22 @@ export async function POST(request: Request) {
   let weeklyEmailResult: Awaited<ReturnType<typeof sendWeeklyMacroReportEmails>> | null = null;
 
   if (isMorningReportTime(triggeredAt)) {
-    const recipients = await prisma.user.findMany({
-      where: { isActive: true },
+    const standardMorningRecipients = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { membershipTier: "STANDARD" },
+          { membershipTier: "VIP", vipPaidUntil: null },
+          { membershipTier: "VIP", vipPaidUntil: { lte: triggeredAt } },
+        ],
+      },
       select: { id: true, email: true, name: true },
     });
 
     if (!globalReport.reused) {
       morningEmailResult = await sendMorningMacroReportEmails({
         reportId: globalReport.reportId,
-        recipients,
+        recipients: standardMorningRecipients,
       });
     }
 
@@ -113,9 +120,13 @@ export async function POST(request: Request) {
       weeklyReport = await runAiMarketAgent({ force, reportMode: "WEEKLY" });
 
       if (!weeklyReport.reused) {
+        const weeklyRecipients = await prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, email: true, name: true },
+        });
         weeklyEmailResult = await sendWeeklyMacroReportEmails({
           reportId: weeklyReport.reportId,
-          recipients,
+          recipients: weeklyRecipients,
         });
       }
     }
