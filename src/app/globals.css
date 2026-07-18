@@ -6549,6 +6549,10 @@ body:has(.enbilir-shell-v3) {
   color: #e2e8f0 !important;
 }
 
+.enbilir-shell-v3 > .site-header-v3 {
+  z-index: 50;
+}
+
 .site-header-v3 {
   min-height: var(--enb-header-height);
   border-bottom: 1px solid rgb(148 163 184 / 18%);
