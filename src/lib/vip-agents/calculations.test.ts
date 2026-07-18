@@ -6,6 +6,7 @@ import {
   calculateVipAgentSplitAdjustment,
   getVipAgentBuyIneligibilityReason,
   getVipAgentHistoryPagination,
+  getVipAgentPortfolioDecision,
   getVipAgentPositionExitReason,
   isVipAgentTerminalDailyAction,
   shouldReuseVipAgentDailyRun,
@@ -248,6 +249,16 @@ describe("VIP agent forced daily reruns", () => {
     expect(isVipAgentTerminalDailyAction("HOLD")).toBe(false);
     expect(isVipAgentTerminalDailyAction("SKIP")).toBe(false);
     expect(isVipAgentTerminalDailyAction("ERROR")).toBe(false);
+  });
+
+  it("replaces a stale no-report portfolio decision after a forced report run", () => {
+    expect(getVipAgentPortfolioDecision({ hasReport: false, ideaCount: 0, tradeCount: 0 }))
+      .toEqual({ action: "HOLD", reason: "Henüz VIP sabah raporu bulunmadığı için nakitte bekleniyor." });
+
+    const refreshed = getVipAgentPortfolioDecision({ hasReport: true, ideaCount: 4, tradeCount: 0 });
+    expect(refreshed.action).toBe("SUMMARY");
+    expect(refreshed.reason).toContain("4 VIP fikri değerlendirildi");
+    expect(refreshed.reason).not.toContain("raporu bulunmadığı");
   });
 });
 

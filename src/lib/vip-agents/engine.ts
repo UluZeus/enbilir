@@ -11,6 +11,7 @@ import {
   calculateVipAgentAccount,
   calculateVipAgentSplitAdjustment,
   getVipAgentBuyIneligibilityReason,
+  getVipAgentPortfolioDecision,
   getVipAgentPositionExitReason,
   isVipAgentTerminalDailyAction,
   shouldReuseVipAgentDailyRun,
@@ -356,15 +357,20 @@ async function runAgent(
     performanceBaseUsd: agent.performanceBaseUsd,
   });
 
-  if (!report) {
-    const reason = "Henüz VIP sabah raporu bulunmadığı için nakitte bekleniyor.";
-    await prisma.vipTradingAgentDecision.upsert({
-      where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: "PORTFOY" } },
-      create: { agentId: agent.id, runKey, symbol: "PORTFOY", action: "HOLD", reason },
-      update: { action: "HOLD", priceUsd: null, reason, sourceIdeaId: null },
-    });
-    decisionCount += 1;
-  }
+  const runTradeCount = await prisma.vipTradingAgentDecision.count({
+    where: { agentId: agent.id, runKey, action: { in: ["BUY", "SELL"] } },
+  });
+  const portfolioDecision = getVipAgentPortfolioDecision({
+    hasReport: Boolean(report),
+    ideaCount: ideas.length,
+    tradeCount: runTradeCount,
+  });
+  await prisma.vipTradingAgentDecision.upsert({
+    where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: "PORTFOY" } },
+    create: { agentId: agent.id, runKey, symbol: "PORTFOY", ...portfolioDecision },
+    update: { ...portfolioDecision, priceUsd: null, sourceIdeaId: null },
+  });
+  decisionCount += 1;
 
   await prisma.$transaction([
     prisma.vipTradingAgent.update({ where: { id: agent.id }, data: { cashUsd, lastRunAt: now } }),

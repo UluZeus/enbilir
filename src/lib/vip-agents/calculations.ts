@@ -151,6 +151,26 @@ export function isVipAgentTerminalDailyAction(action: string) {
   return action === "BUY" || action === "SELL";
 }
 
+export function getVipAgentPortfolioDecision(input: {
+  hasReport: boolean;
+  ideaCount: number;
+  tradeCount: number;
+}) {
+  if (!input.hasReport) {
+    return {
+      action: "HOLD",
+      reason: "Henüz VIP sabah raporu bulunmadığı için nakitte bekleniyor.",
+    };
+  }
+
+  return {
+    action: "SUMMARY",
+    reason: input.tradeCount > 0
+      ? `${input.ideaCount} VIP fikri değerlendirildi; ${input.tradeCount} sanal işlem kaydedildi.`
+      : `${input.ideaCount} VIP fikri değerlendirildi; yeni işlem koşulu oluşmadığı için nakit/portföy korunuyor.`,
+  };
+}
+
 export function getVipAgentBuyIneligibilityReason(strategy: VipAgentStrategy, idea: BuyIdea, price: number) {
   if (idea.stance !== "AL") return `VIP notu ${idea.stance}; yalnızca AL fikirleri işleme açılır.`;
   if (idea.confidenceScore < strategy.minimumConfidence) return `Güven ${idea.confidenceScore}/100; ajan eşiği ${strategy.minimumConfidence}.`;
