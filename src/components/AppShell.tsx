@@ -133,87 +133,91 @@ export async function AppShell({ children, locale }: AppShellProps) {
         progress={onboardingProgress}
       />
       <header className="site-header-v3 sticky top-0 z-50">
-        <div className="site-container-v3 hidden h-[72px] items-center gap-5 xl:flex">
-          <Link href={`/${locale}`} className="site-brand-v3 flex shrink-0 items-center gap-2.5" aria-label={dictionary.brand}>
-            <Image src="/logo.svg" alt="" width={42} height={42} priority className="h-10 w-10 rounded-xl" />
-            <span className="min-w-0">
-              <span className="block text-[17px] font-bold leading-none text-white">enbilir.com</span>
-              <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-200">{ui.appShell.academy}</span>
-            </span>
-          </Link>
+        <div className="site-desktop-header-v3 hidden xl:block">
+          <div className="site-container-v3 flex h-[72px] items-center gap-5">
+            <Link href={`/${locale}`} className="site-brand-v3 flex shrink-0 items-center gap-2.5" aria-label={dictionary.brand}>
+              <Image src="/logo.svg" alt="" width={42} height={42} priority className="h-10 w-10 rounded-xl" />
+              <span className="min-w-0">
+                <span className="block text-[17px] font-bold leading-none text-white">enbilir.com</span>
+                <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-200">{ui.appShell.academy}</span>
+              </span>
+            </Link>
 
-          <nav className="site-primary-nav-v3 flex min-w-0 items-center gap-1" aria-label={locale === "tr" ? "Ana menü" : "Main menu"}>
-            {visiblePrimaryNav.map((item) => (
-              <ActiveNavigationLink
-                key={item.href}
-                href={`/${locale}${item.href ? `/${item.href}` : ""}`}
-                exact={item.href === ""}
-                className="site-nav-link-v3 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold"
-                activeClassName="site-nav-link-v3--active"
-                dataNavKey={item.label}
-              >
-                {item.label === "community" ? <CommunityIcon /> : null}
-                {item.href === "baslangic" ? (locale === "tr" ? "Başlangıç" : "Start") : item.href === "ogren" ? (locale === "tr" ? "Öğren" : "Learn") : dictionary.nav[item.label]}
-              </ActiveNavigationLink>
-            ))}
-          </nav>
+            <nav className="site-primary-nav-v3 flex min-w-0 items-center gap-1" aria-label={locale === "tr" ? "Ana menü" : "Main menu"}>
+              {visiblePrimaryNav.map((item) => (
+                <ActiveNavigationLink
+                  key={item.href}
+                  href={`/${locale}${item.href ? `/${item.href}` : ""}`}
+                  exact={item.href === ""}
+                  className="site-nav-link-v3 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold"
+                  activeClassName="site-nav-link-v3--active"
+                  dataNavKey={item.label}
+                >
+                  {item.label === "community" ? <CommunityIcon /> : null}
+                  {item.href === "baslangic" ? (locale === "tr" ? "Başlangıç" : "Start") : item.href === "ogren" ? (locale === "tr" ? "Öğren" : "Learn") : dictionary.nav[item.label]}
+                </ActiveNavigationLink>
+              ))}
+            </nav>
 
-          <details className="site-products-menu-v3 relative shrink-0">
-            <summary className="site-nav-link-v3 flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold">
-              {locale === "tr" ? "Ürünler" : "Products"}
-              <span aria-hidden="true" className="site-products-chevron-v3 text-xs">⌄</span>
-            </summary>
-            <nav className="site-products-popover-v3 absolute left-0 top-[calc(100%+12px)] grid w-72 gap-1 p-2" aria-label={locale === "tr" ? "Ürünler" : "Products"}>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <div className="site-language-v3"><LanguageSwitcher locale={locale} labels={dictionary.language} /></div>
+              {sessionUser ? (
+                <>
+                  <ActiveNavigationLink href={`/${locale}/panel`} className="site-user-link-v3 max-w-[190px] truncate px-3 py-2 text-sm font-semibold" activeClassName="site-user-link-v3--active">
+                    {getDisplayName(sessionUser)}
+                  </ActiveNavigationLink>
+                  <form action={logoutAction}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <button className="site-header-button-v3 px-3 py-2 text-sm font-semibold">{ui.appShell.logout}</button>
+                  </form>
+                </>
+              ) : (
+                accountNav.map((item) => (
+                  <ActiveNavigationLink
+                    key={item.href}
+                    href={`/${locale}/${item.href}`}
+                    className={item.label === "register" ? "site-header-cta-v3 px-4 py-2.5 text-sm font-bold" : "site-header-button-v3 px-3 py-2 text-sm font-semibold"}
+                    activeClassName="site-header-control-v3--active"
+                  >
+                    {dictionary.nav[item.label]}
+                  </ActiveNavigationLink>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="site-product-bar-v3">
+            <nav className="site-container-v3 site-product-bar-nav-v3 flex h-12 items-center gap-1.5 px-1" aria-label={locale === "tr" ? "Ürün ve araç menüsü" : "Products and tools"}>
               {productLinks.map((item) => item.href.startsWith("http") ? (
                 <a
                   key={item.href}
                   href={item.href}
                   target="_blank"
                   rel="noreferrer"
-                  aria-label={item.label}
-                  className="site-product-link-v3"
+                  aria-label={`${item.label} (${locale === "tr" ? "yeni sekmede açılır" : "opens in a new tab"})`}
+                  className="site-nav-link-v3 site-product-nav-link-v3 inline-flex items-center px-3 py-2 text-xs font-bold"
                   data-tone={item.tone}
                   data-variant={whatsappButtonIsImage ? "image" : "text"}
                 >
                   {item.tone === "whatsapp" && whatsappButtonIsImage ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span aria-hidden="true" className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-[10px] font-black text-white">WA</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden="true" className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-emerald-600 text-[8px] font-black text-white">WA</span>
                       <span>{item.label}</span>
                     </span>
                   ) : item.label}
                 </a>
               ) : (
-                <ActiveNavigationLink key={item.href} href={item.href} className="site-product-link-v3" activeClassName="site-product-link-v3--active" dataProductTone={item.tone}>
+                <ActiveNavigationLink
+                  key={item.href}
+                  href={item.href}
+                  className="site-nav-link-v3 site-product-nav-link-v3 inline-flex items-center px-3 py-2 text-xs font-bold"
+                  activeClassName="site-nav-link-v3--active"
+                  dataProductTone={item.tone}
+                >
                   {item.label}
                 </ActiveNavigationLink>
               ))}
             </nav>
-          </details>
-
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <div className="site-language-v3"><LanguageSwitcher locale={locale} labels={dictionary.language} /></div>
-            {sessionUser ? (
-              <>
-                <ActiveNavigationLink href={`/${locale}/panel`} className="site-user-link-v3 max-w-[190px] truncate px-3 py-2 text-sm font-semibold" activeClassName="site-user-link-v3--active">
-                  {getDisplayName(sessionUser)}
-                </ActiveNavigationLink>
-                <form action={logoutAction}>
-                  <input type="hidden" name="locale" value={locale} />
-                  <button className="site-header-button-v3 px-3 py-2 text-sm font-semibold">{ui.appShell.logout}</button>
-                </form>
-              </>
-            ) : (
-              accountNav.map((item) => (
-                <ActiveNavigationLink
-                  key={item.href}
-                  href={`/${locale}/${item.href}`}
-                  className={item.label === "register" ? "site-header-cta-v3 px-4 py-2.5 text-sm font-bold" : "site-header-button-v3 px-3 py-2 text-sm font-semibold"}
-                  activeClassName="site-header-control-v3--active"
-                >
-                  {dictionary.nav[item.label]}
-                </ActiveNavigationLink>
-              ))
-            )}
           </div>
         </div>
         <MobileHeaderMenu
