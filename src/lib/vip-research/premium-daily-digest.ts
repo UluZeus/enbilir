@@ -47,6 +47,74 @@ function readableExcerpt(value: string, maximumSentences: number, maximumSentenc
     .join(" ");
 }
 
+function simplifyEconomicLanguage(value: string) {
+  return value
+    .replace(/(?<!\p{L})makro konjonktür(?!\p{L})/giu, "genel ekonomik görünüm")
+    .replace(/(?<!\p{L})dolar likiditesi(?!\p{L})/giu, "dolar piyasasındaki para akışı")
+    .replace(/(?<!\p{L})likidite(?!\p{L})/giu, "para akışı")
+    .replace(/(?<!\p{L})dezenflasyon(?!\p{L})/giu, "enflasyonun yavaşlaması")
+    .replace(/(?<!\p{L})resesyon(?!\p{L})/giu, "ekonomik daralma")
+    .replace(/(?<!\p{L})volatilite(?!\p{L})/giu, "fiyat dalgalanması")
+    .replace(/(?<!\p{L})risk iştahı(?!\p{L})/giu, "risk alma isteği");
+}
+
+const TURKISH_SENTENCE_SEGMENTER = new Intl.Segmenter("tr-TR", { granularity: "sentence" });
+
+function economicSentences(value: string) {
+  return Array.from(TURKISH_SENTENCE_SEGMENTER.segment(value), ({ segment }) => segment.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function economicExcerpt(value: string) {
+  return economicSentences(value)
+    .slice(0, 2)
+    .map((sentence) => compactText(sentence, 170))
+    .join(" ");
+}
+
+export function buildEconomicOverviewParagraphs(
+  source: string,
+  marketRegime: string | null = null,
+  riskAppetite: string | null = null,
+) {
+  const normalizedSource = source.replace(/\r\n/g, "\n").trim();
+  const sourceWordCount = normalizedSource.split(/\s+/).filter(Boolean).length;
+  const desiredParagraphCount = sourceWordCount >= 220 ? 4 : sourceWordCount >= 90 ? 3 : 2;
+  const explicitParagraphs = normalizedSource
+    .split(/\n\s*\n+/)
+    .map((paragraph) => economicExcerpt(simplifyEconomicLanguage(paragraph)))
+    .filter(Boolean);
+
+  let paragraphs: string[];
+  if (explicitParagraphs.length >= 2) {
+    paragraphs = explicitParagraphs.slice(0, desiredParagraphCount);
+  } else {
+    const sentences = economicSentences(simplifyEconomicLanguage(normalizedSource));
+    const paragraphCount = Math.min(desiredParagraphCount, Math.max(sentences.length, 1));
+    const sentencesPerParagraph = Math.max(1, Math.ceil(sentences.length / paragraphCount));
+
+    paragraphs = [];
+    for (let index = 0; index < sentences.length; index += sentencesPerParagraph) {
+      const paragraph = economicExcerpt(sentences.slice(index, index + sentencesPerParagraph).join(" "));
+      if (paragraph) paragraphs.push(paragraph);
+    }
+  }
+
+  const fallbacks = [
+    `Piyasaların genel yönü: ${compactText(marketRegime || "Henüz net değil", 100).replace(/[.!?]+$/, "")}. Risk alma isteği: ${compactText(riskAppetite || "Dengeli", 100).replace(/[.!?]+$/, "")}.`,
+    normalizedSource
+      ? "Faiz kararları, enflasyon, dolar, altın ve petrol fiyatları birlikte izlenmeli. Tek bir veriye göre karar verilmemeli."
+      : "Güncel makro veri sınırlı. Faiz, enflasyon, dolar, altın ve petrol birlikte izlenmeli; tek bir veriye göre karar verilmemeli.",
+  ];
+
+  for (const fallback of fallbacks) {
+    if (paragraphs.length >= 2) break;
+    paragraphs.push(fallback);
+  }
+
+  return paragraphs.slice(0, 4);
+}
+
 function formatUsd(value: number | null, digits = 2) {
   if (!finite(value)) return "—";
   return new Intl.NumberFormat("tr-TR", {
@@ -338,6 +406,11 @@ export function renderPremiumVipDailyDigest(input: VipDailyDigestInput) {
   const news = newsGroups(macroReport?.newsItems ?? []);
   const mainAlert = universePulse.alerts[0];
   const leadIdea = ideas[0];
+  const economicOverview = buildEconomicOverviewParagraphs(
+    macroReport?.macroSummary || report.marketContext,
+    macroReport?.marketRegime,
+    macroReport?.riskAppetite,
+  );
   const macroCommentary = macroReport
     ? [
         `Piyasanın genel yönü: ${readableExcerpt(macroReport.marketRegime || "Net değil.", 1, 90)}`,
@@ -373,6 +446,8 @@ export function renderPremiumVipDailyDigest(input: VipDailyDigestInput) {
     readableExcerpt(report.executiveSummary, 2, 145),
     report.fallbackUsed ? "VERİ NOTU: Kaynak araştırması sınırlı. Temkinli kal." : "",
     "",
+    "GENEL EKONOMİK GÖRÜNÜM",
+    ...economicOverview.flatMap((paragraph) => [paragraph, ""]),
     "BUGÜN İÇİN NET PLAN",
     ...simpleGuidance.map((item) => `${item.label}: ${item.text}`),
     "",
@@ -424,7 +499,7 @@ export function renderPremiumVipDailyDigest(input: VipDailyDigestInput) {
     body{margin:0!important;padding:0!important;background:#edf1f2!important}body,table,td,p,a{font-family:Arial,sans-serif}.email-shell{width:680px;max-width:680px}.px{padding-left:28px!important;padding-right:28px!important}.stack-spacer{font-size:1px;line-height:1px}.chart-image{width:100%!important;height:auto!important}
     @media only screen and (max-width:620px){.email-shell{width:100%!important;max-width:100%!important}.px{padding-left:16px!important;padding-right:16px!important}.stack{display:block!important;width:100%!important;box-sizing:border-box!important}.stack-spacer{display:block!important;width:100%!important;height:10px!important;font-size:10px!important;line-height:10px!important}.hide-mobile{display:none!important}.hero-title{font-size:27px!important;line-height:1.15!important}.stat-cell{display:block!important;width:100%!important;border-right:0!important;border-bottom:1px solid #39505c!important}.stat-cell:last-child{border-bottom:0!important}.mobile-center{text-align:center!important}.chart-image{max-width:100%!important}}
   </style><!--[if mso]><style>table{border-collapse:collapse!important}.email-shell{width:680px!important}</style><![endif]--></head><body>
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">Bugünün açık piyasa özeti, üç VIP ajanının kararı ve 11 varlığın üç günlük grafiği.</div>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">Genel ekonomik görünüm, üç VIP ajanının kararı ve 11 varlığın üç günlük grafiği.</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#edf1f2"><tr><td align="center" style="padding:22px 8px">
       <table role="presentation" class="email-shell" width="680" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:680px;max-width:680px;border:1px solid #d8e0e3;border-top:5px solid #b8892f;border-collapse:separate;border-radius:18px;overflow:hidden">
         <tr><td class="px" bgcolor="#101c27" style="padding-top:25px;padding-bottom:25px">
@@ -434,6 +509,11 @@ export function renderPremiumVipDailyDigest(input: VipDailyDigestInput) {
           <p style="margin:13px 0 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.65;color:#d6e0e5">Merhaba ${escapeHtml(input.recipientName)}. ${escapeHtml(readableExcerpt(report.executiveSummary, 2, 145))}</p>
           ${report.fallbackUsed ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" bgcolor="#382d24" style="margin-top:12px;border:1px solid #715d43;border-radius:8px"><tr><td style="padding:8px 10px;font-size:10px;font-weight:800;color:#f4d89a">VERİ NOTU · Kaynak araştırması sınırlı. Temkinli kal.</td></tr></table>` : ""}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#1a2b36" style="margin-top:20px;border:1px solid #39505c;border-collapse:separate;border-radius:11px"><tr><td class="stat-cell" width="33%" align="center" style="padding:12px 8px;border-right:1px solid #39505c"><p style="margin:0;font-size:20px;font-weight:900;color:#ffffff">${universePulse.universeSize}</p><p style="margin:3px 0 0;font-size:9px;font-weight:800;letter-spacing:.08em;color:#9fb0b9">VARLIK TARANDI</p></td><td class="stat-cell" width="34%" align="center" style="padding:12px 8px;border-right:1px solid #39505c"><p style="margin:0;font-size:20px;font-weight:900;color:#d3a23f">${universePulse.totalAlertCount}</p><p style="margin:3px 0 0;font-size:9px;font-weight:800;letter-spacing:.08em;color:#9fb0b9">ÖZEL DURUM</p></td><td class="stat-cell" width="33%" align="center" style="padding:12px 8px"><p style="margin:0;font-size:20px;font-weight:900;color:#8fdbc9">${agents.length}</p><p style="margin:3px 0 0;font-size:9px;font-weight:800;letter-spacing:.08em;color:#9fb0b9">VIP AJANI</p></td></tr></table>
+        </td></tr>
+
+        <tr><td class="px" bgcolor="#f8f4eb" style="padding-top:27px;padding-bottom:29px;border-bottom:1px solid #e4dccd">
+          <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.13em;color:#8a6418">GENEL EKONOMİK GÖRÜNÜM</p><h2 style="margin:6px 0 7px;font-family:Georgia,serif;font-size:24px;color:#172033">Önce büyük resmi görelim</h2><p style="margin:0 0 16px;font-size:12px;line-height:1.6;color:#6b6254">Faiz, enflasyon, büyüme ve küresel risklerin bugünkü piyasa üzerindeki ortak etkisi.</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="border:1px solid #e1d7c5;border-collapse:separate;border-radius:12px"><tr><td width="5" bgcolor="#b8892f" style="width:5px;border-radius:12px 0 0 12px;font-size:1px;line-height:1px">&nbsp;</td><td style="padding:17px 18px">${economicOverview.map((paragraph, index) => `<p data-economic-overview-paragraph="${index + 1}" style="margin:${index > 0 ? "13px" : "0"} 0 0;font-size:14px;line-height:1.72;color:${index === 0 ? "#263342" : "#4f5d68"}">${escapeHtml(paragraph)}</p>`).join("")}</td></tr></table>
         </td></tr>
 
         <tr><td class="px" bgcolor="#ffffff" style="padding-top:26px;padding-bottom:28px;border-bottom:1px solid #e1e6e8">

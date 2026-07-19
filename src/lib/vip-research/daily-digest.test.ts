@@ -10,6 +10,7 @@ import {
   type VipDigestIdea,
   type VipDigestUniverseItem,
 } from "@/lib/vip-research/daily-digest";
+import { buildEconomicOverviewParagraphs } from "@/lib/vip-research/premium-daily-digest";
 
 const ideas: VipDigestIdea[] = [
   {
@@ -181,6 +182,20 @@ describe("VIP daily digest agent section", () => {
 });
 
 describe("VIP premium email renderer", () => {
+  it("builds between two and four plain-language economic overview paragraphs", () => {
+    expect(buildEconomicOverviewParagraphs("Tek cümlelik görünüm.", "Seçici", "Dengeli")).toHaveLength(2);
+    expect(buildEconomicOverviewParagraphs("", "Seçici", "Dengeli")).toEqual([
+      "Piyasaların genel yönü: Seçici. Risk alma isteği: Dengeli.",
+      "Güncel makro veri sınırlı. Faiz, enflasyon, dolar, altın ve petrol birlikte izlenmeli; tek bir veriye göre karar verilmemeli.",
+    ]);
+    expect(buildEconomicOverviewParagraphs("Enflasyon %4.5 oldu. Faiz beklentisi değişmedi.")[0]).toContain("%4.5 oldu.");
+    expect(buildEconomicOverviewParagraphs("Likiditenin yönü ile resesyonun riski izleniyor.")[0]).toContain("Likiditenin yönü ile resesyonun riski");
+    const richOverview = Array.from({ length: 5 }, (_, index) =>
+      `Ekonomik paragraf ${index + 1}. ${"Faiz enflasyon büyüme istihdam dolar emtia verileri birlikte izleniyor ".repeat(5)}.`,
+    ).join("\n\n");
+    expect(buildEconomicOverviewParagraphs(richOverview)).toHaveLength(4);
+  });
+
   it("keeps the important content visible, polished, escaped and mobile-ready", () => {
     const agents = buildVipAgentDigest([
       agent("vip-agent-sabit", "sabit", "SABİT", [{ symbol: "AAPL", action: "BUY", priceUsd: 195, reason: "Giriş bandı doğrulandı.", sourceIdeaId: "idea-aapl" }]),
@@ -201,7 +216,13 @@ describe("VIP premium email renderer", () => {
       macroReport: {
         id: "macro-1",
         generatedAt: new Date("2026-07-18T04:00:00Z"),
-        macroSummary: "Merkez bankaları ve dolar likiditesi fiyatlamanın ana çerçevesi.",
+        macroSummary: [
+          "Merkez bankaları <b>ve</b> dolar likiditesi fiyatlamanın ana çerçevesi.",
+          "Enflasyon verileri faiz beklentilerini belirliyor.",
+          "Enerji fiyatları şirket maliyetlerini etkileyebilir.",
+          "Asya piyasalarında büyüme sinyalleri izleniyor.",
+          "Bu beşinci paragraf e-postada gösterilmemeli.",
+        ].join("\n\n"),
         marketRegime: "Seçici risk rejimi",
         riskAppetite: "Dengeli",
         keyTakeaways: ["Tek bir sinyal karar için yeterli değildir."],
@@ -236,6 +257,15 @@ describe("VIP premium email renderer", () => {
 
     expect(digest.subject).toContain("1 özel durum");
     expect(digest.html).toContain("BUGÜN İÇİN NET PLAN");
+    expect(digest.html).toContain("GENEL EKONOMİK GÖRÜNÜM");
+    expect(digest.html.match(/data-economic-overview-paragraph=/g)).toHaveLength(2);
+    expect(digest.html.indexOf("GENEL EKONOMİK GÖRÜNÜM")).toBeLessThan(digest.html.indexOf("BUGÜN İÇİN NET PLAN"));
+    expect(digest.html).toContain("dolar piyasasındaki para akışı");
+    expect(digest.html).toContain("&lt;b&gt;ve&lt;/b&gt;");
+    expect(digest.html).not.toContain("<b>ve</b>");
+    expect(digest.html).not.toContain("Bu beşinci paragraf");
+    expect(digest.text).toContain("GENEL EKONOMİK GÖRÜNÜM");
+    expect(digest.text).toContain("ana çerçevesi.\n\nEnflasyon verileri");
     expect(digest.html).toContain("ERKEN UYARI RADARI");
     expect(digest.html).toContain("SABİT, OLGUN ve YILDIRIM");
     expect(digest.html.match(/GÜNÜN KARARI/g)).toHaveLength(3);

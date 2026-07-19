@@ -72,6 +72,7 @@ function getPrompt(assets: AgentAssetAnalysis[], news: AgentNewsItem[], mode: Ag
     "Sinyal dilini Turkcelestir: BUY yerine AL, STRONG_BUY yerine GUCLU AL, SELL yerine SAT, WATCH yerine IZLE, HOLD yerine BEKLE, AVOID yerine UZAK DUR, TAKE_PROFIT yerine KAR REALIZASYONU IZLE, NO_TRADE yerine ISLEM YOK yaz.",
     ...weeklyInstructions,
     "Her varlik icin technicalCommentary, macroCommentary ve newsCommentary alanlarini kisa not gibi degil, 60-100 kelimelik egitici yorumlar halinde yaz.",
+    "macroSummary alaninin ilk 2-4 paragrafi genel ekonomik durumu herkesin anlayacagi sade Turkceyle anlatsin. Her paragrafta 2-3 kisa cumle kullan; faiz, enflasyon, buyume, istihdam, dolar, emtia ve risk alma isteginden o gun gercekten onemli olanlari birbirine bagla.",
     `Zorunlu kapsam: ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")}.`,
     "Her zorunlu kapsam basligi raporda temsil edilmeli. Favori varliklar icin tek tek yorum yap.",
     "keyTakeaways alaninda 3-5 kisa ve sade Turkce cumle yaz. Her cumle en fazla 18 kelime olsun. Aciklanmamis teknik jargon kullanma; neyin izlenecegini ve riskin ne oldugunu dogrudan soyle.",
