@@ -1,4 +1,6 @@
 import { VIP_AGENT_STRATEGIES } from "@/lib/vip-agents/config";
+import type { VipEmailChart } from "@/lib/vip-research/email-charts";
+import { renderPremiumVipDailyDigest } from "@/lib/vip-research/premium-daily-digest";
 
 const ACTION_LABELS: Record<string, string> = {
   BUY: "AL",
@@ -153,6 +155,7 @@ export type VipDigestMacroReport = {
   riskAppetite: string | null;
   keyTakeaways: string[];
   newsItems: VipDigestNewsItem[];
+  chartAssets: VipEmailChart[];
 } | null;
 
 export type VipDailyDigestInput = {
@@ -629,7 +632,7 @@ function renderAgentCards(agents: VipAgentDigest[], agentUrl: (slug: string) => 
   }).join("");
 }
 
-export function renderVipDailyDigest(input: VipDailyDigestInput) {
+function renderLegacyVipDailyDigest(input: VipDailyDigestInput) {
   const { report, macroReport, universePulse, agents, urls } = input;
   const topIdeas = report.ideas.slice(0, 3);
   const news = newsGroups(macroReport?.newsItems ?? []);
@@ -758,4 +761,12 @@ export function renderVipDailyDigest(input: VipDailyDigestInput) {
     </div></body></html>`;
 
   return { subject, text: textLines.join("\n").replace(/\n{3,}/g, "\n\n").trim(), html };
+}
+
+export function renderVipDailyDigest(input: VipDailyDigestInput) {
+  if (process.env.VIP_RESEARCH_EMAIL_TEMPLATE === "legacy") {
+    return renderLegacyVipDailyDigest(input);
+  }
+
+  return renderPremiumVipDailyDigest(input);
 }

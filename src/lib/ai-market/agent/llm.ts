@@ -74,6 +74,7 @@ function getPrompt(assets: AgentAssetAnalysis[], news: AgentNewsItem[], mode: Ag
     "Her varlik icin technicalCommentary, macroCommentary ve newsCommentary alanlarini kisa not gibi degil, 60-100 kelimelik egitici yorumlar halinde yaz.",
     `Zorunlu kapsam: ${REQUIRED_MACRO_COVERAGE_LABELS.join(", ")}.`,
     "Her zorunlu kapsam basligi raporda temsil edilmeli. Favori varliklar icin tek tek yorum yap.",
+    "keyTakeaways alaninda 3-5 kisa ve sade Turkce cumle yaz. Her cumle en fazla 18 kelime olsun. Aciklanmamis teknik jargon kullanma; neyin izlenecegini ve riskin ne oldugunu dogrudan soyle.",
     "Cikti sadece JSON olsun. Markdown kullanma.",
     JSON.stringify({
       schema: {

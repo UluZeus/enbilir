@@ -6,6 +6,13 @@ type SendEmailInput = {
   subject: string;
   text: string;
   html: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+    contentDisposition: "inline" | "attachment";
+    cid?: string;
+  }>;
 };
 
 function getSmtpConfig() {
@@ -41,7 +48,7 @@ function getEmailDomain(value: string) {
   return atIndex > -1 ? email.slice(atIndex + 1).replace(/[^\w.-]/g, "") : null;
 }
 
-export async function sendEmail({ to, subject, text, html }: SendEmailInput) {
+export async function sendEmail({ to, subject, text, html, attachments }: SendEmailInput) {
   const config = getSmtpConfig();
 
   if (!config) {
@@ -72,6 +79,7 @@ export async function sendEmail({ to, subject, text, html }: SendEmailInput) {
     subject,
     text,
     html,
+    attachments,
     headers: {
       "X-Mailer": "Enbilir Transactional Mailer",
       "X-Auto-Response-Suppress": "All",

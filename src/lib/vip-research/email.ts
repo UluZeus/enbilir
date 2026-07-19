@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/email";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
+import { buildVipEmailChartSet } from "@/lib/vip-research/email-charts";
 import {
   buildVipAgentDigest,
   buildVipUniversePulse,
@@ -79,6 +80,14 @@ async function loadVipResearchEmailData(reportId: string) {
       },
       orderBy: { generatedAt: "desc" },
       include: {
+        assets: {
+          select: {
+            symbol: true,
+            displayName: true,
+            lastPrice: true,
+            sourcePayload: true,
+          },
+        },
         newsItems: {
           orderBy: [{ relevance: "desc" }, { publishedAt: "desc" }],
           take: 10,
@@ -167,6 +176,9 @@ async function loadVipResearchEmailData(reportId: string) {
     extractVipTechnicalCandidates(report.sourceSnapshot),
   );
   const agentDigest = buildVipAgentDigest(agentRecords, agentIdeas);
+  const chartSet = macroRecord
+    ? await buildVipEmailChartSet(macroRecord.id, macroRecord.assets)
+    : { charts: [], attachments: [], renderedChartCount: 0, failedSymbols: [], unavailableSymbols: [] };
   const macroReport: VipDigestMacroReport = macroRecord ? {
     id: macroRecord.id,
     generatedAt: macroRecord.generatedAt,
@@ -175,6 +187,7 @@ async function loadVipResearchEmailData(reportId: string) {
     riskAppetite: macroRecord.riskAppetite,
     keyTakeaways: stringArray(macroRecord.keyTakeaways),
     newsItems: macroRecord.newsItems,
+    chartAssets: chartSet.charts,
   } : null;
   const siteUrl = getSiteUrl();
   const reportUrl = `${siteUrl}/tr/vip/raporlar/${report.id}`;
@@ -194,6 +207,9 @@ async function loadVipResearchEmailData(reportId: string) {
     macroReport,
     universePulse,
     agentDigest,
+    chartAttachments: chartSet.attachments,
+    chartFailures: chartSet.failedSymbols,
+    chartUnavailableSymbols: chartSet.unavailableSymbols,
     urls,
   };
 }
@@ -241,7 +257,13 @@ export async function sendVipResearchEmails(reportId: string) {
     const digest = renderVipResearchEmail(emailData, recipient.name);
 
     try {
-      await sendEmail({ to: recipient.email, subject: digest.subject, text: digest.text, html: digest.html });
+      await sendEmail({
+        to: recipient.email,
+        subject: digest.subject,
+        text: digest.text,
+        html: digest.html,
+        attachments: emailData.chartAttachments,
+      });
       await prisma.vipResearchEmailLog.upsert({
         where: { reportId_userId: { reportId, userId: recipient.id } },
         create: { reportId, userId: recipient.id, email: recipient.email, status: "SENT" },
@@ -291,6 +313,7 @@ export async function sendVipResearchTestEmail(input: {
     subject: `[TEST] ${digest.subject}`,
     text: digest.text,
     html: digest.html,
+    attachments: emailData.chartAttachments,
   });
 
   return {
@@ -300,5 +323,9 @@ export async function sendVipResearchTestEmail(input: {
     subject: `[TEST] ${digest.subject}`,
     agentCount: emailData.agentDigest.length,
     alertCount: emailData.universePulse.totalAlertCount,
+    chartCount: emailData.chartAttachments.length,
+    chartCardCount: emailData.macroReport?.chartAssets.length ?? 0,
+    chartFailures: emailData.chartFailures,
+    chartUnavailableSymbols: emailData.chartUnavailableSymbols,
   };
 }

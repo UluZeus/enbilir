@@ -1,4 +1,6 @@
+import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { MACRO_REPORT_CHART_SELECTION } from "@/lib/ai-market/report-chart-selection";
 import {
   buildVipAgentDigest,
   buildVipUniversePulse,
@@ -41,6 +43,8 @@ const ideas: VipDigestIdea[] = [
     targetPrice: 14,
   })),
 ];
+
+const previewChartImage = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="180"><rect width="600" height="180" rx="18" fill="#f7f9fb"/><path d="M18 135 L110 118 L205 128 L300 79 L395 92 L490 45 L582 28 L582 162 L18 162 Z" fill="#d7f4ec"/><path d="M18 135 L110 118 L205 128 L300 79 L395 92 L490 45 L582 28" fill="none" stroke="#0f9f82" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="582" cy="28" r="8" fill="#fff" stroke="#0f9f82" stroke-width="5"/></svg>')}`;
 
 function agent(
   id: string,
@@ -176,8 +180,8 @@ describe("VIP daily digest agent section", () => {
   });
 });
 
-describe("VIP layered email renderer", () => {
-  it("keeps the email concise, layered, escaped and linked to detail pages", () => {
+describe("VIP premium email renderer", () => {
+  it("keeps the important content visible, polished, escaped and mobile-ready", () => {
     const agents = buildVipAgentDigest([
       agent("vip-agent-sabit", "sabit", "SABİT", [{ symbol: "AAPL", action: "BUY", priceUsd: 195, reason: "Giriş bandı doğrulandı.", sourceIdeaId: "idea-aapl" }]),
       agent("vip-agent-olgun", "olgun", "OLGUN"),
@@ -202,6 +206,15 @@ describe("VIP layered email renderer", () => {
         riskAppetite: "Dengeli",
         keyTakeaways: ["Tek bir sinyal karar için yeterli değildir."],
         newsItems: [{ title: "Merkez bankası görünümü", link: "https://example.com/news", source: "Reuters", category: "macro", publishedAt: null }],
+        chartAssets: MACRO_REPORT_CHART_SELECTION.map((asset, index) => ({
+          symbol: asset.symbol,
+          label: asset.label,
+          lastPrice: 100 + index,
+          changePercent3d: index % 2 === 0 ? 1.2 : -0.8,
+          direction: index % 2 === 0 ? "YUKARI" as const : "ASAGI" as const,
+          imageSrc: previewChartImage,
+          imageAlt: `${asset.label} son üç günlük fiyat eğrisi`,
+        })),
       },
       universePulse: {
         universeSize: 332,
@@ -222,24 +235,41 @@ describe("VIP layered email renderer", () => {
     });
 
     expect(digest.subject).toContain("1 özel durum");
-    expect(digest.html).toContain("BUGÜN NE YAPMALI?");
-    expect(digest.html).toContain("KATMAN 2 · ERKEN UYARI RADARI");
+    expect(digest.html).toContain("BUGÜN İÇİN NET PLAN");
+    expect(digest.html).toContain("ERKEN UYARI RADARI");
     expect(digest.html).toContain("SABİT, OLGUN ve YILDIRIM");
     expect(digest.html.match(/GÜNÜN KARARI/g)).toHaveLength(3);
     expect(digest.html).toContain("Hızlı yükselen fiyatın peşinden gitme");
     expect(digest.html).toContain("Düşüş riski arttı");
     expect(digest.html).toContain("AAPL düşebilir");
     expect(digest.html).not.toContain("AAPL artabilir");
+    expect(digest.html).toContain('color:#b83250">+5,2%');
     expect(digest.text).toContain("GÜNÜN KARARI: AL · AAPL");
-    expect(digest.html).toContain("Detay öğren");
+    expect(digest.html).not.toContain("Detay öğren");
+    expect(digest.html).not.toContain("<details");
+    expect(digest.html).not.toContain("<summary");
     expect(digest.html).toContain("Kaynak araştırması sınırlı");
     expect(digest.html).toContain("10,00 JPY");
     expect(digest.html).toContain("BAŞLANGIÇTAN BERİ");
-    expect(digest.text).toContain("1.000.000 USD performans tabanına göre başlangıçtan beri toplamdır");
+    expect(digest.html).toContain("Piyasanın genel yönü: Seçici risk rejimi");
+    expect(digest.html).toContain("Risk alma isteği: Dengeli");
+    expect(digest.html).toContain("Tek bir sinyal karar için yeterli değildir");
+    expect(digest.html).toContain("Nakit akışı ve marj genişlemesi teknik teyitle birleşiyor");
+    expect(digest.html).toContain("Hareket teyit bekliyor");
+    expect(digest.text).toContain("1.000.000 USD performans tabanına göre başlangıçtan beri hesaplanır");
     expect(digest.html).toContain("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;");
     expect(digest.html).not.toContain("<script>alert('x')</script>");
-    expect(digest.html).not.toContain("SYM4 · IZLE");
-    expect(digest.text).toContain("332 VARLIK ERKEN UYARI RADARI");
-    expect(digest.text).toContain("ÖZEL BÖLÜM · SABİT, OLGUN VE YILDIRIM");
+    expect(digest.html).not.toContain("SYM4");
+    expect(digest.text).toContain("332 VARLIKTA ERKEN UYARI");
+    expect(digest.text).toContain("VIP AJANLARININ BUGÜNKÜ KARARI");
+    expect(digest.text).toContain("SON 3 GÜN PİYASA PANOSU");
+    expect(digest.html.indexOf("XAG/USD")).toBeLessThan(digest.html.indexOf("XAU/USD"));
+    expect(digest.html.indexOf("XAU/USD")).toBeLessThan(digest.html.indexOf("NVDA"));
+    expect(digest.html).toContain("Nasdaq");
+    expect(Buffer.byteLength(digest.html, "utf8")).toBeLessThan(90_000);
+
+    if (process.env.VIP_EMAIL_PREVIEW_PATH) {
+      writeFileSync(process.env.VIP_EMAIL_PREVIEW_PATH, digest.html, "utf8");
+    }
   });
 });
