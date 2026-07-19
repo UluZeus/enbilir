@@ -126,6 +126,8 @@ export type VipAgentDigest = {
   name: string;
   riskProfile: string;
   description: string;
+  dailyActionLabel: string;
+  dailyAdvice: string;
   decisions: VipAgentDigestDecision[];
   hiddenDecisionCount: number;
   skippedCount: number;
@@ -233,6 +235,84 @@ function formatPriceLevel(value: number | null, currency: string) {
 function formatSignedPercent(value: number | null) {
   if (!finite(value)) return "—";
   return `${value > 0 ? "+" : ""}${value.toFixed(Math.abs(value) < 1 ? 2 : 1)}%`;
+}
+
+function simpleAlertInstruction(alert: VipUniverseAlert) {
+  if (alert.kind === "BREAKOUT") {
+    return `${alert.symbol} hacimli kırılım yaptı. Hacmin devamını takip et. Teyit yoksa alma.`;
+  }
+
+  if (alert.kind === "DIVERGENCE") {
+    return alert.label.toLocaleLowerCase("tr-TR").includes("negatif")
+      ? `${alert.symbol} için negatif uyumsuzluk var. Düşüş riski arttı. Yeni alım yapma.`
+      : `${alert.symbol} için pozitif uyumsuzluk var. Toparlanma olabilir. İkinci sinyali bekle.`;
+  }
+
+  if (alert.kind === "CROWDING") {
+    return `${alert.symbol} kalabalık görünüyor. Düzeltme riski arttı. Fiyatı kovalama.`;
+  }
+
+  if (alert.kind === "WATCH") {
+    return `${alert.symbol} kritik seviyeye yaklaştı. Teyit gelmeden işlem yapma.`;
+  }
+
+  if (finite(alert.changePercent) && alert.changePercent > 0) {
+    return `${alert.symbol} hızlı yükseldi. Fiyatı kovalama. Hacmi takip et.`;
+  }
+
+  if (finite(alert.changePercent) && alert.changePercent < 0) {
+    return `${alert.symbol} hızlı düştü. Yeni işlem için bekle. Stop planını koru.`;
+  }
+
+  return `${alert.symbol} için önemli bir hareket var. Teyit gelmeden işlem yapma.`;
+}
+
+function simpleDirectionInstruction(alert: VipUniverseAlert) {
+  if (alert.kind === "BREAKOUT") return `${alert.symbol} artabilir. Hacim düşerse hareket zayıflayabilir.`;
+  if (alert.kind === "CROWDING") return `${alert.symbol} geri çekilebilir. Fiyatı kovalama.`;
+  if (alert.kind === "WATCH") return `${alert.symbol} kritik seviyeyi geçerse artabilir. Geçemezse geri çekilebilir.`;
+  if (alert.kind === "DIVERGENCE") {
+    return alert.label.toLocaleLowerCase("tr-TR").includes("negatif")
+      ? `${alert.symbol} düşebilir. Yeni alım yapma.`
+      : `${alert.symbol} toparlanabilir. İkinci sinyali bekle.`;
+  }
+  if (finite(alert.changePercent) && alert.changePercent > 0) {
+    return `${alert.symbol} artabilir. Hacim düşerse hareket zayıflayabilir.`;
+  }
+  if (finite(alert.changePercent) && alert.changePercent < 0) {
+    return `${alert.symbol} düşebilir. Yeni işlem için acele etme.`;
+  }
+  return `${alert.symbol} için yön net değil. Teyit bekle.`;
+}
+
+function simpleIdeaInstruction(idea: VipDigestIdea) {
+  const entry = `${formatPriceLevel(idea.entryLow, idea.currency)}–${formatPriceLevel(idea.entryHigh, idea.currency)}`;
+  const stop = formatPriceLevel(idea.stopLoss, idea.currency);
+
+  if (idea.stance === "AL") {
+    return `${idea.symbol} için giriş aralığı ${entry}. Bu aralığın üstünde fiyatı kovalama. ${stop} altında çık.`;
+  }
+
+  if (idea.stance === "SAT" || idea.stance === "UZAK_DUR") {
+    return `${idea.symbol} için yeni işlem açma. ${stop} seviyesini risk sınırı olarak izle.`;
+  }
+
+  return `${idea.symbol} için bekle. Giriş aralığı ${entry}. Teyit gelmeden işlem yapma.`;
+}
+
+function simpleDecisionAdvice(decision: VipAgentDigestDecision) {
+  if (decision.action === "SELL") {
+    return `${decision.symbol} pozisyonunu kapat. Yeni giriş için tekrar teyit bekle.`;
+  }
+
+  if (decision.action === "BUY") {
+    const entry = decision.entryLow !== null && decision.entryHigh !== null
+      ? `${formatPriceLevel(decision.entryLow, decision.currency)}–${formatPriceLevel(decision.entryHigh, decision.currency)}`
+      : null;
+    return `${decision.symbol} için ${entry ? `yalnız ${entry} aralığında al` : "giriş seviyesini bekle"}. Stop olmadan işlem yapma.`;
+  }
+
+  return `${decision.symbol} pozisyonunu tut. Stop ve hedef planını değiştirme.`;
 }
 
 function safeExternalUrl(value: string) {
@@ -400,49 +480,81 @@ export function buildVipUniversePulse(
 
 export function buildVipAgentDigest(agents: VipDigestAgentInput[], ideas: VipDigestIdea[]): VipAgentDigest[] {
   const ideaById = new Map(ideas.map((idea) => [idea.id, idea]));
-  const order = new Map(VIP_AGENT_STRATEGIES.map((strategy, index) => [strategy.id, index]));
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]));
 
-  return [...agents]
-    .sort((left, right) => (order.get(left.id) ?? 99) - (order.get(right.id) ?? 99))
-    .map((agent) => {
-      const actionable = agent.decisions
-        .filter((decision) => decision.symbol !== "PORTFOY" && decision.action in ACTION_PRIORITY)
-        .sort((left, right) => ACTION_PRIORITY[left.action] - ACTION_PRIORITY[right.action] || left.symbol.localeCompare(right.symbol));
-      const positionBySymbol = new Map(agent.positions.map((position) => [position.symbol, position]));
-      const visible = actionable.slice(0, 3).map((decision): VipAgentDigestDecision => {
-        const idea = decision.sourceIdeaId ? ideaById.get(decision.sourceIdeaId) : undefined;
-        const position = positionBySymbol.get(decision.symbol);
-
-        return {
-          symbol: decision.symbol,
-          action: decision.action,
-          actionLabel: ACTION_LABELS[decision.action] ?? decision.action,
-          currency: idea?.currency ?? "USD",
-          priceUsd: decision.priceUsd,
-          reason: decision.reason,
-          entryLow: idea?.entryLow ?? null,
-          entryHigh: idea?.entryHigh ?? null,
-          stopLoss: position?.stopLossUsd ?? idea?.stopLoss ?? null,
-          targetPrice: position?.targetPriceUsd ?? idea?.targetPrice ?? null,
-        };
-      });
-      const portfolioSummary = agent.decisions.find((decision) => decision.symbol === "PORTFOY");
-      const snapshot = agent.snapshots[0];
+  return VIP_AGENT_STRATEGIES.map((strategy) => {
+    const agent = agentById.get(strategy.id) ?? {
+      id: strategy.id,
+      slug: strategy.slug,
+      name: strategy.name,
+      riskProfile: strategy.riskProfile,
+      description: strategy.description,
+      decisions: [],
+      positions: [],
+      snapshots: [],
+    };
+    const actionable = agent.decisions
+      .filter((decision) => decision.symbol !== "PORTFOY" && decision.action in ACTION_PRIORITY)
+      .sort((left, right) => ACTION_PRIORITY[left.action] - ACTION_PRIORITY[right.action] || left.symbol.localeCompare(right.symbol));
+    const positionBySymbol = new Map(agent.positions.map((position) => [position.symbol, position]));
+    const visible = actionable.slice(0, 3).map((decision): VipAgentDigestDecision => {
+      const idea = decision.sourceIdeaId ? ideaById.get(decision.sourceIdeaId) : undefined;
+      const position = positionBySymbol.get(decision.symbol);
 
       return {
-        slug: agent.slug,
-        name: agent.name,
-        riskProfile: agent.riskProfile,
-        description: agent.description,
-        decisions: visible,
-        hiddenDecisionCount: Math.max(0, actionable.length - visible.length),
-        skippedCount: agent.decisions.filter((decision) => decision.action === "SKIP").length,
-        errorCount: agent.decisions.filter((decision) => decision.action === "ERROR").length,
-        summary: portfolioSummary?.reason ?? "Bugün için doğrulanmış ajan değerlendirmesi bulunmuyor; önceki günün kararı taşınmadı.",
-        pnlUsd: snapshot?.pnlUsd ?? null,
-        returnPercent: snapshot?.returnPercent ?? null,
+        symbol: decision.symbol,
+        action: decision.action,
+        actionLabel: ACTION_LABELS[decision.action] ?? decision.action,
+        currency: idea?.currency ?? "USD",
+        priceUsd: decision.priceUsd,
+        reason: decision.reason,
+        entryLow: idea?.entryLow ?? null,
+        entryHigh: idea?.entryHigh ?? null,
+        stopLoss: position?.stopLossUsd ?? idea?.stopLoss ?? null,
+        targetPrice: position?.targetPriceUsd ?? idea?.targetPrice ?? null,
       };
     });
+    const portfolioSummary = agent.decisions.find((decision) => decision.symbol === "PORTFOY");
+    const snapshot = agent.snapshots[0];
+    const skippedCount = agent.decisions.filter((decision) => decision.action === "SKIP").length;
+    const errorCount = agent.decisions.filter((decision) => decision.action === "ERROR").length;
+    const leadDecision = visible[0];
+    const dailyAction = leadDecision
+      ? {
+          label: `${leadDecision.actionLabel} · ${leadDecision.symbol}`,
+          advice: simpleDecisionAdvice(leadDecision),
+        }
+      : errorCount > 0 && skippedCount === 0
+        ? {
+            label: "VERİYİ BEKLE",
+            advice: "Veri doğrulanmadı. Bugün işlem yapma. Yeni veriyi bekle.",
+          }
+        : portfolioSummary || skippedCount > 0
+          ? {
+              label: "PORTFÖYÜ KORU",
+              advice: "Bugün yeni alım yapma. Nakit ve portföyü koru. Adaylar işlem eşiğini geçmedi.",
+            }
+          : {
+              label: "BEKLE",
+              advice: "Bugün doğrulanmış yeni karar yok. Yeni işlem yapma. Bir sonraki raporu bekle.",
+            };
+
+    return {
+      slug: agent.slug,
+      name: agent.name,
+      riskProfile: agent.riskProfile,
+      description: agent.description,
+      dailyActionLabel: dailyAction.label,
+      dailyAdvice: dailyAction.advice,
+      decisions: visible,
+      hiddenDecisionCount: Math.max(0, actionable.length - visible.length),
+      skippedCount,
+      errorCount,
+      summary: portfolioSummary?.reason ?? dailyAction.advice,
+      pnlUsd: snapshot?.pnlUsd ?? null,
+      returnPercent: snapshot?.returnPercent ?? null,
+    };
+  });
 }
 
 function newsGroups(newsItems: VipDigestNewsItem[]) {
@@ -471,7 +583,7 @@ function renderNewsList(title: string, items: VipDigestNewsItem[]) {
 
 function renderUniverseBars(pulse: VipUniversePulse, assetUrl: (symbol: string) => string) {
   if (pulse.alerts.length === 0) {
-    return `<div style="padding:14px;border-radius:12px;background:#f8fafc;color:#475569;font-size:13px">Bugün doğrulanmış eşik üzerinde özel durum bulunmadı. Bu, risk olmadığı anlamına gelmez; yalnızca e-posta alarm eşiğinin aşılmadığını gösterir.</div>`;
+    return `<div style="padding:14px;border-radius:12px;background:#f8fafc;color:#475569;font-size:13px">Bugün güçlü bir alarm yok. Sabırlı kal. Tek bir sinyalle işlem yapma.</div>`;
   }
 
   const maximumChange = Math.max(1, ...pulse.alerts.map((alert) => Math.abs(alert.changePercent ?? 0)));
@@ -483,24 +595,24 @@ function renderUniverseBars(pulse: VipUniversePulse, assetUrl: (symbol: string) 
       <table role="presentation" style="width:100%;border-collapse:collapse"><tr><td style="font-size:13px;font-weight:900;color:#0f172a">${escapeHtml(alert.symbol)} · ${escapeHtml(alert.label)}</td><td style="text-align:right;font-size:12px;font-weight:900;color:${color}">${escapeHtml(formatSignedPercent(alert.changePercent))}</td></tr></table>
       <div style="margin:8px 0;height:7px;border-radius:999px;background:#e2e8f0;overflow:hidden"><div style="width:${width.toFixed(0)}%;height:7px;border-radius:999px;background:${color}"></div></div>
       <p style="margin:0;font-size:11px;font-weight:800;color:${alert.status === "DOĞRULANDI" ? "#0f766e" : "#a16207"}">${escapeHtml(alert.status)}</p>
-      <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#475569">${escapeHtml(compactText(alert.commentary, 220))} <a href="${escapeHtml(assetUrl(alert.symbol))}" style="color:#0f766e;font-weight:800;text-decoration:none">Detay öğren →</a></p>
+      <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#475569">${escapeHtml(simpleAlertInstruction(alert))} <a href="${escapeHtml(assetUrl(alert.symbol))}" style="color:#0f766e;font-weight:800;text-decoration:none">Detay öğren →</a></p>
     </div>`;
   }).join("");
 }
 
 function renderAgentCards(agents: VipAgentDigest[], agentUrl: (slug: string) => string) {
   if (agents.length === 0) {
-    return `<div style="padding:14px;border-radius:12px;background:#111827;color:#e2e8f0;font-size:13px">Bugün için doğrulanmış ajan değerlendirmesi bulunmuyor; önceki günün kararı e-postaya taşınmadı.</div>`;
+    return `<div style="padding:14px;border-radius:12px;background:#111827;color:#e2e8f0;font-size:13px">Bugün yeni işlem yapma. Bir sonraki doğrulanmış raporu bekle.</div>`;
   }
 
   return agents.map((agent) => {
     const decisions = agent.decisions.length > 0
       ? agent.decisions.map((decision) => `<div style="margin-top:9px;padding:10px;border-radius:10px;background:#ffffff;color:#0f172a">
           <p style="margin:0;font-size:12px;font-weight:900"><span style="color:${decision.action === "SELL" ? "#be123c" : decision.action === "BUY" ? "#0f766e" : "#a16207"}">${escapeHtml(decision.actionLabel)}</span> · ${escapeHtml(decision.symbol)} ${decision.priceUsd === null ? "" : `@ ${escapeHtml(formatPriceLevel(decision.priceUsd, decision.currency))}`}</p>
-          <p style="margin:4px 0 0;font-size:11px;line-height:1.5;color:#475569">${escapeHtml(compactText(decision.reason, 190))}</p>
+          <p style="margin:4px 0 0;font-size:11px;line-height:1.5;color:#475569">${escapeHtml(simpleDecisionAdvice(decision))}</p>
           ${decision.stopLoss !== null || decision.targetPrice !== null ? `<p style="margin:5px 0 0;font-size:11px;color:#64748b">Stop ${escapeHtml(formatPriceLevel(decision.stopLoss, decision.currency))} · Hedef ${escapeHtml(formatPriceLevel(decision.targetPrice, decision.currency))}</p>` : ""}
         </div>`).join("")
-      : `<p style="margin:9px 0 0;font-size:12px;line-height:1.5;color:#cbd5e1">${escapeHtml(compactText(agent.summary, 210))}</p>`;
+      : "";
     const diagnostics = [
       agent.hiddenDecisionCount > 0 ? `+${agent.hiddenDecisionCount} karar detayda` : "",
       agent.skippedCount > 0 ? `${agent.skippedCount} aday filtreden geçmedi` : "",
@@ -509,6 +621,7 @@ function renderAgentCards(agents: VipAgentDigest[], agentUrl: (slug: string) => 
 
     return `<div style="margin-top:12px;padding:14px;border:1px solid #334155;border-radius:14px;background:#111827">
       <table role="presentation" style="width:100%;border-collapse:collapse"><tr><td><p style="margin:0;font-size:16px;font-weight:900;color:#ffffff">${escapeHtml(agent.name)}</p><p style="margin:2px 0 0;font-size:10px;font-weight:900;letter-spacing:.12em;color:#f5c96b">${escapeHtml(agent.riskProfile)}</p></td><td style="text-align:right;color:#99f6e4;font-size:12px;font-weight:900"><span style="display:block;font-size:8px;letter-spacing:.08em;color:#94a3b8">BAŞLANGIÇTAN BERİ</span>${escapeHtml(formatSignedPercent(agent.returnPercent))}<br><span style="font-weight:600;color:#94a3b8">${escapeHtml(formatUsd(agent.pnlUsd))}</span></td></tr></table>
+      <div style="margin-top:10px;padding:11px;border:1px solid #2dd4bf55;border-radius:10px;background:#0f2f2f"><p style="margin:0;font-size:9px;font-weight:900;letter-spacing:.12em;color:#99f6e4">GÜNÜN KARARI</p><p style="margin:4px 0 0;font-size:14px;font-weight:900;color:#ffffff">${escapeHtml(agent.dailyActionLabel)}</p><p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#d1fae5">${escapeHtml(agent.dailyAdvice)}</p></div>
       ${decisions}
       ${diagnostics ? `<p style="margin:8px 0 0;font-size:10px;color:#94a3b8">${escapeHtml(diagnostics)}</p>` : ""}
       <p style="margin:10px 0 0"><a href="${escapeHtml(agentUrl(agent.slug))}" style="color:#99f6e4;font-size:12px;font-weight:900;text-decoration:none">${escapeHtml(agent.name)} detayını öğren →</a></p>
@@ -520,47 +633,66 @@ export function renderVipDailyDigest(input: VipDailyDigestInput) {
   const { report, macroReport, universePulse, agents, urls } = input;
   const topIdeas = report.ideas.slice(0, 3);
   const news = newsGroups(macroReport?.newsItems ?? []);
-  const keyTakeaways = (macroReport?.keyTakeaways ?? []).filter(Boolean).slice(0, 3);
-  const macroCommentary = compactText(macroReport?.macroSummary || report.marketContext, 430);
-  const microCommentary = compactText(topIdeas.map((idea) => `${idea.symbol}: ${idea.thesisSummary}`).join(" "), 430);
+  const mainAlert = universePulse.alerts[0];
+  const leadIdea = topIdeas[0];
+  const directionSentence = mainAlert
+    ? simpleDirectionInstruction(mainAlert)
+    : leadIdea?.stance === "AL"
+      ? `${leadIdea.symbol} giriş bandına gelirse fırsat oluşabilir. Bandın üstünde alma.`
+      : "Net yön yok. Nakit tut. Yeni sinyali bekle.";
+  const simpleGuidance = [
+    {
+      label: "TAKİP ET",
+      text: `${compactText(macroReport?.marketRegime ?? "Piyasa yönü net değil", 90)}. Dolar, altın, petrol ve ana endeksleri takip et.`,
+    },
+    {
+      label: "DİKKAT ET",
+      text: mainAlert ? simpleAlertInstruction(mainAlert) : "Bugün güçlü bir alarm yok. Sabırlı kal.",
+    },
+    {
+      label: "YAPMA",
+      text: "Hızlı yükselen fiyatın peşinden gitme. Stop olmadan işlem yapma.",
+    },
+    {
+      label: "OLASI YÖN",
+      text: directionSentence,
+    },
+  ];
   const alertSubject = universePulse.totalAlertCount > 0 ? `${universePulse.totalAlertCount} özel durum` : "seçici görünüm";
   const subject = `Enbilir VIP Günlük Özet · ${alertSubject}`;
 
   const textLines = [
     `Merhaba ${input.recipientName},`,
     "",
-    `ENBİLİR VIP · ${report.periodKey} · 60 SANİYELİK KARAR ÖZETİ`,
-    compactText(report.executiveSummary, 420),
-    macroReport?.marketRegime ? `Rejim: ${macroReport.marketRegime}` : "",
-    macroReport?.riskAppetite ? `Risk iştahı: ${macroReport.riskAppetite}` : "",
-    report.fallbackUsed ? "Veri notu: Kaynak araştırması sınırlı; temkinli mod etkin." : "",
+    `ENBİLİR VIP · ${report.periodKey} · BUGÜNÜN KISA PLANI`,
+    ...simpleGuidance.map((item) => `${item.label}: ${item.text}`),
+    macroReport?.riskAppetite ? `RİSK İŞTAHI: ${compactText(macroReport.riskAppetite, 100)}` : "",
+    report.fallbackUsed ? "VERİ NOTU: Bazı kaynaklar sınırlı. Temkinli kal." : "",
     "",
-    "KATMAN 1 · BUGÜN NE ÖNEMLİ?",
-    `Makro yorum: ${macroCommentary}`,
-    `Mikro yorum: ${microCommentary || "Bugün e-posta eşiğini geçen yeni mikro tez bulunmadı."}`,
-    ...keyTakeaways.map((takeaway) => `- ${compactText(takeaway, 220)}`),
+    "BUGÜNÜN KAYNAKLI HABERLERİ",
     ...(news.macro.length + news.micro.length > 0
-      ? ["", "Günün kaynaklı haberleri:", ...[...news.macro, ...news.micro].map((item) => `- ${item.source}: ${compactText(item.title, 160)} · ${item.link}`)]
-      : []),
+      ? [...[...news.macro, ...news.micro].map((item) => `- ${item.source}: ${compactText(item.title, 120)} · ${item.link}`)]
+      : ["- Bugün e-posta eşiğini geçen yeni haber yok."]),
     macroReport && urls.macroReport ? `Makro detay: ${urls.macroReport}` : "",
     "",
     `KATMAN 2 · ${universePulse.universeSize} VARLIK ERKEN UYARI RADARI`,
-    `${universePulse.verifiedQuoteCount} güncel fiyat doğrulandı; ${universePulse.totalAlertCount} özel durum/eşik sinyali bulundu.`,
+    `${universePulse.verifiedQuoteCount} fiyat doğrulandı. ${universePulse.totalAlertCount} özel durum bulundu.`,
     ...(universePulse.alerts.length > 0
-      ? universePulse.alerts.map((alert) => `- ${alert.status} · ${alert.symbol} · ${alert.label} · ${formatSignedPercent(alert.changePercent)} · ${compactText(alert.commentary, 220)} · ${urls.asset(alert.symbol)}`)
-      : ["- Bugün doğrulanmış alarm eşiği üzerinde özel durum bulunmadı."]),
+      ? universePulse.alerts.map((alert) => `- ${alert.symbol} · ${formatSignedPercent(alert.changePercent)} · ${simpleAlertInstruction(alert)} · ${urls.asset(alert.symbol)}`)
+      : ["- Güçlü alarm yok. Sabırlı kal."]),
     "",
     "KATMAN 3 · EN GÜÇLÜ ASİMETRİK FİKİRLER",
-    ...topIdeas.map((idea) => `- #${idea.rank} ${idea.symbol} · ${idea.stance} · Güven ${idea.confidenceScore}/100 · Risk ${idea.riskScore}/100 · Giriş ${formatPriceLevel(idea.entryLow, idea.currency)}-${formatPriceLevel(idea.entryHigh, idea.currency)} · Stop ${formatPriceLevel(idea.stopLoss, idea.currency)} · Hedef ${formatPriceLevel(idea.targetPrice, idea.currency)} · ${compactText(idea.thesisSummary, 220)} · ${urls.idea(idea.id)}`),
+    ...topIdeas.map((idea) => `- #${idea.rank} ${idea.symbol} · ${idea.stance} · ${simpleIdeaInstruction(idea)} Hedef ${formatPriceLevel(idea.targetPrice, idea.currency)}. Güven ${idea.confidenceScore}/100. Risk ${idea.riskScore}/100. · ${urls.idea(idea.id)}`),
     `Tam VIP raporu: ${urls.report}`,
     "",
     "ÖZEL BÖLÜM · SABİT, OLGUN VE YILDIRIM'IN GÜNLÜK SANAL KARARLARI",
     "Kartlardaki K/Z, 1.000.000 USD performans tabanına göre başlangıçtan beri toplamdır.",
     ...agents.flatMap((agent) => [
       `${agent.name} · ${agent.riskProfile} · Başlangıçtan beri ${formatSignedPercent(agent.returnPercent)} / ${formatUsd(agent.pnlUsd)}`,
+      `GÜNÜN KARARI: ${agent.dailyActionLabel}. ${agent.dailyAdvice}`,
       ...(agent.decisions.length > 0
-        ? agent.decisions.map((decision) => `- ${decision.actionLabel} ${decision.symbol} ${decision.priceUsd === null ? "" : `@ ${formatPriceLevel(decision.priceUsd, decision.currency)}`} · ${compactText(decision.reason, 190)} · Stop ${formatPriceLevel(decision.stopLoss, decision.currency)} · Hedef ${formatPriceLevel(decision.targetPrice, decision.currency)}`)
-        : [`- ${compactText(agent.summary, 210)}`]),
+        ? agent.decisions.map((decision) => `- ${decision.actionLabel} ${decision.symbol} ${decision.priceUsd === null ? "" : `@ ${formatPriceLevel(decision.priceUsd, decision.currency)}`} · ${simpleDecisionAdvice(decision)} Stop ${formatPriceLevel(decision.stopLoss, decision.currency)}. Hedef ${formatPriceLevel(decision.targetPrice, decision.currency)}.`)
+        : []),
       agent.errorCount > 0 ? `- ${agent.errorCount} varlıkta veri doğrulanamadığı için eylem üretilmedi.` : "",
       `Detay: ${urls.agent(agent.slug)}`,
     ]),
@@ -571,27 +703,25 @@ export function renderVipDailyDigest(input: VipDailyDigestInput) {
 
   const ideaCards = topIdeas.map((idea) => `<div style="margin-top:10px;padding:13px;border:1px solid #e2e8f0;border-radius:12px;background:#ffffff">
     <table role="presentation" style="width:100%;border-collapse:collapse"><tr><td><p style="margin:0;font-size:14px;font-weight:900;color:#0f172a">#${idea.rank} ${escapeHtml(idea.symbol)} · ${escapeHtml(idea.stance)}</p></td><td style="text-align:right;font-size:11px;color:#64748b">Güven ${idea.confidenceScore}/100 · Risk ${idea.riskScore}/100</td></tr></table>
-    <p style="margin:7px 0 0;font-size:12px;line-height:1.55;color:#475569">${escapeHtml(compactText(idea.thesisSummary, 240))}</p>
+    <p style="margin:7px 0 0;font-size:12px;line-height:1.55;color:#334155">${escapeHtml(simpleIdeaInstruction(idea))}</p>
     <p style="margin:7px 0 0;font-size:11px;color:#64748b">Giriş ${escapeHtml(formatPriceLevel(idea.entryLow, idea.currency))}–${escapeHtml(formatPriceLevel(idea.entryHigh, idea.currency))} · Stop ${escapeHtml(formatPriceLevel(idea.stopLoss, idea.currency))} · Hedef ${escapeHtml(formatPriceLevel(idea.targetPrice, idea.currency))}</p>
     <p style="margin:8px 0 0"><a href="${escapeHtml(urls.idea(idea.id))}" style="color:#0f766e;font-size:12px;font-weight:900;text-decoration:none">Detay öğren →</a></p>
   </div>`).join("");
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#eef2f5"><div style="display:none;max-height:0;overflow:hidden">60 saniyelik VIP karar özeti, ${universePulse.universeSize} varlık radarı ve üç özel ajanın günlük kararları.</div>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#eef2f5"><div style="display:none;max-height:0;overflow:hidden">Kısa VIP planı, ${universePulse.universeSize} varlık radarı ve üç özel ajanın günlük kararı.</div>
     <div style="max-width:720px;margin:0 auto;padding:20px 12px;font-family:Arial,sans-serif;color:#172033">
       <div style="overflow:hidden;border-radius:20px;background:#071923;box-shadow:0 16px 45px rgba(15,23,42,.16)">
         <div style="padding:24px;background:linear-gradient(135deg,#071923,#123a3b)">
           <p style="margin:0;font-size:11px;font-weight:900;letter-spacing:.16em;color:#99f6e4">ENBİLİR VIP · ${escapeHtml(report.periodKey)}</p>
-          <h1 style="margin:8px 0 6px;font-size:26px;line-height:1.15;color:#ffffff">60 saniyelik günlük karar özeti</h1>
-          <p style="margin:0;font-size:14px;line-height:1.6;color:#cbd5e1">Merhaba ${escapeHtml(input.recipientName)}, ${escapeHtml(compactText(report.executiveSummary, 380))}</p>
+          <h1 style="margin:8px 0 6px;font-size:26px;line-height:1.15;color:#ffffff">Bugünün kısa planı</h1>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#cbd5e1">Merhaba ${escapeHtml(input.recipientName)}. Önemli noktaları kısa cümlelerle hazırladık.</p>
           <div style="margin-top:14px"><span style="display:inline-block;margin:0 6px 6px 0;padding:6px 9px;border-radius:999px;background:rgba(153,246,228,.12);color:#99f6e4;font-size:11px;font-weight:800">${escapeHtml(macroReport?.marketRegime ?? "Seçici piyasa rejimi")}</span><span style="display:inline-block;margin:0 6px 6px 0;padding:6px 9px;border-radius:999px;background:rgba(245,201,107,.12);color:#f5c96b;font-size:11px;font-weight:800">${escapeHtml(macroReport?.riskAppetite ?? "Risk iştahı teyit bekliyor")}</span>${report.fallbackUsed ? `<span style="display:inline-block;margin:0 6px 6px 0;padding:6px 9px;border-radius:999px;background:rgba(251,113,133,.14);color:#fecdd3;font-size:11px;font-weight:800">Kaynak araştırması sınırlı · temkinli mod</span>` : ""}</div>
         </div>
 
         <div style="padding:22px;background:#ffffff">
-          <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.14em;color:#0f766e">KATMAN 1 · BUGÜN NE ÖNEMLİ?</p>
-          <h2 style="margin:6px 0 12px;font-size:20px;color:#0f172a">Makro ve mikro karar çerçevesi</h2>
-          <div style="padding:13px;border-left:4px solid #0f766e;background:#f0fdfa"><p style="margin:0 0 5px;font-size:11px;font-weight:900;color:#0f766e">MAKRO YORUM</p><p style="margin:0;font-size:13px;line-height:1.6;color:#334155">${escapeHtml(macroCommentary)}</p></div>
-          <div style="margin-top:10px;padding:13px;border-left:4px solid #d97706;background:#fffbeb"><p style="margin:0 0 5px;font-size:11px;font-weight:900;color:#a16207">MİKRO YORUM</p><p style="margin:0;font-size:13px;line-height:1.6;color:#334155">${escapeHtml(microCommentary || "Bugün e-posta eşiğini geçen yeni mikro tez bulunmadı.")}</p></div>
-          ${keyTakeaways.length > 0 ? `<ul style="margin:12px 0 0;padding-left:18px;color:#334155;font-size:12px;line-height:1.6">${keyTakeaways.map((item) => `<li>${escapeHtml(compactText(item, 220))}</li>`).join("")}</ul>` : ""}
+          <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.14em;color:#0f766e">BUGÜN NE YAPMALI?</p>
+          <h2 style="margin:6px 0 12px;font-size:20px;color:#0f172a">Dört kısa cümle</h2>
+          ${simpleGuidance.map((item, index) => `<div style="${index > 0 ? "margin-top:8px;" : ""}padding:11px 13px;border-left:4px solid ${index === 2 ? "#be123c" : index === 3 ? "#d97706" : "#0f766e"};background:${index === 2 ? "#fff1f2" : index === 3 ? "#fffbeb" : "#f0fdfa"}"><p style="margin:0 0 3px;font-size:10px;font-weight:900;color:${index === 2 ? "#be123c" : index === 3 ? "#a16207" : "#0f766e"}">${escapeHtml(item.label)}</p><p style="margin:0;font-size:13px;line-height:1.5;color:#334155">${escapeHtml(item.text)}</p></div>`).join("")}
           ${renderNewsList("Makro haberler", news.macro)}${renderNewsList("Mikro / sektör haberleri", news.micro)}
           ${macroReport && urls.macroReport ? `<p style="margin:14px 0 0">${htmlButton("Makro detayı öğren", urls.macroReport, true)}</p>` : ""}
         </div>
@@ -599,14 +729,14 @@ export function renderVipDailyDigest(input: VipDailyDigestInput) {
         <div style="padding:22px;background:#f8fafc;border-top:1px solid #e2e8f0">
           <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.14em;color:#0f766e">KATMAN 2 · ERKEN UYARI RADARI</p>
           <h2 style="margin:6px 0 5px;font-size:20px;color:#0f172a">${universePulse.universeSize} varlıkta özel durum taraması</h2>
-          <p style="margin:0;font-size:12px;line-height:1.6;color:#64748b">Evrenin tamamında günlük fiyat anomalisi, kısa listedeki doğrulanmış adaylarda kurumsal teknik eşikler arandı. ${universePulse.verifiedQuoteCount} güncel fiyat doğrulandı; ${universePulse.totalAlertCount} varlıkta maddi hareket veya çoklu-sinyal oluşma ihtimali öne çıktı. E-posta yalnız en önemli ${Math.min(6, universePulse.alerts.length)} kaydı gösterir.</p>
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#64748b">${universePulse.verifiedQuoteCount} fiyat doğrulandı. ${universePulse.totalAlertCount} özel durum bulundu. Aşağıda yalnız en önemli kayıtlar var.</p>
           ${renderUniverseBars(universePulse, urls.asset)}
         </div>
 
         <div style="padding:22px;background:#ffffff;border-top:1px solid #e2e8f0">
           <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.14em;color:#a16207">KATMAN 3 · ASİMETRİK FIRSATLAR</p>
           <h2 style="margin:6px 0 5px;font-size:20px;color:#0f172a">Yalnız en güçlü üç fikir</h2>
-          <p style="margin:0;font-size:12px;color:#64748b">Tam tez, temel/teknik kanıt, katalizör ve kaçış planı web raporunda katmanlı olarak yer alır.</p>
+          <p style="margin:0;font-size:12px;color:#64748b">Giriş, stop ve hedef seviyelerine uy. Ayrıntı için raporu aç.</p>
           ${ideaCards || `<p style="margin:12px 0;color:#64748b;font-size:13px">Bugün kanıt eşiğini geçen fikir bulunmadı.</p>`}
           <p style="margin:14px 0 0">${htmlButton("Tam VIP raporunu aç", urls.report)}</p>
         </div>
@@ -614,7 +744,7 @@ export function renderVipDailyDigest(input: VipDailyDigestInput) {
         <div style="padding:22px;background:#071923;border-top:1px solid #334155">
           <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.14em;color:#f5c96b">ÖZEL BÖLÜM</p>
           <h2 style="margin:6px 0 5px;font-size:20px;color:#ffffff">SABİT, OLGUN ve YILDIRIM</h2>
-          <p style="margin:0;font-size:12px;line-height:1.6;color:#cbd5e1">Bugünün doğrulanmış sanal kararları gösterilir; eski kararlar yeni tavsiye gibi taşınmaz. SKIP kararları tavsiye sayılmaz. Kartlardaki K/Z, 1.000.000 USD performans tabanına göre başlangıçtan beri toplamdır.</p>
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#cbd5e1">Her kartta bugünün kararı var. Eski kararlar kullanılmaz. K/Z, 1.000.000 USD üzerinden hesaplanır.</p>
           ${renderAgentCards(agents, urls.agent)}
           <p style="margin:14px 0 0">${htmlButton("Tüm ajan masasını aç", urls.agents, true)}</p>
         </div>

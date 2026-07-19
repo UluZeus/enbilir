@@ -60,19 +60,11 @@ async function claimEmailDelivery(reportId: string, recipient: { id: string; ema
   return claimed.count === 1;
 }
 
-export async function sendVipResearchEmails(reportId: string) {
-  const now = new Date();
-  const [report, recipients] = await Promise.all([
-    prisma.vipResearchReport.findUnique({
-      where: { id: reportId },
-      include: { ideas: { orderBy: { rank: "asc" }, take: 5 } },
-    }),
-    prisma.user.findMany({
-      where: { isActive: true, membershipTier: "VIP", vipPaidUntil: { gt: now } },
-      select: { id: true, email: true, name: true },
-    }),
-  ]);
-
+async function loadVipResearchEmailData(reportId: string) {
+  const report = await prisma.vipResearchReport.findUnique({
+    where: { id: reportId },
+    include: { ideas: { orderBy: { rank: "asc" }, take: 5 } },
+  });
   if (!report) {
     throw new Error("VIP raporu bulunamadı.");
   }
@@ -195,6 +187,49 @@ export async function sendVipResearchEmails(reportId: string) {
     idea: (ideaId: string) => `${reportUrl}#idea-${encodeURIComponent(ideaId)}`,
     asset: (symbol: string) => `${siteUrl}/tr/islem-yap?symbol=${encodeURIComponent(symbol)}`,
   };
+
+  return {
+    report,
+    ideas,
+    macroReport,
+    universePulse,
+    agentDigest,
+    urls,
+  };
+}
+
+type VipResearchEmailData = Awaited<ReturnType<typeof loadVipResearchEmailData>>;
+
+function renderVipResearchEmail(data: VipResearchEmailData, recipientName: string) {
+  const { report, ideas, macroReport, universePulse, agentDigest, urls } = data;
+
+  return renderVipDailyDigest({
+    recipientName,
+    report: {
+      id: report.id,
+      periodKey: report.periodKey,
+      fallbackUsed: report.fallbackUsed,
+      executiveSummary: report.executiveSummary,
+      marketContext: report.marketContext,
+      disclaimer: report.disclaimer,
+      ideas,
+    },
+    macroReport,
+    universePulse,
+    agents: agentDigest,
+    urls,
+  });
+}
+
+export async function sendVipResearchEmails(reportId: string) {
+  const now = new Date();
+  const [emailData, recipients] = await Promise.all([
+    loadVipResearchEmailData(reportId),
+    prisma.user.findMany({
+      where: { isActive: true, membershipTier: "VIP", vipPaidUntil: { gt: now } },
+      select: { id: true, email: true, name: true },
+    }),
+  ]);
   let sent = 0;
   let failed = 0;
 
@@ -203,22 +238,7 @@ export async function sendVipResearchEmails(reportId: string) {
       continue;
     }
 
-    const digest = renderVipDailyDigest({
-      recipientName: recipient.name,
-      report: {
-        id: report.id,
-        periodKey: report.periodKey,
-        fallbackUsed: report.fallbackUsed,
-        executiveSummary: report.executiveSummary,
-        marketContext: report.marketContext,
-        disclaimer: report.disclaimer,
-        ideas,
-      },
-      macroReport,
-      universePulse,
-      agents: agentDigest,
-      urls,
-    });
+    const digest = renderVipResearchEmail(emailData, recipient.name);
 
     try {
       await sendEmail({ to: recipient.email, subject: digest.subject, text: digest.text, html: digest.html });
@@ -242,9 +262,43 @@ export async function sendVipResearchEmails(reportId: string) {
     recipients: recipients.length,
     sent,
     failed,
-    universeSize: universePulse.universeSize,
-    verifiedQuoteCount: universePulse.verifiedQuoteCount,
-    alertCount: universePulse.totalAlertCount,
-    agentCount: agentDigest.length,
+    universeSize: emailData.universePulse.universeSize,
+    verifiedQuoteCount: emailData.universePulse.verifiedQuoteCount,
+    alertCount: emailData.universePulse.totalAlertCount,
+    agentCount: emailData.agentDigest.length,
+  };
+}
+
+export async function sendVipResearchTestEmail(input: {
+  to: string;
+  name: string;
+  reportId?: string;
+}) {
+  const reportId = input.reportId ?? (await prisma.vipResearchReport.findFirst({
+    where: { status: "COMPLETED" },
+    orderBy: { generatedAt: "desc" },
+    select: { id: true },
+  }))?.id;
+
+  if (!reportId) {
+    throw new Error("Test e-postası için tamamlanmış VIP raporu bulunamadı.");
+  }
+
+  const emailData = await loadVipResearchEmailData(reportId);
+  const digest = renderVipResearchEmail(emailData, input.name);
+  await sendEmail({
+    to: input.to,
+    subject: `[TEST] ${digest.subject}`,
+    text: digest.text,
+    html: digest.html,
+  });
+
+  return {
+    sent: true as const,
+    reportId,
+    recipient: input.to,
+    subject: `[TEST] ${digest.subject}`,
+    agentCount: emailData.agentDigest.length,
+    alertCount: emailData.universePulse.totalAlertCount,
   };
 }

@@ -12,6 +12,7 @@ import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import { buildPageMetadata } from "@/lib/seo";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
+import { selectMacroReportChartAssets } from "@/lib/ai-market/report-chart-selection";
 
 export const dynamic = "force-dynamic";
 
@@ -423,7 +424,8 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
   const takeaways = toStringArray(report.keyTakeaways);
   const requiredCoverage = toStringArray(report.requiredCoverage);
-  const chartAssets = report.assets.filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length).slice(0, 6);
+  const chartAssets = selectMacroReportChartAssets(report.assets)
+    .filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length);
   const isEnglish = locale === "en";
   const localizedAssets = report.assets.map((asset) => ({
     ...asset,

@@ -15,6 +15,7 @@
     "agent:ensure-secret": "node scripts/ensure-ai-agent-secret.mjs",
     "subscription:run": "node scripts/run-subscription-emails-cron.mjs",
     "subscription:install-cron": "node scripts/install-subscription-emails-cron.mjs",
+    "vip:test-email": "node scripts/send-vip-test-email.mjs",
     "db:reset-virtual-portfolios": "node scripts/reset-virtual-portfolios.mjs",
     "db:upsert-managed-blog-content": "node scripts/upsert-managed-blog-content.mjs",
     "db:upsert-managed-blog-content:en": "node scripts/upsert-managed-blog-content-en.mjs",

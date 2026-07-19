@@ -141,8 +141,38 @@ describe("VIP daily digest agent section", () => {
     expect(digest[0].decisions).toHaveLength(1);
     expect(digest[0].decisions[0]).toMatchObject({ actionLabel: "AL", stopLoss: 181, targetPrice: 228 });
     expect(digest[0]).toMatchObject({ skippedCount: 1, errorCount: 1 });
+    expect(digest[0]).toMatchObject({ dailyActionLabel: "AL · AAPL" });
+    expect(digest[0].dailyAdvice).toContain("Stop olmadan işlem yapma");
     expect(digest[2].decisions).toEqual([]);
     expect(digest[2].summary).toBe("Portföy özeti");
+    expect(digest[2].dailyActionLabel).toBe("PORTFÖYÜ KORU");
+  });
+
+  it("always returns all three agents with a clear safe action", () => {
+    const digest = buildVipAgentDigest([
+      agent("vip-agent-sabit", "sabit", "SABİT", [
+        { symbol: "AAPL", action: "ERROR", priceUsd: null, reason: "Veri yok.", sourceIdeaId: "idea-aapl" },
+      ]),
+    ], ideas);
+
+    expect(digest.map((item) => item.name)).toEqual(["SABİT", "OLGUN", "YILDIRIM"]);
+    expect(digest[0]).toMatchObject({ dailyActionLabel: "VERİYİ BEKLE" });
+    expect(digest[0].dailyAdvice).toContain("Bugün işlem yapma");
+    expect(digest[1]).toMatchObject({ dailyActionLabel: "BEKLE" });
+    expect(digest[2]).toMatchObject({ dailyActionLabel: "BEKLE" });
+  });
+
+  it("turns an all-skip day into a clear portfolio protection decision", () => {
+    const digest = buildVipAgentDigest([
+      agent("vip-agent-sabit", "sabit", "SABİT", [
+        { symbol: "AAPL", action: "SKIP", priceUsd: 202, reason: "Eşik geçilmedi.", sourceIdeaId: "idea-aapl" },
+        { symbol: "PORTFOY", action: "SUMMARY", priceUsd: null, reason: "Yeni işlem yok.", sourceIdeaId: null },
+      ]),
+    ], ideas);
+
+    expect(digest[0].dailyActionLabel).toBe("PORTFÖYÜ KORU");
+    expect(digest[0].dailyAdvice).toBe("Bugün yeni alım yapma. Nakit ve portföyü koru. Adaylar işlem eşiğini geçmedi.");
+    expect(digest[0].decisions).toEqual([]);
   });
 });
 
@@ -177,7 +207,7 @@ describe("VIP layered email renderer", () => {
         universeSize: 332,
         verifiedQuoteCount: 300,
         totalAlertCount: 1,
-        alerts: [{ symbol: "AAPL", displayName: "Apple", kind: "MOVE", status: "DOĞRULANDI", label: "Olağandışı yukarı hareket", commentary: "Hareket teyit bekliyor.", changePercent: 5.2, priority: 90 }],
+        alerts: [{ symbol: "AAPL", displayName: "Apple", kind: "DIVERGENCE", status: "YAKIN İZLEME", label: "Negatif uyumsuzluk", commentary: "Hareket teyit bekliyor.", changePercent: 5.2, priority: 90 }],
       },
       agents,
       urls: {
@@ -192,9 +222,15 @@ describe("VIP layered email renderer", () => {
     });
 
     expect(digest.subject).toContain("1 özel durum");
-    expect(digest.html).toContain("KATMAN 1 · BUGÜN NE ÖNEMLİ?");
+    expect(digest.html).toContain("BUGÜN NE YAPMALI?");
     expect(digest.html).toContain("KATMAN 2 · ERKEN UYARI RADARI");
     expect(digest.html).toContain("SABİT, OLGUN ve YILDIRIM");
+    expect(digest.html.match(/GÜNÜN KARARI/g)).toHaveLength(3);
+    expect(digest.html).toContain("Hızlı yükselen fiyatın peşinden gitme");
+    expect(digest.html).toContain("Düşüş riski arttı");
+    expect(digest.html).toContain("AAPL düşebilir");
+    expect(digest.html).not.toContain("AAPL artabilir");
+    expect(digest.text).toContain("GÜNÜN KARARI: AL · AAPL");
     expect(digest.html).toContain("Detay öğren");
     expect(digest.html).toContain("Kaynak araştırması sınırlı");
     expect(digest.html).toContain("10,00 JPY");
