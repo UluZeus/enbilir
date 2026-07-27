@@ -13,7 +13,7 @@ const PAYMENT_EXPLANATION =
   `Standart üyelikte ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} aylık katkı gönüllülük esasına bağlıdır. Bu katkı, sitedeki canlı/cache piyasa verisi ve standart AI sohbet altyapısının maliyetini karşılamaya destek olur; ödeme yapılmasa da standart kullanımınız, site sürdürülebilirliği izin verdiği sürece devam eder.`;
 
 const VIP_PAYMENT_EXPLANATION =
-  `VIP üyelik aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} olarak kurgulanmıştır. VIP üyelikte AI Asistan, sitedeki canlı/cache veriye ek olarak ücretsiz erişilebilen public haber/veri kaynaklarından derlenen bağlamla daha üst seviye piyasa okuması sunar. VIP ödeme yenilenmezse üyelik standart seviyeye döner.`;
+  `Tanıtım döneminde tüm üyeler VIP içerik ve internet araştırmasına erişebilir. Ödeme yapmayan üyelerin günlük AI sorgu hakkı 5'tir ve İstanbul saatiyle gece 00.00'da yenilenir. Aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} VIP ödemesi günlük hakkı 15'e çıkarır.`;
 
 const emailTypes = {
   trialEndingReminder: "TRIAL_ENDING_REMINDER",
@@ -141,7 +141,7 @@ function buildTrialEndingReminderEmail(recipient: Recipient, trialEndsAt: Date) 
     "",
     `Dilerseniz kullanımınızı aylık ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} gönüllü abonelik katkısıyla sürdürebilirsiniz.`,
     "",
-    `VIP üyelik isterseniz aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} ile daha üst seviye AI Asistan hizmetine geçebilirsiniz.`,
+    `Aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} VIP ödemesiyle günlük AI sorgu hakkınızı 5'ten 15'e çıkarabilirsiniz.`,
     "",
     PAYMENT_EXPLANATION,
     "",
@@ -166,7 +166,7 @@ function buildTrialEndingReminderEmail(recipient: Recipient, trialEndsAt: Date) 
         Dilerseniz kullanımınızı aylık <strong>${formatTryAmount(membershipConfig.standardMonthlyAmountTry)}</strong> gönüllü abonelik katkısıyla sürdürebilirsiniz.
       </p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        Daha üst seviye AI Asistan isterseniz VIP üyelik aylık <strong>${formatTryAmount(membershipConfig.vipMonthlyAmountTry)}</strong> olarak devam eder.
+        Günlük AI sorgu hakkınızı 5'ten 15'e çıkarmak isterseniz VIP üyelik aylık <strong>${formatTryAmount(membershipConfig.vipMonthlyAmountTry)}</strong> olarak devam eder.
       </p>
       <div style="margin:0 0 18px 0;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0;padding:16px;">
         <p style="margin:0;font-size:14px;line-height:1.8;color:#334155;">${escapeHtml(PAYMENT_EXPLANATION)}</p>
@@ -231,7 +231,7 @@ function buildVipPaymentReminderEmail(recipient: Recipient, vipPaidUntil: Date) 
     "",
     `VIP ödeme linki: ${VIP_PAYMENT_LINK}`,
     "",
-    "Ödeme yenilenmezse VIP üyeliğiniz standart üyeliğe dönüşür; standart kullanımınız devam eder.",
+    "Ödeme yenilenmezse günlük sorgu hakkınız 15'ten 5'e döner; tanıtım dönemindeki tam VIP içerik erişiminiz devam eder.",
     "",
     "Saygılarımla,",
     "Dr. Hakan Ünsal",
@@ -250,7 +250,7 @@ function buildVipPaymentReminderEmail(recipient: Recipient, vipPaidUntil: Date) 
       </div>
       ${buildVipPaymentButton()}
       <p style="margin:0 0 16px 0;font-size:14px;line-height:1.8;color:#64748b;">
-        Ödeme yenilenmezse VIP üyeliğiniz standart üyeliğe dönüşür; standart kullanımınız devam eder.
+        Ödeme yenilenmezse günlük sorgu hakkınız 15'ten 5'e döner; tanıtım dönemindeki tam VIP içerik erişiminiz devam eder.
       </p>
     `,
   });
@@ -262,13 +262,13 @@ function buildVipDowngradeNoticeEmail(recipient: Recipient, vipPaidUntil: Date) 
   const safeName = recipient.name.trim() || "Değerli üyemiz";
   const escapedName = escapeHtml(safeName);
   const vipEndLabel = formatDateTr(vipPaidUntil);
-  const subject = "Enbilir VIP üyeliğiniz standart üyeliğe döndü";
+  const subject = "Enbilir günlük AI sorgu hakkınız güncellendi";
   const text = [
     `Merhaba ${safeName},`,
     "",
-    `VIP ödeme döneminiz ${vipEndLabel} tarihinde sona erdiği için üyeliğiniz standart üyeliğe dönüştürüldü.`,
+    `VIP ödeme döneminiz ${vipEndLabel} tarihinde sona erdiği için günlük AI sorgu hakkınız 15'ten 5'e döndü.`,
     "",
-    "VIP hizmete devam etmek isterseniz ödeme linkinden yenileme yapabilirsiniz.",
+    "Tanıtım dönemindeki tam VIP içerik erişiminiz sürer. Günlük 15 sorguya devam etmek isterseniz ödeme linkinden yenileme yapabilirsiniz.",
     "",
     `VIP ödeme linki: ${VIP_PAYMENT_LINK}`,
     "",
@@ -282,10 +282,10 @@ function buildVipDowngradeNoticeEmail(recipient: Recipient, vipPaidUntil: Date) 
     bodyHtml: `
       <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;">Merhaba <strong>${escapedName}</strong>,</p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        VIP ödeme döneminiz <strong>${escapeHtml(vipEndLabel)}</strong> tarihinde sona erdiği için üyeliğiniz standart üyeliğe dönüştürüldü.
+        VIP ödeme döneminiz <strong>${escapeHtml(vipEndLabel)}</strong> tarihinde sona erdiği için günlük AI sorgu hakkınız 15'ten 5'e döndü.
       </p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        VIP hizmete devam etmek isterseniz ödeme linkinden yenileme yapabilirsiniz.
+        Tanıtım dönemindeki tam VIP içerik erişiminiz sürer. Günlük 15 sorguya devam etmek isterseniz ödeme linkinden yenileme yapabilirsiniz.
       </p>
       ${buildVipPaymentButton()}
     `,

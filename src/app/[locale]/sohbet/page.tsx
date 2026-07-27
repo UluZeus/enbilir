@@ -71,6 +71,7 @@ export default async function ChatPage({
       <AiMarketChatPanel
         locale={locale}
         membershipTier={membership?.effectiveTier ?? "STANDARD"}
+        isPaidVipActive={membership?.isPaidVipActive ?? false}
         vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null}
         standardPaymentLink={membershipConfig.standardPaymentLink}
         vipPaymentLink={membershipConfig.vipPaymentLink}

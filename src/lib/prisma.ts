@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260718225000_allow_vip_claim_retries";
+const prismaSchemaVersion = "20260727210000_add_ai_daily_query_usage";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -65,6 +65,7 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     vipTradingAgentTrade?: unknown;
     vipTradingAgentDecision?: unknown;
     vipTradingAgentSnapshot?: unknown;
+    aiDailyQueryUsage?: unknown;
   };
 
   return Boolean(
@@ -113,7 +114,8 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.vipTradingAgentPosition &&
       candidate?.vipTradingAgentTrade &&
       candidate?.vipTradingAgentDecision &&
-      candidate?.vipTradingAgentSnapshot,
+      candidate?.vipTradingAgentSnapshot &&
+      candidate?.aiDailyQueryUsage,
   );
 }
 

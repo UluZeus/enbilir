@@ -12,6 +12,14 @@ type ScenarioResponse = {
   error?: string;
   mode?: "openai" | "local";
   membership?: "STANDARD" | "VIP";
+  quota?: {
+    limit: number;
+    used: number;
+    remaining: number;
+    resetAt: string;
+    isPaidVipActive: boolean;
+  };
+  upgradeUrl?: string | null;
 };
 
 const copy = {
@@ -27,6 +35,8 @@ const copy = {
     failure: "Senaryo yanıtı hazırlanamadı.",
     result: "AI senaryo cevabı",
     mode: "Mod",
+    remaining: "Bugün kalan AI sorgusu",
+    upgrade: "100 TL öde, günlük 15 sorguya geç",
     cards: [
       {
         title: "BTC %8 düşerse neye bakılır?",
@@ -58,6 +68,8 @@ const copy = {
     failure: "Scenario answer could not be prepared.",
     result: "AI scenario answer",
     mode: "Mode",
+    remaining: "AI queries remaining today",
+    upgrade: "Pay 100 TL for 15 daily queries",
     cards: [
       {
         title: "If BTC drops 8%",
@@ -90,6 +102,8 @@ export function AiScenarioLab({ locale }: AiScenarioLabProps) {
   const [answer, setAnswer] = useState<string | null>(null);
   const [mode, setMode] = useState<ScenarioResponse["mode"] | null>(null);
   const [membership, setMembership] = useState<ScenarioResponse["membership"] | null>(null);
+  const [quota, setQuota] = useState<ScenarioResponse["quota"] | null>(null);
+  const [upgradeUrl, setUpgradeUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -117,6 +131,9 @@ export function AiScenarioLab({ locale }: AiScenarioLabProps) {
         }),
       });
       const payload = await response.json() as ScenarioResponse;
+
+      setQuota(payload.quota ?? null);
+      setUpgradeUrl(payload.upgradeUrl ?? null);
 
       if (!response.ok || !payload.answer) {
         throw new Error(payload.error || text.failure);
@@ -178,6 +195,12 @@ export function AiScenarioLab({ locale }: AiScenarioLabProps) {
             {isLoading ? text.thinking : text.ask}
           </button>
           {error ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
+          {quota ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900">
+              <p>{text.remaining}: {quota.remaining}/{quota.limit} · 00.00 İstanbul</p>
+              {!quota.isPaidVipActive && upgradeUrl ? <a href={upgradeUrl} className="mt-1 inline-flex font-bold underline underline-offset-2">{text.upgrade} →</a> : null}
+            </div>
+          ) : null}
           </div>
           {answer ? (
             <article className="rounded-xl border border-emerald-200 bg-emerald-50 p-4" aria-live="polite">

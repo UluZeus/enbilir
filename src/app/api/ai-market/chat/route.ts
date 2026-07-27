@@ -15,6 +15,12 @@ import {
   type MarketChatLocale,
 } from "@/lib/ai-market/market-chat";
 import { getSessionUser } from "@/lib/auth";
+import {
+  DailyAiQueryLimitReachedError,
+  getAiQueryQuota,
+  reserveAiQuery,
+} from "@/lib/ai-query-quota";
+import type { AiQueryQuota } from "@/lib/ai-query-policy";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
@@ -43,6 +49,28 @@ const rateLimiter = new FixedWindowRateLimiter({
 
 function normalizeLocale(value: unknown): MarketChatLocale {
   return value === "en" ? "en" : "tr";
+}
+
+function getAuthenticationError(locale: MarketChatLocale) {
+  return locale === "tr"
+    ? "AI sorgusu göndermek için hesabınıza giriş yapın."
+    : "Sign in to your account to send an AI query.";
+}
+
+function getQuotaLimitError(locale: MarketChatLocale, isPaidVipActive: boolean) {
+  if (locale === "en") {
+    return isPaidVipActive
+      ? "You have used today's 15 AI queries. Your allowance resets at midnight Istanbul time."
+      : "You have used today's 5 free AI queries. Your allowance resets at midnight Istanbul time. Upgrade with the 100 TL VIP payment for 15 daily queries.";
+  }
+
+  return isPaidVipActive
+    ? "Bugünkü 15 AI sorgu hakkınızı kullandınız. Hakkınız İstanbul saatiyle gece 00.00'da yenilenir."
+    : "Bugünkü 5 ücretsiz AI sorgu hakkınızı kullandınız. Hakkınız İstanbul saatiyle gece 00.00'da yenilenir. Günlük 15 sorgu için 100 TL VIP ödemesine geçebilirsiniz.";
+}
+
+function getQueryUpgradeUrl(locale: MarketChatLocale) {
+  return `/${locale}/vip?upgrade=queries#ai-query-upgrade`;
 }
 
 function normalizeMessage(value: unknown) {
@@ -313,6 +341,49 @@ async function askOpenAi({
   return null;
 }
 
+async function getAuthenticatedUserMembership() {
+  const sessionUser = await getSessionUser();
+
+  if (!sessionUser) {
+    return null;
+  }
+
+  const fullUser = await prisma.user.findUnique({
+    where: { id: sessionUser.id },
+    select: { createdAt: true, membershipTier: true, vipPaidUntil: true },
+  });
+
+  return fullUser
+    ? { sessionUser, membership: getMembershipSnapshot(fullUser) }
+    : null;
+}
+
+export async function GET(request: Request) {
+  const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
+  const authenticated = await getAuthenticatedUserMembership();
+
+  if (!authenticated) {
+    return NextResponse.json(
+      { error: getAuthenticationError(locale), code: "AUTH_REQUIRED" },
+      { status: 401, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  const quota = await getAiQueryQuota({
+    userId: authenticated.sessionUser.id,
+    isPaidVipActive: authenticated.membership.isPaidVipActive,
+  });
+
+  return NextResponse.json(
+    {
+      membership: authenticated.membership.effectiveTier,
+      quota,
+      upgradeUrl: quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
+    },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const clientKey = getRateLimitClientKey(request.headers);
@@ -337,15 +408,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: locale === "tr" ? "Lütfen bir soru yazın." : "Please enter a question." }, { status: 400 });
     }
 
-    const sessionUser = await getSessionUser();
-    const fullUser = sessionUser
-      ? await prisma.user.findUnique({
-          where: { id: sessionUser.id },
-          select: { createdAt: true, membershipTier: true, vipPaidUntil: true },
-        })
-      : null;
-    const membership = fullUser ? getMembershipSnapshot(fullUser) : null;
-    const isVip = Boolean(membership?.isVipActive);
+    const authenticated = await getAuthenticatedUserMembership();
+
+    if (!authenticated) {
+      return NextResponse.json(
+        { error: getAuthenticationError(locale), code: "AUTH_REQUIRED" },
+        { status: 401, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    const { sessionUser, membership } = authenticated;
+    let quota: AiQueryQuota;
+
+    try {
+      quota = await reserveAiQuery({
+        userId: sessionUser.id,
+        isPaidVipActive: membership.isPaidVipActive,
+      });
+    } catch (error) {
+      if (error instanceof DailyAiQueryLimitReachedError) {
+        return NextResponse.json(
+          {
+            error: getQuotaLimitError(locale, error.quota.isPaidVipActive),
+            code: "DAILY_QUERY_LIMIT_REACHED",
+            quota: error.quota,
+            upgradeUrl: error.quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
+          },
+          { status: 429, headers: { "Cache-Control": "private, no-store" } },
+        );
+      }
+
+      throw error;
+    }
+
+    const isVip = membership.isVipActive;
     const tier = isVip ? "VIP" as const : "STANDARD" as const;
     const [items, latestReport, vipResearch, agentSummaries] = await Promise.all([
       getLiveMarketItems(),
@@ -389,7 +485,7 @@ export async function POST(request: Request) {
 
     await recordSiteAnalyticsEvent({
       eventType: siteAnalyticsEvents.aiChat,
-      userId: sessionUser?.id,
+      userId: sessionUser.id,
       sessionKey: clientKey,
       locale,
       path: `/${locale}/ai-piyasa-asistani`,
@@ -402,6 +498,8 @@ export async function POST(request: Request) {
         sourcesCount: sources.length,
         citationCount: citations.length,
         researchStatus: isVip ? (researched ? "completed" : "unavailable") : "site_only",
+        dailyQueryLimit: quota.limit,
+        dailyQueryUsed: quota.used,
       },
     });
 
@@ -414,6 +512,8 @@ export async function POST(request: Request) {
         sources,
         citations,
         researchStatus: isVip ? (researched ? "completed" : "unavailable") : "site_only",
+        quota,
+        upgradeUrl: quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
       },
       { headers: { "Cache-Control": "private, no-store" } },
     );

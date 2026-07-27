@@ -1,10 +1,13 @@
 import type { MembershipTier } from "@/generated/prisma/enums";
 
 export const membershipConfig = {
+  fullVipPromotionEnabled: true,
   trialDays: 30,
   trialReminderDaysBeforeEnd: 7,
   standardMonthlyAmountTry: 70,
   vipMonthlyAmountTry: 100,
+  freeDailyAiQueryLimit: 5,
+  paidVipDailyAiQueryLimit: 15,
   standardPaymentLink: "https://isyerim.param.com.tr/#/paymentform/paymentrequest/3Ew19YnOU",
   vipPaymentLink: "https://isyerim.param.com.tr/#/paymentform/paymentrequest/hSern8=Ca",
 } as const;
@@ -14,6 +17,8 @@ export type MembershipSnapshot = {
   effectiveTier: MembershipTier;
   isTrialActive: boolean;
   isVipActive: boolean;
+  isPaidVipActive: boolean;
+  hasPromotionalVipAccess: boolean;
   trialEndsAt: Date;
   vipPaidUntil: Date | null;
 };
@@ -35,13 +40,17 @@ export function getMembershipSnapshot(
   const tier = user.membershipTier === "VIP" ? "VIP" : "STANDARD";
   const trialEndsAt = addMembershipDays(user.createdAt, membershipConfig.trialDays);
   const isTrialActive = now < trialEndsAt;
-  const isVipActive = tier === "VIP" && Boolean(user.vipPaidUntil && user.vipPaidUntil > now);
+  const isPaidVipActive = tier === "VIP" && Boolean(user.vipPaidUntil && user.vipPaidUntil > now);
+  const hasPromotionalVipAccess = membershipConfig.fullVipPromotionEnabled;
+  const isVipActive = isPaidVipActive || hasPromotionalVipAccess;
 
   return {
     tier,
     effectiveTier: isVipActive ? "VIP" : "STANDARD",
     isTrialActive,
     isVipActive,
+    isPaidVipActive,
+    hasPromotionalVipAccess,
     trialEndsAt,
     vipPaidUntil: user.vipPaidUntil ?? null,
   };

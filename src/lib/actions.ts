@@ -454,7 +454,7 @@ export async function submitVipPaymentClaimAction(formData: FormData) {
     undefined,
     claimResult.reused
       ? "Bu ödeme bildirimi zaten kayıtlı ve doğrulama durumunu koruyor."
-      : "Ödeme bildiriminiz alındı. Param dekontu doğrulandıktan sonra VIP erişiminiz açılacak.",
+      : "Ödeme bildiriminiz alındı. Param dekontu doğrulandıktan sonra günlük AI sorgu hakkınız 15'e çıkacak.",
   ));
 }
 

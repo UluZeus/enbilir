@@ -103,7 +103,7 @@ export default async function AiMarketAssistantPage({
 
       {activeTab === "chat" ? (
         <div className="grid gap-4">
-          <AiMarketChatPanel locale={locale} membershipTier={membership?.effectiveTier ?? "STANDARD"} vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null} standardPaymentLink={membershipConfig.standardPaymentLink} vipPaymentLink={membershipConfig.vipPaymentLink} />
+          <AiMarketChatPanel locale={locale} membershipTier={membership?.effectiveTier ?? "STANDARD"} isPaidVipActive={membership?.isPaidVipActive ?? false} vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null} standardPaymentLink={membershipConfig.standardPaymentLink} vipPaymentLink={membershipConfig.vipPaymentLink} />
           <AiScenarioLab locale={locale} />
         </div>
       ) : null}

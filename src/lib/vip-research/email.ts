@@ -238,11 +238,10 @@ function renderVipResearchEmail(data: VipResearchEmailData, recipientName: strin
 }
 
 export async function sendVipResearchEmails(reportId: string) {
-  const now = new Date();
   const [emailData, recipients] = await Promise.all([
     loadVipResearchEmailData(reportId),
     prisma.user.findMany({
-      where: { isActive: true, membershipTier: "VIP", vipPaidUntil: { gt: now } },
+      where: { isActive: true },
       select: { id: true, email: true, name: true },
     }),
   ]);
