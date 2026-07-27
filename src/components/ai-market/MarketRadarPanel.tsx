@@ -207,9 +207,6 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
           animation: ai-market-radar-ticker 64s linear infinite;
           will-change: transform;
         }
-        @media (prefers-reduced-motion: reduce) {
-          .ai-market-radar-track { animation: none; transform: none; }
-        }
         .ai-market-radar-viewport {
           contain: layout paint;
           overflow: clip;
