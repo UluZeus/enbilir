@@ -10,6 +10,101 @@ import {
   VIP_AGENT_TRADE_PAGE_SIZE,
 } from "@/lib/vip-agents/calculations";
 import { VIP_AGENT_STRATEGIES } from "@/lib/vip-agents/config";
+import { buildVipAgentDailyTip, type VipAgentTipIdea } from "@/lib/vip-agents/daily-tip";
+
+const DAILY_TIP_IDEA_SELECT = {
+  id: true,
+  symbol: true,
+  displayName: true,
+  currency: true,
+  rank: true,
+  stance: true,
+  thesisSummary: true,
+  confidenceScore: true,
+  riskScore: true,
+  entryLow: true,
+  entryHigh: true,
+  stopLoss: true,
+  targetPrice: true,
+} as const;
+
+export async function getVipAgentDailyTips() {
+  const [latestReport, agentRecords] = await Promise.all([
+    prisma.vipResearchReport.findFirst({
+      orderBy: { generatedAt: "desc" },
+      select: {
+        periodKey: true,
+        ideas: {
+          orderBy: { rank: "asc" },
+          take: 5,
+          select: DAILY_TIP_IDEA_SELECT,
+        },
+      },
+    }),
+    prisma.vipTradingAgent.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        decisions: {
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 60,
+          select: {
+            runKey: true,
+            symbol: true,
+            action: true,
+            priceUsd: true,
+            reason: true,
+            sourceIdeaId: true,
+          },
+        },
+        positions: {
+          select: {
+            symbol: true,
+            stopLossUsd: true,
+            targetPriceUsd: true,
+          },
+        },
+      },
+    }),
+  ]);
+  const recordsById = new Map(agentRecords.map((agent) => [agent.id, agent]));
+  const decisionsByAgent = new Map(agentRecords.map((agent) => {
+    const reportDecisions = latestReport
+      ? agent.decisions.filter((decision) => decision.runKey === latestReport.periodKey)
+      : [];
+    const latestRunKey = agent.decisions[0]?.runKey;
+    const decisions = latestReport
+      ? reportDecisions
+      : latestRunKey
+        ? agent.decisions.filter((decision) => decision.runKey === latestRunKey)
+        : [];
+    return [agent.id, decisions] as const;
+  }));
+  const currentIdeas: VipAgentTipIdea[] = latestReport?.ideas ?? [];
+  const currentIdeaIds = new Set(currentIdeas.map((idea) => idea.id));
+  const historicalIdeaIds = Array.from(new Set(
+    Array.from(decisionsByAgent.values())
+      .flatMap((decisions) => decisions.map((decision) => decision.sourceIdeaId))
+      .filter((ideaId): ideaId is string => typeof ideaId === "string" && !currentIdeaIds.has(ideaId)),
+  ));
+  const historicalIdeas: VipAgentTipIdea[] = historicalIdeaIds.length > 0
+    ? await prisma.vipResearchIdea.findMany({
+        where: { id: { in: historicalIdeaIds } },
+        select: DAILY_TIP_IDEA_SELECT,
+      })
+    : [];
+  const ideas = [...currentIdeas, ...historicalIdeas];
+
+  return VIP_AGENT_STRATEGIES.map((strategy) => {
+    const agent = recordsById.get(strategy.id);
+    return buildVipAgentDailyTip({
+      strategy,
+      decisions: decisionsByAgent.get(strategy.id) ?? [],
+      ideas,
+      positions: agent?.positions ?? [],
+    });
+  });
+}
 
 export async function getVipAgentSummaries() {
   const [agents, realizedPnl] = await Promise.all([

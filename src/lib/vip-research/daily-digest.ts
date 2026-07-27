@@ -1,4 +1,5 @@
 import { VIP_AGENT_STRATEGIES } from "@/lib/vip-agents/config";
+import { buildVipAgentDailyTip, type VipAgentDailyTip } from "@/lib/vip-agents/daily-tip";
 import type { VipEmailChart } from "@/lib/vip-research/email-charts";
 import { renderPremiumVipDailyDigest } from "@/lib/vip-research/premium-daily-digest";
 
@@ -128,6 +129,7 @@ export type VipAgentDigest = {
   name: string;
   riskProfile: string;
   description: string;
+  dailyTip: VipAgentDailyTip;
   dailyActionLabel: string;
   dailyAdvice: string;
   decisions: VipAgentDigestDecision[];
@@ -522,31 +524,28 @@ export function buildVipAgentDigest(agents: VipDigestAgentInput[], ideas: VipDig
     const skippedCount = agent.decisions.filter((decision) => decision.action === "SKIP").length;
     const errorCount = agent.decisions.filter((decision) => decision.action === "ERROR").length;
     const leadDecision = visible[0];
+    const dailyTip = buildVipAgentDailyTip({
+      strategy,
+      decisions: agent.decisions,
+      ideas,
+      positions: agent.positions,
+    });
     const dailyAction = leadDecision
       ? {
           label: `${leadDecision.actionLabel} · ${leadDecision.symbol}`,
           advice: simpleDecisionAdvice(leadDecision),
         }
-      : errorCount > 0 && skippedCount === 0
-        ? {
-            label: "VERİYİ BEKLE",
-            advice: "Veri doğrulanmadı. Bugün işlem yapma. Yeni veriyi bekle.",
-          }
-        : portfolioSummary || skippedCount > 0
-          ? {
-              label: "PORTFÖYÜ KORU",
-              advice: "Bugün yeni alım yapma. Nakit ve portföyü koru. Adaylar işlem eşiğini geçmedi.",
-            }
-          : {
-              label: "BEKLE",
-              advice: "Bugün doğrulanmış yeni karar yok. Yeni işlem yapma. Bir sonraki raporu bekle.",
-            };
+      : {
+          label: `${dailyTip.actionLabelTr}${dailyTip.symbol ? ` · ${dailyTip.symbol}` : ""}`,
+          advice: dailyTip.opinionTr,
+        };
 
     return {
       slug: agent.slug,
       name: agent.name,
       riskProfile: agent.riskProfile,
       description: agent.description,
+      dailyTip,
       dailyActionLabel: dailyAction.label,
       dailyAdvice: dailyAction.advice,
       decisions: visible,

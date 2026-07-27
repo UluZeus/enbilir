@@ -150,7 +150,9 @@ describe("VIP daily digest agent section", () => {
     expect(digest[0].dailyAdvice).toContain("Stop olmadan işlem yapma");
     expect(digest[2].decisions).toEqual([]);
     expect(digest[2].summary).toBe("Portföy özeti");
-    expect(digest[2].dailyActionLabel).toBe("PORTFÖYÜ KORU");
+    expect(digest[2].dailyActionLabel).toBe("İZLE · AAPL");
+    expect(digest[2].dailyTip.statementTr).toContain("Bugün benim düşüncem AAPL");
+    expect(digest[2].dailyTip.statementTr).toContain("Bu benim kararımdır ve yatırım tavsiyesi değildir.");
   });
 
   it("always returns all three agents with a clear safe action", () => {
@@ -161,10 +163,11 @@ describe("VIP daily digest agent section", () => {
     ], ideas);
 
     expect(digest.map((item) => item.name)).toEqual(["SABİT", "OLGUN", "YILDIRIM"]);
-    expect(digest[0]).toMatchObject({ dailyActionLabel: "VERİYİ BEKLE" });
-    expect(digest[0].dailyAdvice).toContain("Bugün işlem yapma");
-    expect(digest[1]).toMatchObject({ dailyActionLabel: "BEKLE" });
-    expect(digest[2]).toMatchObject({ dailyActionLabel: "BEKLE" });
+    expect(digest[0]).toMatchObject({ dailyActionLabel: "BEKLE · AAPL" });
+    expect(digest[0].dailyAdvice).toContain("güncel fiyat doğrulanmadan almamak");
+    expect(digest[1]).toMatchObject({ dailyActionLabel: "İZLE · AAPL" });
+    expect(digest[2]).toMatchObject({ dailyActionLabel: "İZLE · AAPL" });
+    expect(digest.every((item) => item.dailyTip.statementTr.endsWith("Bu benim kararımdır ve yatırım tavsiyesi değildir."))).toBe(true);
   });
 
   it("turns an all-skip day into a clear portfolio protection decision", () => {
@@ -175,8 +178,9 @@ describe("VIP daily digest agent section", () => {
       ]),
     ], ideas);
 
-    expect(digest[0].dailyActionLabel).toBe("PORTFÖYÜ KORU");
-    expect(digest[0].dailyAdvice).toBe("Bugün yeni alım yapma. Nakit ve portföyü koru. Adaylar işlem eşiğini geçmedi.");
+    expect(digest[0].dailyActionLabel).toBe("İZLE · AAPL");
+    expect(digest[0].dailyAdvice).toContain("190,00 USD–198,00 USD");
+    expect(digest[0].dailyAdvice).toContain("yalnız hacimli teknik teyit gelirse");
     expect(digest[0].decisions).toEqual([]);
   });
 });
@@ -269,6 +273,11 @@ describe("VIP premium email renderer", () => {
     expect(digest.html).toContain("ERKEN UYARI RADARI");
     expect(digest.html).toContain("SABİT, OLGUN ve YILDIRIM");
     expect(digest.html.match(/GÜNÜN KARARI/g)).toHaveLength(3);
+    expect(digest.html).toContain('data-daily-tips="true"');
+    expect(digest.html.match(/data-agent-tip=/g)).toHaveLength(3);
+    expect(digest.html.match(/Bu benim kararımdır ve yatırım tavsiyesi değildir\./g)).toHaveLength(3);
+    expect(digest.html.indexOf("BUGÜNÜN ÖNEMLİ HABERLERİ")).toBeLessThan(digest.html.indexOf("GÜNÜN TÜYOLARI"));
+    expect(digest.html.indexOf("GÜNÜN TÜYOLARI")).toBeLessThan(digest.html.indexOf("SABİT, OLGUN ve YILDIRIM sanal portföy ajanlarıdır"));
     expect(digest.html).toContain("Hızlı yükselen fiyatın peşinden gitme");
     expect(digest.html).toContain("Düşüş riski arttı");
     expect(digest.html).toContain("AAPL düşebilir");
@@ -292,6 +301,8 @@ describe("VIP premium email renderer", () => {
     expect(digest.html).not.toContain("SYM4");
     expect(digest.text).toContain("332 VARLIKTA ERKEN UYARI");
     expect(digest.text).toContain("VIP AJANLARININ BUGÜNKÜ KARARI");
+    expect(digest.text).toContain("GÜNÜN TÜYOLARI");
+    expect(digest.text.match(/Bu benim kararımdır ve yatırım tavsiyesi değildir\./g)).toHaveLength(3);
     expect(digest.text).toContain("SON 3 GÜN PİYASA PANOSU");
     expect(digest.html.indexOf("XAG/USD")).toBeLessThan(digest.html.indexOf("XAU/USD"));
     expect(digest.html.indexOf("XAU/USD")).toBeLessThan(digest.html.indexOf("NVDA"));

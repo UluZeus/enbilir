@@ -196,7 +196,7 @@ async function loadVipResearchEmailData(reportId: string) {
     report: reportUrl,
     macroReport: macroReport ? `${siteUrl}/tr/ai-piyasa-asistani/raporlar/${macroReport.id}` : null,
     agents: `${siteUrl}/tr/vip/ajanlar`,
-    agent: (slug: string) => `${siteUrl}/tr/vip/ajanlar/${encodeURIComponent(slug)}#karar-izi`,
+    agent: (slug: string) => `${siteUrl}/tr/vip/ajanlar/${encodeURIComponent(slug)}#gunun-gorusu`,
     idea: (ideaId: string) => `${reportUrl}#idea-${encodeURIComponent(ideaId)}`,
     asset: (symbol: string) => `${siteUrl}/tr/islem-yap?symbol=${encodeURIComponent(symbol)}`,
   };

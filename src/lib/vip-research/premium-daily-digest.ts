@@ -352,6 +352,28 @@ function renderAgentCards(agents: VipAgentDigest[]) {
   }).join("");
 }
 
+function renderDailyTipCards(agents: VipAgentDigest[], agentUrl: (slug: string) => string) {
+  if (agents.length === 0) {
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="margin-top:14px;border:1px solid #e1d7c5;border-collapse:separate;border-radius:12px"><tr><td style="padding:16px;font-size:13px;line-height:1.6;color:#5f6b78">Bugün doğrulanmış ajan görüşü yok. Yeni işlem yapma; güncel raporu bekle.</td></tr></table>`;
+  }
+
+  return agents.map((agent) => {
+    const tip = agent.dailyTip;
+    const palette = agentPalette(agent.name);
+    const symbol = tip.symbol ?? "NAKİT";
+    const entry = tip.entryLow !== null && tip.entryHigh !== null
+      ? `${formatPriceLevel(tip.entryLow, tip.currency)}–${formatPriceLevel(tip.entryHigh, tip.currency)}`
+      : formatPriceLevel(tip.referencePrice, tip.currency);
+
+    return `<table data-agent-tip="${escapeHtml(agent.slug)}" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="margin-top:14px;border:1px solid ${palette.border};border-top:4px solid ${palette.accent};border-collapse:separate;border-radius:13px"><tr><td style="padding:16px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="46" valign="middle"><table role="presentation" width="40" height="40" bgcolor="${palette.accent}" style="border-radius:12px"><tr><td align="center" valign="middle" style="font-size:18px;font-weight:900;color:#ffffff">${palette.monogram}</td></tr></table></td><td valign="middle"><p style="margin:0;font-size:17px;font-weight:900;color:#172033">${escapeHtml(agent.name)}</p><p style="margin:3px 0 0;font-size:10px;font-weight:900;letter-spacing:.1em;color:${palette.accent}">${escapeHtml(agent.riskProfile)}</p></td><td align="right" valign="middle"><span style="display:inline-block;padding:7px 10px;border-radius:99px;background:${palette.pale};color:${palette.accent};font-size:11px;font-weight:900">${escapeHtml(tip.actionLabelTr)} · ${escapeHtml(symbol)}</span></td></tr></table>
+      <p style="margin:14px 0 0;font-family:Georgia,serif;font-size:15px;line-height:1.68;color:#263342">${escapeHtml(tip.statementTr)}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f9fa" style="margin-top:13px;border:1px solid #e3e7ea;border-collapse:separate;border-radius:9px"><tr><td class="tip-level-cell" width="34%" valign="top" style="padding:10px 8px;text-align:center;border-right:1px solid #e3e7ea"><p style="margin:0;font-size:9px;font-weight:800;color:#778391">GİRİŞ / REFERANS</p><p style="margin:4px 0 0;font-size:11px;font-weight:900;line-height:1.45;color:#172033">${escapeHtml(entry)}</p></td><td class="tip-level-cell" width="33%" valign="top" style="padding:10px 8px;text-align:center;border-right:1px solid #e3e7ea"><p style="margin:0;font-size:9px;font-weight:800;color:#778391">STOP</p><p style="margin:4px 0 0;font-size:11px;font-weight:900;color:#b83250">${escapeHtml(formatPriceLevel(tip.stopLoss, tip.currency))}</p></td><td class="tip-level-cell" width="33%" valign="top" style="padding:10px 8px;text-align:center"><p style="margin:0;font-size:9px;font-weight:800;color:#778391">HEDEF</p><p style="margin:4px 0 0;font-size:11px;font-weight:900;color:#0f766e">${escapeHtml(formatPriceLevel(tip.targetPrice, tip.currency))}</p></td></tr></table>
+      <p style="margin:12px 0 0"><a href="${escapeHtml(agentUrl(agent.slug))}" style="font-size:12px;font-weight:900;color:${palette.accent};text-decoration:none">${escapeHtml(agent.name)} detayını ve işlem planını aç →</a></p>
+    </td></tr></table>`;
+  }).join("");
+}
+
 function renderScoreBar(label: string, value: number, color: string) {
   const width = Math.max(1, Math.min(100, value));
   return `<td class="stack" width="50%" valign="top"><p style="margin:0 0 5px;font-size:10px;font-weight:800;color:#697684">${escapeHtml(label)} <strong style="color:#172033">${value}/100</strong></p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#e7ebee" style="border-radius:99px"><tr><td width="${width}%" height="6" bgcolor="${color}" style="height:6px;border-radius:99px;font-size:1px;line-height:1px">&nbsp;</td><td width="${100 - width}%" height="6" style="height:6px;font-size:1px;line-height:1px">&nbsp;</td></tr></table></td>`;
@@ -486,6 +508,21 @@ export function renderPremiumVipDailyDigest(input: VipDailyDigestInput) {
     "BUGÜNÜN ÖNEMLİ HABERLERİ",
     ...[...news.macro, ...news.micro].map((item) => `${item.source}: ${compactText(item.title, 150)} ${newsImpact(item)} ${item.link}`),
     "",
+    "GÜNÜN TÜYOLARI",
+    ...agents.flatMap((agent) => {
+      const tip = agent.dailyTip;
+      const symbol = tip.symbol ?? "NAKİT";
+      const entry = tip.entryLow !== null && tip.entryHigh !== null
+        ? `${formatPriceLevel(tip.entryLow, tip.currency)}–${formatPriceLevel(tip.entryHigh, tip.currency)}`
+        : formatPriceLevel(tip.referencePrice, tip.currency);
+      return [
+        `${agent.name} · ${agent.riskProfile} · ${tip.actionLabelTr} ${symbol}`,
+        tip.statementTr,
+        `Giriş / referans: ${entry} · Stop: ${formatPriceLevel(tip.stopLoss, tip.currency)} · Hedef: ${formatPriceLevel(tip.targetPrice, tip.currency)}`,
+        `Detay: ${urls.agent(agent.slug)}`,
+        "",
+      ];
+    }),
     `Tam VIP raporu: ${urls.report}`,
     `VIP ajan masası: ${urls.agents}`,
     macroReport && urls.macroReport ? `Makro rapor: ${urls.macroReport}` : "",
@@ -497,7 +534,7 @@ export function renderPremiumVipDailyDigest(input: VipDailyDigestInput) {
 
   const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light only"><title>${escapeHtml(subject)}</title><style>
     body{margin:0!important;padding:0!important;background:#edf1f2!important}body,table,td,p,a{font-family:Arial,sans-serif}.email-shell{width:680px;max-width:680px}.px{padding-left:28px!important;padding-right:28px!important}.stack-spacer{font-size:1px;line-height:1px}.chart-image{width:100%!important;height:auto!important}
-    @media only screen and (max-width:620px){.email-shell{width:100%!important;max-width:100%!important}.px{padding-left:16px!important;padding-right:16px!important}.stack{display:block!important;width:100%!important;box-sizing:border-box!important}.stack-spacer{display:block!important;width:100%!important;height:10px!important;font-size:10px!important;line-height:10px!important}.hide-mobile{display:none!important}.hero-title{font-size:27px!important;line-height:1.15!important}.stat-cell{display:block!important;width:100%!important;border-right:0!important;border-bottom:1px solid #39505c!important}.stat-cell:last-child{border-bottom:0!important}.mobile-center{text-align:center!important}.chart-image{max-width:100%!important}}
+    @media only screen and (max-width:620px){.email-shell{width:100%!important;max-width:100%!important}.px{padding-left:16px!important;padding-right:16px!important}.stack{display:block!important;width:100%!important;box-sizing:border-box!important}.stack-spacer{display:block!important;width:100%!important;height:10px!important;font-size:10px!important;line-height:10px!important}.hide-mobile{display:none!important}.hero-title{font-size:27px!important;line-height:1.15!important}.stat-cell{display:block!important;width:100%!important;border-right:0!important;border-bottom:1px solid #39505c!important}.stat-cell:last-child{border-bottom:0!important}.tip-level-cell{display:block!important;width:100%!important;box-sizing:border-box!important;border-right:0!important;border-bottom:1px solid #e3e7ea!important}.tip-level-cell:last-child{border-bottom:0!important}.mobile-center{text-align:center!important}.chart-image{max-width:100%!important}}
   </style><!--[if mso]><style>table{border-collapse:collapse!important}.email-shell{width:680px!important}</style><![endif]--></head><body>
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">Genel ekonomik görünüm, üç VIP ajanının kararı ve 11 varlığın üç günlük grafiği.</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#edf1f2"><tr><td align="center" style="padding:22px 8px">
@@ -545,6 +582,10 @@ export function renderPremiumVipDailyDigest(input: VipDailyDigestInput) {
 
         <tr><td class="px" bgcolor="#f7f9fa" style="padding-top:27px;padding-bottom:29px;border-bottom:1px solid #e1e6e8">
           <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.13em;color:#0f766e">BUGÜNÜN ÖNEMLİ HABERLERİ</p><h2 style="margin:6px 0 6px;font-family:Georgia,serif;font-size:24px;color:#172033">Yalnız fiyatlamayı etkileyebilecek başlıklar</h2><p style="margin:0;font-size:12px;line-height:1.6;color:#5f6b78">Başlık ve olası etkisi açıkça yazıyor. Kaynak bağlantısı doğrulama içindir.</p>${renderNewsList("Makro gelişmeler", news.macro)}${renderNewsList("Şirket ve sektör gelişmeleri", news.micro)}${news.macro.length + news.micro.length === 0 ? `<p style="margin:14px 0 0;font-size:13px;color:#5f6b78">Bugün e-posta eşiğini geçen yeni haber yok.</p>` : ""}
+        </td></tr>
+
+        <tr><td data-daily-tips="true" class="px" bgcolor="#f3eee3" style="padding-top:28px;padding-bottom:30px;border-bottom:1px solid #d9cfbd">
+          <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.14em;color:#8a6418">GÜNÜN TÜYOLARI</p><h2 style="margin:6px 0 6px;font-family:Georgia,serif;font-size:25px;color:#172033">Üç risk iştahı, üç net görüş</h2><p style="margin:0;font-size:12px;line-height:1.62;color:#655f55">Her ajan kendi risk sınırına göre varlığı, eylemi ve fiyat seviyelerini ayrı ayrı açıklıyor.</p>${renderDailyTipCards(agents, urls.agent)}
         </td></tr>
 
         <tr><td class="px" bgcolor="#101c27" style="padding-top:23px;padding-bottom:24px"><p style="margin:0;font-size:11px;line-height:1.6;color:#b8c7cf">SABİT, OLGUN ve YILDIRIM sanal portföy ajanlarıdır; gerçek emir göndermez. ${escapeHtml(report.disclaimer)}</p><p style="margin:11px 0 0;font-size:11px;line-height:1.6;color:#b8c7cf">Bu içerik, Dr. Hakan Ünsal tarafından eğitilmiş yapay zeka tarafından üretilmiştir. Yapay zeka hata yapabilir. Son karar ve sorumluluk kullanıcıya aittir.</p><p style="margin:15px 0 0"><a href="${escapeHtml(urls.home)}" style="font-size:12px;font-weight:900;color:#d3a23f;text-decoration:none">enbilir.com →</a></p></td></tr>

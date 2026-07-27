@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { getVipAgentDetail, getVipAgentSummaries } from "@/lib/vip-agents/dashboard";
+import type { VipAgentDailyTip } from "@/lib/vip-agents/daily-tip";
 
 type AgentSummary = Awaited<ReturnType<typeof getVipAgentSummaries>>[number];
 type AgentDetail = NonNullable<Awaited<ReturnType<typeof getVipAgentDetail>>>;
@@ -118,6 +119,72 @@ function Metric({ label, value, detail, tone = "text-slate-950" }: { label: stri
   );
 }
 
+function tipPrice(value: number | null, currency: string, locale: Locale) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  const maximumFractionDigits = Math.abs(value) < 1 ? 4 : 2;
+  return `${value.toLocaleString(locale === "tr" ? "tr-TR" : "en-US", {
+    minimumFractionDigits: Math.min(2, maximumFractionDigits),
+    maximumFractionDigits,
+  })} ${currency}`;
+}
+
+function tipActionTone(action: VipAgentDailyTip["action"]) {
+  if (action === "BUY") return "border-emerald-200 bg-emerald-100 text-emerald-800";
+  if (action === "SELL" || action === "AVOID") return "border-rose-200 bg-rose-100 text-rose-800";
+  if (action === "HOLD" || action === "WATCH") return "border-amber-200 bg-amber-100 text-amber-900";
+  return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
+function AgentDailyTipCard({ tip, locale, compact = false, anchorId }: { tip: VipAgentDailyTip; locale: Locale; compact?: boolean; anchorId?: string }) {
+  const tr = locale === "tr";
+  const statement = tr ? tip.statementTr : tip.statementEn;
+  const rationale = tr ? tip.rationaleTr : tip.rationaleEn;
+  const range = tip.entryLow !== null || tip.entryHigh !== null
+    ? `${tipPrice(tip.entryLow, tip.currency, locale)} – ${tipPrice(tip.entryHigh, tip.currency, locale)}`
+    : "—";
+  const levels = [
+    { label: tr ? "Giriş alanı" : "Entry zone", value: range, tone: "text-slate-900" },
+    { label: "Stop", value: tipPrice(tip.stopLoss, tip.currency, locale), tone: "text-rose-700" },
+    { label: tr ? "Hedef" : "Target", value: tipPrice(tip.targetPrice, tip.currency, locale), tone: "text-emerald-700" },
+  ];
+
+  return (
+    <section id={anchorId} className={`scroll-mt-24 rounded-2xl border border-[#d8c486]/60 bg-[linear-gradient(145deg,#fffdf7,#fff7df)] ${compact ? "p-4" : "p-5 md:p-6"}`} data-testid={`daily-tip-${tip.agentSlug}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-800">{tr ? "Bugünün görüşü" : "Today’s view"}</p>
+          <h2 className={`${compact ? "mt-1 text-xl" : "mt-2 text-2xl"} font-bold text-slate-950`}>
+            {tip.symbol ? `${tip.agentName} · ${tip.symbol}` : tip.agentName}
+          </h2>
+        </div>
+        <span className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${tipActionTone(tip.action)}`}>
+          {tr ? tip.actionLabelTr : tip.actionLabelEn}
+        </span>
+      </div>
+      <p className={`${compact ? "mt-3 text-sm" : "mt-4 text-base"} font-semibold leading-7 text-slate-800`}>{statement}</p>
+      {tip.symbol ? (
+        <div className={`mt-4 grid gap-2 ${compact ? "grid-cols-1" : "sm:grid-cols-3"}`}>
+          {levels.map((level) => (
+            <div key={level.label} className="rounded-xl border border-amber-100 bg-white/80 px-3 py-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">{level.label}</p>
+              <p className={`mt-1 text-xs font-bold tabular-nums ${level.tone}`}>{level.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {!compact ? (
+        <>
+          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold">
+            {tip.confidenceScore !== null ? <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-800">{tr ? "Güven" : "Confidence"} {tip.confidenceScore}/100</span> : null}
+            {tip.riskScore !== null ? <span className="rounded-full bg-rose-50 px-3 py-1.5 text-rose-800">{tr ? "Risk" : "Risk"} {tip.riskScore}/100</span> : null}
+          </div>
+          <p className="mt-4 border-t border-amber-200/70 pt-4 text-xs leading-6 text-slate-600"><strong className="text-slate-900">{tr ? "Neden?" : "Why?"}</strong> {rationale}</p>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function EquityComparison({ agents, locale }: { agents: AgentSummary[]; locale: Locale }) {
   const tr = locale === "tr";
   const points = agents.flatMap((agent) => agent.equityHistory.map((point) => ({ ...point, slug: agent.slug })));
@@ -220,23 +287,33 @@ export function VipAgentPublicSummary({ agents, locale }: { agents: AgentSummary
   return <section className="overflow-hidden rounded-[1.75rem] border border-[#d8c486]/45 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.1)]" data-testid="public-vip-agents"><div className="border-b border-white/10 bg-[#07111f] px-6 py-6 text-white md:flex md:items-center md:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e7c977]">Enbilir VIP · {tr ? "Canlı sanal portföyler" : "Live virtual portfolios"}</p><h2 className="mt-2 text-2xl font-bold">{tr ? "VIP ajanlarının ölçülen performansı" : "Measured VIP agent performance"}</h2></div><Link href={`/${locale}/vip`} className="mt-4 inline-flex rounded-xl border border-[#e7c977]/60 px-4 py-2.5 text-sm font-semibold text-[#f3dda0] transition hover:bg-[#e7c977] hover:text-[#07111f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e7c977] md:mt-0">{tr ? "VIP detaylarını gör" : "See VIP details"}</Link></div><div className="grid md:grid-cols-3">{agents.map((agent) => { const weekly = agent.periods.find((period) => period.key === "weekly")!; const monthly = agent.periods.find((period) => period.key === "monthly")!; const skin = identity(agent.slug); return <article key={agent.id} className="border-b border-slate-200 p-5 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0"><div className="flex items-center justify-between gap-3"><div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${skin.light}`}><AgentGlyph slug={agent.slug}/></div><VirtualBadge locale={locale}/></div><h3 className="mt-4 text-2xl font-bold text-slate-950">{agent.name}</h3><p className={`mt-3 text-3xl font-bold tabular-nums ${pnlTone(weekly.returnPercent)}`}>{percent(weekly.returnPercent, locale)}</p><p className="mt-1 text-sm text-slate-600">{weekly.pnlUsd >= 0 ? (tr ? `${money(weekly.pnlUsd, locale)} haftalık sonuç` : `${money(weekly.pnlUsd, locale)} weekly result`) : (tr ? `${money(Math.abs(weekly.pnlUsd), locale)} haftalık kayıp` : `${money(Math.abs(weekly.pnlUsd), locale)} weekly loss`)}</p><div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 text-xs"><span className="font-medium text-slate-500">{tr ? "Bu ay" : "This month"}</span><span className={`font-bold tabular-nums ${pnlTone(monthly.returnPercent)}`}>{percent(monthly.returnPercent, locale)} · {money(monthly.pnlUsd, locale)}</span></div><p className="mt-3 text-[11px] leading-5 text-slate-500">{tr ? "Yüzdeler 1.000.000 USD performans tabanındadır." : "Returns use a fixed USD 1,000,000 performance base."}</p></article>; })}</div></section>;
 }
 
-export function VipAgentOverview({ agents, locale }: { agents: AgentSummary[]; locale: Locale }) {
+export function VipAgentOverview({ agents, dailyTips, locale }: { agents: AgentSummary[]; dailyTips: VipAgentDailyTip[]; locale: Locale }) {
   const tr = locale === "tr";
   return <div className="space-y-7" data-testid="vip-agent-overview">
     <header className="overflow-hidden rounded-[2rem] border border-[#e7c977]/30 bg-[radial-gradient(circle_at_85%_10%,rgba(231,201,119,0.16),transparent_32%),linear-gradient(145deg,#07111f,#101d32)] p-7 text-white shadow-[0_30px_90px_rgba(2,8,23,0.24)] md:p-10"><div className="flex flex-wrap items-center gap-2"><VirtualBadge locale={locale}/><span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-[11px] font-semibold text-slate-200">{tr ? "3 risk karakteri" : "3 risk profiles"}</span></div><p className="mt-7 text-xs font-semibold uppercase tracking-[0.22em] text-[#e7c977]">Enbilir VIP · {tr ? "Otonom portföy masası" : "Autonomous portfolio desk"}</p><h1 className="mt-3 text-4xl font-bold tracking-tight md:text-6xl">SABİT · OLGUN · YILDIRIM</h1><p className="mt-5 max-w-4xl text-sm leading-7 text-slate-300 md:text-base">{tr ? "Üç ayrı risk disiplini, tek ölçüm standardı. Her ajan 1.100.000 USD toplam bakiye ile başlar; 100.000 USD koruma rezervidir ve bütün getiriler 1.000.000 USD aktif sermaye üzerinden ölçülür." : "Three distinct risk disciplines, one measurement standard. Each agent starts with USD 1,100,000; USD 100,000 is ring-fenced and all returns are measured against USD 1,000,000 of active capital."}</p></header>
 
     <section className="rounded-[1.75rem] border border-slate-800 bg-[#0b1526] p-5 text-white shadow-xl md:p-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c977]">{tr ? "Karşılaştırmalı özsermaye" : "Comparative equity"}</p><h2 className="mt-2 text-2xl font-bold">{tr ? "1.000.000 USD performans tabanı" : "USD 1,000,000 performance base"}</h2></div><p className="text-xs text-slate-400">{tr ? "Tüm kayıtlı snapshotlar · temettü hariç" : "All saved snapshots · dividends excluded"}</p></div><div className="mt-6"><EquityComparison agents={agents} locale={locale}/></div></section>
 
+    <section className="rounded-[1.75rem] border border-amber-200 bg-white p-5 shadow-sm md:p-7">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">{tr ? "Üç risk profili · üç günlük görüş" : "Three risk profiles · three daily views"}</p>
+      <h2 className="mt-2 text-2xl font-bold text-slate-950">{tr ? "Bugünün ajan tavsiyeleri" : "Today’s agent views"}</h2>
+      <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{tr ? "Her ajan aynı VIP araştırmasını kendi güven, risk ve giriş toleransına göre yorumlar. İşlem koşulu yoksa bile izlenecek varlığı ve vazgeçme seviyesini açıkça söyler." : "Each agent interprets the same VIP research through its own confidence, risk and entry tolerance. Even without a trade, it states the asset to watch and the invalidation level."}</p>
+      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        {dailyTips.map((tip) => <AgentDailyTipCard key={tip.agentSlug} tip={tip} locale={locale} compact />)}
+      </div>
+    </section>
+
     <div className="grid gap-5 xl:grid-cols-3">{agents.map((agent) => { const skin = identity(agent.slug); return <article key={agent.id} className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_22px_65px_rgba(15,23,42,0.08)]"><div className="bg-[#0b1526] p-6 text-white"><div className="flex items-start justify-between gap-3"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${skin.soft}`}><AgentGlyph slug={agent.slug} className="h-7 w-7"/></div><VirtualBadge locale={locale}/></div><p className={`mt-5 text-xs font-semibold uppercase tracking-[0.16em] ${skin.accent}`}>{tr ? skin.eyebrowTr : skin.eyebrowEn}</p><h2 className="mt-1 text-4xl font-bold">{agent.name}</h2><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{tr ? skin.profileTr : skin.profileEn}</p><p className="mt-3 min-h-14 text-sm leading-6 text-slate-300">{localizedDescription(agent, locale)}</p><div className="mt-5 flex flex-wrap gap-2"><FreshnessBadge value={agent.latestSnapshotAt ?? agent.lastRunAt} locale={locale}/><span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-[11px] font-semibold text-slate-200">{agent.openPositionCount} {tr ? "açık pozisyon" : "open positions"}</span></div></div><div className="p-6"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{tr ? "Toplam hesap" : "Total account"}</p><p className="mt-1 text-3xl font-bold tabular-nums text-slate-950">{money(agent.totalBalanceUsd, locale)}</p><p className={`mt-2 text-sm font-bold tabular-nums ${pnlTone(agent.totalPnlUsd)}`}>{percent(agent.totalReturnPercent, locale)} · {money(agent.totalPnlUsd, locale)} P/L</p><dl className="mt-5 grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{tr ? "Yatırılmış" : "Invested"}</dt><dd className="mt-1 font-bold tabular-nums text-slate-900">{money(agent.positionsValueUsd, locale)}</dd></div><div className="rounded-xl bg-slate-50 p-3"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{tr ? "Kullanılabilir nakit" : "Deployable cash"}</dt><dd className="mt-1 font-bold tabular-nums text-slate-900">{money(agent.deployableCashUsd, locale)}</dd></div><div className="rounded-xl bg-slate-50 p-3"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{tr ? "Gerçekleşen" : "Realized"}</dt><dd className={`mt-1 font-bold tabular-nums ${pnlTone(agent.realizedPnlUsd)}`}>{money(agent.realizedPnlUsd, locale)}</dd></div><div className="rounded-xl bg-slate-50 p-3"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{tr ? "Gerçekleşmemiş" : "Unrealized"}</dt><dd className={`mt-1 font-bold tabular-nums ${pnlTone(agent.unrealizedPnlUsd)}`}>{money(agent.unrealizedPnlUsd, locale)}</dd></div></dl><div className="mt-5 grid grid-cols-2 gap-2">{agent.periods.map((period) => <div key={period.key} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-semibold uppercase text-slate-500">{tr ? period.labelTr : period.labelEn}{period.isPartial ? "*" : ""}</p><p className={`mt-1 font-bold tabular-nums ${pnlTone(period.returnPercent)}`}>{percent(period.returnPercent, locale)}</p><p className="text-xs tabular-nums text-slate-500">{money(period.pnlUsd, locale)}</p></div>)}</div><div className="mt-4 flex items-center justify-between text-xs text-slate-500"><span>{agent.tradeCount} {tr ? "işlem" : "trades"}</span><span>{tr ? "Maks. düşüş" : "Max drawdown"} <strong className="tabular-nums text-rose-600">-{agent.maximumDrawdownPercent.toFixed(2)}%</strong></span></div><Link href={`/${locale}/vip/ajanlar/${agent.slug}`} className="mt-5 inline-flex w-full justify-center rounded-xl bg-[#e7c977] px-4 py-3 text-sm font-semibold text-[#07111f] transition hover:bg-[#f3dda0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2">{tr ? "Portföyü ve tüm işlemleri aç" : "Open portfolio and all trades"}</Link></div></article>; })}</div>
     <p className="text-xs leading-5 text-slate-500">* {tr ? "Ajan dönemden daha yeniyse sonuç kuruluş tarihinden bugüne ölçülür. Gösterilen işlemler sanaldır." : "If an agent is newer than a period, the result is measured since inception. All displayed trades are virtual."}</p>
   </div>;
 }
 
-export function VipAgentDetailView({ agent, locale }: { agent: AgentDetail; locale: Locale }) {
+export function VipAgentDetailView({ agent, dailyTip, locale }: { agent: AgentDetail; dailyTip?: VipAgentDailyTip; locale: Locale }) {
   const tr = locale === "tr";
   const skin = identity(agent.slug);
   const date = (value: Date) => new Intl.DateTimeFormat(tr ? "tr-TR" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" }).format(value);
   return <div className="space-y-7" data-testid={`vip-agent-${agent.slug}`}>
+    {dailyTip ? <AgentDailyTipCard tip={dailyTip} locale={locale} anchorId="gunun-gorusu" /> : null}
     <header className="overflow-hidden rounded-[2rem] border border-[#e7c977]/30 bg-[radial-gradient(circle_at_85%_10%,rgba(231,201,119,0.14),transparent_32%),linear-gradient(145deg,#07111f,#101d32)] p-7 text-white shadow-[0_30px_90px_rgba(2,8,23,0.24)] md:p-10"><Link href={`/${locale}/vip/ajanlar`} className="inline-flex rounded-lg text-sm font-semibold text-[#f3dda0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e7c977]">← {tr ? "Tüm ajanlar" : "All agents"}</Link><div className="mt-6 flex flex-wrap items-end justify-between gap-6"><div className="max-w-3xl"><div className="flex flex-wrap items-center gap-3"><div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${skin.soft}`}><AgentGlyph slug={agent.slug} className="h-8 w-8"/></div><div><p className={`text-xs font-semibold uppercase tracking-[0.18em] ${skin.accent}`}>{tr ? skin.eyebrowTr : skin.eyebrowEn}</p><h1 className="mt-1 text-5xl font-bold tracking-tight">{agent.name}</h1><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{tr ? skin.profileTr : skin.profileEn}</p></div></div><p className="mt-5 text-sm leading-7 text-slate-300">{localizedDescription(agent, locale)}</p><div className="mt-5 flex flex-wrap gap-2"><VirtualBadge locale={locale}/><FreshnessBadge value={agent.latestSnapshotAt ?? agent.lastRunAt} locale={locale}/></div></div><div className="min-w-60 rounded-2xl border border-white/10 bg-white/6 p-5"><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{tr ? "Toplam hesap" : "Total account"}</p><p className="mt-1 text-3xl font-bold tabular-nums">{money(agent.totalBalanceUsd, locale)}</p><p className={`mt-2 font-bold tabular-nums ${agent.totalPnlUsd >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{percent(agent.totalReturnPercent, locale)} · {money(agent.totalPnlUsd, locale)}</p></div></div></header>
 
     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label={tr ? "Kullanılabilir nakit" : "Deployable cash"} value={money(agent.deployableCashUsd, locale)} detail={tr ? `Koruma rezervi: ${money(agent.reserveUsd, locale)}` : `Protected reserve: ${money(agent.reserveUsd, locale)}`}/><Metric label={tr ? "Açık pozisyon değeri" : "Open position value"} value={money(agent.positionsValueUsd, locale)} detail={`${agent.positions.length} ${tr ? "açık pozisyon" : "open positions"}`}/><Metric label={tr ? "Gerçekleşen P/L" : "Realized P/L"} value={money(agent.realizedPnlUsd, locale)} tone={pnlTone(agent.realizedPnlUsd)} detail={`${agent._count.trades} ${tr ? "kayıtlı işlem" : "recorded trades"}`}/><Metric label={tr ? "Gerçekleşmemiş P/L" : "Unrealized P/L"} value={money(agent.unrealizedPnlUsd, locale)} tone={pnlTone(agent.unrealizedPnlUsd)} detail={`${tr ? "Maksimum düşüş" : "Max drawdown"}: -${agent.maximumDrawdownPercent.toFixed(2)}%`}/></section>
