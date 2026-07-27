@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import nextConfig from "../../next.config";
 import robots from "@/app/robots";
+import { buildStructuredData, getSeoPage } from "@/lib/seo";
 
 describe("SEO routing", () => {
   it("keeps only API endpoints blocked from crawling", () => {
@@ -28,5 +29,16 @@ describe("SEO routing", () => {
       expect.objectContaining({ source: "/ligler/:path*", destination: "/tr/ligler/:path*", permanent: true }),
       expect.objectContaining({ source: "/topluluk/:path*", destination: "/tr/topluluk/:path*", permanent: true }),
     ]));
+  });
+
+  it("describes the current full-access launch promotion without an expired 30-day claim", () => {
+    const registerSeo = getSeoPage("register", "tr");
+    const structuredData = JSON.stringify(buildStructuredData("tr"));
+
+    expect(registerSeo.title).toContain("Tanıtım Döneminde Tam VIP Erişim");
+    expect(registerSeo.description).toContain("günlük 5 AI sorgusu");
+    expect(registerSeo.title).not.toContain("30 Gün");
+    expect(structuredData).toContain("ücretsiz tam VIP içerik erişimi");
+    expect(structuredData).not.toContain("30 gün ücretsiz");
   });
 });

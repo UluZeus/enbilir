@@ -10,7 +10,7 @@ const TRIAL_REMINDER_AFTER_DAYS = TRIAL_DAYS - TRIAL_REMINDER_DAYS_BEFORE_END;
 const ISTANBUL_TIME_ZONE = "Europe/Istanbul";
 
 const PAYMENT_EXPLANATION =
-  `Standart üyelikte ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} aylık katkı gönüllülük esasına bağlıdır. Bu katkı, sitedeki canlı/cache piyasa verisi ve standart AI sohbet altyapısının maliyetini karşılamaya destek olur; ödeme yapılmasa da standart kullanımınız, site sürdürülebilirliği izin verdiği sürece devam eder.`;
+  `Tanıtım döneminde tam VIP içerik erişiminiz ve günlük 5 AI sorgu hakkınız ödeme yapmadan devam eder. ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} aylık katkı tamamen gönüllüdür; erişim veya sorgu hakkı için zorunlu değildir ve platform maliyetlerini karşılamaya destek olur.`;
 
 const VIP_PAYMENT_EXPLANATION =
   `Tanıtım döneminde tüm üyeler VIP içerik ve internet araştırmasına erişebilir. Ödeme yapmayan üyelerin günlük AI sorgu hakkı 5'tir ve İstanbul saatiyle gece 00.00'da yenilenir. Aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} VIP ödemesi günlük hakkı 15'e çıkarır.`;
@@ -133,13 +133,13 @@ function buildTrialEndingReminderEmail(recipient: Recipient, trialEndsAt: Date) 
   const safeName = recipient.name.trim() || "Değerli üyemiz";
   const escapedName = escapeHtml(safeName);
   const trialEndLabel = formatDateTr(trialEndsAt);
-  const subject = "Enbilir ücretsiz üyeliğiniz 1 hafta sonra sona eriyor";
+  const subject = "Enbilir tanıtım erişiminiz ve gönüllü katkı seçenekleri";
   const text = [
     `Merhaba ${safeName},`,
     "",
-    `Enbilir'deki 30 günlük ücretsiz kullanım süreniz yaklaşık bir hafta sonra, ${trialEndLabel} tarihinde sona erecek.`,
+    `Enbilir hesabınızın ilk 30 günlük dönemi ${trialEndLabel} tarihinde tamamlanacak; tanıtım kapsamındaki tam VIP içerik erişiminiz ödeme yapmadan devam edecek.`,
     "",
-    `Dilerseniz kullanımınızı aylık ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} gönüllü abonelik katkısıyla sürdürebilirsiniz.`,
+    `Günlük 5 AI sorgu hakkınız İstanbul saatiyle her gece 00.00'da yenilenir. Dilerseniz platformu aylık ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} gönüllü katkıyla destekleyebilirsiniz.`,
     "",
     `Aylık ${formatTryAmount(membershipConfig.vipMonthlyAmountTry)} VIP ödemesiyle günlük AI sorgu hakkınızı 5'ten 15'e çıkarabilirsiniz.`,
     "",
@@ -156,14 +156,14 @@ function buildTrialEndingReminderEmail(recipient: Recipient, trialEndsAt: Date) 
   ].join("\n");
   const html = buildMailShell({
     eyebrow: "Enbilir Üyelik",
-    title: "Ücretsiz döneminiz bitmeden kısa bir not",
+    title: "Tam erişiminiz devam ediyor",
     bodyHtml: `
       <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;">Merhaba <strong>${escapedName}</strong>,</p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        Enbilir'deki 30 günlük ücretsiz kullanım süreniz yaklaşık bir hafta sonra, <strong>${escapeHtml(trialEndLabel)}</strong> tarihinde sona erecek.
+        Enbilir hesabınızın ilk 30 günlük dönemi <strong>${escapeHtml(trialEndLabel)}</strong> tarihinde tamamlanacak; tanıtım kapsamındaki tam VIP içerik erişiminiz ödeme yapmadan devam edecek.
       </p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        Dilerseniz kullanımınızı aylık <strong>${formatTryAmount(membershipConfig.standardMonthlyAmountTry)}</strong> gönüllü abonelik katkısıyla sürdürebilirsiniz.
+        Günlük 5 AI sorgu hakkınız İstanbul saatiyle her gece 00.00'da yenilenir. Dilerseniz platformu aylık <strong>${formatTryAmount(membershipConfig.standardMonthlyAmountTry)}</strong> gönüllü katkıyla destekleyebilirsiniz.
       </p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
         Günlük AI sorgu hakkınızı 5'ten 15'e çıkarmak isterseniz VIP üyelik aylık <strong>${formatTryAmount(membershipConfig.vipMonthlyAmountTry)}</strong> olarak devam eder.
@@ -189,7 +189,7 @@ function buildMonthlyPaymentRequestEmail(recipient: Recipient) {
   const text = [
     `Merhaba ${safeName},`,
     "",
-    `Enbilir standart kullanımınız için aylık ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} gönüllü abonelik yenileme hatırlatmasını paylaşıyoruz.`,
+    `Tanıtım dönemindeki tam VIP içerik erişiminiz ve günlük 5 AI sorgu hakkınız ücretsiz devam ediyor. Aylık ${formatTryAmount(membershipConfig.standardMonthlyAmountTry)} gönüllü platform katkısı seçeneğini hatırlatıyoruz.`,
     "",
     PAYMENT_EXPLANATION,
     "",
@@ -205,7 +205,7 @@ function buildMonthlyPaymentRequestEmail(recipient: Recipient) {
     bodyHtml: `
       <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;">Merhaba <strong>${escapedName}</strong>,</p>
       <p style="margin:0 0 16px 0;font-size:15px;line-height:1.8;color:#334155;">
-        Enbilir standart kullanımınız için aylık <strong>${formatTryAmount(membershipConfig.standardMonthlyAmountTry)}</strong> gönüllü abonelik yenileme hatırlatmasını paylaşıyoruz.
+        Tanıtım dönemindeki tam VIP içerik erişiminiz ve günlük 5 AI sorgu hakkınız ücretsiz devam ediyor. Aylık <strong>${formatTryAmount(membershipConfig.standardMonthlyAmountTry)}</strong> gönüllü platform katkısı seçeneğini hatırlatıyoruz.
       </p>
       <div style="margin:0 0 18px 0;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0;padding:16px;">
         <p style="margin:0;font-size:14px;line-height:1.8;color:#334155;">${escapeHtml(PAYMENT_EXPLANATION)}</p>
