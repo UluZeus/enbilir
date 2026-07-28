@@ -25,6 +25,10 @@ describe("sendEmail delivery guarantees", () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("SMTP_HOST", "");
+    vi.stubEnv("SMTP_FROM", "");
+    vi.stubEnv("SMTP_USER", "");
+    vi.stubEnv("SMTP_PASS", "");
     mocks.createTransport.mockReturnValue({ sendMail: mocks.sendMail });
   });
 
