@@ -6,6 +6,7 @@ import {
   ensureInstitutionalChatDisclosure,
   extractInstitutionalChatResult,
   getInstitutionalChatDisclosure,
+  requiresVipWebResearch,
 } from "@/lib/ai-market/institutional-chat-policy";
 
 describe("institutional market chat policy", () => {
@@ -62,6 +63,36 @@ describe("institutional market chat policy", () => {
     expect(body.tool_choice).toBe("required");
     expect(body.include).toEqual(["web_search_call.action.sources"]);
     expect(body.max_output_tokens).toBe(3_200);
+  });
+
+  it("does not require web research for VIP site, membership, or navigation help", () => {
+    for (const question of [
+      "VIP üyeliğim ne zaman bitiyor?",
+      "Sanal portföy sayfasına nasıl giderim?",
+      "Enbilir sitesinde raporları nereden açarım?",
+    ]) {
+      expect(requiresVipWebResearch(question)).toBe(false);
+
+      const body = buildInstitutionalOpenAiRequest({
+        model: "gpt-4.1",
+        question,
+        contextText: "VIP site evidence",
+        history: [],
+        locale: "tr",
+        tier: "VIP",
+      });
+
+      expect(body).not.toHaveProperty("tools");
+      expect(body).not.toHaveProperty("tool_choice");
+      expect(body).not.toHaveProperty("include");
+    }
+  });
+
+  it("keeps cited web research mandatory for current VIP market questions", () => {
+    expect(requiresVipWebResearch("AAPL için güncel fiyatı ve katalizörleri doğrula")).toBe(true);
+    expect(requiresVipWebResearch("Bugün piyasalarda ne oldu?")).toBe(true);
+    expect(requiresVipWebResearch("NVDA ne olur?")).toBe(true);
+    expect(requiresVipWebResearch("What is your outlook for MSFT?")).toBe(true);
   });
 
   it("appends the mandatory disclosure exactly once", () => {

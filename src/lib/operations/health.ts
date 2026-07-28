@@ -1,7 +1,7 @@
 import "server-only";
 
-import { readdir } from "node:fs/promises";
-import { statfsSync } from "node:fs";
+import { constants as fsConstants, statfsSync } from "node:fs";
+import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import { prisma } from "@/lib/prisma";
@@ -88,22 +88,12 @@ export async function getOperationalReadiness(now = new Date()): Promise<Operati
 
   let databaseAvailable = false;
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    await prisma.operationalJobHeartbeat.upsert({
-      where: { jobKey: "system:readiness" },
-      create: {
-        jobKey: "system:readiness",
-        lastStartedAt: now,
-        lastSucceededAt: now,
-        metadata: { probe: true },
-      },
-      update: {
-        lastStartedAt: now,
-        lastSucceededAt: now,
-        lastError: null,
-        metadata: { probe: true },
-      },
-    });
+    const databasePath = getSqlitePath();
+    await Promise.all([
+      access(databasePath, fsConstants.R_OK | fsConstants.W_OK),
+      access(path.dirname(databasePath), fsConstants.W_OK),
+      prisma.$queryRaw`SELECT 1`,
+    ]);
     databaseAvailable = true;
     checks.push({ name: "database-read-write", status: "pass" });
   } catch {

@@ -5,9 +5,11 @@ import {
   ensureInstitutionalResearchCoverageNotice,
   enforceVipInvestmentEvidence,
   extractInstitutionalChatResult,
+  requiresVipWebResearch,
   type InstitutionalChatCitation,
   type InstitutionalChatResult,
 } from "@/lib/ai-market/institutional-chat-policy";
+import { createOpenAiRequestBudget } from "@/lib/ai-market/chat-request-control";
 import {
   buildContextFromMarketItems,
   buildLocalMarketChatAnswer,
@@ -24,6 +26,7 @@ import {
 } from "@/lib/ai-query-quota";
 import type { AiQueryQuota } from "@/lib/ai-query-policy";
 import { consumeVoiceAiQueryReservation } from "@/lib/ai-query-reservation";
+import { getEconomyHeadlines } from "@/lib/economy-news";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
@@ -81,6 +84,18 @@ function getQuotaLimitError(locale: MarketChatLocale, isPaidVipActive: boolean) 
 
 function getQueryUpgradeUrl(locale: MarketChatLocale) {
   return `/${locale}/vip?upgrade=queries#ai-query-upgrade`;
+}
+
+function getQuotaLimitResponse(locale: MarketChatLocale, quota: AiQueryQuota) {
+  return NextResponse.json(
+    {
+      error: getQuotaLimitError(locale, quota.isPaidVipActive),
+      code: "DAILY_QUERY_LIMIT_REACHED",
+      quota,
+      upgradeUrl: quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
+    },
+    { status: 429, headers: { "Cache-Control": "private, no-store" } },
+  );
 }
 
 function normalizeMessage(value: unknown) {
@@ -319,10 +334,17 @@ async function askOpenAi({
     tier: isVip ? "VIP" : "STANDARD",
   });
   const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+  const requestBudget = createOpenAiRequestBudget(isVip ? "VIP" : "STANDARD");
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    const remainingMs = requestBudget.remainingMs();
+
+    if (remainingMs <= 0 || requestSignal.aborted) {
+      return null;
+    }
+
     try {
-      const timeoutSignal = AbortSignal.timeout(isVip ? 95_000 : 45_000);
+      const timeoutSignal = AbortSignal.timeout(remainingMs);
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -389,28 +411,36 @@ async function getAuthenticatedUserMembership() {
 
 export async function GET(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
-  const authenticated = await getAuthenticatedUserMembership();
 
-  if (!authenticated) {
+  try {
+    const authenticated = await getAuthenticatedUserMembership();
+
+    if (!authenticated) {
+      return NextResponse.json(
+        { error: getAuthenticationError(locale), code: "AUTH_REQUIRED" },
+        { status: 401, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    const quota = await getAiQueryQuota({
+      userId: authenticated.sessionUser.id,
+      isPaidVipActive: authenticated.membership.isPaidVipActive,
+    });
+
     return NextResponse.json(
-      { error: getAuthenticationError(locale), code: "AUTH_REQUIRED" },
-      { status: 401, headers: { "Cache-Control": "private, no-store" } },
+      {
+        membership: authenticated.membership.effectiveTier,
+        quota,
+        upgradeUrl: quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  } catch {
+    return NextResponse.json(
+      { error: locale === "tr" ? "AI sorgu kotası alınamadı." : "AI query quota could not be loaded." },
+      { status: 500, headers: { "Cache-Control": "private, no-store" } },
     );
   }
-
-  const quota = await getAiQueryQuota({
-    userId: authenticated.sessionUser.id,
-    isPaidVipActive: authenticated.membership.isPaidVipActive,
-  });
-
-  return NextResponse.json(
-    {
-      membership: authenticated.membership.effectiveTier,
-      quota,
-      upgradeUrl: quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
-    },
-    { headers: { "Cache-Control": "private, no-store" } },
-  );
 }
 
 export async function POST(request: Request) {
@@ -448,7 +478,6 @@ export async function POST(request: Request) {
     }
 
     const { sessionUser, membership } = authenticated;
-    let quota: AiQueryQuota;
     const usedVoiceReservation = voiceReservation
       ? await consumeVoiceAiQueryReservation({
           token: voiceReservation,
@@ -456,44 +485,38 @@ export async function POST(request: Request) {
         })
       : false;
 
-    try {
-      quota = usedVoiceReservation
-        ? await getAiQueryQuota({
-            userId: sessionUser.id,
-            isPaidVipActive: membership.isPaidVipActive,
-          })
-        : await reserveAiQuery({
-            userId: sessionUser.id,
-            isPaidVipActive: membership.isPaidVipActive,
-          });
-    } catch (error) {
-      if (error instanceof DailyAiQueryLimitReachedError) {
-        return NextResponse.json(
-          {
-            error: getQuotaLimitError(locale, error.quota.isPaidVipActive),
-            code: "DAILY_QUERY_LIMIT_REACHED",
-            quota: error.quota,
-            upgradeUrl: error.quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
-          },
-          { status: 429, headers: { "Cache-Control": "private, no-store" } },
-        );
-      }
+    if (!usedVoiceReservation) {
+      const preflightQuota = await getAiQueryQuota({
+        userId: sessionUser.id,
+        isPaidVipActive: membership.isPaidVipActive,
+      });
 
-      throw error;
+      if (preflightQuota.remaining <= 0) {
+        return getQuotaLimitResponse(locale, preflightQuota);
+      }
     }
 
     const isVip = membership.isVipActive;
     const tier = isVip ? "VIP" as const : "STANDARD" as const;
-    const [items, latestReport, vipResearch, agentSummaries] = await Promise.all([
+    const [items, latestReport, vipResearch, agentSummaries, economyHeadlines] = await Promise.all([
       getLiveMarketItems(),
       getLatestReport(),
       isVip ? getLatestVipResearch() : Promise.resolve(undefined),
       getVipAgentSummaries().catch(() => []),
+      isVip ? getEconomyHeadlines(8, locale) : Promise.resolve([]),
     ]);
     const agentPerformance = selectMarketChatAgentPerformance(agentSummaries, tier);
-    const context = buildContextFromMarketItems(question, items, latestReport, undefined, vipResearch, tier, agentPerformance);
+    const vipNews = isVip
+      ? economyHeadlines.map((headline, index) => ({
+          ...headline,
+          category: "economy",
+          relevance: Math.max(0.1, 1 - index * 0.08),
+        }))
+      : undefined;
+    const context = buildContextFromMarketItems(question, items, latestReport, vipNews, vipResearch, tier, agentPerformance);
     const fallbackAnswer = ensureInstitutionalChatDisclosure(buildLocalMarketChatAnswer(question, context, locale), locale);
     const contextText = buildMarketChatContextText(context, locale);
+    const vipWebResearchRequired = isVip && requiresVipWebResearch(question);
 
     let answer = fallbackAnswer;
     let mode: "openai" | "local" = "local";
@@ -504,13 +527,14 @@ export async function POST(request: Request) {
     try {
       const aiResult = await askOpenAi({ question, contextText, history, locale, isVip, requestSignal: request.signal });
 
-      const hasRequiredVipEvidence = !isVip || Boolean(aiResult?.webSearchUsed && aiResult.citations.length > 0);
+      const hasRequiredVipEvidence = !vipWebResearchRequired ||
+        Boolean(aiResult?.webSearchUsed && aiResult.citations.length > 0);
 
       if (aiResult && hasRequiredVipEvidence) {
         const evidenceEnforcement = isVip
           ? enforceVipInvestmentEvidence(aiResult, locale, contextText)
           : { answer: aiResult.answer, accepted: true };
-        const coverageAwareAnswer = isVip
+        const coverageAwareAnswer = vipWebResearchRequired
           ? ensureInstitutionalResearchCoverageNotice(
               evidenceEnforcement.answer,
               locale,
@@ -538,6 +562,26 @@ export async function POST(request: Request) {
       });
     }
 
+    let quota: AiQueryQuota;
+
+    try {
+      quota = usedVoiceReservation
+        ? await getAiQueryQuota({
+            userId: sessionUser.id,
+            isPaidVipActive: membership.isPaidVipActive,
+          })
+        : await reserveAiQuery({
+            userId: sessionUser.id,
+            isPaidVipActive: membership.isPaidVipActive,
+          });
+    } catch (error) {
+      if (error instanceof DailyAiQueryLimitReachedError) {
+        return getQuotaLimitResponse(locale, error.quota);
+      }
+
+      throw error;
+    }
+
     await recordSiteAnalyticsEvent({
       eventType: siteAnalyticsEvents.aiChat,
       userId: sessionUser.id,
@@ -560,6 +604,10 @@ export async function POST(request: Request) {
         dailyQueryUsed: quota.used,
         voiceReservationUsed: usedVoiceReservation,
       },
+    }).catch((error) => {
+      console.error("[ai-market-chat] Analytics recording failed", {
+        name: error instanceof Error ? error.name : "UnknownError",
+      });
     });
 
     return NextResponse.json(

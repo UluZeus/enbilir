@@ -18,6 +18,7 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_OAUTH_STATE_COOKIE = "enbilir_google_oauth_state";
 const GOOGLE_PROVIDER = "google";
+const GOOGLE_FETCH_TIMEOUT_MS = 8_000;
 
 function isConfiguredGoogleValue(value: string | undefined) {
   return Boolean(value && value !== "..." && !value.startsWith("your-") && !value.startsWith("change-"));
@@ -40,6 +41,20 @@ type GoogleUserInfo = {
   email_verified?: boolean;
   name?: string;
 };
+
+type GoogleOAuthStage = "configuration" | "token" | "userinfo";
+
+class GoogleOAuthProviderError extends Error {
+  constructor(
+    readonly stage: GoogleOAuthStage,
+    readonly reason: string,
+    readonly status?: number,
+    options?: ErrorOptions,
+  ) {
+    super("Google giriş işlemi tamamlanamadı.", options);
+    this.name = "GoogleOAuthProviderError";
+  }
+}
 
 function getRedirectUri(request: NextRequest) {
   return new URL("/api/auth/google/callback", getRequestOrigin(request)).toString();
@@ -85,41 +100,99 @@ function parseState(value: string | undefined): GoogleState | null {
   }
 }
 
+function canCompletePendingEmailRegistration(
+  user: {
+    isActive: boolean;
+    emailVerifiedAt: Date | null;
+    emailVerificationTokenHash: string | null;
+  },
+  state: GoogleState,
+) {
+  return (
+    !user.isActive
+    && user.emailVerifiedAt === null
+    && Boolean(user.emailVerificationTokenHash)
+    && canCreateGoogleAccount(state)
+  );
+}
+
 async function getGoogleUser(request: NextRequest, code: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!isConfiguredGoogleValue(clientId) || !isConfiguredGoogleValue(clientSecret)) {
-    throw new Error("Google giriş ayarları eksik.");
+    throw new GoogleOAuthProviderError("configuration", "missing_configuration");
   }
 
   const configuredClientId = clientId as string;
   const configuredClientSecret = clientSecret as string;
 
-  const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      code,
-      client_id: configuredClientId,
-      client_secret: configuredClientSecret,
-      redirect_uri: getRedirectUri(request),
-      grant_type: "authorization_code",
-    }),
-  });
-  const token = (await tokenResponse.json()) as GoogleTokenResponse;
+  let tokenResponse: Response;
 
-  if (!tokenResponse.ok || !token.access_token) {
-    throw new Error(token.error || "Google giriş yanıtı alınamadı.");
+  try {
+    tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: configuredClientId,
+        client_secret: configuredClientSecret,
+        redirect_uri: getRedirectUri(request),
+        grant_type: "authorization_code",
+      }),
+      signal: AbortSignal.timeout(GOOGLE_FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const reason = error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
+      ? "timeout"
+      : "network_error";
+    throw new GoogleOAuthProviderError("token", reason, undefined, { cause: error });
   }
 
-  const userInfoResponse = await fetch(GOOGLE_USERINFO_URL, {
-    headers: { Authorization: `Bearer ${token.access_token}` },
-  });
-  const userInfo = (await userInfoResponse.json()) as GoogleUserInfo;
+  let token: GoogleTokenResponse;
+
+  try {
+    token = (await tokenResponse.json()) as GoogleTokenResponse;
+  } catch (error) {
+    throw new GoogleOAuthProviderError("token", "invalid_response", tokenResponse.status, { cause: error });
+  }
+
+  if (!tokenResponse.ok || !token.access_token) {
+    throw new GoogleOAuthProviderError(
+      "token",
+      tokenResponse.ok ? "missing_access_token" : "http_error",
+      tokenResponse.status,
+    );
+  }
+
+  let userInfoResponse: Response;
+
+  try {
+    userInfoResponse = await fetch(GOOGLE_USERINFO_URL, {
+      headers: { Authorization: `Bearer ${token.access_token}` },
+      signal: AbortSignal.timeout(GOOGLE_FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const reason = error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
+      ? "timeout"
+      : "network_error";
+    throw new GoogleOAuthProviderError("userinfo", reason, undefined, { cause: error });
+  }
+
+  let userInfo: GoogleUserInfo;
+
+  try {
+    userInfo = (await userInfoResponse.json()) as GoogleUserInfo;
+  } catch (error) {
+    throw new GoogleOAuthProviderError("userinfo", "invalid_response", userInfoResponse.status, { cause: error });
+  }
 
   if (!userInfoResponse.ok || !userInfo.sub || !userInfo.email || !userInfo.email_verified) {
-    throw new Error("Google hesabında doğrulanmış e-posta bulunamadı.");
+    throw new GoogleOAuthProviderError(
+      "userinfo",
+      userInfoResponse.ok ? "missing_verified_identity" : "http_error",
+      userInfoResponse.status,
+    );
   }
 
   return {
@@ -192,6 +265,8 @@ export async function GET(request: NextRequest) {
           email: true,
           role: true,
           isActive: true,
+          emailVerifiedAt: true,
+          emailVerificationTokenHash: true,
           kvkkDisclosureAccepted: true,
           termsAccepted: true,
           noInvestmentAdviceAccepted: true,
@@ -199,6 +274,16 @@ export async function GET(request: NextRequest) {
       });
 
       if (existingUser) {
+        const completingPendingRegistration = canCompletePendingEmailRegistration(existingUser, cookieState);
+
+        if (!existingUser.isActive && !completingPendingRegistration) {
+          return errorResponse(
+            locale === "en"
+              ? "Your account is not active. Contact support if you believe this is an error."
+              : "Hesabınız etkin değil. Bunun bir hata olduğunu düşünüyorsanız destek ekibiyle iletişime geçin.",
+          );
+        }
+
         if (!hasRequiredLegalConsents(existingUser) && !canCreateGoogleAccount(cookieState)) {
           return registrationErrorResponse(
             locale === "en"
@@ -224,7 +309,7 @@ export async function GET(request: NextRequest) {
         user = await prisma.user.update({
           where: { id: existingUser.id },
           data: {
-            isActive: true,
+            ...(completingPendingRegistration ? { isActive: true } : {}),
             emailVerifiedAt: now,
             emailVerificationTokenHash: null,
             emailVerificationExpiresAt: null,
@@ -319,6 +404,14 @@ export async function GET(request: NextRequest) {
         });
       }
     } else {
+      if (!user.isActive) {
+        return errorResponse(
+          locale === "en"
+            ? "Your account is not active. Contact support if you believe this is an error."
+            : "Hesabınız etkin değil. Bunun bir hata olduğunu düşünüyorsanız destek ekibiyle iletişime geçin.",
+        );
+      }
+
       if (!hasRequiredLegalConsents(user) && !canCreateGoogleAccount(cookieState)) {
         return registrationErrorResponse(
           locale === "en"
@@ -327,11 +420,10 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      if (!user.isActive || !hasRequiredLegalConsents(user) || cookieState.electronicCommunicationConsent) {
+      if (!hasRequiredLegalConsents(user) || cookieState.electronicCommunicationConsent) {
         user = await prisma.user.update({
           where: { id: user.id },
           data: {
-            isActive: true,
             emailVerifiedAt: now,
             emailVerificationTokenHash: null,
             emailVerificationExpiresAt: null,
@@ -390,6 +482,24 @@ export async function GET(request: NextRequest) {
     response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
     return response;
   } catch (error) {
-    return errorResponse(error instanceof Error ? error.message : "Google giriş işlemi tamamlanamadı.");
+    if (error instanceof GoogleOAuthProviderError) {
+      console.error("[google-oauth]", {
+        event: "provider_request_failed",
+        stage: error.stage,
+        reason: error.reason,
+        ...(error.status === undefined ? {} : { status: error.status }),
+      });
+    } else {
+      console.error("[google-oauth]", {
+        event: "callback_failed",
+        reason: "unexpected_error",
+      });
+    }
+
+    return errorResponse(
+      locale === "en"
+        ? "Google sign-in could not be completed. Please try again."
+        : "Google giriş işlemi tamamlanamadı. Lütfen tekrar deneyin.",
+    );
   }
 }

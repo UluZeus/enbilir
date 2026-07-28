@@ -14,7 +14,8 @@ import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import { buildEmailVerificationUrl, buildWelcomeVerificationEmail, createEmailVerificationToken } from "@/lib/email-verification";
-import { sendEmail } from "@/lib/email";
+import { assertEmailDeliveryConfigured, sendEmail } from "@/lib/email";
+import { hashRegistrationPassword, resendPendingRegistrationEmail } from "@/lib/registration-email";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { getSafeLocale } from "@/i18n/config";
@@ -274,10 +275,97 @@ export async function registerAction(formData: FormData) {
     redirect(getRedirect(locale, "kayit", "Çok fazla kayıt denemesi yapıldı. Lütfen daha sonra tekrar deneyin."));
   }
 
+  const registrationTargetLimit = await consumeDurableRateLimit({
+    scope: "auth-register-target",
+    identity: email,
+    maxAttempts: 5,
+    windowMs: 60 * 60 * 1000,
+    blockMs: 60 * 60 * 1000,
+  });
+
+  try {
+    assertEmailDeliveryConfigured();
+  } catch {
+    redirect(getRedirect(locale, "kayit", "Doğrulama e-postası şu anda gönderilemiyor. Lütfen daha sonra tekrar deneyin."));
+  }
+
   const existingUser = await prisma.user.findUnique({ where: { email } });
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await hashRegistrationPassword(password, Boolean(existingUser));
 
   if (existingUser) {
+    const safeLocale = getSafeLocale(String(locale ?? "tr"));
+
+    try {
+      await resendPendingRegistrationEmail({
+        user: existingUser,
+        locale: safeLocale,
+        now: new Date(),
+        targetAllowed: registrationTargetLimit.allowed,
+        rotate: async ({
+          userId,
+          expectedTokenHash,
+          expectedSentAt,
+          tokenHash,
+          expiresAt,
+          sentAt,
+        }) => {
+          const result = await prisma.user.updateMany({
+            where: {
+              id: userId,
+              isActive: false,
+              emailVerifiedAt: null,
+              emailVerificationTokenHash: expectedTokenHash,
+              emailVerificationSentAt: expectedSentAt,
+            },
+            data: {
+              emailVerificationTokenHash: tokenHash,
+              emailVerificationExpiresAt: expiresAt,
+              emailVerificationSentAt: sentAt,
+            },
+          });
+          return result.count === 1;
+        },
+        rollback: async ({
+          userId,
+          failedTokenHash,
+          failedSentAt,
+          previousTokenHash,
+          previousExpiresAt,
+          previousSentAt,
+        }) => {
+          const result = await prisma.user.updateMany({
+            where: {
+              id: userId,
+              emailVerificationTokenHash: failedTokenHash,
+              emailVerificationSentAt: failedSentAt,
+            },
+            data: {
+              emailVerificationTokenHash: previousTokenHash,
+              emailVerificationExpiresAt: previousExpiresAt,
+              emailVerificationSentAt: previousSentAt,
+            },
+          });
+          return result.count === 1;
+        },
+        send: sendEmail,
+      });
+    } catch {
+      redirect(getRedirect(
+        locale,
+        "kayit",
+        "Doğrulama e-postası şu anda gönderilemiyor. Lütfen daha sonra tekrar deneyin.",
+      ));
+    }
+
+    redirect(getRedirect(
+      locale,
+      "giris",
+      undefined,
+      "Kayıt bilgileri alındı. Bu adres yeni bir hesaba uygunsa doğrulama e-postası gönderilecektir.",
+    ));
+  }
+
+  if (!registrationTargetLimit.allowed) {
     redirect(getRedirect(
       locale,
       "giris",
@@ -333,9 +421,19 @@ export async function registerAction(formData: FormData) {
       text,
       html,
     });
-  } catch (error) {
-    await prisma.user.delete({ where: { id: user.id } });
-    redirect(getRedirect(locale, "kayit", error instanceof Error ? error.message : "Doğrulama e-postası gönderilemedi."));
+  } catch {
+    try {
+      await prisma.user.delete({ where: { id: user.id } });
+    } catch {
+      console.error("[auth-registration-email]", {
+        event: "new_registration_rollback_failed",
+      });
+    }
+    redirect(getRedirect(
+      locale,
+      "kayit",
+      "Doğrulama e-postası şu anda gönderilemiyor. Lütfen daha sonra tekrar deneyin.",
+    ));
   }
 
   await recordSiteAnalyticsEvent({
@@ -353,7 +451,7 @@ export async function registerAction(formData: FormData) {
       locale,
       "giris",
       undefined,
-      "Hesabın oluşturuldu. E-posta kutundaki doğrulama bağlantısına tıklayarak hesabını aktif edebilirsin.",
+      "Kayıt bilgileri alındı. Bu adres yeni bir hesaba uygunsa doğrulama e-postası gönderilecektir.",
     ),
   );
 }

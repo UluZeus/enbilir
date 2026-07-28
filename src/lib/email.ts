@@ -15,6 +15,12 @@ type SendEmailInput = {
   }>;
 };
 
+const EMAIL_NOT_CONFIGURED_MESSAGE = "E-posta teslimatı yapılandırılmamış.";
+const EMAIL_DELIVERY_FAILED_MESSAGE = "E-posta teslimatı tamamlanamadı.";
+const SMTP_CONNECTION_TIMEOUT_MS = 10_000;
+const SMTP_GREETING_TIMEOUT_MS = 10_000;
+const SMTP_SOCKET_TIMEOUT_MS = 20_000;
+
 function getSmtpConfig() {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT ?? 587);
@@ -48,16 +54,27 @@ function getEmailDomain(value: string) {
   return atIndex > -1 ? email.slice(atIndex + 1).replace(/[^\w.-]/g, "") : null;
 }
 
+function normalizeMailbox(value: unknown) {
+  const address = typeof value === "string"
+    ? value
+    : value && typeof value === "object" && "address" in value
+      ? String(value.address)
+      : "";
+  const match = address.match(/<([^>]+)>/)?.[1] ?? address;
+  return match.trim().toLowerCase();
+}
+
+export function assertEmailDeliveryConfigured() {
+  if (!getSmtpConfig()) {
+    throw new Error(EMAIL_NOT_CONFIGURED_MESSAGE);
+  }
+}
+
 export async function sendEmail({ to, subject, text, html, attachments }: SendEmailInput) {
   const config = getSmtpConfig();
 
   if (!config) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("SMTP ayarları eksik. SMTP_HOST ve SMTP_FROM tanımlanmalı.");
-    }
-
-    console.info("[email:dev]", { to, subject, text, html });
-    return { skipped: true as const };
+    throw new Error(EMAIL_NOT_CONFIGURED_MESSAGE);
   }
 
   const transport = nodemailer.createTransport({
@@ -65,31 +82,47 @@ export async function sendEmail({ to, subject, text, html, attachments }: SendEm
     port: config.port,
     secure: config.secure,
     auth: config.auth,
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
   });
 
-  await transport.sendMail({
-    from: config.from,
-    replyTo: config.replyTo,
-    envelope: {
-      from: config.envelopeFrom,
+  try {
+    const result = await transport.sendMail({
+      from: config.from,
+      replyTo: config.replyTo,
+      envelope: {
+        from: config.envelopeFrom,
+        to,
+      },
+      messageId: config.messageDomain ? `<${randomUUID()}@${config.messageDomain}>` : undefined,
       to,
-    },
-    messageId: config.messageDomain ? `<${randomUUID()}@${config.messageDomain}>` : undefined,
-    to,
-    subject,
-    text,
-    html,
-    attachments,
-    headers: {
-      "X-Mailer": "Enbilir Transactional Mailer",
-      "X-Auto-Response-Suppress": "All",
-      ...(config.unsubscribeEmail
-        ? {
-            "List-Unsubscribe": `<mailto:${config.unsubscribeEmail}?subject=unsubscribe>`,
-          }
-        : {}),
-    },
-  });
+      subject,
+      text,
+      html,
+      attachments,
+      headers: {
+        "X-Mailer": "Enbilir Transactional Mailer",
+        "X-Auto-Response-Suppress": "All",
+        ...(config.unsubscribeEmail
+          ? {
+              "List-Unsubscribe": `<mailto:${config.unsubscribeEmail}?subject=unsubscribe>`,
+            }
+          : {}),
+      },
+    });
+
+    const target = normalizeMailbox(to);
+    const accepted = Array.isArray(result.accepted)
+      ? result.accepted.some((recipient: unknown) => normalizeMailbox(recipient) === target)
+      : false;
+
+    if (!accepted) {
+      throw new Error(EMAIL_DELIVERY_FAILED_MESSAGE);
+    }
+  } catch (error) {
+    throw new Error(EMAIL_DELIVERY_FAILED_MESSAGE, { cause: error });
+  }
 
   return { skipped: false as const };
 }
