@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  validateBackupSet,
   validateNewestBackup,
   validateRestoreRehearsalMarker,
 } from "@/lib/operations/backup-readiness";
@@ -69,9 +70,13 @@ afterEach(() => {
 });
 
 describe("backup readiness validation", () => {
-  it("accepts only a checksum-valid SQLite backup and a marker bound to that backup", async () => {
+  it("accepts a fully verified SQLite backup and a marker bound to that backup", async () => {
     const fixture = createBackupFixture();
 
+    await expect(validateBackupSet(fixture.root, fixture.setName)).resolves.toMatchObject({
+      setName: fixture.setName,
+      createdAt: new Date("2026-07-28T12:00:00.000Z"),
+    });
     await expect(validateNewestBackup(fixture.root)).resolves.toMatchObject({
       setName: fixture.setName,
       createdAt: new Date("2026-07-28T12:00:00.000Z"),
@@ -82,10 +87,10 @@ describe("backup readiness validation", () => {
     });
   });
 
-  it("fails when the backup checksum or rehearsal binding is forged", async () => {
+  it("fails readiness when backup metadata or rehearsal binding is forged", async () => {
     const fixture = createBackupFixture();
     writeFileSync(fixture.databasePath, "corrupt");
-    await expect(validateNewestBackup(fixture.root)).rejects.toThrow(/metadata|checksum/);
+    await expect(validateNewestBackup(fixture.root)).rejects.toThrow(/metadata/);
 
     const second = createBackupFixture();
     const markerPath = path.join(second.root, "last-restore-rehearsal.json");
@@ -93,5 +98,15 @@ describe("backup readiness validation", () => {
     marker.databaseSha256 = "0".repeat(64);
     writeFileSync(markerPath, JSON.stringify(marker));
     await expect(validateRestoreRehearsalMarker(second.root)).rejects.toThrow(/does not match/);
+  });
+
+  it("keeps full checksum verification available outside the lightweight readiness path", async () => {
+    const fixture = createBackupFixture();
+    const contents = readFileSync(fixture.databasePath);
+    contents[contents.length - 1] ^= 1;
+    writeFileSync(fixture.databasePath, contents);
+
+    await expect(validateNewestBackup(fixture.root)).resolves.toMatchObject({ setName: fixture.setName });
+    await expect(validateBackupSet(fixture.root, fixture.setName)).rejects.toThrow(/checksum/);
   });
 });

@@ -105,7 +105,7 @@ async function readValidatedManifest(backupRoot: string, setName: string) {
   return { setPath, manifest: { ...manifest, files } };
 }
 
-export async function validateBackupSet(backupRoot: string, setName: string) {
+async function inspectBackupSetMetadata(backupRoot: string, setName: string) {
   const { setPath, manifest } = await readValidatedManifest(backupRoot, setName);
   for (const file of manifest.files) {
     const filePath = path.join(setPath, ...file.path.split("/"));
@@ -114,13 +114,22 @@ export async function validateBackupSet(backupRoot: string, setName: string) {
     if (!fileStats.isFile() || fileStats.isSymbolicLink() || fileStats.size !== file.sizeBytes) {
       throw new Error("Backup file metadata does not match its manifest.");
     }
+  }
+
+  const databaseEntry = manifest.files.find((file) => file.path === "database.db");
+  if (!databaseEntry) throw new Error("Backup manifest does not contain database.db.");
+  return { setPath, manifest, databaseEntry };
+}
+
+export async function validateBackupSet(backupRoot: string, setName: string) {
+  const { setPath, manifest, databaseEntry } = await inspectBackupSetMetadata(backupRoot, setName);
+  for (const file of manifest.files) {
+    const filePath = path.join(setPath, ...file.path.split("/"));
     if ((await sha256File(filePath)) !== file.sha256) {
       throw new Error("Backup file checksum does not match its manifest.");
     }
   }
 
-  const databaseEntry = manifest.files.find((file) => file.path === "database.db");
-  if (!databaseEntry) throw new Error("Backup manifest does not contain database.db.");
   const databasePath = path.join(setPath, "database.db");
   const database = new Database(databasePath, { readonly: true, fileMustExist: true });
   try {
@@ -156,7 +165,12 @@ export async function validateNewestBackup(backupRoot: string) {
     .sort()
     .reverse();
   if (!setNames[0]) throw new Error("No complete backup set exists.");
-  return validateBackupSet(backupRoot, setNames[0]);
+  const { manifest, databaseEntry } = await inspectBackupSetMetadata(backupRoot, setNames[0]);
+  return {
+    setName: setNames[0],
+    createdAt: new Date(manifest.createdAt),
+    databaseSha256: databaseEntry.sha256,
+  };
 }
 
 export async function validateRestoreRehearsalMarker(backupRoot: string) {
@@ -185,8 +199,8 @@ export async function validateRestoreRehearsalMarker(backupRoot: string) {
   ) {
     throw new Error("Restore rehearsal marker is invalid.");
   }
-  const backup = await validateBackupSet(backupRoot, marker.backupSet);
-  if (backup.databaseSha256 !== marker.databaseSha256) {
+  const { databaseEntry } = await inspectBackupSetMetadata(backupRoot, marker.backupSet);
+  if (databaseEntry.sha256 !== marker.databaseSha256) {
     throw new Error("Restore rehearsal marker does not match its verified backup set.");
   }
   return { rehearsedAt: new Date(marker.rehearsedAt), backupSet: marker.backupSet };
