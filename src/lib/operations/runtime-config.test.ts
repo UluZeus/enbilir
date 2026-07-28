@@ -74,6 +74,20 @@ describe("runtime configuration validation", () => {
     expect(JSON.stringify(issues)).not.toContain(repeated);
   });
 
+  it("allows provider-managed credentials with valid shorter formats", () => {
+    expect(
+      getRuntimeConfigIssues(
+        {
+          ...productionEnv,
+          GOOGLE_CLIENT_SECRET: "provider-secret",
+          SMTP_PASSWORD: "mail-password",
+          OPENAI_API_KEY: "provider-api-key",
+        },
+        "/srv/enbilir/app",
+      ),
+    ).toEqual([]);
+  });
+
   it("accepts a fully separated production configuration", () => {
     expect(getRuntimeConfigIssues(productionEnv, "/srv/enbilir/app")).toEqual([]);
   });

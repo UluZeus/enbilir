@@ -54,6 +54,18 @@ const secretKeys = [
   "OPENAI_API_KEY",
 ] as const;
 
+const minimumLengthSecretKeys = new Set<string>([
+  "AUTH_SECRET",
+  "RATE_LIMIT_HASH_SECRET",
+  "AI_AGENT_CRON_SECRET",
+  "VIP_RESEARCH_CRON_SECRET",
+  "VIP_AGENTS_CRON_SECRET",
+  "AI_SIGNAL_EVALUATION_CRON_SECRET",
+  "SUBSCRIPTION_CRON_SECRET",
+  "WEEKLY_COMPETITION_CRON_SECRET",
+  "VIP_SUBSCRIPTION_WEBHOOK_SECRET",
+]);
+
 const storageKeys = ["CHAT_UPLOAD_DIR", "ADMIN_UPLOAD_DIR", "BACKUP_DIR", "OPERATIONS_LOG_DIR"] as const;
 const placeholderPattern = /(change[-_ ]?this|replace[-_ ]?me|your[-_ ]|example|dummy|placeholder|test[-_ ]?secret)/i;
 
@@ -155,7 +167,7 @@ export function getRuntimeConfigIssues(
   for (const key of secretKeys) {
     const value = env[key]?.trim();
     if (!value) continue;
-    if (value.length < 32) {
+    if (minimumLengthSecretKeys.has(key) && value.length < 32) {
       addIssue(issues, { key, code: "invalid" });
     }
     if (placeholderPattern.test(value)) {
