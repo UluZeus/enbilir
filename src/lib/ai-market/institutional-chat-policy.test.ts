@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildInstitutionalChatInstruction,
   buildInstitutionalOpenAiRequest,
+  enforceVipInvestmentEvidence,
   ensureInstitutionalChatDisclosure,
   extractInstitutionalChatResult,
   getInstitutionalChatDisclosure,
@@ -72,8 +73,12 @@ describe("institutional market chat policy", () => {
     expect(twiceProtected.split(disclosure)).toHaveLength(2);
   });
 
-  it("extracts researched output and only safe HTTPS citation annotations", () => {
-    const answer = "Şirketin geri alım yetkisi resmî bildirimde doğrulandı.";
+  it("does not treat one citation as verification of a whole multi-claim answer", () => {
+    const answer = [
+      "Şirketin geri alım yetkisi resmî bildirimde doğrulandı.",
+      "Marjların gelecek yıl kesin olarak iki katına çıkacağı iddia ediliyor.",
+      "Teknik görünümün her koşulda AL verdiği söyleniyor.",
+    ].join("\n\n");
     const citedText = "resmî bildirimde";
     const startIndex = answer.indexOf(citedText);
     const endIndex = startIndex + citedText.length;
@@ -108,7 +113,9 @@ describe("institutional market chat policy", () => {
 
     expect(result).toEqual({
       answer,
-      researched: true,
+      webSearchUsed: true,
+      researchCoverage: "partial",
+      researched: false,
       citations: [{
         title: "Company filing",
         url: "https://investor.example.com/filing",
@@ -122,7 +129,85 @@ describe("institutional market chat policy", () => {
     expect(extractInstitutionalChatResult({ output_text: "Site-only evidence." })).toEqual({
       answer: "Site-only evidence.",
       citations: [],
+      webSearchUsed: false,
+      researchCoverage: "none",
       researched: false,
     });
+  });
+
+  it("downgrades an uncited target even when an unrelated sentence has one web citation", () => {
+    const answer = [
+      "Şirketin ana sayfası yeni ürün adını gösteriyor.",
+      "Karne: Güven 91/100, risk 28/100. Giriş 198-204 USD, stop 189 USD ve hedef 235 USD.",
+    ].join("\n\n");
+    const citedText = "ana sayfası";
+    const startIndex = answer.indexOf(citedText);
+    const result = enforceVipInvestmentEvidence({
+      answer,
+      citations: [{
+        title: "Company home page",
+        url: "https://company.example.test/",
+        startIndex,
+        endIndex: startIndex + citedText.length,
+      }],
+      webSearchUsed: true,
+      researchCoverage: "partial",
+      researched: false,
+    }, "tr", "AAPL son fiyat 210 USD.");
+
+    expect(result.accepted).toBe(false);
+    expect(result.answer).toContain("İZLE / KANIT YETERSİZ");
+    expect(result.answer).not.toContain("235 USD");
+    expect(result.answer).not.toContain("91/100");
+    expect(result.unsupportedClaims).toEqual(
+      expect.arrayContaining([expect.stringContaining("hedef 235 USD")]),
+    );
+  });
+
+  it("allows an actionable numeric claim when that exact claim has claim-level evidence", () => {
+    const answer = "Teknik plan: giriş 198-204 USD, stop 189 USD ve hedef 235 USD.";
+    const result = enforceVipInvestmentEvidence({
+      answer,
+      citations: [{
+        title: "Exchange evidence",
+        url: "https://exchange.example.test/aapl",
+        startIndex: 0,
+        endIndex: answer.length,
+      }],
+      webSearchUsed: true,
+      researchCoverage: "substantial",
+      researched: true,
+    }, "tr", "");
+
+    expect(result.accepted).toBe(true);
+    expect(result.answer).toBe(answer);
+    expect(result.unsupportedClaims).toEqual([]);
+  });
+
+  it("allows exact deterministic levels already present in verified Enbilir context", () => {
+    const answer = "Karne: güven 76/100, risk 49/100. Giriş 198-204 USD, stop 189 USD ve hedef 235 USD.";
+    const result = enforceVipInvestmentEvidence({
+      answer,
+      citations: [],
+      webSearchUsed: true,
+      researchCoverage: "partial",
+      researched: false,
+    }, "tr", "confidence=76; risk=49; entry=198-204; stop=189; target=235");
+
+    expect(result.accepted).toBe(true);
+    expect(result.answer).toBe(answer);
+  });
+
+  it("detects a Turkish entry claim even when it is the only material metric", () => {
+    const result = enforceVipInvestmentEvidence({
+      answer: "Giriş 198 USD.",
+      citations: [],
+      webSearchUsed: true,
+      researchCoverage: "partial",
+      researched: false,
+    }, "tr", "");
+
+    expect(result.accepted).toBe(false);
+    expect(result.answer).toContain("İZLE / KANIT YETERSİZ");
   });
 });

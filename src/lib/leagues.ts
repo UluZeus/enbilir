@@ -14,6 +14,14 @@ export const leagueTypeLabels: Record<LeagueType, string> = {
 
 export const leagueTypes: LeagueType[] = ["ROTARY", "ROTARACT", "INTERACT", "PRIVATE", "GENERAL"];
 
+export function isLeagueInviteTargetMatch(
+  league: { id: string; slug: string },
+  expected: { leagueId?: string; leagueSlug?: string },
+) {
+  return (!expected.leagueId || league.id === expected.leagueId)
+    && (!expected.leagueSlug || league.slug === expected.leagueSlug);
+}
+
 const inviteAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function slugifyLeagueName(name: string) {
@@ -96,6 +104,12 @@ export async function getLeagueDetail(slug: string) {
         select: { memberships: true },
       },
       memberships: {
+        where: {
+          user: {
+            isActive: true,
+            emailVerifiedAt: { not: null },
+          },
+        },
         include: {
           user: {
             select: {
@@ -105,6 +119,8 @@ export async function getLeagueDetail(slug: string) {
               displayNameMode: true,
               email: true,
               role: true,
+              isActive: true,
+              emailVerifiedAt: true,
             },
           },
         },
@@ -115,7 +131,13 @@ export async function getLeagueDetail(slug: string) {
 
 export async function getLeagueLeaderboard(leagueId: string, currentUserId?: string) {
   const memberships = await prisma.leagueMembership.findMany({
-    where: { leagueId },
+    where: {
+      leagueId,
+      user: {
+        isActive: true,
+        emailVerifiedAt: { not: null },
+      },
+    },
     include: {
       user: {
         select: {
@@ -125,6 +147,8 @@ export async function getLeagueLeaderboard(leagueId: string, currentUserId?: str
           displayNameMode: true,
           email: true,
           role: true,
+          isActive: true,
+          emailVerifiedAt: true,
         },
       },
     },
@@ -149,13 +173,24 @@ export async function getLeagueLeaderboard(leagueId: string, currentUserId?: str
         totalValueUsd: snapshot.totalValueUsd,
         profitLossUsd: calculateCompetitionProfitLossUsd(snapshot.totalValueUsd),
         profitLossPercent: calculateCompetitionReturnPercent(snapshot.totalValueUsd),
+        valuationReliable: !snapshot.hasUnreliableValuation,
       };
     }),
   );
 
   const rankedRows = rows
-    .sort((a, b) => b.totalValueUsd - a.totalValueUsd)
-    .map((row, index) => ({ ...row, rank: index + 1 }));
+    .filter((row) => row.valuationReliable)
+    .sort((a, b) => b.profitLossPercent - a.profitLossPercent)
+    .map((row, index) => ({
+      membershipId: row.membershipId,
+      userId: row.userId,
+      displayName: row.displayName,
+      role: row.role,
+      totalValueUsd: row.totalValueUsd,
+      profitLossUsd: row.profitLossUsd,
+      profitLossPercent: row.profitLossPercent,
+      rank: index + 1,
+    }));
   const currentUserRank = currentUserId ? rankedRows.find((row) => row.userId === currentUserId)?.rank ?? null : null;
 
   return {

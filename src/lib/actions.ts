@@ -3,11 +3,12 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import path from "path";
-import { canAccessAdmin, createSession, destroySession, getDisplayName, getSessionUser, masterAdminEmail } from "@/lib/auth";
+import { canAccessAdmin, createSession, destroySession, getDisplayName, getSessionUser } from "@/lib/auth";
+import { getSelfServiceRegistrationDefaults } from "@/lib/auth-role-policy";
 import { sendLatestMacroReportEmail } from "@/lib/ai-market/agent/morning-report-email";
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
@@ -15,12 +16,13 @@ import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import { buildEmailVerificationUrl, buildWelcomeVerificationEmail, createEmailVerificationToken } from "@/lib/email-verification";
 import { sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { getSafeLocale } from "@/i18n/config";
 import { getLiveMarketItem } from "@/lib/live-market";
-import { cashToUsd, ensureVirtualAccount, getSafePortfolioPriceUsd, usdToCash } from "@/lib/portfolio";
+import { accrueRepoIfNeeded, cashToUsd, getCashModeUsdRate, usdToCash } from "@/lib/portfolio";
 import type { CashMode, CompetitionPeriodType, DisplayNameMode, LeagueType, TradeSide } from "@/generated/prisma/enums";
 import { getFriendPairKey } from "@/lib/friends";
-import { getUniqueInviteCode, getUniqueLeagueSlug, leagueTypes } from "@/lib/leagues";
+import { getUniqueInviteCode, getUniqueLeagueSlug, isLeagueInviteTargetMatch, leagueTypes } from "@/lib/leagues";
 import { awardBadge, evaluateTradeBadges } from "@/lib/badges";
 import { awardLeaderBadgesForActivePeriods, competitionPeriodTypes } from "@/lib/competition-periods";
 import { defaultVisualSettings, getSettingDefinition } from "@/lib/site-visual-settings";
@@ -29,6 +31,13 @@ import { isManagedContentType } from "@/lib/managed-content";
 import { reconcileOnboardingCompletion } from "@/lib/onboarding";
 import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
 import { reviewVipSubscriptionClaim, submitVipSubscriptionClaim } from "@/lib/vip-subscription-claims";
+import { consumeDurableRateLimit } from "@/lib/durable-rate-limit";
+import { getRateLimitClientKey } from "@/lib/request-rate-limit";
+import { detectAllowedChatUpload } from "@/lib/chat-upload-policy";
+import { getPersistentAdminUploadDirectory } from "@/lib/media-storage";
+import { appendAuditEvent } from "@/lib/audit-log";
+import { calculateRealizedTradePnl, getVirtualExecutionCosts } from "@/lib/trade-accounting";
+import { syncPortfolioPositionCorporateAction } from "@/lib/portfolio-corporate-actions";
 
 export type TradeActionState = {
   ok: boolean;
@@ -40,29 +49,9 @@ const initialTradeActionState: TradeActionState = {
   message: "",
 };
 
-type TradePricePosition = {
-  averagePriceUsd: number;
-} | null;
-
 type AdminUploadKind = "image" | "video";
 
 const maxAdminUploadBytes = 100 * 1024 * 1024;
-const adminUploadRoot = path.join(process.cwd(), "public", "uploads", "admin");
-const allowedAdminUploadTypes: Record<AdminUploadKind, Record<string, string>> = {
-  image: {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/gif": "gif",
-    "image/svg+xml": "svg",
-  },
-  video: {
-    "video/mp4": "mp4",
-    "video/webm": "webm",
-    "video/ogg": "ogv",
-    "video/quicktime": "mov",
-  },
-};
 
 function normalizeEmail(email: FormDataEntryValue | null) {
   return String(email ?? "").trim().toLowerCase();
@@ -120,12 +109,13 @@ async function saveAdminUpload(locale: FormDataEntryValue | null, value: FormDat
     return null;
   }
 
-  const extension = allowedAdminUploadTypes[kind][value.type];
+  const bytes = Buffer.from(await value.arrayBuffer());
+  const format = detectAllowedChatUpload(bytes, value.type);
 
-  if (!extension) {
+  if (!format || (kind === "image" ? format.kind !== "IMAGE" : format.kind !== "VIDEO")) {
     const message = kind === "image"
-      ? "Yalnızca JPG, PNG, WebP, GIF veya SVG görsel yükleyebilirsin."
-      : "Yalnızca MP4, WebM, OGG veya MOV video yükleyebilirsin.";
+      ? "Yalnızca içeriği doğrulanmış JPG, PNG, WebP, GIF veya AVIF görsel yükleyebilirsin."
+      : "Yalnızca içeriği doğrulanmış MP4 veya WebM video yükleyebilirsin.";
 
     redirect(getRedirect(locale, "admin", message));
   }
@@ -136,17 +126,16 @@ async function saveAdminUpload(locale: FormDataEntryValue | null, value: FormDat
 
   const uploadedAt = new Date();
   const folder = path.join(
-    adminUploadRoot,
+    getPersistentAdminUploadDirectory(),
     String(uploadedAt.getFullYear()),
     String(uploadedAt.getMonth() + 1).padStart(2, "0"),
   );
-  const filename = `${uploadedAt.getTime()}-${randomUUID()}.${extension}`;
-  const bytes = Buffer.from(await value.arrayBuffer());
+  const filename = `${uploadedAt.getTime()}-${randomUUID()}${format.extension}`;
 
   await mkdir(folder, { recursive: true });
-  await writeFile(path.join(folder, filename), bytes);
+  await writeFile(path.join(folder, filename), bytes, { flag: "wx" });
 
-  return `/uploads/admin/${uploadedAt.getFullYear()}/${String(uploadedAt.getMonth() + 1).padStart(2, "0")}/${filename}`;
+  return `/api/admin/uploads/${uploadedAt.getFullYear()}/${String(uploadedAt.getMonth() + 1).padStart(2, "0")}/${filename}`;
 }
 
 function normalizeVisualSettingValue(value: string, type: "TEXT" | "COLOR" | "IMAGE_URL" | "BOOLEAN") {
@@ -234,14 +223,6 @@ function revalidateAdminManagedViews(localeValue: FormDataEntryValue | null, con
   }
 }
 
-function getSafeTradePriceUsd(marketItem: { priceUsd: number; source: string }, position: TradePricePosition) {
-  if (position) {
-    return getSafePortfolioPriceUsd({ ...position, symbol: "" }, marketItem);
-  }
-
-  return marketItem.priceUsd;
-}
-
 async function requireSession(locale: FormDataEntryValue | null, returnPath: string, message: string) {
   const sessionUser = await getSessionUser();
 
@@ -280,23 +261,40 @@ export async function registerAction(formData: FormData) {
     redirect(getRedirect(locale, "kayit", "Zorunlu onay kutularını işaretlemelisiniz."));
   }
 
+  const registrationClientKey = getRateLimitClientKey(await headers());
+  const registrationLimit = await consumeDurableRateLimit({
+    scope: "auth-register",
+    identity: `${registrationClientKey}:${email}`,
+    maxAttempts: 5,
+    windowMs: 60 * 60 * 1000,
+    blockMs: 60 * 60 * 1000,
+  });
+
+  if (!registrationLimit.allowed) {
+    redirect(getRedirect(locale, "kayit", "Çok fazla kayıt denemesi yapıldı. Lütfen daha sonra tekrar deneyin."));
+  }
+
   const existingUser = await prisma.user.findUnique({ where: { email } });
+  const passwordHash = await bcrypt.hash(password, 12);
 
   if (existingUser) {
-    redirect(getRedirect(locale, "kayit", "Bu e-posta adresi ile kayıtlı bir kullanıcı var."));
+    redirect(getRedirect(
+      locale,
+      "giris",
+      undefined,
+      "Kayıt bilgileri alındı. Bu adres yeni bir hesaba uygunsa doğrulama e-postası gönderilecektir.",
+    ));
   }
 
   const now = new Date();
-  const passwordHash = await bcrypt.hash(password, 12);
-  const role = email === masterAdminEmail ? "MASTER_ADMIN" : "USER";
-  const nickname = email === masterAdminEmail ? "UluZeus" : null;
+  const registrationDefaults = getSelfServiceRegistrationDefaults(email);
   const { token, tokenHash, expiresAt } = createEmailVerificationToken();
 
   const user = await prisma.user.create({
     data: {
       name,
-      nickname,
-      displayNameMode: "REAL_NAME",
+      nickname: registrationDefaults.nickname,
+      displayNameMode: registrationDefaults.displayNameMode,
       email,
       passwordHash,
       isActive: false,
@@ -304,7 +302,7 @@ export async function registerAction(formData: FormData) {
       emailVerificationTokenHash: tokenHash,
       emailVerificationExpiresAt: expiresAt,
       emailVerificationSentAt: now,
-      role,
+      role: registrationDefaults.role,
       kvkkDisclosureAccepted: true,
       kvkkDisclosureAcceptedAt: now,
       termsAccepted: true,
@@ -372,6 +370,19 @@ export async function loginAction(formData: FormData) {
     redirect(loginRedirect("E-posta ve şifre zorunludur."));
   }
 
+  const loginClientKey = getRateLimitClientKey(await headers());
+  const loginLimit = await consumeDurableRateLimit({
+    scope: "auth-login",
+    identity: `${loginClientKey}:${email}`,
+    maxAttempts: 8,
+    windowMs: 15 * 60 * 1000,
+    blockMs: 30 * 60 * 1000,
+  });
+
+  if (!loginLimit.allowed) {
+    redirect(loginRedirect("Çok fazla giriş denemesi yapıldı. Lütfen daha sonra tekrar deneyin."));
+  }
+
   const user = await prisma.user.findUnique({
     where: { email },
     select: {
@@ -388,11 +399,13 @@ export async function loginAction(formData: FormData) {
   });
 
   if (!user) {
+    await bcrypt.hash(password, 12);
     redirect(loginRedirect("E-posta veya şifre hatalı."));
   }
 
   if (!user.passwordHash) {
-    redirect(loginRedirect("Bu hesap Google ile giriş için oluşturulmuş. Lütfen Google ile giriş yapın."));
+    await bcrypt.hash(password, 12);
+    redirect(loginRedirect("E-posta veya şifre hatalı."));
   }
 
   if (!user.isActive) {
@@ -529,7 +542,11 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   const nonceCookieName = `enbilir_trade_${userId}`;
   const marketItem = await getLiveMarketItem(symbol);
 
-  if (idempotencyKey && cookieStore.get(nonceCookieName)?.value === idempotencyKey) {
+  if (!/^[a-zA-Z0-9_-]{16,128}$/.test(idempotencyKey)) {
+    return { ok: false, message: "İşlem güvenlik anahtarı geçersiz. Sayfayı yenileyip tekrar deneyin." };
+  }
+
+  if (cookieStore.get(nonceCookieName)?.value === idempotencyKey) {
     return { ok: true, message: "Bu işlem zaten uygulanmıştı; tekrar yazılmadı." };
   }
 
@@ -541,17 +558,56 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: "Lütfen ürün, işlem yönü ve pozitif USD tutarı seç." };
   }
 
-  const existingPosition = await prisma.portfolioPosition.findUnique({
+  if (
+    marketItem.executionEligible !== true ||
+    !["binance", "yahoo"].includes(marketItem.source) ||
+    !marketItem.sourceAsOf
+  ) {
+    return {
+      ok: false,
+      message: "Bu ürün için açık piyasa saatine ait güncel ve doğrulanmış fiyat yok. İşlem güvenlik amacıyla uygulanmadı.",
+    };
+  }
+  const verifiedPriceAsOf = new Date(marketItem.sourceAsOf);
+
+  let existingPosition = await prisma.portfolioPosition.findUnique({
     where: { userId_symbol: { userId, symbol } },
   });
-  const tradePriceUsd = getSafeTradePriceUsd(marketItem, existingPosition);
+  const tradePriceUsd = marketItem.priceUsd;
 
   if (!Number.isFinite(tradePriceUsd) || tradePriceUsd <= 0) {
     return { ok: false, message: "Seçilen ürün için geçerli fiyat bulunamadı." };
   }
 
-  const account = await ensureVirtualAccount(userId);
-  const cashValueUsd = cashToUsd(account.cashAmount, account.cashMode);
+  if (existingPosition) {
+    const corporateActionSync = await syncPortfolioPositionCorporateAction(
+      existingPosition,
+      new Date(),
+      { force: true },
+    );
+
+    if (!corporateActionSync.reliable) {
+      return {
+        ok: false,
+        message: "Mevcut pozisyonun bölünme/kurumsal aksiyon bilgisi doğrulanamadı. Miktar ve maliyet güvenliği için işlem uygulanmadı.",
+      };
+    }
+
+    if (corporateActionSync.updated) {
+      existingPosition = await prisma.portfolioPosition.findUnique({
+        where: { userId_symbol: { userId, symbol } },
+      });
+    }
+  }
+
+  const account = await accrueRepoIfNeeded(userId);
+  const cashRateToUsd = await getCashModeUsdRate(account.cashMode, undefined, account.cashMode !== "USD");
+
+  if (cashRateToUsd === null) {
+    return { ok: false, message: "Nakit para birimi için güncel döviz dönüşümü doğrulanamadı. İşlem uygulanmadı." };
+  }
+
+  const cashValueUsd = cashToUsd(account.cashAmount, account.cashMode, cashRateToUsd);
 
   if (side === "BUY" && amountUsd > cashValueUsd) {
     return { ok: false, message: "Bu alım için yeterli sanal nakdin yok." };
@@ -574,18 +630,26 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   try {
     await prisma.$transaction(async (tx) => {
       const latestAccount = await tx.virtualAccount.findUniqueOrThrow({ where: { userId } });
-      const latestCashUsd = cashToUsd(latestAccount.cashAmount, latestAccount.cashMode);
+      const latestCashUsd = cashToUsd(latestAccount.cashAmount, latestAccount.cashMode, cashRateToUsd);
 
       if (side === "BUY" && amountUsd > latestCashUsd) {
         throw new Error("Bu alım için yeterli sanal nakdin yok.");
       }
 
-      const nextCashUsd = side === "BUY" ? latestCashUsd - amountUsd : latestCashUsd + amountUsd;
       const currentPosition = await tx.portfolioPosition.findUnique({
         where: { userId_symbol: { userId, symbol } },
       });
-      const currentTradePriceUsd = getSafeTradePriceUsd(marketItem, currentPosition);
-      const currentQuantity = amountUsd / currentTradePriceUsd;
+      const execution = getVirtualExecutionCosts({
+        category: marketItem.category,
+        side,
+        quotePriceUsd: marketItem.priceUsd,
+        requestedAmountUsd: amountUsd,
+      });
+      const currentTradePriceUsd = execution.executionPriceUsd;
+      const currentQuantity = execution.quantity;
+      const nextCashUsd = side === "BUY"
+        ? latestCashUsd - execution.cashDeltaUsd
+        : latestCashUsd + execution.cashDeltaUsd;
 
       if (side === "SELL") {
         if (!currentPosition || currentPosition.quantity <= 0) {
@@ -600,36 +664,53 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       await tx.virtualAccount.update({
         where: { userId },
         data: {
-          cashAmount: usdToCash(nextCashUsd, latestAccount.cashMode),
+          cashAmount: usdToCash(nextCashUsd, latestAccount.cashMode, cashRateToUsd),
         },
       });
+
+      let positionCycleId = currentPosition?.positionCycleId ?? currentPosition?.id ?? randomUUID();
+      let costBasisUsd: number | null = null;
+      let realizedPnlUsd: number | null = null;
+      let realizedPnlPercent: number | null = null;
 
       if (side === "BUY") {
         if (currentPosition) {
           const totalQuantity = currentPosition.quantity + currentQuantity;
-          const totalCost = currentPosition.quantity * currentPosition.averagePriceUsd + amountUsd;
+          const totalCost = currentPosition.quantity * currentPosition.averagePriceUsd + execution.cashDeltaUsd;
 
           await tx.portfolioPosition.update({
             where: { userId_symbol: { userId, symbol } },
             data: {
               quantity: totalQuantity,
               averagePriceUsd: totalCost / totalQuantity,
+              positionCycleId,
             },
           });
         } else {
+          positionCycleId = randomUUID();
           await tx.portfolioPosition.create({
             data: {
               userId,
+              positionCycleId,
               symbol,
+              providerSymbol: marketItem.dataSymbol,
               name: marketItem.name,
               market: marketItem.market,
               quantity: currentQuantity,
-              averagePriceUsd: currentTradePriceUsd,
+              averagePriceUsd: execution.cashDeltaUsd / currentQuantity,
             },
           });
         }
       } else if (currentPosition) {
         const nextQuantity = currentPosition.quantity - currentQuantity;
+        const realized = calculateRealizedTradePnl({
+          quantity: currentQuantity,
+          averagePriceUsd: currentPosition.averagePriceUsd,
+          netProceedsUsd: execution.cashDeltaUsd,
+        });
+        costBasisUsd = realized.costBasisUsd;
+        realizedPnlUsd = realized.realizedPnlUsd;
+        realizedPnlPercent = realized.realizedPnlPercent;
 
         if (nextQuantity <= 0.000001) {
           await tx.portfolioPosition.delete({ where: { userId_symbol: { userId, symbol } } });
@@ -641,21 +722,55 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
         }
       }
 
-      await tx.virtualTrade.create({
+      const trade = await tx.virtualTrade.create({
         data: {
           userId,
+          idempotencyKey,
+          positionCycleId,
           symbol,
           name: marketItem.name,
           market: marketItem.market,
           side,
           quantity: currentQuantity,
           priceUsd: currentTradePriceUsd,
-          totalUsd: amountUsd,
+          totalUsd: execution.cashDeltaUsd,
+          requestedAmountUsd: amountUsd,
+          executionNotionalUsd: execution.executionNotionalUsd,
+          feeUsd: execution.feeUsd,
+          slippageUsd: execution.slippageUsd,
+          costBasisUsd,
+          realizedPnlUsd,
+          realizedPnlPercent,
+          quoteCurrency: marketItem.quoteCurrency ?? "USD",
+          priceSource: marketItem.source,
+          priceAsOf: verifiedPriceAsOf,
           reason,
+        },
+      });
+      await appendAuditEvent(tx, {
+        category: "PORTFOLIO",
+        entityType: "VirtualTrade",
+        entityId: trade.id,
+        action: side,
+        actorUserId: userId,
+        payload: {
+          symbol,
+          quantity: currentQuantity,
+          quotePriceUsd: marketItem.priceUsd,
+          executionPriceUsd: currentTradePriceUsd,
+          requestedAmountUsd: amountUsd,
+          executionNotionalUsd: execution.executionNotionalUsd,
+          feeUsd: execution.feeUsd,
+          slippageUsd: execution.slippageUsd,
+          realizedPnlUsd,
         },
       });
     });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { ok: true, message: "Bu işlem zaten uygulanmıştı; tekrar yazılmadı." };
+    }
+
     transactionError = error instanceof Error ? error.message : "İşlem uygulanamadı.";
   }
 
@@ -663,15 +778,13 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: transactionError };
   }
 
-  if (idempotencyKey) {
-    cookieStore.set(nonceCookieName, idempotencyKey, {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 10,
-    });
-  }
+  cookieStore.set(nonceCookieName, idempotencyKey, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 10,
+  });
 
   try {
     await evaluateTradeBadges(userId);
@@ -725,14 +838,23 @@ export async function updateCashModeAction(formData: FormData) {
     redirect(getRedirect(locale, "islem-yap", "Lütfen geçerli bir nakit tercihi seç."));
   }
 
-  const account = await ensureVirtualAccount(userId);
-  const cashValueUsd = cashToUsd(account.cashAmount, account.cashMode);
+  const account = await accrueRepoIfNeeded(userId);
+  const [currentRateToUsd, nextRateToUsd] = await Promise.all([
+    getCashModeUsdRate(account.cashMode, undefined, account.cashMode !== "USD"),
+    getCashModeUsdRate(cashMode, undefined, cashMode !== "USD"),
+  ]);
+
+  if (currentRateToUsd === null || nextRateToUsd === null) {
+    redirect(getRedirect(locale, "islem-yap", "Döviz dönüşümü için açık piyasaya ait doğrulanmış fiyat bulunamadı."));
+  }
+
+  const cashValueUsd = cashToUsd(account.cashAmount, account.cashMode, currentRateToUsd);
 
   await prisma.virtualAccount.update({
     where: { userId },
     data: {
       cashMode,
-      cashAmount: usdToCash(cashValueUsd, cashMode),
+      cashAmount: usdToCash(cashValueUsd, cashMode, nextRateToUsd),
       repoLastAccruedAt: cashMode === "TRY_REPO" ? new Date() : null,
     },
   });
@@ -775,7 +897,7 @@ export async function updateProfileDisplayAction(formData: FormData) {
 
 export async function createAdPlacementAction(formData: FormData) {
   const locale = formData.get("locale");
-  await requireAdminSession(locale);
+  const admin = await requireAdminSession(locale);
   const slot = normalizeText(formData.get("slot"));
   const title = normalizeText(formData.get("title"));
   const body = normalizeText(formData.get("body"));
@@ -803,21 +925,31 @@ export async function createAdPlacementAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Reklam başlangıç tarihi bitiş tarihinden önce olmalıdır."));
   }
 
-  await prisma.adPlacement.create({
-    data: {
-      slot,
-      title,
-      body,
-      imageUrl,
-      videoUrl,
-      linkUrl,
-      linkLabel,
-      displaySeconds,
-      priority: Number.isFinite(priority) ? priority : 0,
-      startsAt,
-      endsAt,
-      isActive,
-    },
+  await prisma.$transaction(async (tx) => {
+    const placement = await tx.adPlacement.create({
+      data: {
+        slot,
+        title,
+        body,
+        imageUrl,
+        videoUrl,
+        linkUrl,
+        linkLabel,
+        displaySeconds,
+        priority: Number.isFinite(priority) ? priority : 0,
+        startsAt,
+        endsAt,
+        isActive,
+      },
+    });
+    await appendAuditEvent(tx, {
+      category: "ADMIN",
+      entityType: "AdPlacement",
+      entityId: placement.id,
+      action: "CREATE",
+      actorUserId: admin.id,
+      payload: { slot, isActive },
+    });
   });
 
   revalidateAdminManagedViews(locale);
@@ -826,7 +958,7 @@ export async function createAdPlacementAction(formData: FormData) {
 
 export async function updateAdPlacementAction(formData: FormData) {
   const locale = formData.get("locale");
-  await requireAdminSession(locale);
+  const admin = await requireAdminSession(locale);
   const id = String(formData.get("id") ?? "");
   const slot = normalizeText(formData.get("slot"));
   const title = normalizeText(formData.get("title"));
@@ -855,22 +987,32 @@ export async function updateAdPlacementAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Reklam başlangıç tarihi bitiş tarihinden önce olmalıdır."));
   }
 
-  await prisma.adPlacement.update({
-    where: { id },
-    data: {
-      slot,
-      title,
-      body,
-      imageUrl,
-      videoUrl,
-      linkUrl,
-      linkLabel,
-      displaySeconds,
-      priority: Number.isFinite(priority) ? priority : 0,
-      startsAt,
-      endsAt,
-      isActive,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.adPlacement.update({
+      where: { id },
+      data: {
+        slot,
+        title,
+        body,
+        imageUrl,
+        videoUrl,
+        linkUrl,
+        linkLabel,
+        displaySeconds,
+        priority: Number.isFinite(priority) ? priority : 0,
+        startsAt,
+        endsAt,
+        isActive,
+      },
+    });
+    await appendAuditEvent(tx, {
+      category: "ADMIN",
+      entityType: "AdPlacement",
+      entityId: id,
+      action: "UPDATE",
+      actorUserId: admin.id,
+      payload: { slot, isActive },
+    });
   });
 
   revalidateAdminManagedViews(locale);
@@ -879,7 +1021,7 @@ export async function updateAdPlacementAction(formData: FormData) {
 
 export async function toggleAdPlacementAction(formData: FormData) {
   const locale = formData.get("locale");
-  await requireAdminSession(locale);
+  const admin = await requireAdminSession(locale);
   const id = String(formData.get("id") ?? "");
   const nextActive = formData.get("nextActive") === "true";
 
@@ -887,9 +1029,18 @@ export async function toggleAdPlacementAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Reklam kaydı bulunamadı."));
   }
 
-  await prisma.adPlacement.update({
-    where: { id },
-    data: { isActive: nextActive },
+  await prisma.$transaction(async (tx) => {
+    await tx.adPlacement.update({
+      where: { id },
+      data: { isActive: nextActive },
+    });
+    await appendAuditEvent(tx, {
+      category: "ADMIN",
+      entityType: "AdPlacement",
+      entityId: id,
+      action: nextActive ? "ACTIVATE" : "DEACTIVATE",
+      actorUserId: admin.id,
+    });
   });
 
   revalidateAdminManagedViews(locale);
@@ -898,7 +1049,7 @@ export async function toggleAdPlacementAction(formData: FormData) {
 
 export async function upsertManagedContentAction(formData: FormData) {
   const locale = formData.get("locale");
-  await requireAdminSession(locale);
+  const admin = await requireAdminSession(locale);
   const code = normalizeText(formData.get("code"));
   const title = normalizeText(formData.get("title"));
   const body = normalizeText(formData.get("body"));
@@ -908,10 +1059,20 @@ export async function upsertManagedContentAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Sayfa kodu, başlık ve içerik zorunludur."));
   }
 
-  await prisma.managedContentPage.upsert({
-    where: { code },
-    create: { code, title, body, isActive },
-    update: { title, body, isActive },
+  await prisma.$transaction(async (tx) => {
+    const page = await tx.managedContentPage.upsert({
+      where: { code },
+      create: { code, title, body, isActive },
+      update: { title, body, isActive },
+    });
+    await appendAuditEvent(tx, {
+      category: "ADMIN",
+      entityType: "ManagedContentPage",
+      entityId: page.id,
+      action: "UPSERT",
+      actorUserId: admin.id,
+      payload: { code, isActive },
+    });
   });
 
   revalidateAdminManagedViews(locale);
@@ -920,7 +1081,7 @@ export async function upsertManagedContentAction(formData: FormData) {
 
 export async function upsertManagedContentItemAction(formData: FormData) {
   const locale = formData.get("locale");
-  await requireAdminSession(locale);
+  const admin = await requireAdminSession(locale);
   const id = normalizeText(formData.get("id"));
   const type = normalizeText(formData.get("type"));
   const contentLocale = getSafeLocale(String(formData.get("contentLocale") ?? locale ?? "tr"));
@@ -962,14 +1123,19 @@ export async function upsertManagedContentItemAction(formData: FormData) {
     isActive,
   };
 
-  if (id) {
-    await prisma.managedContentItem.update({
-      where: { id },
-      data,
+  await prisma.$transaction(async (tx) => {
+    const item = id
+      ? await tx.managedContentItem.update({ where: { id }, data })
+      : await tx.managedContentItem.create({ data });
+    await appendAuditEvent(tx, {
+      category: "ADMIN",
+      entityType: "ManagedContentItem",
+      entityId: item.id,
+      action: id ? "UPDATE" : "CREATE",
+      actorUserId: admin.id,
+      payload: { type, locale: contentLocale, isActive, isFeatured },
     });
-  } else {
-    await prisma.managedContentItem.create({ data });
-  }
+  });
 
   revalidateAdminManagedViews(locale, contentLocale);
   redirect(getRedirect(locale, "admin"));
@@ -977,7 +1143,7 @@ export async function upsertManagedContentItemAction(formData: FormData) {
 
 export async function toggleManagedContentItemAction(formData: FormData) {
   const locale = formData.get("locale");
-  await requireAdminSession(locale);
+  const admin = await requireAdminSession(locale);
   const id = String(formData.get("id") ?? "");
   const nextActive = formData.get("nextActive") === "true";
   const contentLocale = formData.get("contentLocale");
@@ -986,9 +1152,18 @@ export async function toggleManagedContentItemAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "İçerik kaydı bulunamadı."));
   }
 
-  await prisma.managedContentItem.update({
-    where: { id },
-    data: { isActive: nextActive },
+  await prisma.$transaction(async (tx) => {
+    await tx.managedContentItem.update({
+      where: { id },
+      data: { isActive: nextActive },
+    });
+    await appendAuditEvent(tx, {
+      category: "ADMIN",
+      entityType: "ManagedContentItem",
+      entityId: id,
+      action: nextActive ? "ACTIVATE" : "DEACTIVATE",
+      actorUserId: admin.id,
+    });
   });
 
   revalidateAdminManagedViews(locale, contentLocale);
@@ -1065,9 +1240,18 @@ export async function toggleBadgeAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Rozet kaydı bulunamadı."));
   }
 
-  await prisma.badge.update({
-    where: { id },
-    data: { isActive: nextActive },
+  await prisma.$transaction(async (tx) => {
+    await tx.badge.update({
+      where: { id },
+      data: { isActive: nextActive },
+    });
+    await appendAuditEvent(tx, {
+      category: "ADMIN",
+      entityType: "Badge",
+      entityId: id,
+      action: nextActive ? "ACTIVATE" : "DEACTIVATE",
+      actorUserId: sessionUser.id,
+    });
   });
 
   redirect(getRedirect(locale, "admin"));
@@ -1094,14 +1278,29 @@ export async function createCompetitionPeriodAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Başlangıç tarihi bitiş tarihinden önce olmalıdır."));
   }
 
-  await prisma.competitionPeriod.create({
-    data: {
-      type,
-      name,
-      startsAt,
-      endsAt,
-      isActive,
-    },
+  await prisma.$transaction(async (tx) => {
+    const period = await tx.competitionPeriod.create({
+      data: {
+        type,
+        name,
+        startsAt,
+        endsAt,
+        isActive,
+      },
+    });
+    await appendAuditEvent(tx, {
+      category: "COMPETITION",
+      entityType: "CompetitionPeriod",
+      entityId: period.id,
+      action: "CREATE",
+      actorUserId: sessionUser.id,
+      payload: {
+        type,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        isActive,
+      },
+    });
   });
 
   redirect(getRedirect(locale, "admin"));
@@ -1121,9 +1320,18 @@ export async function toggleCompetitionPeriodAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Yarışma dönemi bulunamadı."));
   }
 
-  await prisma.competitionPeriod.update({
-    where: { id },
-    data: { isActive: nextActive },
+  await prisma.$transaction(async (tx) => {
+    await tx.competitionPeriod.update({
+      where: { id },
+      data: { isActive: nextActive },
+    });
+    await appendAuditEvent(tx, {
+      category: "COMPETITION",
+      entityType: "CompetitionPeriod",
+      entityId: id,
+      action: nextActive ? "ACTIVATE" : "DEACTIVATE",
+      actorUserId: sessionUser.id,
+    });
   });
 
   redirect(getRedirect(locale, "admin"));
@@ -1346,6 +1554,15 @@ export async function createLeagueAction(formData: FormData) {
       select: { id: true },
     });
 
+    await appendAuditEvent(tx, {
+      category: "LEAGUE",
+      entityType: "League",
+      entityId: league.id,
+      action: "CREATE",
+      actorUserId: sessionUser.id,
+      payload: { name, slug, type },
+    });
+
     return league;
   });
 
@@ -1389,6 +1606,18 @@ export async function joinLeagueAction(formData: FormData) {
         select: { id: true, slug: true, name: true, type: true, isActive: true },
       });
 
+  if (
+    inviteCode &&
+    league &&
+    !isLeagueInviteTargetMatch(league, { leagueId, leagueSlug })
+  ) {
+    redirect(getRedirect(
+      locale,
+      leagueSlug ? `ligler/${leagueSlug}` : "ligler",
+      safeLocale === "tr" ? "Davet kodu bu lige ait değil." : "This invitation code does not belong to this league.",
+    ));
+  }
+
   if (!league || !league.isActive) {
     redirect(getRedirect(locale, "ligler", inviteCode ? "Davet kodu geçersiz veya lig aktif değil." : "Lig bulunamadı veya aktif değil."));
   }
@@ -1416,12 +1645,25 @@ export async function joinLeagueAction(formData: FormData) {
     redirect(safeRedirectTo ?? getRedirect(locale, `ligler/${league.slug}`, "Bu lige zaten üyesin.").toString());
   }
 
-  await prisma.leagueMembership.create({
-    data: {
-      leagueId: league.id,
-      userId: sessionUser.id,
-      role: "MEMBER",
-    },
+  await prisma.$transaction(async (tx) => {
+    const membership = await tx.leagueMembership.create({
+      data: {
+        leagueId: league.id,
+        userId: sessionUser.id,
+        role: "MEMBER",
+      },
+    });
+    await appendAuditEvent(tx, {
+      category: "LEAGUE",
+      entityType: "LeagueMembership",
+      entityId: membership.id,
+      action: "JOIN",
+      actorUserId: sessionUser.id,
+      payload: {
+        leagueId: league.id,
+        source: inviteCode ? "invite-code" : "direct-join",
+      },
+    });
   });
 
   await recordSiteAnalyticsEvent({
@@ -1511,20 +1753,30 @@ export async function hideReportedChatMessageAction(formData: FormData) {
     redirect(getRedirect(locale, "admin", "Mesaj bulunamadı."));
   }
 
-  await prisma.chatMessage.update({
-    where: { id: messageId },
-    data: {
-      hiddenAt: new Date(),
-      hiddenByUserId: sessionUser.id,
-      hiddenReason: "Admin moderasyonu ile gizlendi.",
-    },
-  });
-  await prisma.chatMessageReport.updateMany({
-    where: { messageId, status: "OPEN" },
-    data: {
-      status: "RESOLVED_HIDDEN",
-      resolvedAt: new Date(),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        hiddenAt: new Date(),
+        hiddenByUserId: sessionUser.id,
+        hiddenReason: "Admin moderasyonu ile gizlendi.",
+      },
+    });
+    const reports = await tx.chatMessageReport.updateMany({
+      where: { messageId, status: "OPEN" },
+      data: {
+        status: "RESOLVED_HIDDEN",
+        resolvedAt: new Date(),
+      },
+    });
+    await appendAuditEvent(tx, {
+      category: "MODERATION",
+      entityType: "ChatMessage",
+      entityId: messageId,
+      action: "HIDE",
+      actorUserId: sessionUser.id,
+      payload: { resolvedReports: reports.count },
+    });
   });
 
   revalidatePath(`/${getSafeLocale(String(locale ?? "tr"))}/admin`);

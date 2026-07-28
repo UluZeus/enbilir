@@ -2,6 +2,7 @@ import type { CashMode } from "@/generated/prisma/enums";
 import type { MarketItem } from "@/lib/market-data";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
+import { syncPortfolioCorporateActions } from "@/lib/portfolio-corporate-actions";
 
 export const initialCashUsd = 1_000_000;
 export const bonusTradingPowerUsd = 100_000;
@@ -12,6 +13,12 @@ const exchangeRatesToUsd: Record<CashMode, number> = {
   EUR: 1.08,
   CHF: 1.1,
   TRY_REPO: 1 / 32.4,
+};
+
+const cashModeMarketSymbols: Partial<Record<CashMode, string>> = {
+  EUR: "EUR/USD",
+  CHF: "USD/CHF",
+  TRY_REPO: "USD/TRY",
 };
 
 export function formatMoney(value: number, currency = "USD") {
@@ -26,12 +33,12 @@ export function getCashCurrency(mode: CashMode) {
   return mode === "TRY_REPO" ? "TRY" : mode;
 }
 
-export function cashToUsd(amount: number, mode: CashMode) {
-  return amount * exchangeRatesToUsd[mode];
+export function cashToUsd(amount: number, mode: CashMode, rateToUsd = exchangeRatesToUsd[mode]) {
+  return amount * rateToUsd;
 }
 
-export function usdToCash(amount: number, mode: CashMode) {
-  return amount / exchangeRatesToUsd[mode];
+export function usdToCash(amount: number, mode: CashMode, rateToUsd = exchangeRatesToUsd[mode]) {
+  return amount / rateToUsd;
 }
 
 export function calculateCompetitionProfitLossUsd(totalValueUsd: number) {
@@ -53,17 +60,34 @@ export function getSafePortfolioPriceUsd(
   return position.averagePriceUsd;
 }
 
+function hasVerifiedPortfolioQuote(marketItem: MarketItem | undefined) {
+  if (
+    !marketItem ||
+    !["binance", "yahoo"].includes(marketItem.source) ||
+    marketItem.dataStatus !== "live" ||
+    !marketItem.sourceAsOf
+  ) {
+    return false;
+  }
+
+  const sourceTime = Date.parse(marketItem.sourceAsOf);
+  const maximumAgeMs = marketItem.source === "binance" ? 15 * 60_000 : 7 * 86_400_000;
+  return Number.isFinite(sourceTime) && Date.now() - sourceTime >= -60_000 && Date.now() - sourceTime <= maximumAgeMs;
+}
+
 function getPortfolioPriceStatus(marketItem: MarketItem | undefined) {
-  if (!marketItem) {
+  if (!hasVerifiedPortfolioQuote(marketItem)) {
     return {
       priceSource: "average-cost",
       dataStatus: "average-cost",
+      valuationReliable: false,
     };
   }
 
   return {
-    priceSource: marketItem.source,
-    dataStatus: marketItem.dataStatus,
+    priceSource: marketItem!.source,
+    dataStatus: marketItem!.dataStatus,
+    valuationReliable: true,
   };
 }
 
@@ -71,6 +95,26 @@ function findMarketItemForPosition(marketItems: MarketItem[], symbol: string) {
   const normalizedSymbol = symbol.trim().toUpperCase();
 
   return marketItems.find((item) => item.symbol.trim().toUpperCase() === normalizedSymbol);
+}
+
+export async function getCashModeUsdRate(
+  mode: CashMode,
+  marketItems?: MarketItem[],
+  requireExecutable = false,
+) {
+  if (mode === "USD") return 1;
+  const symbol = cashModeMarketSymbols[mode];
+  if (!symbol) return null;
+  const items = marketItems ?? await getLiveMarketItemsForSymbols([symbol]);
+  const item = findMarketItemForPosition(items, symbol);
+
+  if (!item || !hasVerifiedPortfolioQuote(item) || (requireExecutable && item.executionEligible !== true)) {
+    return null;
+  }
+
+  const nativePrice = item.priceNative ?? item.priceUsd;
+  if (!Number.isFinite(nativePrice) || nativePrice <= 0) return null;
+  return mode === "EUR" ? nativePrice : 1 / nativePrice;
 }
 
 type TradeForCompetitionCost = {
@@ -169,24 +213,77 @@ export async function accrueRepoIfNeeded(userId: string) {
     return account;
   }
 
-  const cashAmount = account.cashAmount * (1 + account.dailyRepoRate * days);
+  const cashAmount = account.cashAmount * Math.pow(1 + account.dailyRepoRate, days);
+  const accruedThrough = new Date(last.getTime() + days * 86_400_000);
 
   return prisma.virtualAccount.update({
     where: { userId },
     data: {
       cashAmount,
-      repoLastAccruedAt: now,
+      repoLastAccruedAt: accruedThrough,
     },
   });
 }
 
 export async function getCurrentPortfolio(userId: string, marketItems?: MarketItem[]) {
-  const account = await accrueRepoIfNeeded(userId);
-  const positions = await prisma.portfolioPosition.findMany({
+  const storedAccount = await ensureVirtualAccount(userId);
+  const account = (() => {
+    if (storedAccount.cashMode !== "TRY_REPO") {
+      return storedAccount;
+    }
+
+    const last = storedAccount.repoLastAccruedAt ?? storedAccount.updatedAt;
+    const days = Math.floor((Date.now() - last.getTime()) / 86_400_000);
+
+    if (days <= 0) {
+      return storedAccount;
+    }
+
+    return {
+      ...storedAccount,
+      cashAmount: storedAccount.cashAmount * Math.pow(1 + storedAccount.dailyRepoRate, days),
+      repoLastAccruedAt: new Date(last.getTime() + days * 86_400_000),
+    };
+  })();
+  let positions = await prisma.portfolioPosition.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
   });
-  const liveMarketItems = marketItems ?? await getLiveMarketItemsForSymbols(positions.map((position) => position.symbol));
+  const cashMarketSymbol = cashModeMarketSymbols[account.cashMode];
+  const suppliedItems = marketItems ?? [];
+  const cashItemMissing = cashMarketSymbol && !findMarketItemForPosition(suppliedItems, cashMarketSymbol);
+  const additionalItems = cashItemMissing
+    ? await getLiveMarketItemsForSymbols([cashMarketSymbol])
+    : [];
+  const liveMarketItems = marketItems
+    ? [...suppliedItems, ...additionalItems]
+    : await getLiveMarketItemsForSymbols([
+      ...positions.map((position) => position.symbol),
+      ...(cashMarketSymbol ? [cashMarketSymbol] : []),
+    ]);
+  const marketPriceAsOfBySymbol = new Map(
+    positions.flatMap((position) => {
+      const item = findMarketItemForPosition(liveMarketItems, position.symbol);
+      if (!item?.sourceAsOf) return [];
+      const sourceAsOf = new Date(item.sourceAsOf);
+      return Number.isNaN(sourceAsOf.getTime())
+        ? []
+        : [[position.symbol.trim().toUpperCase(), sourceAsOf] as const];
+    }),
+  );
+  const corporateActionSync = await syncPortfolioCorporateActions(
+    positions,
+    new Date(),
+    marketPriceAsOfBySymbol,
+  );
+
+  if (corporateActionSync.updatedCount > 0) {
+    positions = await prisma.portfolioPosition.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+    });
+  }
+  const unreliableCorporateActionPositionIds = new Set(corporateActionSync.unreliablePositionIds);
   const allTrades = await prisma.virtualTrade.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
@@ -208,6 +305,7 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
       currentPriceUsd,
       priceSource: priceStatus.priceSource,
       dataStatus: priceStatus.dataStatus,
+      valuationReliable: priceStatus.valuationReliable && !unreliableCorporateActionPositionIds.has(position.id),
       accountingCostUsd,
       competitionCostUsd,
       valueUsd,
@@ -216,8 +314,15 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
   });
 
   const positionsValueUsd = enrichedPositions.reduce((sum, position) => sum + position.valueUsd, 0);
+  const hasUnreliableValuation = enrichedPositions.some((position) => !position.valuationReliable);
   const accountingPositionsCostUsd = enrichedPositions.reduce((sum, position) => sum + position.accountingCostUsd, 0);
-  const cashValueUsd = cashToUsd(account.cashAmount, account.cashMode);
+  const cashRateToUsd = await getCashModeUsdRate(account.cashMode, liveMarketItems);
+  const cashValuationReliable = account.cashMode === "USD" || cashRateToUsd !== null;
+  const cashValueUsd = cashToUsd(
+    account.cashAmount,
+    account.cashMode,
+    cashRateToUsd ?? exchangeRatesToUsd[account.cashMode],
+  );
   const appliedBonusTradingPowerUsd = Math.min(
     bonusTradingPowerUsd,
     Math.max(0, cashValueUsd + accountingPositionsCostUsd - initialCashUsd),
@@ -231,6 +336,8 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
     cashCurrency: getCashCurrency(account.cashMode),
     cashValueUsd,
     positionsValueUsd,
+    hasUnreliableValuation: hasUnreliableValuation || !cashValuationReliable,
+    cashValuationReliable,
     totalValueUsd: cashValueUsd + positionsValueUsd,
     initialCapitalUsd: initialCashUsd,
     totalTradingPowerUsd: effectiveTradingPowerUsd,

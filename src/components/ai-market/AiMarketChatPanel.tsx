@@ -41,7 +41,7 @@ type ChatResponse = {
   updatedAt?: string;
   sources?: ChatSource[];
   citations?: ChatCitation[];
-  researchStatus?: "completed" | "unavailable" | "site_only";
+  researchStatus?: "completed" | "partial" | "unavailable" | "site_only";
   code?: "AUTH_REQUIRED" | "DAILY_QUERY_LIMIT_REACHED";
   quota?: AiQueryQuota;
   upgradeUrl?: string | null;
@@ -58,6 +58,8 @@ type AiQueryQuota = {
 type TranscribeResponse = {
   text?: string;
   error?: string;
+  voiceReservation?: string;
+  quota?: AiQueryQuota;
 };
 
 const quickPrompts = {
@@ -90,6 +92,7 @@ const copy = {
     waiting: "Bunu dikkatle değerlendirmek için biraz daha düşünmem gerekiyor; seni biraz bekleteceğim.",
     synthesizing: "Makro, temel ve kurumsal teknik kanıtları tek bir tezde birleştiriyorum.",
     researchUnavailable: "Canlı internet araştırması bu turda tamamlanamadı; yanıt yalnız site içi kanıtla sınırlandı.",
+    researchPartial: "Canlı web kaynakları yanıtın yalnız bağlantı verilen bölümlerini doğruluyor. Kaynaksız çıkarımları bağımsız kontrol edin.",
     empty: "Bir piyasa sorusu yazın.",
     failure: "Sohbet yanıtı alınamadı. Lütfen biraz sonra tekrar deneyin.",
     sourceTitle: "Kullanılan kanıt",
@@ -143,6 +146,7 @@ const copy = {
     waiting: "I need a little more time to assess this carefully; thank you for waiting.",
     synthesizing: "Combining the macro, fundamental, and institutional technical evidence.",
     researchUnavailable: "Live web research could not be completed in this turn; the answer was limited to site evidence.",
+    researchPartial: "Live web sources verify only the cited parts of this answer. Independently check uncited inferences.",
     empty: "Enter a market question.",
     failure: "Chat response could not be loaded. Please try again shortly.",
     sourceTitle: "Evidence used",
@@ -568,7 +572,7 @@ export function AiMarketChatPanel({
     window.speechSynthesis.speak(utterance);
   }
 
-  async function ask(question: string, options?: { speakAnswer?: boolean }) {
+  async function ask(question: string, options?: { speakAnswer?: boolean; voiceReservation?: string }) {
     const cleanQuestion = question.replace(/\s+/g, " ").trim();
 
     if (!cleanQuestion || isSending) {
@@ -593,7 +597,12 @@ export function AiMarketChatPanel({
       const response = await fetch("/api/ai-market/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ message: cleanQuestion, locale: safeLocale, history }),
+        body: JSON.stringify({
+          message: cleanQuestion,
+          locale: safeLocale,
+          history,
+          voiceReservation: options?.voiceReservation,
+        }),
         signal: controller.signal,
       });
       const payload = await response.json() as ChatResponse;
@@ -620,7 +629,15 @@ export function AiMarketChatPanel({
       setSources(payload.sources ?? []);
       setMode(payload.mode ?? null);
       setEffectiveTier(payload.membership ?? membershipTier);
-      setResearchNotice(payload.membership === "VIP" && payload.researchStatus === "unavailable" ? text.researchUnavailable : null);
+      setResearchNotice(
+        payload.membership !== "VIP"
+          ? null
+          : payload.researchStatus === "unavailable"
+            ? text.researchUnavailable
+            : payload.researchStatus === "partial"
+              ? text.researchPartial
+              : null,
+      );
       if (options?.speakAnswer && speakAnswers) {
         speak(payload.answer ?? "");
       }
@@ -832,7 +849,14 @@ export function AiMarketChatPanel({
 
       setVoiceTranscript(transcript);
       setInput(transcript);
-      await ask(transcript, { speakAnswer: true });
+      if (payload.quota) {
+        setQuota(payload.quota);
+        setPaidVipActive(payload.quota.isPaidVipActive);
+      }
+      await ask(transcript, {
+        speakAnswer: true,
+        voiceReservation: payload.voiceReservation,
+      });
     } catch (transcribeError) {
       setVoiceError(transcribeError instanceof Error ? transcribeError.message : text.voiceNetworkError);
     } finally {

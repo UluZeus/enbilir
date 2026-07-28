@@ -46,7 +46,7 @@ export default async function RegisterPage({
           </ol>
           <p className="mt-6 text-xs leading-5 text-slate-400">{locale === "tr" ? "Gerçek para işlemi yoktur. Tüm portföy işlemleri eğitim amaçlı sanaldır." : "There are no real-money trades. All portfolio activity is virtual and educational."}</p>
         </aside>
-      <form action={registerAction} className="auth-form-v3 order-1 grid gap-4 bg-white p-6 sm:p-8 lg:order-2 lg:p-10">
+      <div className="auth-form-v3 order-1 grid gap-4 bg-white p-6 sm:p-8 lg:order-2 lg:p-10">
         <div className="border-b border-slate-100 pb-4">
           <p className="section-eyebrow-v3">
             {locale === "tr" ? "Bir dakikada hesap oluştur" : "Create your account in one minute"}
@@ -62,14 +62,25 @@ export default async function RegisterPage({
         </div>
 
         <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
-        <a
-          href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(startPath)}`}
-          rel="nofollow"
-          className="google-auth-button-v3 flex min-h-12 items-center justify-center gap-3 px-5 py-3 text-center text-sm font-semibold"
-        >
-          <GoogleIcon />
-          {copy.googleRegister}
-        </a>
+        <form action="/api/auth/google/start" method="get" className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <input type="hidden" name="locale" value={locale} />
+          <input type="hidden" name="returnTo" value={startPath} />
+          <input type="hidden" name="intent" value="register" />
+          <p className="text-xs font-bold text-slate-600">
+            {locale === "tr" ? "Google ile kayıt onayları" : "Google registration confirmations"}
+          </p>
+          <label className="flex gap-3 text-sm text-slate-700"><input name="kvkkAccepted" type="checkbox" required /> <span><Link href={`/${locale}/kvkk`} className="font-bold text-[#0f766e]">{locale === "tr" ? "KVKK Aydınlatma Metni" : "Privacy Notice"}</Link>{locale === "tr" ? "’ni okudum." : " read and understood."}</span></label>
+          <label className="flex gap-3 text-sm text-slate-700"><input name="termsAccepted" type="checkbox" required /> <span><Link href={`/${locale}/kullanim-sartlari`} className="font-bold text-[#0f766e]">{locale === "tr" ? "Kullanım Şartları" : "Terms of Use"}</Link>{locale === "tr" ? "’nı kabul ediyorum." : " accepted."}</span></label>
+          <label className="flex gap-3 text-sm text-slate-700"><input name="noAdviceAccepted" type="checkbox" required /> <span>{copy.noAdviceAccepted}</span></label>
+          <label className="flex gap-3 text-sm text-slate-700"><input name="electronicConsent" type="checkbox" /> <span>{copy.electronicConsent}</span></label>
+          <button
+            type="submit"
+            className="google-auth-button-v3 flex min-h-12 items-center justify-center gap-3 px-5 py-3 text-center text-sm font-semibold"
+          >
+            <GoogleIcon />
+            {copy.googleRegister}
+          </button>
+        </form>
         {isDevelopment ? (
           <a
             href={`/api/auth/dev-login?locale=${locale}&returnTo=${encodeURIComponent(startPath)}`}
@@ -84,36 +95,38 @@ export default async function RegisterPage({
           <span className="h-px flex-1 bg-slate-200" />
         </div>
 
-        <input type="hidden" name="locale" value={locale} />
-        <label className="grid gap-2 text-sm font-semibold text-slate-700">
+        <form action={registerAction} className="grid gap-4">
+          <input type="hidden" name="locale" value={locale} />
+          <label className="grid gap-2 text-sm font-semibold text-slate-700">
           {copy.fullName}
           <input name="name" required autoComplete="name" className="auth-input-v3 px-4 py-3 font-normal" />
-        </label>
-        <label className="grid gap-2 text-sm font-semibold text-slate-700">
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-slate-700">
           {copy.email}
           <input name="email" type="email" required autoComplete="email" className="auth-input-v3 px-4 py-3 font-normal" />
-        </label>
-        <PasswordField
-          label={copy.password}
-          locale={locale}
-          autoComplete="new-password"
-          minLength={8}
-          hint={locale === "tr" ? "En az 8 karakter kullan." : "Use at least 8 characters."}
-        />
+          </label>
+          <PasswordField
+            label={copy.password}
+            locale={locale}
+            autoComplete="new-password"
+            minLength={8}
+            hint={locale === "tr" ? "En az 8 karakter kullan." : "Use at least 8 characters."}
+          />
 
-        <fieldset className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <fieldset className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <legend className="px-1 text-sm font-bold text-slate-900">{locale === "tr" ? "Onaylar" : "Confirmations"}</legend>
           <label className="flex gap-3 text-sm text-slate-700"><input name="kvkkAccepted" type="checkbox" required /> <span><Link href={`/${locale}/kvkk`} className="font-bold text-[#0f766e]">{locale === "tr" ? "KVKK Aydınlatma Metni" : "Privacy Notice"}</Link>{locale === "tr" ? "’ni okudum." : " read and understood."}</span></label>
           <label className="flex gap-3 text-sm text-slate-700"><input name="termsAccepted" type="checkbox" required /> <span><Link href={`/${locale}/kullanim-sartlari`} className="font-bold text-[#0f766e]">{locale === "tr" ? "Kullanım Şartları" : "Terms of Use"}</Link>{locale === "tr" ? "’nı kabul ediyorum." : " accepted."}</span></label>
           <label className="flex gap-3 text-sm text-slate-700"><input name="noAdviceAccepted" type="checkbox" required /> <span>{copy.noAdviceAccepted}</span></label>
           <label className="flex gap-3 text-sm text-slate-700"><input name="electronicConsent" type="checkbox" /> <span>{copy.electronicConsent}</span></label>
-        </fieldset>
-        <button className="button-primary-v3 min-h-12 px-5 py-3 text-sm font-bold">{copy.register}</button>
-        <p className="text-center text-sm text-slate-600">
-          {locale === "tr" ? "Zaten hesabın var mı?" : "Already have an account?"}{" "}
-          <Link href={`/${locale}/giris`} className="font-bold text-teal-700">{copy.login}</Link>
-        </p>
-      </form>
+          </fieldset>
+          <button className="button-primary-v3 min-h-12 px-5 py-3 text-sm font-bold">{copy.register}</button>
+          <p className="text-center text-sm text-slate-600">
+            {locale === "tr" ? "Zaten hesabın var mı?" : "Already have an account?"}{" "}
+            <Link href={`/${locale}/giris`} className="font-bold text-teal-700">{copy.login}</Link>
+          </p>
+        </form>
+      </div>
       </section>
     </div>
   );

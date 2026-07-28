@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   calculateVipAsymmetryRank,
   calculateVipQuantitativeScore,
+  getDeterministicVipScorecard,
+  hasFreshVipTechnicalSnapshot,
   hasRequiredVipResearchInputs,
 } from "@/lib/vip-research/candidate-policy";
 import type { VipResearchCandidate, VipTechnicalSnapshot } from "@/lib/vip-research/types";
@@ -70,5 +72,23 @@ describe("VIP asset-type research policy", () => {
     const weak = calculateVipAsymmetryRank(item, { confidenceScore: 60, riskScore: 70, stance: "IZLE" });
 
     expect(strong).toBeGreaterThan(weak);
+  });
+
+  it("marks old technical snapshots stale and derives levels without model arithmetic", () => {
+    const item = candidate("EQUITY", true);
+    item.technical.asOf = "2026-07-28T03:00:00.000Z";
+    item.quantitativeScore = 78;
+
+    expect(hasFreshVipTechnicalSnapshot(item, new Date("2026-07-28T04:00:00.000Z"))).toBe(true);
+    expect(hasFreshVipTechnicalSnapshot(item, new Date("2026-07-30T04:00:00.000Z"))).toBe(false);
+
+    const scorecard = getDeterministicVipScorecard(item);
+    expect(scorecard.entryLow).toBeLessThanOrEqual(scorecard.entryHigh);
+    expect(scorecard.stopLoss).toBeLessThan(scorecard.entryLow);
+    expect(scorecard.targetPrice).toBeGreaterThanOrEqual(
+      scorecard.entryHigh + (scorecard.entryLow - scorecard.stopLoss) * 2,
+    );
+    expect(scorecard.confidenceScore).toBeGreaterThanOrEqual(1);
+    expect(scorecard.riskScore).toBeLessThanOrEqual(100);
   });
 });

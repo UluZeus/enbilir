@@ -4,6 +4,12 @@ import path from "node:path";
 import process from "node:process";
 import Database from "better-sqlite3";
 
+if (process.argv.includes("--apply")) {
+  throw new Error(
+    "This legacy direct-database publisher is disabled because it cannot prove current market-data freshness. Use npm run weekly:publish-results.",
+  );
+}
+
 const args = new Set(process.argv.slice(2));
 const apply = args.has("--apply");
 const confirmProduction = args.has("--confirm-production");

@@ -1,6 +1,8 @@
 import { fetchJsonWithFallback } from "@/lib/http-json";
 import type { Candle } from "@/lib/ai-market/types";
 import { getYahooProviderSymbolCandidates } from "@/lib/ai-market/yahoo-symbols";
+import { normalizeProviderCandles } from "@/lib/ai-market/candle-quality";
+import { withProviderRetry } from "@/lib/ai-market/provider-resilience";
 
 type YahooChartResponse = {
   chart?: {
@@ -80,14 +82,17 @@ async function fetchYahooCandlesForProviderSymbol(symbol: string, interval: stri
       const url = new URL(`https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}`);
       url.searchParams.set("range", intervalRanges[interval] ?? "1mo");
       url.searchParams.set("interval", yahooIntervals[interval] ?? "1h");
-      const data = await fetchJsonWithFallback<YahooChartResponse>(url, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        },
-        next: { revalidate: 60 },
-        timeoutMs,
-      });
+      const data = await withProviderRetry(
+        () => fetchJsonWithFallback<YahooChartResponse>(url, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          },
+          next: { revalidate: 60 },
+          timeoutMs,
+        }),
+        { maxAttempts: 2 },
+      );
       const result = data.chart?.result?.[0];
       const timestamps = result?.timestamp ?? [];
       const quote = result?.indicators?.quote?.[0];
@@ -96,7 +101,7 @@ async function fetchYahooCandlesForProviderSymbol(symbol: string, interval: stri
         continue;
       }
 
-      const candles = timestamps
+      const candles = normalizeProviderCandles(timestamps
         .map((timestamp, index) => ({
           openTime: timestamp * 1000,
           open: toNumber(quote.open?.[index]),
@@ -104,11 +109,9 @@ async function fetchYahooCandlesForProviderSymbol(symbol: string, interval: stri
           low: toNumber(quote.low?.[index]),
           close: toNumber(quote.close?.[index]),
           volume: toNumber(quote.volume?.[index]),
-        }))
-        .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
-        .sort((a, b) => a.openTime - b.openTime);
+        }))).candles;
 
-      return aggregateCandles(candles, interval === "4h" ? 4 : 1);
+      return normalizeProviderCandles(aggregateCandles(candles, interval === "4h" ? 4 : 1)).candles;
     } catch (error) {
       errors.push(`${host}: ${error instanceof Error ? error.message : "Yahoo public data unavailable"}`);
     }
@@ -129,14 +132,17 @@ export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeo
         url.searchParams.set("interval", "1d");
         url.searchParams.set("includePrePost", "false");
 
-        const data = await fetchJsonWithFallback<YahooChartResponse>(url, {
-          headers: {
-            Accept: "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-          },
-          next: { revalidate: 3600 },
-          timeoutMs,
-        });
+        const data = await withProviderRetry(
+          () => fetchJsonWithFallback<YahooChartResponse>(url, {
+            headers: {
+              Accept: "application/json",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+            },
+            next: { revalidate: 3600 },
+            timeoutMs,
+          }),
+          { maxAttempts: 2 },
+        );
         const result = data.chart?.result?.[0];
         const timestamps = result?.timestamp ?? [];
         const quote = result?.indicators?.quote?.[0];
@@ -145,7 +151,7 @@ export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeo
           continue;
         }
 
-        return timestamps
+        return normalizeProviderCandles(timestamps
           .map((timestamp, index) => ({
             openTime: timestamp * 1000,
             open: toNumber(quote.open?.[index]),
@@ -153,9 +159,7 @@ export async function fetchYahooDailyCandles(symbol: string, range = "2y", timeo
             low: toNumber(quote.low?.[index]),
             close: toNumber(quote.close?.[index]),
             volume: toNumber(quote.volume?.[index]),
-          }))
-          .filter((candle) => candle.open > 0 && candle.high > 0 && candle.low > 0 && candle.close > 0)
-          .sort((left, right) => left.openTime - right.openTime);
+          }))).candles;
       } catch (error) {
         errors.push(`${candidate}@${host}: ${error instanceof Error ? error.message : "Yahoo daily data unavailable"}`);
       }

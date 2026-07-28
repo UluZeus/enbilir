@@ -6,6 +6,15 @@ import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import type { AssetClass, Candle, MarketAnalysis } from "@/lib/ai-market/types";
 import { REQUIRED_MACRO_ASSETS, type MacroCoverageAsset } from "@/lib/ai-market/agent/macro-coverage";
+import {
+  assessCandleFreshness,
+  buildMarketDataProvenance,
+  toAnalysisDataStatus,
+} from "@/lib/ai-market/data-freshness";
+import {
+  mapSettledWithConcurrency,
+  ProviderRequestBudget,
+} from "@/lib/ai-market/provider-resilience";
 
 export type AgentAssetAnalysis = {
   symbol: string;
@@ -31,8 +40,8 @@ type AgentAssetSeed = {
 };
 
 const MIN_CANDLE_COUNT = 30;
+const AGENT_ANALYSIS_CONCURRENCY = 6;
 export const AI_MARKET_AGENT_INTERVAL = "1h";
-
 function getChangePercent(candles: Candle[]) {
   const first = candles[0];
   const latest = candles[candles.length - 1];
@@ -110,14 +119,31 @@ async function loadCandles(seed: AgentAssetSeed) {
 
 function buildAnalysis(seed: AgentAssetSeed, candles: Candle[]): MarketAnalysis {
   const indicators = calculateIndicators(candles);
-  const signal = analyzeSignal(candles, indicators);
+  const calculatedSignal = analyzeSignal(candles, indicators);
   const risk = assessRisk(candles, indicators);
   const latest = candles[candles.length - 1];
+  const sourceAsOf = latest?.openTime ?? 0;
+  const freshness = assessCandleFreshness({
+    candleOpenTime: sourceAsOf,
+    assetClass: seed.assetClass,
+    interval: AI_MARKET_AGENT_INTERVAL,
+  });
+  const signal = freshness === "FRESH"
+    ? calculatedSignal
+    : {
+        signal: "NO_TRADE" as const,
+        confidence: 0,
+        reasons: [
+          freshness === "MARKET_CLOSED"
+            ? `Piyasa kapalı. Son doğrulanmış mum: ${sourceAsOf > 0 ? new Date(sourceAsOf).toISOString() : "bilinmiyor"}.`
+            : `Kaynak verisi işlem için güncel değil. Son mum: ${sourceAsOf > 0 ? new Date(sourceAsOf).toISOString() : "bilinmiyor"}.`,
+        ],
+      };
 
   return {
     symbol: seed.symbol,
     name: seed.name,
-    exchange: seed.assetClass === "CRYPTO" ? "binance" : "binance",
+    exchange: seed.assetClass === "CRYPTO" ? "binance" : "yahoo",
     interval: AI_MARKET_AGENT_INTERVAL,
     lastPrice: latest?.close ?? null,
     changePercent: getChangePercent(candles),
@@ -127,8 +153,14 @@ function buildAnalysis(seed: AgentAssetSeed, candles: Candle[]): MarketAnalysis 
     risk,
     explanation: "",
     disclaimer: "",
-    updatedAt: new Date().toISOString(),
-    dataStatus: "live",
+    updatedAt: sourceAsOf > 0 ? new Date(sourceAsOf).toISOString() : new Date(0).toISOString(),
+    dataStatus: toAnalysisDataStatus(freshness),
+    provenance: buildMarketDataProvenance({
+      provider: seed.assetClass === "CRYPTO" ? "binance" : "yahoo",
+      candleOpenTime: sourceAsOf,
+      assetClass: seed.assetClass,
+      interval: AI_MARKET_AGENT_INTERVAL,
+    }),
     technicalSeries: calculateTechnicalSeries(candles, 120),
   };
 }
@@ -148,8 +180,12 @@ export function getAgentAssetSeeds(favoriteSymbols: string[]) {
 
 export async function analyzeAgentAssets(favoriteSymbols: string[]): Promise<AgentAssetAnalysis[]> {
   const seeds = getAgentAssetSeeds(favoriteSymbols);
-  const settled = await Promise.allSettled(
-    seeds.map(async (seed) => {
+  const requestBudget = new ProviderRequestBudget(seeds.length);
+  const settled = await mapSettledWithConcurrency(
+    seeds,
+    AGENT_ANALYSIS_CONCURRENCY,
+    async (seed) => {
+      requestBudget.consume();
       const candles = await loadCandles(seed);
 
       if (candles.length < MIN_CANDLE_COUNT) {
@@ -166,7 +202,7 @@ export async function analyzeAgentAssets(favoriteSymbols: string[]): Promise<Age
         whyRequired: seed.whyRequired,
         analysis: buildAnalysis(seed, candles),
       } satisfies AgentAssetAnalysis;
-    }),
+    },
   );
 
   return settled.map((result, index) => {

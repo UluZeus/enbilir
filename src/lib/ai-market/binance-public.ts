@@ -1,5 +1,7 @@
 import { fetchJsonWithFallback } from "@/lib/http-json";
 import type { Candle } from "@/lib/ai-market/types";
+import { normalizeProviderCandles } from "@/lib/ai-market/candle-quality";
+import { withProviderRetry } from "@/lib/ai-market/provider-resilience";
 
 type BinanceKline = [
   number,
@@ -27,18 +29,29 @@ export async function fetchBinanceCandles(symbol: string, interval = "1h", limit
   url.searchParams.set("interval", interval);
   url.searchParams.set("limit", String(limit));
 
-  const rows = await fetchJsonWithFallback<BinanceKline[]>(url, {
-    headers: { Accept: "application/json" },
-    next: { revalidate: 60 },
-    timeoutMs,
-  });
+  const rows = await withProviderRetry(
+    () => fetchJsonWithFallback<unknown>(url, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 60 },
+      timeoutMs,
+    }),
+    { maxAttempts: 2 },
+  );
 
-  return rows.map((row) => ({
-    openTime: row[0],
-    open: toNumber(row[1]),
-    high: toNumber(row[2]),
-    low: toNumber(row[3]),
-    close: toNumber(row[4]),
-    volume: toNumber(row[5]),
-  }));
+  if (!Array.isArray(rows)) {
+    throw new Error("Unexpected Binance candle payload");
+  }
+
+  const mapped = rows
+    .filter((row): row is BinanceKline => Array.isArray(row) && row.length >= 6)
+    .map((row) => ({
+      openTime: row[0],
+      open: toNumber(row[1]),
+      high: toNumber(row[2]),
+      low: toNumber(row[3]),
+      close: toNumber(row[4]),
+      volume: toNumber(row[5]),
+    }));
+
+  return normalizeProviderCandles(mapped).candles;
 }

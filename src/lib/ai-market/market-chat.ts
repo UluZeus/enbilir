@@ -25,6 +25,9 @@ export type MarketChatReportAsset = {
   watchLevels: string[];
   scenarios: string[];
   indicatorSnapshot: string | null;
+  provider?: string | null;
+  sourceAsOf?: string | null;
+  dataStatus?: string;
 };
 
 export type MarketChatVipIdea = {
@@ -299,6 +302,7 @@ function formatLocalReportAsset(asset: MarketChatReportAsset, locale: MarketChat
   return [
     `${asset.displayName} (${asset.symbol})${scores ? `: ${scores}` : ":"}`,
     asset.indicatorSnapshot ? `${isTurkish ? "Göstergeler" : "Indicators"}: ${asset.indicatorSnapshot}.` : "",
+    `${isTurkish ? "Kaynak durumu" : "Source status"}: ${asset.dataStatus ?? "unknown"}; ${isTurkish ? "sağlayıcı" : "provider"}: ${asset.provider ?? "unknown"}; asOf: ${asset.sourceAsOf ?? "unknown"}.`,
     compactText(asset.technicalCommentary, 420),
     asset.watchLevels.length > 0 ? `${isTurkish ? "İzleme" : "Watch"}: ${asset.watchLevels.join(" | ")}.` : "",
   ].filter(Boolean).join(" ");
@@ -314,6 +318,9 @@ function formatReportAssetLine(asset: MarketChatReportAsset) {
     `riskScore=${formatNullableNumber(asset.riskScore)}`,
     `opportunityScore=${formatNullableNumber(asset.opportunityScore)}`,
     `indicators=${asset.indicatorSnapshot ?? "unavailable"}`,
+    `provider=${asset.provider ?? "unknown"}`,
+    `sourceAsOf=${asset.sourceAsOf ?? "unknown"}`,
+    `dataStatus=${asset.dataStatus ?? "unknown"}`,
     `technical=${asset.technicalCommentary}`,
     `macro=${asset.macroCommentary ?? "unavailable"}`,
     `news=${asset.newsCommentary ?? "unavailable"}`,

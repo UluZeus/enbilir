@@ -4,6 +4,12 @@ import path from "node:path";
 import process from "node:process";
 import Database from "better-sqlite3";
 
+if (process.argv.includes("--apply")) {
+  throw new Error(
+    "This legacy direct-database snapshot writer is disabled because it cannot prove current market-data freshness. Use the protected weekly competition route.",
+  );
+}
+
 const initialCashUsd = 1_000_000;
 const args = new Set(process.argv.slice(2));
 const apply = args.has("--apply");

@@ -246,9 +246,15 @@ function MiniLineChart({ data, metric, color }: { data: ChartPoint[]; metric: "s
       return `${pointIndex === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
+  const metricLabel = metric === "successRate" ? "Başarı oranı" : "Ortalama getiri";
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-40 w-full overflow-visible">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="h-40 w-full overflow-visible"
+      role="img"
+      aria-label={`${metricLabel}: ilk ${values[0].toFixed(2)}, son ${values[values.length - 1].toFixed(2)}, en düşük ${min.toFixed(2)}, en yüksek ${max.toFixed(2)}.`}
+    >
       <path d={path} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

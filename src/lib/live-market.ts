@@ -1,17 +1,27 @@
 import { fetchJsonWithFallback } from "@/lib/http-json";
 import { formatMarketItemValue, mixedMarketItems, type MarketItem } from "@/lib/market-data";
+import { assessQuoteFreshness } from "@/lib/ai-market/data-freshness";
+import {
+  mapSettledWithConcurrency,
+  ProviderRequestBudget,
+  withProviderRetry,
+} from "@/lib/ai-market/provider-resilience";
 
 type LiveQuote = {
   symbol: string;
   open: number;
   close: number;
   provider: "binance" | "yahoo";
+  currency: string;
+  sourceAsOf: string;
+  marketState: string;
 };
 
 type BinanceTicker = {
   symbol: string;
   openPrice: string;
   lastPrice: string;
+  closeTime?: number;
 };
 
 type YahooSparkResponse = {
@@ -24,6 +34,8 @@ type YahooSparkResponse = {
           regularMarketPrice?: number;
           chartPreviousClose?: number;
           previousClose?: number;
+          regularMarketTime?: number;
+          marketState?: string;
         };
       }>;
     }>;
@@ -46,20 +58,29 @@ function timeout<T>(milliseconds: number, fallback: T): Promise<T> {
 
 async function fetchJson<T>(url: string, timeoutMs = 12_000): Promise<T | null> {
   try {
-    return await fetchJsonWithFallback<T>(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "Mozilla/5.0",
-      },
-      timeoutMs,
-    });
+    return await withProviderRetry(
+      () => fetchJsonWithFallback<T>(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "Mozilla/5.0",
+        },
+        timeoutMs,
+      }),
+      { maxAttempts: 2 },
+    );
   } catch {
     return null;
   }
 }
 
 async function fetchJsonBatch<T>(urls: string[], timeoutMs = 12_000): Promise<Array<T | null>> {
-  return Promise.all(urls.map((url) => fetchJson<T>(url, timeoutMs)));
+  const budget = new ProviderRequestBudget(urls.length);
+  const settled = await mapSettledWithConcurrency(urls, 4, async (url) => {
+    budget.consume();
+    return fetchJson<T>(url, timeoutMs);
+  });
+
+  return settled.map((result) => result.status === "fulfilled" ? result.value : null);
 }
 
 function isBinanceTicker(value: unknown): value is BinanceTicker {
@@ -135,7 +156,7 @@ function getYahooQuoteSymbol(item: MarketItem) {
 }
 
 function getYahooBatchSymbols(items: MarketItem[]) {
-  return Array.from(
+  const symbols = Array.from(
     new Set(
       items
         .filter((item) => item.source !== "representative" && item.category !== "CRYPTO")
@@ -143,6 +164,12 @@ function getYahooBatchSymbols(items: MarketItem[]) {
         .filter((symbol): symbol is string => Boolean(symbol)),
     ),
   );
+
+  if (items.some((item) => item.category === "BIST") && !symbols.includes("USDTRY=X")) {
+    symbols.push("USDTRY=X");
+  }
+
+  return symbols;
 }
 
 function getQuoteKey(item: MarketItem) {
@@ -162,29 +189,85 @@ function getQuoteKey(item: MarketItem) {
   return yahooSymbol ? yahooSymbol.toUpperCase() : item.dataSymbol.toUpperCase();
 }
 
-function normalizeLiveQuote(fallback: MarketItem, quote?: LiveQuote): MarketItem {
+function isFreshQuote(quote: LiveQuote, now = Date.now()) {
+  return assessQuoteFreshness({
+    sourceAsOf: quote.sourceAsOf,
+    provider: quote.provider,
+    marketState: quote.marketState,
+    now,
+  }) === "FRESH";
+}
+
+function normalizeUsdPrice(fallback: MarketItem, quote: LiveQuote, quoteMap: Map<string, LiveQuote>) {
+  if (fallback.category !== "BIST") {
+    return quote.close;
+  }
+
+  const usdTry = quoteMap.get("USDTRY=X");
+  if (!usdTry || usdTry.close <= 0 || !isFreshQuote(usdTry)) {
+    return null;
+  }
+
+  return quote.close / usdTry.close;
+}
+
+function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuote>, quote?: LiveQuote): MarketItem {
+  const retrievedAt = new Date().toISOString();
+
   if (!quote || !Number.isFinite(quote.close) || quote.close <= 0) {
     return {
       ...fallback,
       dataStatus: fallback.dataStatus === "representative" ? "representative" : "close",
       source: fallback.source === "representative" ? "representative" : "fallback",
+      sourceAsOf: null,
+      retrievedAt,
+      marketState: "UNAVAILABLE",
+      executionEligible: false,
     };
   }
 
   const changePercent = quote.open > 0 ? ((quote.close - quote.open) / quote.open) * 100 : 0;
+  const priceUsd = normalizeUsdPrice(fallback, quote, quoteMap);
+  const freshness = assessQuoteFreshness({
+    sourceAsOf: quote.sourceAsOf,
+    provider: quote.provider,
+    marketState: quote.marketState,
+  });
+  const executionEligible = priceUsd !== null && freshness === "FRESH";
+
+  if (priceUsd === null) {
+    return {
+      ...fallback,
+      dataStatus: "close",
+      source: "fallback",
+      quoteCurrency: quote.currency,
+      priceNative: quote.close,
+      sourceAsOf: quote.sourceAsOf,
+      retrievedAt,
+      marketState: "FX_CONVERSION_UNAVAILABLE",
+      executionEligible: false,
+    };
+  }
 
   return {
     ...fallback,
-    price: formatMarketItemValue(quote.close, fallback.category),
-    priceUsd: quote.close,
+    price: formatMarketItemValue(priceUsd, fallback.category),
+    priceUsd,
     changePercent,
-    dataStatus: "live",
+    dataStatus: freshness === "FRESH" ? "live" : "close",
     source: quote.provider,
+    quoteCurrency: quote.currency,
+    priceNative: quote.close,
+    sourceAsOf: quote.sourceAsOf,
+    retrievedAt,
+    marketState: quote.marketState,
+    executionEligible,
   };
 }
 
 export function getFallbackMarketItems(): MarketItem[] {
-  return mixedMarketItems.map((fallback) => normalizeLiveQuote(fallback));
+  const emptyQuoteMap = new Map<string, LiveQuote>();
+  return mixedMarketItems.map((fallback) => normalizeLiveQuote(fallback, emptyQuoteMap));
 }
 
 async function fetchBinanceQuotes(items: MarketItem[]) {
@@ -229,6 +312,11 @@ async function fetchBinanceQuotes(items: MarketItem[]) {
       open: open && open > 0 ? open : close,
       close,
       provider: "binance",
+      currency: "USDT",
+      sourceAsOf: new Date(
+        Number.isFinite(entry.closeTime) && Number(entry.closeTime) > 0 ? Number(entry.closeTime) : 0,
+      ).toISOString(),
+      marketState: "REGULAR",
     });
   }
 
@@ -260,12 +348,25 @@ async function fetchYahooSparkQuotes(symbols: string[]) {
         continue;
       }
 
-      merged.set(symbol, {
+      const nextQuote: LiveQuote = {
         symbol,
         open: previousClose && previousClose > 0 ? previousClose : price,
         close: price,
         provider: "yahoo",
-      });
+        currency: String(meta?.currency ?? "USD").toUpperCase(),
+        sourceAsOf: meta?.regularMarketTime
+          ? new Date(meta.regularMarketTime * 1000).toISOString()
+          : new Date(0).toISOString(),
+        marketState: String(meta?.marketState ?? "UNKNOWN").toUpperCase(),
+      };
+      const currentQuote = merged.get(symbol);
+
+      if (
+        !currentQuote ||
+        Date.parse(nextQuote.sourceAsOf) > Date.parse(currentQuote.sourceAsOf)
+      ) {
+        merged.set(symbol, nextQuote);
+      }
     }
   }
 
@@ -282,6 +383,9 @@ function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
       open: gold.open / 31.1035,
       close: gold.close / 31.1035,
       provider: "yahoo",
+      currency: gold.currency,
+      sourceAsOf: gold.sourceAsOf,
+      marketState: gold.marketState,
     });
   }
 
@@ -291,6 +395,9 @@ function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
       open: silver.open / 31.1035,
       close: silver.close / 31.1035,
       provider: "yahoo",
+      currency: silver.currency,
+      sourceAsOf: silver.sourceAsOf,
+      marketState: silver.marketState,
     });
   }
 }
@@ -314,7 +421,7 @@ async function loadQuotedItems(items: MarketItem[]): Promise<MarketItem[]> {
 
   return items.map((fallback) => {
     const key = getQuoteKey(fallback).toUpperCase();
-    return normalizeLiveQuote(fallback, quoteMap.get(key));
+    return normalizeLiveQuote(fallback, quoteMap, quoteMap.get(key));
   });
 }
 

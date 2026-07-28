@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import {
   buildInstitutionalOpenAiRequest,
   ensureInstitutionalChatDisclosure,
+  ensureInstitutionalResearchCoverageNotice,
+  enforceVipInvestmentEvidence,
   extractInstitutionalChatResult,
   type InstitutionalChatCitation,
   type InstitutionalChatResult,
@@ -21,6 +23,7 @@ import {
   reserveAiQuery,
 } from "@/lib/ai-query-quota";
 import type { AiQueryQuota } from "@/lib/ai-query-policy";
+import { consumeVoiceAiQueryReservation } from "@/lib/ai-query-reservation";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +42,7 @@ type ChatRequestBody = {
   message?: unknown;
   locale?: unknown;
   history?: unknown;
+  voiceReservation?: unknown;
 };
 
 const rateLimiter = new FixedWindowRateLimiter({
@@ -46,6 +50,12 @@ const rateLimiter = new FixedWindowRateLimiter({
   maxRequests: 18,
   maxEntries: 10_000,
 });
+const MAX_CHAT_REPORT_AGE_MS = 36 * 60 * 60 * 1000;
+
+function isCurrentReport(date: Date) {
+  const age = Date.now() - date.getTime();
+  return age >= -5 * 60 * 1000 && age <= MAX_CHAT_REPORT_AGE_MS;
+}
 
 function normalizeLocale(value: unknown): MarketChatLocale {
   return value === "en" ? "en" : "tr";
@@ -79,6 +89,10 @@ function normalizeMessage(value: unknown) {
   }
 
   return value.replace(/\s+/g, " ").trim().slice(0, 700);
+}
+
+function normalizeVoiceReservation(value: unknown) {
+  return typeof value === "string" && value.length <= 128 ? value.trim() : "";
 }
 
 function normalizeHistory(value: unknown) {
@@ -138,6 +152,16 @@ function summarizeIndicatorSnapshot(sourcePayload: unknown) {
     : null;
 }
 
+function summarizeReportSource(sourcePayload: unknown) {
+  const payload = asRecord(sourcePayload);
+
+  return {
+    provider: typeof payload?.provider === "string" ? payload.provider : null,
+    sourceAsOf: typeof payload?.sourceAsOf === "string" ? payload.sourceAsOf : null,
+    dataStatus: typeof payload?.dataStatus === "string" ? payload.dataStatus : "unknown",
+  };
+}
+
 async function getLatestReport() {
   const report = await prisma.aiMarketReport.findFirst({
     where: { scope: "GLOBAL" },
@@ -173,7 +197,7 @@ async function getLatestReport() {
     },
   });
 
-  return report
+  return report && isCurrentReport(report.generatedAt)
     ? {
         generatedAt: report.generatedAt.toISOString(),
         marketRegime: report.marketRegime,
@@ -181,23 +205,28 @@ async function getLatestReport() {
         macroSummary: report.macroSummary,
         newsSummary: report.newsSummary,
         keyTakeaways: toStringArray(report.keyTakeaways),
-        assets: report.assets.map((asset) => ({
-          symbol: asset.symbol,
-          displayName: asset.displayName,
-          assetClass: asset.assetClass,
-          lastPrice: asset.lastPrice,
-          changePercent: asset.changePercent,
-          signalType: asset.signalType,
-          confidence: asset.confidence,
-          riskScore: asset.riskScore,
-          opportunityScore: asset.opportunityScore,
-          technicalCommentary: asset.technicalCommentary,
-          macroCommentary: asset.macroCommentary,
-          newsCommentary: asset.newsCommentary,
-          watchLevels: toStringArray(asset.watchLevels),
-          scenarios: toStringArray(asset.scenarios),
-          indicatorSnapshot: summarizeIndicatorSnapshot(asset.sourcePayload),
-        })),
+        assets: report.assets.map((asset) => {
+          const source = summarizeReportSource(asset.sourcePayload);
+
+          return {
+            symbol: asset.symbol,
+            displayName: asset.displayName,
+            assetClass: asset.assetClass,
+            lastPrice: asset.lastPrice,
+            changePercent: asset.changePercent,
+            signalType: asset.signalType,
+            confidence: asset.confidence,
+            riskScore: asset.riskScore,
+            opportunityScore: asset.opportunityScore,
+            technicalCommentary: asset.technicalCommentary,
+            macroCommentary: asset.macroCommentary,
+            newsCommentary: asset.newsCommentary,
+            watchLevels: toStringArray(asset.watchLevels),
+            scenarios: toStringArray(asset.scenarios),
+            indicatorSnapshot: summarizeIndicatorSnapshot(asset.sourcePayload),
+            ...source,
+          };
+        }),
       }
     : null;
 }
@@ -242,7 +271,7 @@ async function getLatestVipResearch() {
     },
   });
 
-  return report
+  return report && isCurrentReport(report.generatedAt)
     ? {
         generatedAt: report.generatedAt.toISOString(),
         marketContext: report.marketContext,
@@ -403,6 +432,7 @@ export async function POST(request: Request) {
     const locale = normalizeLocale(body.locale);
     const question = normalizeMessage(body.message);
     const history = normalizeHistory(body.history);
+    const voiceReservation = normalizeVoiceReservation(body.voiceReservation);
 
     if (!question) {
       return NextResponse.json({ error: locale === "tr" ? "Lütfen bir soru yazın." : "Please enter a question." }, { status: 400 });
@@ -419,12 +449,23 @@ export async function POST(request: Request) {
 
     const { sessionUser, membership } = authenticated;
     let quota: AiQueryQuota;
+    const usedVoiceReservation = voiceReservation
+      ? await consumeVoiceAiQueryReservation({
+          token: voiceReservation,
+          userId: sessionUser.id,
+        })
+      : false;
 
     try {
-      quota = await reserveAiQuery({
-        userId: sessionUser.id,
-        isPaidVipActive: membership.isPaidVipActive,
-      });
+      quota = usedVoiceReservation
+        ? await getAiQueryQuota({
+            userId: sessionUser.id,
+            isPaidVipActive: membership.isPaidVipActive,
+          })
+        : await reserveAiQuery({
+            userId: sessionUser.id,
+            isPaidVipActive: membership.isPaidVipActive,
+          });
     } catch (error) {
       if (error instanceof DailyAiQueryLimitReachedError) {
         return NextResponse.json(
@@ -458,16 +499,28 @@ export async function POST(request: Request) {
     let mode: "openai" | "local" = "local";
     let citations: InstitutionalChatCitation[] = [];
     let researched = false;
+    let researchCoverage: InstitutionalChatResult["researchCoverage"] = "none";
 
     try {
       const aiResult = await askOpenAi({ question, contextText, history, locale, isVip, requestSignal: request.signal });
 
-      const hasRequiredVipEvidence = !isVip || Boolean(aiResult?.researched && aiResult.citations.length > 0);
+      const hasRequiredVipEvidence = !isVip || Boolean(aiResult?.webSearchUsed && aiResult.citations.length > 0);
 
       if (aiResult && hasRequiredVipEvidence) {
-        answer = ensureInstitutionalChatDisclosure(aiResult.answer, locale);
+        const evidenceEnforcement = isVip
+          ? enforceVipInvestmentEvidence(aiResult, locale, contextText)
+          : { answer: aiResult.answer, accepted: true };
+        const coverageAwareAnswer = isVip
+          ? ensureInstitutionalResearchCoverageNotice(
+              evidenceEnforcement.answer,
+              locale,
+              evidenceEnforcement.accepted ? aiResult.researchCoverage : "partial",
+            )
+          : evidenceEnforcement.answer;
+        answer = ensureInstitutionalChatDisclosure(coverageAwareAnswer, locale);
         citations = aiResult.citations;
-        researched = aiResult.researched;
+        researched = aiResult.researched && evidenceEnforcement.accepted;
+        researchCoverage = evidenceEnforcement.accepted ? aiResult.researchCoverage : "partial";
         mode = "openai";
       }
     } catch {
@@ -476,10 +529,12 @@ export async function POST(request: Request) {
 
     const sources = getMarketChatSources(context, locale);
 
-    if (researched) {
+    if (citations.length > 0) {
       sources.push({
         label: locale === "tr" ? "Canlı web araştırması" : "Live web research",
-        value: locale === "tr" ? `${citations.length} kaynak bağlantısı` : `${citations.length} source links`,
+        value: locale === "tr"
+          ? `${citations.length} kaynak bağlantısı · ${researchCoverage === "substantial" ? "geniş kapsam" : "kısmi kapsam"}`
+          : `${citations.length} source links · ${researchCoverage === "substantial" ? "substantial coverage" : "partial coverage"}`,
       });
     }
 
@@ -497,9 +552,13 @@ export async function POST(request: Request) {
         historyLength: history.length,
         sourcesCount: sources.length,
         citationCount: citations.length,
-        researchStatus: isVip ? (researched ? "completed" : "unavailable") : "site_only",
+        researchStatus: isVip
+          ? researched ? "completed" : citations.length > 0 ? "partial" : "unavailable"
+          : "site_only",
+        researchCoverage,
         dailyQueryLimit: quota.limit,
         dailyQueryUsed: quota.used,
+        voiceReservationUsed: usedVoiceReservation,
       },
     });
 
@@ -511,7 +570,10 @@ export async function POST(request: Request) {
         updatedAt: context.updatedAt,
         sources,
         citations,
-        researchStatus: isVip ? (researched ? "completed" : "unavailable") : "site_only",
+        researchStatus: isVip
+          ? researched ? "completed" : citations.length > 0 ? "partial" : "unavailable"
+          : "site_only",
+        researchCoverage,
         quota,
         upgradeUrl: quota.isPaidVipActive ? null : getQueryUpgradeUrl(locale),
       },

@@ -14,6 +14,8 @@ export type RunAiMarketAgentOptions = {
   reportMode?: AgentReportMode;
 };
 
+const AI_REPORT_METHODOLOGY_VERSION = "ai-market-report-v3-grounded-deterministic-assets";
+
 function getPeriodKey(date = new Date()) {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -132,6 +134,15 @@ function expandMacroSummary(summary: string, assets: AgentAssetAnalysis[], news:
   }
 
   return expanded.join(" ");
+}
+
+function removeUnverifiedNumericClaims(value: string) {
+  const retained = value
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => !/(?:\d|%|\$|€|£|\b(?:USD|TRY|TL|EUR|GBP)\b)/i.test(sentence));
+
+  return retained.join(" ").trim() ||
+    "Modelin sayısal iddiaları deterministik piyasa verisiyle doğrulanamadığı için bu bölüm yayımlanmadı.";
 }
 
 function getTopMovers(assets: AgentAssetAnalysis[]) {
@@ -257,6 +268,7 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
   const newsLookbackDays = reportMode === "WEEKLY" ? 7 : 1;
   const newsLimit = reportMode === "WEEKLY" ? 48 : 30;
   const [assets, news] = await Promise.all([analyzeAgentAssets(favorites), collectAgentNews(newsLimit, newsLookbackDays)]);
+  const deterministicDraft = buildFallbackDraft(assets, news, reportMode);
   let fallbackUsed = false;
   let model: string | null = null;
   let rawAiPayload: unknown = null;
@@ -266,17 +278,24 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
     const aiResult = await generateAiReportDraft(assets, news, reportMode);
 
     if (aiResult) {
-      draft = aiResult.draft;
+      draft = {
+        macroSummary: removeUnverifiedNumericClaims(aiResult.draft.macroSummary),
+        marketRegime: deterministicDraft.marketRegime,
+        riskAppetite: deterministicDraft.riskAppetite,
+        keyTakeaways: deterministicDraft.keyTakeaways,
+        newsSummary: deterministicDraft.newsSummary,
+        assets: deterministicDraft.assets,
+      };
       model = aiResult.model;
       rawAiPayload = aiResult.rawPayload;
     } else {
       fallbackUsed = true;
-      draft = buildFallbackDraft(assets, news, reportMode);
+      draft = deterministicDraft;
     }
   } catch (error) {
     fallbackUsed = true;
     rawAiPayload = { error: error instanceof Error ? error.message : "AI raporu uretilemedi." };
-    draft = buildFallbackDraft(assets, news, reportMode);
+    draft = deterministicDraft;
   }
 
   const report = await prisma.aiMarketReport.create({
@@ -292,11 +311,19 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
       requiredCoverage: REQUIRED_MACRO_COVERAGE_LABELS,
       newsSummary: draft.newsSummary,
       dataSnapshot: {
+        methodologyVersion: AI_REPORT_METHODOLOGY_VERSION,
+        generatedAt: new Date().toISOString(),
         reportMode,
         newsLookbackDays,
         weeklyPeriod,
         favoriteSymbols: favorites,
         analyzedSymbols: assets.map((asset) => asset.symbol),
+        sourceStatus: assets.map((asset) => ({
+          symbol: asset.symbol,
+          provider: asset.analysis?.exchange ?? null,
+          sourceAsOf: asset.analysis?.updatedAt ?? null,
+          dataStatus: asset.analysis?.dataStatus ?? "error",
+        })),
         failures: assets.filter((asset) => asset.error).map((asset) => ({ symbol: asset.symbol, error: asset.error })),
       },
       rawAiPayload: rawAiPayload === null ? undefined : (rawAiPayload as Prisma.InputJsonValue),
@@ -329,6 +356,10 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
               whyRequired: asset.whyRequired,
               error: asset.error,
               interval: AI_MARKET_AGENT_INTERVAL,
+              methodologyVersion: AI_REPORT_METHODOLOGY_VERSION,
+              provider: analysis?.exchange,
+              sourceAsOf: analysis?.updatedAt,
+              dataStatus: analysis?.dataStatus ?? "error",
               signalReasons: analysis?.signal.reasons,
               riskReasons: analysis?.risk.reasons,
               indicators: analysis?.indicators,

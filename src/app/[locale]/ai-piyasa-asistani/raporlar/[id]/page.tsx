@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
 import { recordMacroReportEvent } from "@/lib/ai-market/report-events";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
+import { getAiMarketReportAccessFilter } from "@/lib/report-visibility";
 import { buildPageMetadata } from "@/lib/seo";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
 import { selectMacroReportChartAssets } from "@/lib/ai-market/report-chart-selection";
@@ -19,16 +20,20 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const baseMetadata = buildPageMetadata({
-    locale,
-    path: `/ai-piyasa-asistani/raporlar/${id}`,
-    page: "reports",
-    keywords: locale === "en"
-      ? ["macro report archive", "AI report detail", "market report PDF", "AI market assistant report"]
-      : ["makro rapor arşivi", "AI rapor detayı", "piyasa raporu PDF"],
-  });
-  const report = await prisma.aiMarketReport.findUnique({
-    where: { id },
+  const baseMetadata = {
+    ...buildPageMetadata({
+      locale,
+      path: `/ai-piyasa-asistani/raporlar/${id}`,
+      page: "reports",
+      keywords: locale === "en"
+        ? ["macro report archive", "AI report detail", "market report PDF", "AI market assistant report"]
+        : ["makro rapor arşivi", "AI rapor detayı", "piyasa raporu PDF"],
+    }),
+    robots: { index: false, follow: false },
+  };
+  const user = await getSessionUser();
+  const report = await prisma.aiMarketReport.findFirst({
+    where: getAiMarketReportAccessFilter(id, user?.id ?? null),
     select: {
       generatedAt: true,
       scope: true,
@@ -390,8 +395,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
   const recipientName = user?.name?.trim() || user?.nickname?.trim() || "Enbilir kullanicisi";
   const report = await prisma.aiMarketReport.findFirst({
     where: {
-      id,
-      OR: user ? [{ userId: user.id }, { scope: { in: ["GLOBAL", "WEEKLY"] } }] : [{ scope: { in: ["GLOBAL", "WEEKLY"] } }],
+      ...getAiMarketReportAccessFilter(id, user?.id ?? null),
     },
     include: {
       assets: { orderBy: [{ category: "asc" }, { symbol: "asc" }] },

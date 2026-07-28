@@ -87,7 +87,7 @@ export function ContentArticleShell({
           </div>
         </div>
 
-        <aside className="content-article-sidebar article-sidebar-v3 p-5 lg:sticky lg:top-24 lg:self-start">
+        <aside className="content-article-sidebar article-sidebar-v3 p-5 lg:sticky lg:top-[calc(var(--enb-header-height)+0.75rem)] lg:self-start">
           <p className="section-eyebrow-v3">
             {isEnglish ? "Reading map" : "Okuma haritası"}
           </p>

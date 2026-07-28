@@ -126,6 +126,12 @@ export async function AppShell({ children, locale }: AppShellProps) {
       className={`visual-shell enbilir-shell-v3 ${animationsEnabled ? "" : "visual-motion-off"} ${card3dEnabled ? "" : "visual-card3d-off"}`}
       style={shellStyle}
     >
+      <a
+        href="#main-content"
+        className="fixed left-4 top-4 z-[200] -translate-y-24 rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-950 shadow-xl transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+      >
+        {locale === "tr" ? "Ana içeriğe geç" : "Skip to main content"}
+      </a>
       <AnimatedBackground settings={visualSettings} />
       <GuidedHelp
         locale={locale}
@@ -234,7 +240,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
         />
       </header>
 
-      <main className="site-main-v3 site-container-v3 w-full py-6 pb-28 md:py-8 md:pb-10">{children}</main>
+      <main id="main-content" tabIndex={-1} className="site-main-v3 site-container-v3 w-full py-6 pb-28 outline-none md:py-8 md:pb-10">{children}</main>
 
       <MobileDockVisibility locale={locale}>
         <nav aria-label={locale === "tr" ? "Hızlı erişim" : "Quick access"} className={`mobile-dock-v3 grid ${sessionUser ? "grid-cols-4" : "grid-cols-3"} gap-1.5 p-1.5`}>

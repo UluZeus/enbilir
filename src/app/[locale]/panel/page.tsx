@@ -245,7 +245,13 @@ export default async function DashboardPage({
   const ownedLeague = userLeagues.find((membership) => membership.role === "OWNER");
   const earnedBadges = badges.filter((badge) => badge.earnedAt).length;
   const panelGrowthActions = getPanelGrowthActions(locale, Boolean(ownedLeague), userLeagues.length > 0);
-  const inviteUrl = ownedLeague ? `${getSiteUrl()}/${locale}/ligler/${ownedLeague.league.slug}` : `${getSiteUrl()}/${locale}/ligler`;
+  const inviteUrl = ownedLeague
+    ? `${getSiteUrl()}/${locale}/ligler/${ownedLeague.league.slug}${
+        ownedLeague.league.type === "PRIVATE"
+          ? `?inviteCode=${encodeURIComponent(ownedLeague.league.inviteCode)}`
+          : ""
+      }`
+    : `${getSiteUrl()}/${locale}/ligler`;
   const portfolioHealth = calculatePortfolioHealth({
     snapshot: portfolioSnapshot,
     tradeCount,
@@ -277,7 +283,7 @@ export default async function DashboardPage({
       />
       <FormMessage message={query.error} />
 
-      <nav className="sticky top-20 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" aria-label={locale === "tr" ? "Panel bölümleri" : "Dashboard sections"}>
+      <nav className="sticky top-[calc(var(--enb-header-height)+0.75rem)] z-20 -mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" aria-label={locale === "tr" ? "Panel bölümleri" : "Dashboard sections"}>
         {[
           ["overview", locale === "tr" ? "Genel bakış" : "Overview"],
           ["portfolio", locale === "tr" ? "Portföy" : "Portfolio"],

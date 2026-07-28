@@ -13,7 +13,7 @@ const signalLabels: Record<SignalType, string> = {
 };
 
 export const AI_MARKET_DISCLAIMER =
-  "Bu ekran yatirim tavsiyesi degildir; yalnizca public piyasa verileriyle uretilen teknik analiz ozetidir.";
+  "Bu içerik yatırım tavsiyesi değildir; nihai karar ve sorumluluk kullanıcıya aittir. Analiz, Dr. Hakan Ünsal tarafından eğitilmiş Enbilir yapay zekâsı tarafından üretilmiştir. Yapay zekâ hata yapabilir; veriler gecikmeli veya eksik olabilir ve bağımsız doğrulama gerekir.";
 
 export function getAiMarketDisclaimer(locale: "tr" | "en") {
   return locale === "en" ? AI_MARKET_DISCLAIMER_EN : AI_MARKET_DISCLAIMER;

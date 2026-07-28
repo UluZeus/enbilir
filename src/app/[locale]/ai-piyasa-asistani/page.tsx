@@ -67,7 +67,7 @@ export default async function AiMarketAssistantPage({
         </p>
       </section>
 
-      <nav className="sticky top-[4.5rem] z-30 grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 p-1.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl sm:grid-cols-4" aria-label={isEnglish ? "AI workspace tabs" : "AI çalışma alanı sekmeleri"}>
+      <nav className="sticky top-[calc(var(--enb-header-height)+0.75rem)] z-30 grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 p-1.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl sm:grid-cols-4" aria-label={isEnglish ? "AI workspace tabs" : "AI çalışma alanı sekmeleri"}>
         {getTabLabels(locale).map((tab) => (
           <Link key={tab.id} href={`/${locale}/ai-piyasa-asistani?tab=${tab.id}`} aria-current={activeTab === tab.id ? "page" : undefined} className={`flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-sm font-bold transition ${activeTab === tab.id ? "bg-[#101827] text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`}>
             {tab.label}

@@ -54,7 +54,7 @@ export async function ensureGeneralChatRoom() {
 
 async function createUniquePrivateRoomCode() {
   for (let attempt = 0; attempt < 6; attempt += 1) {
-    const code = `oda-${randomBytes(4).toString("hex")}`;
+    const code = `oda-${randomBytes(16).toString("hex")}`;
     const existing = await prisma.chatRoom.findUnique({ where: { code }, select: { id: true } });
 
     if (!existing) {
@@ -62,7 +62,7 @@ async function createUniquePrivateRoomCode() {
     }
   }
 
-  return `oda-${Date.now().toString(36)}-${randomBytes(2).toString("hex")}`;
+  return `oda-${randomBytes(24).toString("hex")}`;
 }
 
 export async function createPrivateChatRoom({ userId, name }: { userId: string; name?: string }) {
@@ -73,6 +73,9 @@ export async function createPrivateChatRoom({ userId, name }: { userId: string; 
       name: roomName,
       type: "PRIVATE",
       createdByUserId: userId,
+      memberships: {
+        create: { userId, role: "OWNER" },
+      },
     },
   });
 
@@ -121,19 +124,17 @@ function serializeRoom(room: { id: string; code: string; name: string; type: Cha
 
 export async function getVisibleChatRooms(userId: string) {
   const generalRoom = await ensureGeneralChatRoom();
-  const [createdRooms, visitedRooms] = await Promise.all([
-    prisma.chatRoom.findMany({
-      where: { type: "PRIVATE", createdByUserId: userId },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    }),
-    prisma.chatPresence.findMany({
-      where: { userId, room: { type: "PRIVATE" } },
-      include: { room: true },
-      orderBy: { lastSeenAt: "desc" },
-      take: 20,
-    }),
-  ]);
+  const memberships = await prisma.chatRoomMembership.findMany({
+    where: { userId, room: { type: "PRIVATE" } },
+    include: { room: true },
+    orderBy: { joinedAt: "desc" },
+    take: 20,
+  });
+  const createdRooms = await prisma.chatRoom.findMany({
+    where: { type: "PRIVATE", createdByUserId: userId },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
   const rooms = new Map<string, ReturnType<typeof serializeRoom>>();
   rooms.set(generalRoom.code, serializeRoom(generalRoom));
 
@@ -141,8 +142,8 @@ export async function getVisibleChatRooms(userId: string) {
     rooms.set(room.code, serializeRoom(room));
   }
 
-  for (const presence of visitedRooms) {
-    rooms.set(presence.room.code, serializeRoom(presence.room));
+  for (const membership of memberships) {
+    rooms.set(membership.room.code, serializeRoom(membership.room));
   }
 
   return Array.from(rooms.values());
@@ -153,6 +154,14 @@ export async function getChatRoomState({ user, roomCode }: { user: SessionUser; 
 
   if (!room) {
     return null;
+  }
+
+  if (room.type === "PRIVATE") {
+    await prisma.chatRoomMembership.upsert({
+      where: { roomId_userId: { roomId: room.id, userId: user.id } },
+      create: { roomId: room.id, userId: user.id, role: room.createdByUserId === user.id ? "OWNER" : "MEMBER" },
+      update: {},
+    });
   }
 
   await markChatPresence({ roomId: room.id, userId: user.id });

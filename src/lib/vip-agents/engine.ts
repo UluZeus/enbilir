@@ -5,16 +5,18 @@ import {
   fetchYahooCorporateActionQuote,
   getYahooCumulativeSplitFactor,
 } from "@/lib/ai-market/yahoo-corporate-actions";
-import { fetchYahooDailyCandles } from "@/lib/ai-market/yahoo-public";
+import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
 import {
   calculateVipAgentAccount,
   calculateVipAgentSplitAdjustment,
+  areVipAgentCorporateActionsReliable,
+  areVipAgentOpenPositionPricesReliable,
+  buildVipAgentPriceUniverse,
   getVipAgentBuyIneligibilityReason,
   getVipAgentPortfolioDecision,
   getVipAgentPositionExitReason,
   isVipAgentTerminalDailyAction,
-  shouldReuseVipAgentDailyRun,
 } from "@/lib/vip-agents/calculations";
 import {
   VIP_AGENT_PERFORMANCE_BASE_USD,
@@ -70,21 +72,29 @@ export async function ensureVipTradingAgents() {
   }
 }
 
-async function fetchLatestPrice(symbol: string): Promise<PriceResult> {
-  try {
-    const candles = await fetchYahooDailyCandles(symbol, "1mo", 8_000);
-    const candle = candles.at(-1);
-    if (!candle?.close) return { price: null, asOf: null, error: "Geçerli piyasa kapanışı bulunamadı." };
-    return { price: candle.close, asOf: new Date(candle.openTime) };
-  } catch (error) {
-    return { price: null, asOf: null, error: error instanceof Error ? error.message : "Piyasa verisi alınamadı." };
-  }
-}
-
 async function fetchPriceMap(items: Array<{ symbol: string; providerSymbol: string }>) {
   const unique = Array.from(new Map(items.map((item) => [item.symbol, item])).values());
-  const entries = await Promise.all(unique.map(async (item) => [item.symbol, await fetchLatestPrice(item.providerSymbol)] as const));
-  return new Map(entries);
+  const marketItems = await getLiveMarketItemsForSymbols(unique.map((item) => item.symbol));
+  const marketItemBySymbol = new Map(marketItems.map((item) => [item.symbol, item]));
+
+  return new Map(unique.map((item) => {
+    const marketItem = marketItemBySymbol.get(item.symbol);
+    const result: PriceResult = (
+      marketItem?.executionEligible === true &&
+      marketItem.dataStatus === "live" &&
+      ["binance", "yahoo"].includes(marketItem.source) &&
+      marketItem.sourceAsOf &&
+      Number.isFinite(marketItem.priceUsd) &&
+      marketItem.priceUsd > 0
+    )
+      ? { price: marketItem.priceUsd, asOf: new Date(marketItem.sourceAsOf) }
+      : {
+        price: null,
+        asOf: marketItem?.sourceAsOf ? new Date(marketItem.sourceAsOf) : null,
+        error: "Açık piyasa saatine ait güncel ve doğrulanmış fiyat yok.",
+      };
+    return [item.symbol, result] as const;
+  }));
 }
 
 function positionValue(
@@ -106,22 +116,12 @@ async function runAgent(
   strategy: VipAgentStrategy,
   now: Date,
   report: NonNullable<Awaited<ReturnType<typeof getReportForRun>>>,
-  force: boolean,
 ) {
   const runKey = getIstanbulDateKey(now);
   const agent = await prisma.vipTradingAgent.findUniqueOrThrow({
     where: { id: strategy.id },
     include: { positions: true },
   });
-  const existingSnapshot = await prisma.vipTradingAgentSnapshot.findUnique({
-    where: { agentId_periodKey: { agentId: agent.id, periodKey: runKey } },
-    select: { id: true },
-  });
-
-  if (shouldReuseVipAgentDailyRun(Boolean(existingSnapshot), force)) {
-    return { agent: strategy.name, reused: true, trades: 0, decisions: 0 };
-  }
-
   const existingRunDecisions = await prisma.vipTradingAgentDecision.findMany({
     where: { agentId: agent.id, runKey },
     select: { symbol: true, action: true },
@@ -180,8 +180,18 @@ async function runAgent(
   }
 
   const adjustedDataByPositionId = new Map(corporateActionResults.map((result) => [result.positionId, result.adjustedData]));
-  const priceMap = await fetchPriceMap(ideas.map((idea) => ({ symbol: idea.symbol, providerSymbol: idea.providerSymbol })));
-  for (const result of corporateActionResults) priceMap.set(result.symbol, result.priceResult);
+  const corporateActionResultByPositionId = new Map(
+    corporateActionResults.map((result) => [result.positionId, result]),
+  );
+  const failedCorporateActionPositionIds = new Set(
+    corporateActionResults
+      .filter((result) => result.adjustedData === null)
+      .map((result) => result.positionId),
+  );
+  const priceMap = await fetchPriceMap(buildVipAgentPriceUniverse(
+    ideas.map((idea) => ({ symbol: idea.symbol, providerSymbol: idea.providerSymbol })),
+    agent.positions.map((position) => ({ symbol: position.symbol, providerSymbol: position.providerSymbol })),
+  ));
   const ideaBySymbol = new Map(ideas.map((idea) => [idea.symbol, idea]));
   let cashUsd = agent.cashUsd;
   let positions = agent.positions.map((position) => {
@@ -198,6 +208,21 @@ async function runAgent(
 
   for (const position of [...positions]) {
     if (decidedSymbols.has(position.symbol)) continue;
+    const corporateActionResult = corporateActionResultByPositionId.get(position.id);
+    if (!corporateActionResult?.adjustedData) {
+      const reason = corporateActionResult?.priceResult.error
+        ?? "Kurumsal aksiyon bilgisi doğrulanamadı; miktar, stop ve hedef güvenliği için işlem yapılmadı.";
+      const currentIdea = ideaBySymbol.get(position.symbol);
+      const sourceIdeaId = currentIdea?.id ?? position.sourceIdeaId;
+      await prisma.vipTradingAgentDecision.upsert({
+        where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: position.symbol } },
+        create: { agentId: agent.id, runKey, symbol: position.symbol, action: "ERROR", reason, sourceIdeaId },
+        update: { action: "ERROR", priceUsd: null, reason, sourceIdeaId },
+      });
+      decidedSymbols.add(position.symbol);
+      decisionCount += 1;
+      continue;
+    }
     const priceResult = priceMap.get(position.symbol);
     const price = priceResult?.price;
     const currentIdea = ideaBySymbol.get(position.symbol);
@@ -349,6 +374,9 @@ async function runAgent(
   }
 
   const storedPositions = await prisma.vipTradingAgentPosition.findMany({ where: { agentId: agent.id } });
+  const snapshotReliable =
+    areVipAgentOpenPositionPricesReliable(storedPositions, priceMap) &&
+    areVipAgentCorporateActionsReliable(storedPositions, failedCorporateActionPositionIds);
   const positionsValueUsd = roundMoney(storedPositions.reduce((sum, position) => sum + positionValue(position, priceMap), 0));
   const { totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent } = calculateVipAgentAccount({
     cashUsd,
@@ -360,11 +388,17 @@ async function runAgent(
   const runTradeCount = await prisma.vipTradingAgentDecision.count({
     where: { agentId: agent.id, runKey, action: { in: ["BUY", "SELL"] } },
   });
-  const portfolioDecision = getVipAgentPortfolioDecision({
+  const basePortfolioDecision = getVipAgentPortfolioDecision({
     hasReport: Boolean(report),
     ideaCount: ideas.length,
     tradeCount: runTradeCount,
   });
+  const portfolioDecision = snapshotReliable
+    ? basePortfolioDecision
+    : {
+        ...basePortfolioDecision,
+        reason: `${basePortfolioDecision.reason} En az bir açık pozisyon için güncel ve doğrulanmış fiyat bulunamadığından performans anlık görüntüsü yayımlanmadı.`,
+      };
   await prisma.vipTradingAgentDecision.upsert({
     where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: "PORTFOY" } },
     create: { agentId: agent.id, runKey, symbol: "PORTFOY", ...portfolioDecision },
@@ -372,16 +406,20 @@ async function runAgent(
   });
   decisionCount += 1;
 
-  await prisma.$transaction([
-    prisma.vipTradingAgent.update({ where: { id: agent.id }, data: { cashUsd, lastRunAt: now } }),
-    prisma.vipTradingAgentSnapshot.upsert({
-      where: { agentId_periodKey: { agentId: agent.id, periodKey: runKey } },
-      create: { agentId: agent.id, periodKey: runKey, cashUsd, reserveUsd: agent.reserveUsd, positionsValueUsd, totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent, capturedAt: now },
-      update: { cashUsd, reserveUsd: agent.reserveUsd, positionsValueUsd, totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent, capturedAt: now },
-    }),
-  ]);
+  if (snapshotReliable) {
+    await prisma.$transaction([
+      prisma.vipTradingAgent.update({ where: { id: agent.id }, data: { cashUsd, lastRunAt: now } }),
+      prisma.vipTradingAgentSnapshot.upsert({
+        where: { agentId_periodKey: { agentId: agent.id, periodKey: runKey } },
+        create: { agentId: agent.id, periodKey: runKey, cashUsd, reserveUsd: agent.reserveUsd, positionsValueUsd, totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent, capturedAt: now },
+        update: { cashUsd, reserveUsd: agent.reserveUsd, positionsValueUsd, totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent, capturedAt: now },
+      }),
+    ]);
+  } else {
+    await prisma.vipTradingAgent.update({ where: { id: agent.id }, data: { cashUsd, lastRunAt: now } });
+  }
 
-  return { agent: strategy.name, reused: false, trades: tradeCount, decisions: decisionCount, totalBalanceUsd, pnlUsd, returnPercent };
+  return { agent: strategy.name, reused: false, trades: tradeCount, decisions: decisionCount, snapshotReliable, totalBalanceUsd, pnlUsd, returnPercent };
 }
 
 async function getReportForRun(runKey: string) {
@@ -391,7 +429,7 @@ async function getReportForRun(runKey: string) {
   });
 }
 
-export async function runVipTradingAgents(now = new Date(), options: { force?: boolean } = {}) {
+export async function runVipTradingAgents(now = new Date()) {
   await ensureVipTradingAgents();
   const runKey = getIstanbulDateKey(now);
   const report = await getReportForRun(runKey);
@@ -408,7 +446,7 @@ export async function runVipTradingAgents(now = new Date(), options: { force?: b
 
   const results = [];
   for (const strategy of VIP_AGENT_STRATEGIES) {
-    results.push(await runAgent(strategy, now, report, options.force === true));
+    results.push(await runAgent(strategy, now, report));
   }
   return { reportId: report.id, runKey, deferred: false, agents: results };
 }

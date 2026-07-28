@@ -46,7 +46,10 @@ export function MobileHeaderMenu({
   const menuId = useId();
   const menuTitleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const openButtonRef = useRef<HTMLButtonElement>(null);
   const menuPanelRef = useRef<HTMLElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const shouldRestoreFocusRef = useRef(true);
 
   useEffect(() => {
     const openMenu = () => setIsOpen(true);
@@ -58,6 +61,10 @@ export function MobileHeaderMenu({
   useEffect(() => {
     if (!isOpen) return;
 
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : openButtonRef.current;
+    shouldRestoreFocusRef.current = true;
     const previousOverflow = document.body.style.overflow;
     const frame = window.requestAnimationFrame(() =>
       closeButtonRef.current?.focus(),
@@ -91,6 +98,13 @@ export function MobileHeaderMenu({
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      const focusTarget = previouslyFocusedRef.current;
+      previouslyFocusedRef.current = null;
+      if (shouldRestoreFocusRef.current) {
+        window.requestAnimationFrame(() => {
+          if (focusTarget?.isConnected) focusTarget.focus();
+        });
+      }
     };
   }, [isOpen]);
 
@@ -178,8 +192,11 @@ export function MobileHeaderMenu({
                 <button
                   type="button"
                   onClick={() => {
+                    shouldRestoreFocusRef.current = false;
                     setIsOpen(false);
-                    window.dispatchEvent(new Event("enbilir:open-help"));
+                    window.setTimeout(() => {
+                      window.dispatchEvent(new Event("enbilir:open-help"));
+                    }, 0);
                   }}
                   className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-left text-sm font-bold text-teal-900"
                 >
@@ -270,6 +287,7 @@ export function MobileHeaderMenu({
               </Link>
             ))}
             <button
+              ref={openButtonRef}
               type="button"
               aria-label={
                 isOpen

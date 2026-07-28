@@ -48,16 +48,15 @@ function getArgValue(name) {
 
 loadDotEnv();
 
-const secret = process.env.SUBSCRIPTION_CRON_SECRET ?? process.env.AI_AGENT_CRON_SECRET;
+const secret = process.env.SUBSCRIPTION_CRON_SECRET;
 
 if (!secret) {
-  console.error("[subscription-emails-cron] SUBSCRIPTION_CRON_SECRET or AI_AGENT_CRON_SECRET is missing.");
+  console.error("[subscription-emails-cron] SUBSCRIPTION_CRON_SECRET is missing.");
   process.exit(1);
 }
 
 const siteUrl = (process.env.SUBSCRIPTION_CRON_ORIGIN || process.env.AI_AGENT_CRON_ORIGIN || "http://127.0.0.1:3006").replace(/\/$/, "");
 const url = new URL("/api/subscription/reminders/run", siteUrl);
-url.searchParams.set("secret", secret);
 
 if (process.argv.includes("--dry-run")) {
   url.searchParams.set("dryRun", "true");
@@ -75,7 +74,10 @@ if (limit) {
   url.searchParams.set("limit", limit);
 }
 
-const response = await fetch(url, { method: "POST" });
+const response = await fetch(url, {
+  method: "POST",
+  headers: { "x-subscription-cron-secret": secret },
+});
 const body = await response.text();
 
 console.log(`[subscription-emails-cron] ${new Date().toISOString()} ${response.status} ${body}`);

@@ -87,6 +87,7 @@ export type VipSource = {
   title: string;
   url: string;
   publishedAt?: string | null;
+  evidenceText?: string;
 };
 
 export type VipIdeaDraft = {

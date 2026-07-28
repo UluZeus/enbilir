@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
+import { canCreateGoogleAccount, getGoogleOAuthStartContext } from "@/lib/google-oauth-consent";
 import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
 import { getRequestOrigin } from "@/lib/site-url";
 
@@ -20,9 +21,18 @@ export async function GET(request: NextRequest) {
   const locale = getSafeLocale(request.nextUrl.searchParams.get("locale") ?? "tr");
   const returnTo = getSafeLocaleReturnPath(request.nextUrl.searchParams.get("returnTo"), locale);
   const origin = getRequestOrigin(request);
+  const consentContext = getGoogleOAuthStartContext(request.nextUrl.searchParams);
 
   if (!isConfiguredGoogleValue(clientId)) {
     return NextResponse.redirect(new URL(`/${locale}/giris?error=${encodeURIComponent("Google giriş ayarları eksik.")}`, origin));
+  }
+
+  if (consentContext.intent === "register" && !canCreateGoogleAccount(consentContext)) {
+    const message = locale === "en"
+      ? "You must accept the required privacy, terms, and no-investment-advice declarations before registering with Google."
+      : "Google ile kayıt için zorunlu KVKK, kullanım şartları ve yatırım tavsiyesi değildir onaylarını vermelisiniz.";
+
+    return NextResponse.redirect(new URL(`/${locale}/kayit?error=${encodeURIComponent(message)}`, origin));
   }
 
   const configuredClientId = clientId as string;
@@ -37,7 +47,12 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set("prompt", "select_account");
 
   const response = NextResponse.redirect(authUrl);
-  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, JSON.stringify({ state, locale, returnTo }), {
+  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, JSON.stringify({
+    state,
+    locale,
+    returnTo,
+    ...consentContext,
+  }), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

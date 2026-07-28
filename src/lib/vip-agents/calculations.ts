@@ -63,6 +63,11 @@ type SplitAdjustablePosition = {
   appliedSplitFactor: number;
 };
 
+type PriceUniverseItem = {
+  symbol: string;
+  providerSymbol: string;
+};
+
 export type VipAgentTradePnl = {
   pnlUsd: number | null;
   pnlPercent: number | null;
@@ -159,6 +164,42 @@ export function calculateVipAgentSplitAdjustment(
       ? null
       : round(position.secondaryTarget / adjustmentFactor),
   };
+}
+
+export function buildVipAgentPriceUniverse(
+  ideas: PriceUniverseItem[],
+  positions: PriceUniverseItem[],
+) {
+  const universe = new Map<string, PriceUniverseItem>();
+
+  for (const item of [...ideas, ...positions]) {
+    const symbol = item.symbol.trim();
+    const normalizedSymbol = symbol.toUpperCase();
+    if (!normalizedSymbol || universe.has(normalizedSymbol)) continue;
+    universe.set(normalizedSymbol, {
+      symbol,
+      providerSymbol: item.providerSymbol.trim(),
+    });
+  }
+
+  return Array.from(universe.values());
+}
+
+export function areVipAgentOpenPositionPricesReliable(
+  positions: Array<{ symbol: string }>,
+  prices: Map<string, { price: number | null }>,
+) {
+  return positions.every((position) => {
+    const price = prices.get(position.symbol)?.price;
+    return typeof price === "number" && Number.isFinite(price) && price > 0;
+  });
+}
+
+export function areVipAgentCorporateActionsReliable(
+  openPositions: Array<{ id: string }>,
+  failedPositionIds: Set<string>,
+) {
+  return openPositions.every((position) => !failedPositionIds.has(position.id));
 }
 
 export function shouldReuseVipAgentDailyRun(hasSnapshot: boolean, force: boolean) {

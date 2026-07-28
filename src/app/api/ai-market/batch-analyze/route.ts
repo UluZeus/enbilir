@@ -9,10 +9,20 @@ import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import { logMarketAnalysisSignal } from "@/lib/ai-market/signal-logger";
 import type { AssetClass, Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
 import { fetchYahooCandles } from "@/lib/ai-market/yahoo-public";
+import {
+  assessCandleFreshness,
+  buildMarketDataProvenance,
+  toAnalysisDataStatus,
+} from "@/lib/ai-market/data-freshness";
+import {
+  mapSettledWithConcurrency,
+  ProviderRequestBudget,
+} from "@/lib/ai-market/provider-resilience";
 
 export const dynamic = "force-dynamic";
 
 const MAX_BATCH_SYMBOLS = 30;
+const BATCH_CONCURRENCY = 5;
 const MIN_CANDLE_COUNT = 30;
 const allowedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 const allowedExchanges = new Set(["binance", "gate"]);
@@ -128,21 +138,34 @@ async function loadCandles(symbol: BatchSymbol, exchange: MarketExchange, interv
   if (symbol.assetClass !== "CRYPTO") {
     return {
       candles: await fetchYahooCandles(symbol.yahooSymbol ?? symbol.symbol, interval),
-      exchange,
+      exchange: "yahoo" as const,
+      primaryExchange: "yahoo" as const,
+      fallbackUsed: false,
     };
   }
 
-  if (exchange === "gate") {
+  const primaryExchange = exchange === "gate" ? "gate" as const : "binance" as const;
+  const fallbackExchange = primaryExchange === "gate" ? "binance" as const : "gate" as const;
+
+  try {
     return {
-      candles: await fetchGateCandles(symbol.gateSymbol ?? symbol.symbol, interval),
-      exchange,
+      candles: primaryExchange === "gate"
+        ? await fetchGateCandles(symbol.gateSymbol ?? symbol.symbol, interval)
+        : await fetchBinanceCandles(symbol.binanceSymbol ?? symbol.symbol, interval),
+      exchange: primaryExchange,
+      primaryExchange,
+      fallbackUsed: false,
+    };
+  } catch {
+    return {
+      candles: fallbackExchange === "gate"
+        ? await fetchGateCandles(symbol.gateSymbol ?? symbol.symbol, interval)
+        : await fetchBinanceCandles(symbol.binanceSymbol ?? symbol.symbol, interval),
+      exchange: fallbackExchange,
+      primaryExchange,
+      fallbackUsed: true,
     };
   }
-
-  return {
-    candles: await fetchBinanceCandles(symbol.binanceSymbol ?? symbol.symbol, interval),
-    exchange,
-  };
 }
 
 function buildAnalysis(
@@ -151,11 +174,31 @@ function buildAnalysis(
   interval: string,
   candles: Candle[],
   locale: "tr" | "en",
+  primaryExchange: MarketExchange,
+  fallbackUsed: boolean,
 ): BatchAnalyzeSuccess["analysis"] {
   const indicators = calculateIndicators(candles);
-  const signal = analyzeSignal(candles, indicators);
+  const calculatedSignal = analyzeSignal(candles, indicators);
   const risk = assessRisk(candles, indicators);
   const latest = candles[candles.length - 1];
+  const freshness = assessCandleFreshness({
+    candleOpenTime: latest?.openTime ?? 0,
+    assetClass: symbol.assetClass,
+    interval,
+  });
+  const signal = freshness === "FRESH" && !fallbackUsed
+    ? calculatedSignal
+    : {
+        signal: "NO_TRADE" as const,
+        confidence: 0,
+        reasons: [
+          fallbackUsed
+            ? "Birincil veri sağlayıcı kullanılamadı; yedek kaynaktan yön sinyali yayımlanmadı."
+            : freshness === "MARKET_CLOSED"
+              ? `Piyasa kapalı. Son doğrulanmış mum: ${latest ? new Date(latest.openTime).toISOString() : "bilinmiyor"}.`
+              : `Kaynak verisi işlem için güncel değil. Son mum: ${latest ? new Date(latest.openTime).toISOString() : "bilinmiyor"}.`,
+        ],
+      };
   const base = {
     symbol: symbol.symbol,
     name: symbol.name,
@@ -167,8 +210,16 @@ function buildAnalysis(
     indicators,
     signal,
     risk,
-    updatedAt: new Date().toISOString(),
-    dataStatus: "live" as const,
+    updatedAt: latest ? new Date(latest.openTime).toISOString() : new Date(0).toISOString(),
+    dataStatus: toAnalysisDataStatus(freshness, fallbackUsed),
+    provenance: buildMarketDataProvenance({
+      provider: exchange,
+      primaryProvider: primaryExchange,
+      candleOpenTime: latest?.openTime ?? 0,
+      assetClass: symbol.assetClass,
+      interval,
+      isFallback: fallbackUsed,
+    }),
   };
 
   return {
@@ -191,7 +242,12 @@ async function analyzeOne(symbolValue: string, exchange: MarketExchange, interva
   }
 
   try {
-    const { candles, exchange: dataExchange } = await loadCandles(symbol, exchange, interval);
+    const {
+      candles,
+      exchange: dataExchange,
+      primaryExchange,
+      fallbackUsed,
+    } = await loadCandles(symbol, exchange, interval);
 
     if (candles.length < MIN_CANDLE_COUNT) {
       return {
@@ -204,7 +260,15 @@ async function analyzeOne(symbolValue: string, exchange: MarketExchange, interva
     return {
       symbol: symbol.symbol,
       ok: true,
-      analysis: buildAnalysis(symbol, dataExchange, interval, candles, locale),
+      analysis: buildAnalysis(
+        symbol,
+        dataExchange,
+        interval,
+        candles,
+        locale,
+        primaryExchange,
+        fallbackUsed,
+      ),
     };
   } catch (error) {
     return {
@@ -235,7 +299,24 @@ export async function POST(request: Request) {
   const exchange = normalizeExchange(body.exchange);
   const interval = normalizeInterval(body.interval);
   const locale = normalizeLocale(body.locale);
-  const results = await Promise.all(symbols.map((symbol) => analyzeOne(symbol, exchange, interval, locale)));
+  const requestBudget = new ProviderRequestBudget(symbols.length);
+  const settled = await mapSettledWithConcurrency(symbols, BATCH_CONCURRENCY, async (symbol) => {
+    requestBudget.consume();
+    return analyzeOne(symbol, exchange, interval, locale);
+  });
+  const results: Array<BatchAnalyzeSuccess | BatchAnalyzeFailure> = settled.map((result, index) => {
+    if (result.status === "fulfilled") {
+      return result.value;
+    }
+
+    return {
+      symbol: symbols[index],
+      ok: false,
+      error: locale === "en"
+        ? "Provider request budget or worker failed."
+        : "Saglayici istek butcesi veya analiz calisani basarisiz oldu.",
+    };
+  });
 
   await Promise.all(
     results.map((result) => {
@@ -251,6 +332,7 @@ export async function POST(request: Request) {
     requested,
     processed: symbols.length,
     limit: MAX_BATCH_SYMBOLS,
+    concurrency: BATCH_CONCURRENCY,
     truncated: requested > MAX_BATCH_SYMBOLS,
     interval,
     exchange,

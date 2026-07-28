@@ -2,7 +2,7 @@ import { getDisplayName } from "@/lib/auth";
 import { awardBadge } from "@/lib/badges";
 import { getAcceptedFriendIds } from "@/lib/friends";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
-import { calculateCompetitionReturnPercent, getPortfolioSnapshot } from "@/lib/portfolio";
+import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import type { CompetitionPeriodType } from "@/generated/prisma/enums";
 
@@ -85,6 +85,10 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
   const period = await getActiveCompetitionPeriod(type);
   const hasPersistedPeriod = !period.id.startsWith("fallback-");
   const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      emailVerifiedAt: { not: null },
+    },
     select: {
       id: true,
       name: true,
@@ -97,28 +101,30 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
 
   if (mode === "snapshot" && hasPersistedPeriod) {
     const snapshots = await prisma.portfolioSnapshot.findMany({
-      where: { periodId: period.id },
+      where: { periodId: period.id, valuationStatus: "VERIFIED" },
     });
 
     if (snapshots.length > 0) {
       const userMap = new Map(users.map((user) => [user.id, user]));
       const rankedRows = snapshots
-        .map((snapshot) => {
+        .flatMap((snapshot) => {
           const user = userMap.get(snapshot.userId);
 
-          return {
+          if (!user) return [];
+
+          return [{
             userId: snapshot.userId,
-            displayName: user ? getDisplayName(user) : "Kullanıcı",
+            displayName: getDisplayName(user),
             portfolioValueUsd: snapshot.portfolioValueUsd,
             cashUsd: snapshot.cashUsd,
             positionsValueUsd: snapshot.positionsValueUsd,
             returnPercent: snapshot.returnPercent,
-            rank: snapshot.rank ?? 0,
+            rank: 0,
             source: "snapshot" as const,
-          };
+          }];
         })
         .sort((a, b) => b.returnPercent - a.returnPercent)
-        .map((row, index) => ({ ...row, rank: row.rank || index + 1 }));
+        .map((row, index) => ({ ...row, rank: index + 1 }));
 
       return { period, rows: rankedRows };
     }
@@ -129,9 +135,20 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
     distinct: ["symbol"],
   });
   const liveMarketItems = await getLiveMarketItemsForSymbols(heldSymbols.map((position) => position.symbol));
+  const periodBaselines = hasPersistedPeriod
+    ? await prisma.portfolioSnapshot.findMany({
+      where: { periodId: period.id },
+      select: { userId: true, startingValueUsd: true },
+    })
+    : [];
+  const baselineByUserId = new Map(periodBaselines.map((snapshot) => [snapshot.userId, snapshot.startingValueUsd]));
   const liveRows = await Promise.all(
     users.map(async (user) => {
       const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
+      const startingValueUsd = baselineByUserId.get(user.id) ?? initialCashUsd;
+      const returnPercent = startingValueUsd > 0
+        ? ((snapshot.totalValueUsd - startingValueUsd) / startingValueUsd) * 100
+        : 0;
 
       return {
         userId: user.id,
@@ -139,13 +156,26 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
         portfolioValueUsd: snapshot.totalValueUsd,
         cashUsd: snapshot.cashValueUsd,
         positionsValueUsd: snapshot.positionsValueUsd,
-        returnPercent: calculateCompetitionReturnPercent(snapshot.totalValueUsd),
+        returnPercent,
+        valuationReliable: !snapshot.hasUnreliableValuation,
         rank: 0,
         source: "live" as const,
       };
     }),
   );
-  const rows = liveRows.sort((a, b) => b.returnPercent - a.returnPercent).map((row, index) => ({ ...row, rank: index + 1 }));
+  const rows = liveRows
+    .filter((row) => row.valuationReliable)
+    .sort((a, b) => b.returnPercent - a.returnPercent)
+    .map((row, index) => ({
+      userId: row.userId,
+      displayName: row.displayName,
+      portfolioValueUsd: row.portfolioValueUsd,
+      cashUsd: row.cashUsd,
+      positionsValueUsd: row.positionsValueUsd,
+      returnPercent: row.returnPercent,
+      rank: index + 1,
+      source: row.source,
+    }));
 
   return { period, rows };
 }

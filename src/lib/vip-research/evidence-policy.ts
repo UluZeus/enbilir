@@ -36,20 +36,49 @@ export function hasSpecificThreeToTwelveMonthCatalyst(catalysts: string[]) {
 }
 
 export function sourceMatchesCandidate(source: VipSource, candidate: Pick<VipResearchCandidate, "symbol" | "providerSymbol" | "displayName">) {
-  const haystack = `${source.title} ${source.url}`.toLocaleLowerCase("tr-TR");
+  const haystackTokens = new Set(
+    `${source.title} ${source.url} ${source.evidenceText ?? ""}`
+      .toLocaleLowerCase("tr-TR")
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean),
+  );
   const identifiers = [candidate.symbol, candidate.providerSymbol, candidate.displayName]
     .flatMap((value) => value.toLocaleLowerCase("tr-TR").split(/[^\p{L}\p{N}]+/u))
     .filter((value) => value.length >= 3 && !SOURCE_IDENTIFIER_STOP_WORDS.has(value));
 
-  return identifiers.some((identifier) => haystack.includes(identifier));
+  return identifiers.some((identifier) => haystackTokens.has(identifier));
+}
+
+export function sourceSupportsCandidateCatalyst(source: VipSource, catalysts: string[]) {
+  const evidence = `${source.title} ${source.url} ${source.evidenceText ?? ""}`.trim();
+
+  if (!CATALYST_EVENT_PATTERN.test(evidence) || !CATALYST_TIME_PATTERN.test(evidence)) {
+    return false;
+  }
+
+  const evidenceTokens = new Set(
+    evidence.toLocaleLowerCase("tr-TR")
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((token) => token.length >= 4 && !SOURCE_IDENTIFIER_STOP_WORDS.has(token)),
+  );
+
+  return catalysts.some((catalyst) => {
+    const catalystTokens = catalyst.toLocaleLowerCase("tr-TR")
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((token) => token.length >= 4 && !SOURCE_IDENTIFIER_STOP_WORDS.has(token));
+    const overlap = catalystTokens.filter((token) => evidenceTokens.has(token)).length;
+
+    return overlap >= 2;
+  });
 }
 
 export function getVerifiedCandidateSources(
   annotatedSources: VipSource[],
   candidate: Pick<VipResearchCandidate, "symbol" | "providerSymbol" | "displayName">,
+  catalysts: string[],
 ) {
   const verified = annotatedSources
-    .filter((source) => sourceMatchesCandidate(source, candidate))
+    .filter((source) => sourceMatchesCandidate(source, candidate) && sourceSupportsCandidateCatalyst(source, catalysts))
     .map(normalizeVipResearchSource)
     .filter((source): source is VipSource => source !== null);
 

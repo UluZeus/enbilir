@@ -1,4 +1,4 @@
-export type MarketExchange = "binance" | "gate";
+export type MarketExchange = "binance" | "gate" | "yahoo";
 
 export type AssetClass = "CRYPTO" | "COMMODITY" | "FX" | "EQUITY" | "INDEX";
 
@@ -30,6 +30,18 @@ export type Candle = {
   low: number;
   close: number;
   volume: number;
+};
+
+export type MarketDataFreshness = "fresh" | "market-closed" | "stale" | "future" | "missing";
+
+export type MarketDataProvenance = {
+  provider: MarketExchange;
+  primaryProvider: MarketExchange;
+  sourceAsOf: string | null;
+  retrievedAt: string;
+  freshness: MarketDataFreshness;
+  marketState: "open" | "closed" | "unknown";
+  isFallback: boolean;
 };
 
 export type IndicatorSnapshot = {
@@ -81,7 +93,8 @@ export type MarketAnalysis = {
   explanation: string;
   disclaimer: string;
   updatedAt: string;
-  dataStatus: "live" | "fallback" | "error";
+  dataStatus: "live" | "closed" | "stale" | "fallback" | "error";
+  provenance?: MarketDataProvenance;
   error?: string;
   technicalSeries?: import("@/lib/ai-market/indicators").TechnicalSeries;
 };

@@ -6,6 +6,7 @@ import { getSafeLocale } from "@/i18n/config";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/portfolio";
+import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -32,11 +33,17 @@ export default async function WeeklyLeadersPage({ params }: { params: Promise<{ 
     redirect(`/${locale}/giris`);
   }
   const isEnglish = locale === "en";
+  const eligibleUsers = await prisma.user.findMany({
+    where: publicCompetitionUserWhere,
+    select: { id: true },
+  });
+  const eligibleUserIds = eligibleUsers.map((user) => user.id);
   const publications = await prisma.weeklyCompetitionPublication.findMany({
     orderBy: { publishedAt: "desc" },
     take: 24,
     include: {
       rows: {
+        where: { userId: { in: eligibleUserIds } },
         orderBy: [{ scope: "asc" }, { rank: "asc" }],
       },
     },
@@ -72,8 +79,14 @@ export default async function WeeklyLeadersPage({ params }: { params: Promise<{ 
         </section>
       ) : (
         publications.map((publication) => {
-          const weeklyRows = publication.rows.filter((row) => row.scope === "WEEKLY_GAIN").slice(0, 3);
-          const totalRows = publication.rows.filter((row) => row.scope === "TOTAL_GAIN").slice(0, 3);
+          const weeklyRows = publication.rows
+            .filter((row) => row.scope === "WEEKLY_GAIN")
+            .slice(0, 3)
+            .map((row, index) => ({ ...row, rank: index + 1 }));
+          const totalRows = publication.rows
+            .filter((row) => row.scope === "TOTAL_GAIN")
+            .slice(0, 3)
+            .map((row, index) => ({ ...row, rank: index + 1 }));
 
           return (
             <article key={publication.id} className="premium-card p-6">

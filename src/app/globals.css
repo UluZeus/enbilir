@@ -6550,6 +6550,8 @@ body:has(.enbilir-shell-v3) {
 }
 
 .enbilir-shell-v3 > .site-header-v3 {
+  position: sticky;
+  top: 0;
   z-index: 50;
 }
 
@@ -6559,6 +6561,10 @@ body:has(.enbilir-shell-v3) {
   background: rgb(11 19 32 / 94%);
   box-shadow: 0 12px 32px rgb(2 6 23 / 14%);
   backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.enbilir-shell-v3 main :where(section, article, header, aside, div)[id] {
+  scroll-margin-top: calc(var(--enb-header-height) + 1rem);
 }
 
 .site-brand-v3 {
@@ -7271,6 +7277,13 @@ body:has(.enbilir-shell-v3) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .macro-report-ticker__track,
+  .ai-market-radar-track {
+    animation: none !important;
+    transform: none !important;
+    will-change: auto;
+  }
+
   .enbilir-shell-v3 *,
   .error-state-v3 * {
     scroll-behavior: auto !important;

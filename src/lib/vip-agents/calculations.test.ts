@@ -5,6 +5,9 @@ import {
   calculateVipAgentAccount,
   calculateVipAgentPeriods,
   calculateVipAgentSplitAdjustment,
+  areVipAgentCorporateActionsReliable,
+  buildVipAgentPriceUniverse,
+  areVipAgentOpenPositionPricesReliable,
   getVipAgentBuyIneligibilityReason,
   getVipAgentHistoryPagination,
   getVipAgentPortfolioDecision,
@@ -142,6 +145,50 @@ describe("VIP agent trade decisions", () => {
     expect(getVipAgentPositionExitReason({ price: 121, stopLossUsd: 80, targetPriceUsd: 120 })).toContain("hedef gerçekleşti");
     expect(getVipAgentPositionExitReason({ price: 100, stopLossUsd: 80, targetPriceUsd: 120, currentStance: "UZAK_DUR" })).toContain("UZAK DUR");
     expect(getVipAgentPositionExitReason({ price: 100, stopLossUsd: 80, targetPriceUsd: 120, currentStance: "TUT" })).toBeNull();
+  });
+});
+
+describe("VIP agent verified price universe", () => {
+  it("includes today's ideas and every open position without duplicate symbols", () => {
+    expect(buildVipAgentPriceUniverse(
+      [
+        { symbol: "NVDA", providerSymbol: "NVDA" },
+        { symbol: "BTC", providerSymbol: "BTC-USD" },
+      ],
+      [
+        { symbol: "NVDA", providerSymbol: "NVDA" },
+        { symbol: "CCJ", providerSymbol: "CCJ" },
+      ],
+    )).toEqual([
+      { symbol: "NVDA", providerSymbol: "NVDA" },
+      { symbol: "BTC", providerSymbol: "BTC-USD" },
+      { symbol: "CCJ", providerSymbol: "CCJ" },
+    ]);
+  });
+
+  it("marks an open-position valuation unreliable when any current verified price is missing", () => {
+    const positions = [{ symbol: "NVDA" }, { symbol: "CCJ" }];
+
+    expect(areVipAgentOpenPositionPricesReliable(
+      positions,
+      new Map([
+        ["NVDA", { price: 150 }],
+        ["CCJ", { price: 55 }],
+      ]),
+    )).toBe(true);
+    expect(areVipAgentOpenPositionPricesReliable(
+      positions,
+      new Map([
+        ["NVDA", { price: 150 }],
+        ["CCJ", { price: null }],
+      ]),
+    )).toBe(false);
+  });
+
+  it("marks a snapshot unreliable while an open position has an unresolved corporate action", () => {
+    const positions = [{ id: "position-1" }, { id: "position-2" }];
+    expect(areVipAgentCorporateActionsReliable(positions, new Set())).toBe(true);
+    expect(areVipAgentCorporateActionsReliable(positions, new Set(["position-2"]))).toBe(false);
   });
 });
 

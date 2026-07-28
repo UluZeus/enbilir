@@ -1,16 +1,4 @@
-import { unstable_cache } from "next/cache";
-import { getDisplayName } from "@/lib/auth";
-import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
-import { calculateCompetitionProfitLossUsd, calculateCompetitionReturnPercent, getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
-
-type RankedSummaryRow = {
-  userId: string;
-  displayName: string;
-  valueUsd: number;
-  returnPercent: number;
-  rank: number;
-};
 
 type PublishedWeekWindow = {
   start: Date;
@@ -50,12 +38,6 @@ function getPublishedWeekWindow(now = new Date()): PublishedWeekWindow {
   return { start, end, publishedAt, key };
 }
 
-function rankRows(rows: Omit<RankedSummaryRow, "rank">[]) {
-  return rows
-    .sort((a, b) => b.valueUsd - a.valueUsd)
-    .map((row, index) => ({ ...row, rank: index + 1 }));
-}
-
 function formatWeekRange(start: Date, end: Date, locale: "tr" | "en") {
   const formatter = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "tr-TR", {
     day: "2-digit",
@@ -67,101 +49,6 @@ function formatWeekRange(start: Date, end: Date, locale: "tr" | "en") {
   return `${formatter.format(start)} - ${formatter.format(inclusiveEnd)}`;
 }
 
-const getCachedWeeklyCompetitionRows = unstable_cache(
-  async () => {
-    const window = getPublishedWeekWindow();
-    const [users, trades, heldSymbols] = await Promise.all([
-      prisma.user.findMany({
-        where: { isActive: true },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          name: true,
-          nickname: true,
-          displayNameMode: true,
-          email: true,
-          role: true,
-        },
-      }),
-      prisma.virtualTrade.findMany({
-        where: {
-          createdAt: {
-            gte: window.start,
-            lt: window.end,
-          },
-        },
-        select: {
-          userId: true,
-          symbol: true,
-          side: true,
-          quantity: true,
-          priceUsd: true,
-        },
-      }),
-      prisma.portfolioPosition.findMany({
-        select: { symbol: true },
-        distinct: ["symbol"],
-      }),
-    ]);
-
-    const tradeSymbols = trades.map((trade) => trade.symbol);
-    const liveMarketItems = await getLiveMarketItemsForSymbols([...heldSymbols.map((position) => position.symbol), ...tradeSymbols]);
-    const marketItemBySymbol = new Map(liveMarketItems.map((item) => [item.symbol, item]));
-    const userById = new Map(users.map((user) => [user.id, user]));
-    const weeklyValueByUser = new Map<string, number>();
-
-    for (const trade of trades) {
-      const marketItem = marketItemBySymbol.get(trade.symbol);
-      const currentPriceUsd = marketItem?.priceUsd && marketItem.priceUsd > 0 ? marketItem.priceUsd : trade.priceUsd;
-      const contribution = trade.side === "BUY"
-        ? (currentPriceUsd - trade.priceUsd) * trade.quantity
-        : (trade.priceUsd - currentPriceUsd) * trade.quantity;
-
-      weeklyValueByUser.set(trade.userId, (weeklyValueByUser.get(trade.userId) ?? 0) + contribution);
-    }
-
-    const weeklyRows = rankRows(
-      Array.from(weeklyValueByUser.entries()).map(([userId, valueUsd]) => {
-        const user = userById.get(userId);
-
-        return {
-          userId,
-          displayName: user ? getDisplayName(user) : "Kullanıcı",
-          valueUsd,
-          returnPercent: (valueUsd / initialCashUsd) * 100,
-        };
-      }),
-    );
-
-    const totalRows = rankRows(
-      await Promise.all(
-        users.map(async (user) => {
-          const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
-          const profitUsd = calculateCompetitionProfitLossUsd(snapshot.totalValueUsd);
-
-          return {
-            userId: user.id,
-            displayName: getDisplayName(user),
-            valueUsd: profitUsd,
-            returnPercent: calculateCompetitionReturnPercent(snapshot.totalValueUsd),
-          };
-        }),
-      ),
-    );
-
-    return {
-      weekKey: window.key,
-      startIso: window.start.toISOString(),
-      endIso: window.end.toISOString(),
-      publishedAtIso: window.publishedAt.toISOString(),
-      weeklyRows,
-      totalRows,
-    };
-  },
-  ["weekly-competition-summary-v1"],
-  { revalidate: 3600 },
-);
-
 export async function getWeeklyCompetitionSummary(locale: "tr" | "en", currentUserId?: string) {
   const storedSummary = await getLatestStoredWeeklyCompetitionSummary(locale, currentUserId);
 
@@ -169,27 +56,23 @@ export async function getWeeklyCompetitionSummary(locale: "tr" | "en", currentUs
     return storedSummary;
   }
 
-  const summary = await getCachedWeeklyCompetitionRows();
-  const weeklyRank = currentUserId ? summary.weeklyRows.find((row) => row.userId === currentUserId)?.rank ?? null : null;
-  const totalRank = currentUserId ? summary.totalRows.find((row) => row.userId === currentUserId)?.rank ?? null : null;
-  const start = new Date(summary.startIso);
-  const end = new Date(summary.endIso);
+  const window = getPublishedWeekWindow();
 
   return {
-    weekKey: summary.weekKey,
-    weekLabel: formatWeekRange(start, end, locale),
+    weekKey: window.key,
+    weekLabel: formatWeekRange(window.start, window.end, locale),
     publishedAtLabel: new Intl.DateTimeFormat(locale === "en" ? "en-US" : "tr-TR", {
       dateStyle: "medium",
       timeStyle: "short",
       timeZone: "Europe/Istanbul",
-    }).format(new Date(summary.publishedAtIso)),
-    weeklyTop: summary.weeklyRows.slice(0, 3),
-    totalTop: summary.totalRows.slice(0, 3),
-    currentUserWeeklyRank: weeklyRank,
-    currentUserTotalRank: totalRank,
+    }).format(window.publishedAt),
+    weeklyTop: [],
+    totalTop: [],
+    currentUserWeeklyRank: null,
+    currentUserTotalRank: null,
     note: locale === "tr"
-      ? "Bu geçici görünüm canlı portföy ve son işlem verileriyle hesaplanmıştır. İlk kalıcı haftalık yayın sonrası arşivli sonuçlar gösterilir."
-      : "This temporary view is calculated from live portfolio and recent trade data. Archived results are shown after the first persisted weekly publication.",
+      ? "Doğrulanmış ve değiştirilemez haftalık yayın henüz oluşmadı. Geçici veya fallback fiyatlarla sıralama gösterilmez."
+      : "A verified, immutable weekly publication is not available yet. Rankings are never shown from temporary or fallback prices.",
   };
 }
 

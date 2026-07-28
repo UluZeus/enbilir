@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { FormMessage } from "@/components/FormMessage";
 import { LeagueInviteActions } from "@/components/leagues/LeagueInviteActions";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
@@ -74,10 +75,12 @@ export async function generateMetadata({
 
 export default async function LeagueDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<{ inviteCode?: string; error?: string; message?: string }>;
 }) {
-  const { locale: rawLocale, slug } = await params;
+  const [{ locale: rawLocale, slug }, query] = await Promise.all([params, searchParams]);
   const locale = getSafeLocale(rawLocale);
   const copy = getUiCopy(locale).leagues;
   const user = await getSessionUser();
@@ -92,9 +95,15 @@ export default async function LeagueDetailPage({
   const leaderboard = canViewLeaderboard ? await getLeagueLeaderboard(league.id, user?.id) : { rows: [], currentUserRank: null };
   const leagueDescription = getLeagueDescriptionForLocale(league.slug, league.description, locale);
   const leagueName = getLeagueNameForLocale(league.name, league.slug, locale);
-  const inviteUrl = `${getSiteUrl()}/${locale}/ligler/${league.slug}`;
   const siteUrl = getSiteUrl();
   const leagueUrl = `${siteUrl}/${locale}/ligler/${league.slug}`;
+  const isPrivateLeague = league.type === "PRIVATE";
+  const inviteUrl = membership?.role === "OWNER" && isPrivateLeague
+    ? `${leagueUrl}?inviteCode=${encodeURIComponent(league.inviteCode)}`
+    : leagueUrl;
+  const suppliedInviteCode = typeof query.inviteCode === "string"
+    ? query.inviteCode.trim().toUpperCase().slice(0, 32)
+    : "";
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -144,6 +153,7 @@ export default async function LeagueDetailPage({
   return (
     <div className="growth-page grid gap-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }} />
+      <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
       <section className="league-detail-hero rounded-[1.6rem] border border-[#d9a441]/30 bg-[#101827] p-6 text-white shadow-sm">
         <Link href={`/${locale}/ligler`} className="text-sm font-bold text-[#f5a623] hover:text-[#ffd36b]">
           {copy.back}
@@ -191,9 +201,13 @@ export default async function LeagueDetailPage({
           {membership?.role === "OWNER" ? (
             <>
               <p className="mt-3 text-sm leading-6 text-slate-300">
-                {locale === "tr"
-                  ? "Bu lig doğrudan katılıma açıktır. İstersen bağlantıyı paylaşarak üyelerin bu sayfadan tek tıkla katılmasını sağlayabilirsin."
-                  : "This league is open to direct joining. You can share the link so members can join from this page with one click."}
+                {isPrivateLeague
+                  ? locale === "tr"
+                    ? "Bu özel bağlantı davet kodunu içerir. Yalnızca lige çağırmak istediğin kişilerle paylaş."
+                    : "This private link includes the invitation code. Share it only with people you want to invite."
+                  : locale === "tr"
+                    ? "Bu lig doğrudan katılıma açıktır. Bağlantıyı paylaşarak üyelerin bu sayfadan katılmasını sağlayabilirsin."
+                    : "This league is open to direct joining. Share the link so members can join from this page."}
               </p>
               <p className="mt-3 rounded-lg border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300">{inviteUrl}</p>
               <div className="mt-3">
@@ -205,12 +219,47 @@ export default async function LeagueDetailPage({
               <p className="mt-3 text-sm leading-6 text-slate-300">
                 {membership
                   ? locale === "tr" ? "Bu ligin içindesin. Panelden portföyünü, rozetlerini ve liglerini birlikte takip edebilirsin." : "You are inside this league. Track your portfolio, badges, and leagues from the dashboard."
-                  : locale === "tr" ? "Bu lige katılmak için davet kodu gerekmez. İstersen hemen katılıp lig sıralamasında yer alabilirsin." : "No invite code is required to join this league. You can join now and appear in the league ranking."}
+                  : isPrivateLeague
+                    ? locale === "tr" ? "Bu özel lige yalnızca lig sahibinin paylaştığı davet koduyla katılabilirsin." : "You can join this private league only with the invitation code shared by its owner."
+                    : locale === "tr" ? "Bu lige davet kodu olmadan katılabilirsin." : "You can join this league without an invitation code."}
               </p>
               {membership ? (
                 <Link href={`/${locale}/panel`} className="premium-cta mt-4 inline-flex px-4 py-2 text-sm font-black">
                   {locale === "tr" ? "Panelime git" : "Go to my panel"}
                 </Link>
+              ) : isPrivateLeague && !user ? (
+                <Link
+                  href={`/${locale}/giris?returnTo=${encodeURIComponent(
+                    `/${locale}/ligler/${league.slug}${suppliedInviteCode ? `?inviteCode=${encodeURIComponent(suppliedInviteCode)}` : ""}`,
+                  )}`}
+                  className="premium-cta mt-4 inline-flex px-4 py-2 text-sm font-black"
+                >
+                  {locale === "tr" ? "Giriş yap ve davet kodunu kullan" : "Sign in and use invitation code"}
+                </Link>
+              ) : isPrivateLeague ? (
+                <form action={joinLeagueAction} className="mt-4 grid gap-3">
+                  <input type="hidden" name="locale" value={locale} />
+                  <input type="hidden" name="leagueId" value={league.id} />
+                  <input type="hidden" name="redirectTo" value={`/${locale}/ligler/${league.slug}`} />
+                  <label htmlFor="league-invite-code" className="text-sm font-bold text-white">
+                    {locale === "tr" ? "Davet kodu" : "Invitation code"}
+                  </label>
+                  <input
+                    id="league-invite-code"
+                    name="inviteCode"
+                    required
+                    minLength={8}
+                    maxLength={32}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    defaultValue={suppliedInviteCode}
+                    placeholder={locale === "tr" ? "8 karakterli kod" : "8-character code"}
+                    className="min-h-11 rounded-xl border border-white/20 bg-white px-3 py-2 text-sm font-bold uppercase tracking-[0.12em] text-slate-950 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-300/40"
+                  />
+                  <button className="premium-cta min-h-11 px-4 py-2 text-sm font-black">
+                    {locale === "tr" ? "Kodla lige katıl" : "Join with code"}
+                  </button>
+                </form>
               ) : (
                 <form action={joinLeagueAction} className="mt-4">
                   <input type="hidden" name="locale" value={locale} />
@@ -304,14 +353,20 @@ export default async function LeagueDetailPage({
               {locale === "tr" ? "Panelime git" : "Go to my panel"}
             </Link>
           ) : user ? (
-            <form action={joinLeagueAction} className="mt-2">
-              <input type="hidden" name="locale" value={locale} />
-              <input type="hidden" name="leagueId" value={league.id} />
-              <input type="hidden" name="redirectTo" value={`/${locale}/ligler/${league.slug}`} />
-              <button className="rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
-                {locale === "tr" ? "Lige katıl" : "Join league"}
-              </button>
-            </form>
+            isPrivateLeague ? (
+              <a href="#league-invite-code" className="mt-2 inline-flex rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
+                {locale === "tr" ? "Davet kodunu gir" : "Enter invitation code"}
+              </a>
+            ) : (
+              <form action={joinLeagueAction} className="mt-2">
+                <input type="hidden" name="locale" value={locale} />
+                <input type="hidden" name="leagueId" value={league.id} />
+                <input type="hidden" name="redirectTo" value={`/${locale}/ligler/${league.slug}`} />
+                <button className="rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
+                  {locale === "tr" ? "Lige katıl" : "Join league"}
+                </button>
+              </form>
+            )
           ) : (
             <Link href={`/${locale}/kayit`} className="mt-2 inline-flex rounded-md bg-[#101827] px-4 py-2 text-sm font-black text-white">
               {locale === "tr" ? "Üye ol" : "Register"}

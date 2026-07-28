@@ -4,6 +4,33 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function round(value: number, digits = 2) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+const MAX_TECHNICAL_AGE_MS = 36 * 60 * 60 * 1000;
+const MAX_FUNDAMENTAL_AGE_MS = 550 * 24 * 60 * 60 * 1000;
+const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+
+function hasAcceptableTimestamp(value: string | null, maximumAgeMs: number, now = new Date()) {
+  if (!value) {
+    return false;
+  }
+
+  const timestamp = Date.parse(value);
+  const age = now.getTime() - timestamp;
+
+  return Number.isFinite(timestamp) && age >= -MAX_FUTURE_SKEW_MS && age <= maximumAgeMs;
+}
+
+export function hasFreshVipTechnicalSnapshot(
+  candidate: Pick<VipResearchCandidate, "technical">,
+  now = new Date(),
+) {
+  return hasAcceptableTimestamp(candidate.technical.asOf, MAX_TECHNICAL_AGE_MS, now);
+}
+
 export function scoreVipCorporateFundamentals(candidate: VipResearchCandidate) {
   const snapshot = candidate.fundamental;
 
@@ -40,6 +67,7 @@ export function hasRequiredVipResearchInputs(candidate: VipResearchCandidate) {
   return Boolean(
     candidate.fundamentalFramework === "CORPORATE_FINANCIALS" &&
     item &&
+    hasAcceptableTimestamp(item.periodEnd, MAX_FUNDAMENTAL_AGE_MS) &&
     item.freeCashFlow !== null &&
     item.freeCashFlowGrowthPct !== null &&
     item.totalDebt !== null &&
@@ -88,4 +116,34 @@ export function calculateVipAsymmetryRank(
     clamp(idea.confidenceScore, 1, 100) * 0.22 +
     (100 - clamp(idea.riskScore, 1, 100)) * 0.18 +
     stanceAdjustment;
+}
+
+export function getDeterministicVipScorecard(candidate: VipResearchCandidate) {
+  const technical = candidate.technical;
+  const atrAmount = technical.lastPrice * technical.atr14Pct / 100;
+  const effectiveAtr = Math.max(atrAmount, technical.lastPrice * 0.005);
+  const entryLow = Math.max(technical.support, technical.lastPrice - effectiveAtr * 0.65);
+  const entryHigh = Math.max(entryLow, technical.lastPrice + effectiveAtr * 0.2);
+  const stopLoss = Math.min(
+    entryLow - effectiveAtr * 0.25,
+    Math.max(entryLow - effectiveAtr * 1.2, technical.support * 0.97),
+  );
+  const minimumTarget = entryHigh + Math.max(entryLow - stopLoss, effectiveAtr) * 2;
+  const targetPrice = Math.max(technical.resistance, minimumTarget);
+  const confidenceScore = clamp(Math.round(candidate.quantitativeScore * 0.72), 1, 100);
+  const riskScore = clamp(
+    Math.round(100 - candidate.quantitativeScore * 0.55 + technical.atr14Pct * 2),
+    1,
+    100,
+  );
+
+  return {
+    confidenceScore,
+    riskScore,
+    entryLow: round(entryLow),
+    entryHigh: round(entryHigh),
+    stopLoss: round(stopLoss),
+    targetPrice: round(targetPrice),
+    secondaryTargetPrice: round(targetPrice + (targetPrice - stopLoss) * 0.5),
+  };
 }

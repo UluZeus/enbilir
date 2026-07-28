@@ -47,6 +47,11 @@ export function GuidedHelp({ locale, userId, progress }: GuidedHelpProps) {
     if (!isOpen) return;
 
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    const backgroundElements = Array.from(document.querySelectorAll<HTMLElement>(
+      ".enbilir-shell-v3 > header, .enbilir-shell-v3 > main, .enbilir-shell-v3 > footer, .mobile-dock-safe-v3",
+    ));
+    const previousInertStates = backgroundElements.map((element) => element.inert);
     const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -67,11 +72,19 @@ export function GuidedHelp({ locale, userId, progress }: GuidedHelpProps) {
         first.focus();
       }
     };
+    document.body.style.overflow = "hidden";
+    backgroundElements.forEach((element) => {
+      element.inert = true;
+    });
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      backgroundElements.forEach((element, index) => {
+        element.inert = previousInertStates[index];
+      });
       previouslyFocused?.focus();
     };
   }, [isOpen, seenKey]);

@@ -26,6 +26,12 @@ export type MarketItem = {
   price: string;
   priceUsd: number;
   changePercent: number;
+  quoteCurrency?: string;
+  priceNative?: number;
+  sourceAsOf?: string | null;
+  retrievedAt?: string | null;
+  marketState?: string;
+  executionEligible?: boolean;
 };
 
 const ENGLISH_MARKET_LABELS: Record<string, string> = {
@@ -219,6 +225,12 @@ function item(seed: MarketSeed): MarketItem {
     price: formatMarketItemValue(seed.priceUsd, seed.category),
     dataStatus: seed.dataStatus ?? "delayed",
     source: seed.source ?? "fallback",
+    quoteCurrency: "USD",
+    priceNative: seed.priceUsd,
+    sourceAsOf: null,
+    retrievedAt: null,
+    marketState: "UNKNOWN",
+    executionEligible: false,
   };
 }
 

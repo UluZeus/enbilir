@@ -36,12 +36,8 @@ type RadarTickerSegment = {
   alerts: MarketScanAlert[];
 };
 type RadarTickerGroups = Record<RadarGroupKey, RadarTickerSegment[]>;
+type RadarLoadState = "loading" | "ready" | "empty" | "partial" | "error" | "offline";
 
-const initialGroups: RadarGroups = {
-  shortTerm: [],
-  hourly: [],
-  mediumTerm: [],
-};
 const initialTickerGroups: RadarTickerGroups = {
   shortTerm: [],
   hourly: [],
@@ -105,10 +101,6 @@ function appendTickerGroups(current: RadarTickerGroups, nextGroups: RadarGroups,
   };
 }
 
-function hasTickerSegments(groups: RadarTickerGroups) {
-  return Object.values(groups).some((segments) => segments.length > 0);
-}
-
 function formatPercent(value: number) {
   return Number.isFinite(value) ? `%${Math.round(value)}` : "%-";
 }
@@ -120,7 +112,7 @@ async function fetchIntervalAlerts(interval: string, signal: AbortSignal) {
   });
 
   if (!response.ok) {
-    return [];
+    throw new Error(`Market scan failed (${response.status})`);
   }
 
   const payload = (await response.json()) as MarketScanResponse;
@@ -130,7 +122,8 @@ async function fetchIntervalAlerts(interval: string, signal: AbortSignal) {
 export function MarketRadarPanel({ locale }: { locale: Locale }) {
   const copy = getUiCopy(locale).ai;
   const [tickerGroups, setTickerGroups] = useState<RadarTickerGroups>(initialTickerGroups);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loadState, setLoadState] = useState<RadarLoadState>("loading");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const inProgressRef = useRef(false);
@@ -145,12 +138,19 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
+    setLoadState("loading");
 
     try {
       const settled = await Promise.allSettled(SCAN_INTERVALS.map((interval) => fetchIntervalAlerts(interval, controller.signal)));
-      const alerts = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+      const fulfilled = settled.filter((result): result is PromiseFulfilledResult<MarketScanAlert[]> => result.status === "fulfilled");
+      const alerts = fulfilled.flatMap((result) => result.value);
 
       if (!controller.signal.aborted) {
+        if (fulfilled.length === 0) {
+          setLoadState(typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "error");
+          return;
+        }
+
         const scanId = scanSequenceRef.current + 1;
         scanSequenceRef.current = scanId;
         const nextGroups = groupAlerts(alerts);
@@ -158,20 +158,20 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
         startTransition(() => {
           setTickerGroups((current) => appendTickerGroups(current, nextGroups, scanId));
         });
+        setLastUpdatedAt(new Date());
+        setLoadState(
+          fulfilled.length < SCAN_INTERVALS.length
+            ? "partial"
+            : alerts.length === 0
+              ? "empty"
+              : "ready",
+        );
       }
     } catch {
       if (!controller.signal.aborted) {
-        const scanId = scanSequenceRef.current + 1;
-        scanSequenceRef.current = scanId;
-
-        startTransition(() => {
-          setTickerGroups((current) => hasTickerSegments(current) ? current : appendTickerGroups(current, initialGroups, scanId));
-        });
+        setLoadState(typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "error");
       }
     } finally {
-      if (!controller.signal.aborted) {
-        setIsLoading(false);
-      }
       inProgressRef.current = false;
     }
   }, []);
@@ -211,6 +211,12 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
           contain: layout paint;
           overflow: clip;
         }
+        @media (prefers-reduced-motion: reduce) {
+          .ai-market-radar-track {
+            animation: none !important;
+            transform: none !important;
+          }
+        }
       `}</style>
       <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
@@ -223,25 +229,54 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="ai-market-radar-status w-fit max-w-full rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-100" role="status">
-            {isPaused ? (locale === "tr" ? "Akış duraklatıldı" : "Feed paused") : copy.radarStatus}
+            {isPaused
+              ? (locale === "tr" ? "Akış duraklatıldı" : "Feed paused")
+              : loadState === "loading"
+                ? (locale === "tr" ? "Veri güncelleniyor" : "Updating data")
+                : loadState === "partial"
+                  ? (locale === "tr" ? "Kısmi veri" : "Partial data")
+                  : loadState === "offline"
+                    ? (locale === "tr" ? "Çevrimdışı" : "Offline")
+                    : loadState === "error"
+                      ? (locale === "tr" ? "Veri alınamadı" : "Data unavailable")
+                      : copy.radarStatus}
           </span>
           <button
             type="button"
             onClick={() => {
               setIsPaused((current) => !current);
-              setIsLoading(false);
+              if (!isPaused) setLoadState((current) => current === "loading" ? "empty" : current);
             }}
             aria-pressed={isPaused}
             className="min-h-9 rounded-full border border-slate-700 bg-slate-900 px-3 text-[11px] font-bold text-slate-200 transition hover:border-cyan-300/50 hover:text-white"
           >
             {isPaused ? (locale === "tr" ? "Akışı sürdür" : "Resume feed") : (locale === "tr" ? "Akışı duraklat" : "Pause feed")}
           </button>
+          {loadState === "error" || loadState === "offline" ? (
+            <button
+              type="button"
+              onClick={() => void loadOpportunities()}
+              className="min-h-9 rounded-full border border-amber-300/40 bg-amber-300/10 px-3 text-[11px] font-bold text-amber-100 transition hover:bg-amber-300/20"
+            >
+              {locale === "tr" ? "Yeniden dene" : "Retry"}
+            </button>
+          ) : null}
         </div>
       </div>
+      {loadState === "error" || loadState === "offline" || loadState === "partial" ? (
+        <p className="mt-3 rounded-md border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-5 text-amber-100" role="alert">
+          {loadState === "offline"
+            ? (locale === "tr" ? "İnternet bağlantısı yok. Son başarılı veriler korunuyor." : "There is no internet connection. The last successful data is retained.")
+            : loadState === "partial"
+              ? (locale === "tr" ? "Bazı zaman aralıkları alınamadı. Gösterilen sonuçlar kısmi olabilir." : "Some intervals could not be loaded. Displayed results may be partial.")
+              : (locale === "tr" ? "Piyasa radarı verisi alınamadı. Bu durum fırsat olmadığı anlamına gelmez." : "Market radar data could not be loaded. This does not mean there are no opportunities.")}
+          {lastUpdatedAt ? ` ${locale === "tr" ? "Son başarılı güncelleme" : "Last successful update"}: ${lastUpdatedAt.toLocaleTimeString(locale === "tr" ? "tr-TR" : "en-US")}.` : ""}
+        </p>
+      ) : null}
       <div className="mt-3 grid gap-2.5">
-        <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" segments={tickerGroups.shortTerm} isLoading={isLoading} isPaused={isPaused} />
-        <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" segments={tickerGroups.hourly} isLoading={isLoading} isPaused={isPaused} />
-        <RadarTickerRow locale={locale} title={copy.mediumTerm} subtitle="4h / 1d" segments={tickerGroups.mediumTerm} isLoading={isLoading} isPaused={isPaused} />
+        <RadarTickerRow locale={locale} title={copy.shortTerm} subtitle="1m / 5m / 15m" segments={tickerGroups.shortTerm} loadState={loadState} isPaused={isPaused} />
+        <RadarTickerRow locale={locale} title={copy.hourly} subtitle="1h" segments={tickerGroups.hourly} loadState={loadState} isPaused={isPaused} />
+        <RadarTickerRow locale={locale} title={copy.mediumTerm} subtitle="4h / 1d" segments={tickerGroups.mediumTerm} loadState={loadState} isPaused={isPaused} />
       </div>
     </section>
   );
@@ -252,14 +287,14 @@ function RadarTickerRow({
   title,
   subtitle,
   segments,
-  isLoading,
+  loadState,
   isPaused,
 }: {
   locale: Locale;
   title: string;
   subtitle: string;
   segments: RadarTickerSegment[];
-  isLoading: boolean;
+  loadState: RadarLoadState;
   isPaused: boolean;
 }) {
   const tickerSegments = segments.length > 0 ? segments : [{ id: "radar-fallback", alerts: [] }];
@@ -272,8 +307,8 @@ function RadarTickerRow({
       </div>
       <div className="ai-market-radar-viewport min-w-0 overflow-hidden rounded-md border border-slate-800 bg-[#070b13] px-3 py-2">
         <div className="ai-market-radar-track flex w-max min-w-full items-center gap-8" style={isPaused ? { animationPlayState: "paused" } : undefined}>
-          <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="primary" />
-          <RadarTickerPass locale={locale} segments={tickerSegments} isLoading={isLoading} passId="mirror" ariaHidden />
+          <RadarTickerPass locale={locale} segments={tickerSegments} loadState={loadState} passId="primary" />
+          <RadarTickerPass locale={locale} segments={tickerSegments} loadState={loadState} passId="mirror" ariaHidden />
         </div>
       </div>
     </div>
@@ -283,13 +318,13 @@ function RadarTickerRow({
 function RadarTickerPass({
   locale,
   segments,
-  isLoading,
+  loadState,
   passId,
   ariaHidden = false,
 }: {
   locale: Locale;
   segments: RadarTickerSegment[];
-  isLoading: boolean;
+  loadState: RadarLoadState;
   passId: string;
   ariaHidden?: boolean;
 }) {
@@ -300,7 +335,7 @@ function RadarTickerPass({
           {segment.alerts.length > 0 ? (
             <OpportunityItems locale={locale} alerts={segment.alerts} keyPrefix={`${passId}-${segment.id}`} />
           ) : (
-            <FallbackText locale={locale} isLoading={isLoading} />
+            <FallbackText locale={locale} loadState={loadState} />
           )}
           <span className="ai-market-radar-separator text-slate-700">•</span>
         </span>
@@ -338,15 +373,31 @@ function OpportunityItems({ locale, alerts, keyPrefix }: { locale: Locale; alert
   );
 }
 
-function FallbackText({ locale, isLoading }: { locale: Locale; isLoading: boolean }) {
+function FallbackText({ locale, loadState }: { locale: Locale; loadState: RadarLoadState }) {
   const copy = getUiCopy(locale).ai;
 
-  if (isLoading) {
+  if (loadState === "loading") {
     return (
       <span className="inline-flex items-center gap-2 whitespace-nowrap">
         <span className="h-3 w-16 animate-pulse rounded-full bg-slate-700" />
         <span className="h-3 w-24 animate-pulse rounded-full bg-slate-800" />
         <span className="h-3 w-20 animate-pulse rounded-full bg-slate-700" />
+      </span>
+    );
+  }
+
+  if (loadState === "error" || loadState === "offline") {
+    return (
+      <span className="ai-market-radar-empty whitespace-nowrap font-semibold text-amber-200">
+        {locale === "tr" ? "Veri alınamadı; yeniden deneyin." : "Data unavailable; please retry."}
+      </span>
+    );
+  }
+
+  if (loadState === "partial") {
+    return (
+      <span className="ai-market-radar-empty whitespace-nowrap font-semibold text-amber-200">
+        {locale === "tr" ? "Bu zaman aralığı alınamadı." : "This interval is unavailable."}
       </span>
     );
   }

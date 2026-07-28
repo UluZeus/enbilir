@@ -108,11 +108,13 @@ function MiniLineChart({
   references = [],
   min,
   max,
+  ariaLabel,
 }: {
   lines: LineDefinition[];
   references?: ReferenceLine[];
   min?: number;
   max?: number;
+  ariaLabel: string;
 }) {
   const bounds = getBounds(lines, references, min, max);
   const maxLabel = compactNumber(bounds.max, 2);
@@ -120,8 +122,13 @@ function MiniLineChart({
 
   return (
     <div className="mt-4 min-w-0">
-      <div className="overflow-x-auto overscroll-x-contain rounded-lg border border-slate-100 bg-white [touch-action:pinch-zoom]">
-        <svg className="h-64 w-[680px] max-w-none overflow-hidden p-2 md:h-56 md:w-full md:max-w-full" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
+      <div
+        className="overflow-x-auto overscroll-x-contain rounded-lg border border-slate-100 bg-white [touch-action:pinch-zoom]"
+        tabIndex={0}
+        role="group"
+        aria-label={ariaLabel}
+      >
+        <svg className="h-64 w-[680px] max-w-none overflow-hidden p-2 md:h-56 md:w-full md:max-w-full" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={ariaLabel}>
           <line x1="0" x2={chartWidth} y1="0" y2="0" stroke="#e2e8f0" strokeWidth="1" />
           <line x1="0" x2={chartWidth} y1={chartHeight / 2} y2={chartHeight / 2} stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
           <line x1="0" x2={chartWidth} y1={chartHeight} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
@@ -159,7 +166,7 @@ function MiniLineChart({
           ))}
         </svg>
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px] font-bold text-slate-500">
+      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-600">
         <span>{maxLabel}</span>
         <span>{compactNumber((bounds.max + bounds.min) / 2, 2)}</span>
         <span>{minLabel}</span>
@@ -173,7 +180,7 @@ function ValueGrid({ values }: { values: Array<{ label: string; value: string; t
     <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
       {values.map((item) => (
         <div key={item.label} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
-          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{item.label}</p>
+          <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-600">{item.label}</p>
           <p className={`mt-1 break-words text-sm font-black ${item.tone ?? "text-slate-700"}`}>{item.value}</p>
         </div>
       ))}
@@ -216,7 +223,13 @@ function ChartPanel({
           ))}
         </div>
       </div>
-      <MiniLineChart lines={lines} references={references} min={min} max={max} />
+      <MiniLineChart
+        lines={lines}
+        references={references}
+        min={min}
+        max={max}
+        ariaLabel={`${title}. ${meta}. ${lines.map((line) => `${line.label}: ${compactNumber(lastValue(line.values))}`).join(", ")}.`}
+      />
       <ValueGrid values={values} />
       {children ? <div className="mt-4 text-sm leading-6 text-slate-600">{children}</div> : null}
     </div>

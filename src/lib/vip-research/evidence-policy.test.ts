@@ -42,14 +42,35 @@ describe("VIP research evidence policy", () => {
       { title: "Microsoft investor relations", url: "https://www.microsoft.com/investor" },
       apple,
     )).toBe(false);
+    expect(sourceMatchesCandidate(
+      { title: "Pineapple market update", url: "https://example.com/pineapple" },
+      apple,
+    )).toBe(false);
 
     expect(getVerifiedCandidateSources([
-      { title: "Apple investor relations", url: "https://www.apple.com/newsroom/" },
+      {
+        title: "Apple investor relations",
+        url: "https://www.apple.com/newsroom/",
+        evidenceText: "Apple yeni ürün lansmanını Q4 2026 dönemi için açıkladı.",
+      },
       { title: "Microsoft investor relations", url: "https://www.microsoft.com/investor" },
       { title: "Apple local source", url: "http://apple.example.com/news" },
-    ], apple)).toEqual([
-      { title: "Apple investor relations", url: "https://www.apple.com/newsroom/" },
+    ], apple, ["Apple yeni ürün lansmanı Q4 2026 döneminde planlanıyor."])).toEqual([
+      {
+        title: "Apple investor relations",
+        url: "https://www.apple.com/newsroom/",
+        evidenceText: "Apple yeni ürün lansmanını Q4 2026 dönemi için açıkladı.",
+      },
     ]);
+  });
+
+  it("does not authorize a buy with a generic company page that does not support the catalyst", () => {
+    const apple = { symbol: "AAPL", providerSymbol: "AAPL", displayName: "Apple Inc" };
+    const catalysts = ["Apple yeni ürün lansmanı Q4 2026 döneminde planlanıyor."];
+
+    expect(getVerifiedCandidateSources([
+      { title: "Apple investor relations", url: "https://www.apple.com/investor/" },
+    ], apple, catalysts)).toEqual([]);
   });
 
   it("downgrades an unsupported buy and rejects a buy with a risk veto", () => {

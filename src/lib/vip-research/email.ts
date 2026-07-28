@@ -241,7 +241,10 @@ export async function sendVipResearchEmails(reportId: string) {
   const [emailData, recipients] = await Promise.all([
     loadVipResearchEmailData(reportId),
     prisma.user.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        electronicCommunicationConsent: true,
+      },
       select: { id: true, email: true, name: true },
     }),
   ]);

@@ -5,6 +5,16 @@ import { assessRisk } from "@/lib/ai-market/risk-engine";
 import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import type { Candle, MarketAnalysis, MarketExchange } from "@/lib/ai-market/types";
 import { fetchJsonWithFallback } from "@/lib/http-json";
+import {
+  assessCandleFreshness,
+  buildMarketDataProvenance,
+  toAnalysisDataStatus,
+} from "@/lib/ai-market/data-freshness";
+import {
+  mapSettledWithConcurrency,
+  ProviderRequestBudget,
+  withProviderRetry,
+} from "@/lib/ai-market/provider-resilience";
 
 export type MarketScanExchange = "binance";
 
@@ -65,6 +75,8 @@ const MAX_CANDIDATES = 30;
 const TICKER_TIMEOUT_MS = 6500;
 const CANDLE_TIMEOUT_MS = 5500;
 const CANDLE_LIMIT = 160;
+const SCAN_CONCURRENCY = 5;
+const MAX_SCAN_PROVIDER_REQUESTS = 30;
 
 const excludedBaseAssets = new Set([
   "USDT",
@@ -173,10 +185,13 @@ function toBinanceCandidate(ticker: BinanceTicker): ScanCandidate | null {
 async function loadCandidates() {
   const errors: string[] = [];
   const candidateResult = await Promise.allSettled([
-    fetchJsonWithFallback<unknown[]>(BINANCE_TICKER_URL, {
-      headers: { Accept: "application/json" },
-      timeoutMs: TICKER_TIMEOUT_MS,
-    }).then((payload) =>
+    withProviderRetry(
+      () => fetchJsonWithFallback<unknown[]>(BINANCE_TICKER_URL, {
+        headers: { Accept: "application/json" },
+        timeoutMs: TICKER_TIMEOUT_MS,
+      }),
+      { maxAttempts: 2 },
+    ).then((payload) =>
       payload.filter(isBinanceTicker).map(toBinanceCandidate).filter((candidate): candidate is ScanCandidate => candidate !== null),
     ),
   ]);
@@ -213,9 +228,23 @@ function loadCandidateCandles(candidate: ScanCandidate, interval: string) {
 
 function buildAnalysis(candidate: ScanCandidate, interval: string, candles: Candle[]): MarketAnalysis {
   const indicators = calculateIndicators(candles);
-  const signal = analyzeSignal(candles, indicators);
+  const calculatedSignal = analyzeSignal(candles, indicators);
   const risk = assessRisk(candles, indicators);
   const latest = candles[candles.length - 1];
+  const freshness = assessCandleFreshness({
+    candleOpenTime: latest?.openTime ?? 0,
+    assetClass: "CRYPTO",
+    interval,
+  });
+  const signal = freshness === "FRESH"
+    ? calculatedSignal
+    : {
+        signal: "NO_TRADE" as const,
+        confidence: 0,
+        reasons: [
+          `Kaynak verisi işlem için güncel değil. Son mum: ${latest ? new Date(latest.openTime).toISOString() : "bilinmiyor"}.`,
+        ],
+      };
 
   return {
     symbol: candidate.symbol,
@@ -230,8 +259,14 @@ function buildAnalysis(candidate: ScanCandidate, interval: string, candles: Cand
     risk,
     explanation: "",
     disclaimer: "",
-    updatedAt: new Date().toISOString(),
-    dataStatus: "live",
+    updatedAt: latest ? new Date(latest.openTime).toISOString() : new Date(0).toISOString(),
+    dataStatus: toAnalysisDataStatus(freshness),
+    provenance: buildMarketDataProvenance({
+      provider: candidate.exchange,
+      candleOpenTime: latest?.openTime ?? 0,
+      assetClass: "CRYPTO",
+      interval,
+    }),
   };
 }
 
@@ -274,19 +309,29 @@ export async function runMarketScan(exchange: MarketScanExchange, intervals: str
   const { candidates, errors } = await loadCandidates();
   const analyses: MarketAnalysis[] = [];
   let processedCount = 0;
+  const requestedWork = candidates.flatMap((candidate) =>
+    intervals.map((interval) => ({ candidate, interval })),
+  );
+  const work = requestedWork.slice(0, MAX_SCAN_PROVIDER_REQUESTS);
+  const requestBudget = new ProviderRequestBudget(MAX_SCAN_PROVIDER_REQUESTS);
 
-  const settled = await Promise.allSettled(
-    candidates.flatMap((candidate) =>
-      intervals.map(async (interval) => {
-        const candles = await loadCandidateCandles(candidate, interval);
+  if (requestedWork.length > work.length) {
+    errors.push(`Tarama istek bütçesi ${MAX_SCAN_PROVIDER_REQUESTS} ile sınırlandı.`);
+  }
 
-        if (candles.length < 50) {
-          throw new Error(`${candidate.displayName} ${interval} için yeterli mum verisi yok.`);
-        }
+  const settled = await mapSettledWithConcurrency(
+    work,
+    SCAN_CONCURRENCY,
+    async ({ candidate, interval }) => {
+      requestBudget.consume();
+      const candles = await loadCandidateCandles(candidate, interval);
 
-        return buildAnalysis(candidate, interval, candles);
-      }),
-    ),
+      if (candles.length < 50) {
+        throw new Error(`${candidate.displayName} ${interval} için yeterli mum verisi yok.`);
+      }
+
+      return buildAnalysis(candidate, interval, candles);
+    },
   );
 
   settled.forEach((result) => {

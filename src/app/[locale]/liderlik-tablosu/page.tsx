@@ -13,7 +13,9 @@ import {
   formatMoney,
 } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
+import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 import { buildPageMetadata } from "@/lib/seo";
+import { partitionLeaderboardValuations } from "./leaderboard-valuation";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
@@ -33,6 +35,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ lo
   }
   const copy = getUiCopy(locale).leaderboard;
   const users = await prisma.user.findMany({
+    where: publicCompetitionUserWhere,
     select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
   });
   const heldSymbols = await prisma.portfolioPosition.findMany({
@@ -42,10 +45,16 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ lo
   const liveMarketItems = await getLiveMarketItemsForSymbols(heldSymbols.map((position) => position.symbol));
   const rows = await Promise.all(users.map(async (user) => {
     const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
-    return { id: user.id, displayName: getDisplayName(user), totalValueUsd: snapshot.totalValueUsd };
+    return {
+      id: user.id,
+      displayName: getDisplayName(user),
+      totalValueUsd: snapshot.totalValueUsd,
+      hasUnreliableValuation: snapshot.hasUnreliableValuation,
+    };
   }));
-  const rankedRows = rows.sort((a, b) => b.totalValueUsd - a.totalValueUsd);
+  const { rankedRows, excludedRows } = partitionLeaderboardValuations(rows);
   const currentUserRank = rankedRows.findIndex((row) => row.id === sessionUser.id) + 1;
+  const currentUserExcluded = excludedRows.some((row) => row.id === sessionUser.id);
 
   return (
     <div className="grid gap-6">
@@ -88,6 +97,24 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ lo
           ))}
         </div>
       </section>
+      {excludedRows.length > 0 ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950" role="status">
+          <p className="font-black">
+            {locale === "tr"
+              ? `${excludedRows.length} portföy canlı sıralamaya geçici olarak dahil edilmedi.`
+              : `${excludedRows.length} portfolio(s) are temporarily excluded from the live ranking.`}
+          </p>
+          <p className="mt-1">
+            {currentUserExcluded
+              ? (locale === "tr"
+                  ? "Portföyündeki en az bir varlık için güncel ve doğrulanmış fiyat bulunamadı. Fiyat doğrulanınca sıran otomatik olarak yeniden hesaplanır."
+                  : "At least one asset in your portfolio has no current verified price. Your rank will be recalculated automatically when the price is verified.")
+              : (locale === "tr"
+                  ? "Güncel ve doğrulanmış fiyatı olmayan portföyler, diğer katılımcıların sırasını etkilemez."
+                  : "Portfolios without a current verified price do not affect other participants' ranks.")}
+          </p>
+        </section>
+      ) : null}
       {rankedRows.length > 0 ? (
         <section className="grid gap-4 md:grid-cols-3 md:items-end" aria-label={locale === "tr" ? "İlk üç kullanıcı" : "Top three users"}>
           {[rankedRows[1], rankedRows[0], rankedRows[2]].map((row, podiumIndex) => {

@@ -602,7 +602,7 @@ export default async function AdminPage({
     <div className="growth-page grid gap-6">
       <PageHeader title={copy.title} description={copy.description} locale={locale} />
       <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
-      <nav className="sticky top-20 z-30 -mx-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" aria-label={locale === "tr" ? "Yönetim bölümleri" : "Admin sections"}>
+      <nav className="sticky top-[calc(var(--enb-header-height)+0.75rem)] z-30 -mx-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" aria-label={locale === "tr" ? "Yönetim bölümleri" : "Admin sections"}>
         <div className="flex min-w-max gap-1">
           {[
             ["admin-overview", locale === "tr" ? "Özet" : "Overview"],

@@ -1,4 +1,6 @@
 import type { Candle } from "@/lib/ai-market/types";
+import { normalizeProviderCandles } from "@/lib/ai-market/candle-quality";
+import { withProviderRetry } from "@/lib/ai-market/provider-resilience";
 
 type GateCandle = [string, string, string, string, string, string, string?];
 
@@ -12,33 +14,41 @@ export async function fetchGateCandles(currencyPair: string, interval = "1h", li
   url.searchParams.set("currency_pair", currencyPair);
   url.searchParams.set("interval", interval);
   url.searchParams.set("limit", String(limit));
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const rows = await withProviderRetry(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      next: { revalidate: 60 },
-      signal: controller.signal,
-    });
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+        next: { revalidate: 60 },
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`Gate.io public data unavailable (${response.status})`);
+      if (!response.ok) {
+        throw new Error(`Gate.io public data unavailable (${response.status})`);
+      }
+
+      const payload = await response.json() as unknown;
+
+      if (!Array.isArray(payload)) {
+        throw new Error("Unexpected Gate.io candle payload");
+      }
+
+      return payload as GateCandle[];
+    } finally {
+      clearTimeout(timeoutId);
     }
+  }, { maxAttempts: 2 });
 
-    const rows = (await response.json()) as GateCandle[];
-
-    return rows
-      .map((row) => ({
-        openTime: toNumber(row[0]) * 1000,
-        volume: toNumber(row[1]),
-        close: toNumber(row[2]),
-        high: toNumber(row[3]),
-        low: toNumber(row[4]),
-        open: toNumber(row[5]),
-      }))
-      .sort((a, b) => a.openTime - b.openTime);
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return normalizeProviderCandles(rows
+    .filter((row): row is GateCandle => Array.isArray(row) && row.length >= 6)
+    .map((row) => ({
+      openTime: toNumber(row[0]) * 1000,
+      volume: toNumber(row[1]),
+      close: toNumber(row[2]),
+      high: toNumber(row[3]),
+      low: toNumber(row[4]),
+      open: toNumber(row[5]),
+    }))).candles;
 }

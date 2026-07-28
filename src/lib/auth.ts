@@ -5,7 +5,6 @@ import type { DisplayNameMode, Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 export const SESSION_COOKIE = "enbilir_session";
-export const masterAdminEmail = process.env.MASTER_ADMIN_EMAIL?.toLowerCase() ?? "hakan@ultraakil.com";
 
 export type SessionUser = {
   id: string;
@@ -90,23 +89,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
     if (!user.isActive) {
       return null;
-    }
-
-    if (user.email === masterAdminEmail && (user.role !== "MASTER_ADMIN" || user.nickname !== "UluZeus")) {
-      const promotedUser = await prisma.user.update({
-        where: { id: user.id },
-        data: { role: "MASTER_ADMIN", nickname: "UluZeus" },
-        select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true, isActive: true },
-      });
-
-      return {
-        id: promotedUser.id,
-        name: promotedUser.name,
-        nickname: promotedUser.nickname,
-        displayNameMode: promotedUser.displayNameMode,
-        email: promotedUser.email,
-        role: promotedUser.role,
-      };
     }
 
     return {

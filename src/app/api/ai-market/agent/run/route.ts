@@ -3,6 +3,7 @@ import { sendMorningMacroReportEmails, sendWeeklyMacroReportEmails } from "@/lib
 import { runAiMarketAgent } from "@/lib/ai-market/agent/report-agent";
 import { captureActivePortfolioEquitySnapshots } from "@/lib/portfolio-history";
 import { prisma } from "@/lib/prisma";
+import { isCronRequestAuthorized } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -11,16 +12,6 @@ const REPORT_SCHEDULE_TIME_ZONE = "Europe/Istanbul";
 const REPORT_SCHEDULE_MINUTE = 0;
 const REPORT_SCHEDULE_HOURS = new Set([7, 12, 18]);
 const REPORT_SCHEDULE_LABELS = ["07:00", "12:00", "18:00"];
-
-function isAuthorized(request: Request) {
-  const secret = process.env.AI_AGENT_CRON_SECRET;
-
-  if (!secret && process.env.NODE_ENV !== "production") {
-    return true;
-  }
-
-  return Boolean(secret && request.headers.get("x-ai-agent-secret") === secret);
-}
 
 function getIstanbulTimeParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -56,7 +47,10 @@ function isMondayInIstanbul(date = new Date()) {
 }
 
 export async function POST(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronRequestAuthorized(request, {
+    envName: "AI_AGENT_CRON_SECRET",
+    headerName: "x-ai-agent-secret",
+  })) {
     return NextResponse.json({ error: "Yetkisiz ajan tetikleme istegi." }, { status: 401 });
   }
 
@@ -100,6 +94,7 @@ export async function POST(request: Request) {
     const standardMorningRecipients = await prisma.user.findMany({
       where: {
         isActive: true,
+        electronicCommunicationConsent: true,
         OR: [
           { membershipTier: "STANDARD" },
           { membershipTier: "VIP", vipPaidUntil: null },
@@ -121,7 +116,10 @@ export async function POST(request: Request) {
 
       if (!weeklyReport.reused) {
         const weeklyRecipients = await prisma.user.findMany({
-          where: { isActive: true },
+          where: {
+            isActive: true,
+            electronicCommunicationConsent: true,
+          },
           select: { id: true, email: true, name: true },
         });
         weeklyEmailResult = await sendWeeklyMacroReportEmails({

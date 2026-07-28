@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateSignalEvaluation, evaluationHorizons, getEvaluationPrice } from "@/lib/ai-market/signal-evaluator";
+import { isCronRequestAuthorized } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -8,25 +9,6 @@ export const maxDuration = 120;
 const MAX_EVALUATIONS_PER_RUN = 40;
 const EVALUATION_CONCURRENCY = 4;
 const DATA_RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
-
-function isAuthorized(request: Request) {
-  const configuredSecret = process.env.INTERNAL_CRON_SECRET ?? process.env.AI_AGENT_CRON_SECRET;
-
-  if (!configuredSecret && process.env.NODE_ENV !== "production") {
-    return true;
-  }
-
-  if (!configuredSecret) {
-    return false;
-  }
-
-  const url = new URL(request.url);
-  const querySecret = url.searchParams.get("secret");
-  const headerSecret = request.headers.get("x-internal-cron-secret") ?? request.headers.get("x-ai-agent-secret");
-  const authorization = request.headers.get("authorization");
-
-  return querySecret === configuredSecret || headerSecret === configuredSecret || authorization === `Bearer ${configuredSecret}`;
-}
 
 type HorizonConfig = (typeof evaluationHorizons)[number];
 type SignalCandidate = Awaited<ReturnType<typeof findSignalsForEvaluation>>[number];
@@ -100,7 +82,10 @@ async function runWithConcurrency<T>(items: T[], worker: (item: T) => Promise<vo
 }
 
 export async function POST(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronRequestAuthorized(request, {
+    envName: "AI_SIGNAL_EVALUATION_CRON_SECRET",
+    headerName: "x-ai-signal-evaluation-secret",
+  })) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

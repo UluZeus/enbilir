@@ -1,24 +1,15 @@
 import { NextResponse } from "next/server";
 import { runSubscriptionEmailJob, subscriptionEmailConfig } from "@/lib/subscription-emails";
+import { isCronRequestAuthorized } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-function isAuthorized(request: Request) {
-  const secret = process.env.SUBSCRIPTION_CRON_SECRET ?? process.env.AI_AGENT_CRON_SECRET;
-
-  if (!secret && process.env.NODE_ENV !== "production") {
-    return true;
-  }
-
-  const headerSecret = request.headers.get("x-subscription-cron-secret") ?? request.headers.get("x-ai-agent-secret");
-  const urlSecret = new URL(request.url).searchParams.get("secret");
-
-  return Boolean(secret && (headerSecret === secret || urlSecret === secret));
-}
-
 export async function POST(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronRequestAuthorized(request, {
+    envName: "SUBSCRIPTION_CRON_SECRET",
+    headerName: "x-subscription-cron-secret",
+  })) {
     return NextResponse.json({ error: "Yetkisiz abonelik maili tetikleme istegi." }, { status: 401 });
   }
 
@@ -35,8 +26,4 @@ export async function POST(request: Request) {
     paymentLink: subscriptionEmailConfig.paymentLink,
     ...result,
   });
-}
-
-export async function GET(request: Request) {
-  return POST(request);
 }

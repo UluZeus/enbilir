@@ -1,21 +1,20 @@
 import { NextResponse } from "next/server";
 import { sendVipResearchTestEmail } from "@/lib/vip-research/email";
 import { resolveVipResearchTestRecipient } from "@/lib/vip-research/test-recipient";
+import { isCronRequestAuthorized } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
-
-function isAuthorized(request: Request) {
-  const secret = process.env.AI_AGENT_CRON_SECRET;
-  return Boolean(secret && request.headers.get("x-ai-agent-secret") === secret);
-}
 
 export async function POST(request: Request) {
   if (process.env.VIP_RESEARCH_TEST_EMAIL_ENABLED !== "true") {
     return NextResponse.json({ error: "VIP test e-postası geçici olarak kapalı." }, { status: 404 });
   }
 
-  if (!isAuthorized(request)) {
+  if (!isCronRequestAuthorized(request, {
+    envName: "VIP_RESEARCH_TEST_CRON_SECRET",
+    headerName: "x-vip-research-test-secret",
+  })) {
     return NextResponse.json({ error: "Yetkisiz VIP test e-postası isteği." }, { status: 401 });
   }
 

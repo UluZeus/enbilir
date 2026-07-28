@@ -168,6 +168,9 @@ model User {
   vipSubscriptionPayments          VipSubscriptionPayment[]
   vipSubscriptionClaims            VipSubscriptionClaim[]
   aiDailyQueryUsages               AiDailyQueryUsage[]
+  aiQueryReservations              AiQueryReservation[]
+  chatRoomMemberships              ChatRoomMembership[]
+  chatUploads                      ChatUpload[]
 }
 
 model OAuthAccount {
@@ -274,34 +277,52 @@ model VirtualAccount {
 }
 
 model PortfolioPosition {
-  id              String   @id @default(cuid())
-  userId          String
-  symbol          String
-  name            String
-  market          String
-  quantity        Float
-  averagePriceUsd Float
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                        String    @id @default(cuid())
+  userId                    String
+  positionCycleId           String?
+  symbol                    String
+  providerSymbol            String?
+  name                      String
+  market                    String
+  quantity                  Float
+  averagePriceUsd           Float
+  appliedSplitFactor        Float     @default(1)
+  corporateActionsCheckedAt DateTime?
+  delistedAt                DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  user                      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, symbol])
 }
 
 model VirtualTrade {
-  id        String    @id @default(cuid())
-  userId    String
-  symbol    String
-  name      String
-  market    String
-  side      TradeSide
-  quantity  Float
-  priceUsd  Float
-  totalUsd  Float
-  reason    String?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String    @id @default(cuid())
+  userId               String
+  idempotencyKey       String?
+  positionCycleId      String?
+  symbol               String
+  name                 String
+  market               String
+  side                 TradeSide
+  quantity             Float
+  priceUsd             Float
+  totalUsd             Float
+  requestedAmountUsd   Float     @default(0)
+  executionNotionalUsd Float     @default(0)
+  feeUsd               Float     @default(0)
+  slippageUsd          Float     @default(0)
+  costBasisUsd         Float?
+  realizedPnlUsd       Float?
+  realizedPnlPercent   Float?
+  quoteCurrency        String    @default("USD")
+  priceSource          String    @default("UNKNOWN")
+  priceAsOf            DateTime?
+  reason               String?
+  createdAt            DateTime  @default(now())
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
 }
 
@@ -408,10 +429,12 @@ model PortfolioSnapshot {
   id                String            @id @default(cuid())
   userId            String
   periodId          String
+  startingValueUsd  Float             @default(1000000)
   portfolioValueUsd Float
   cashUsd           Float
   positionsValueUsd Float
   returnPercent     Float
+  valuationStatus   String            @default("VERIFIED")
   rank              Int?
   capturedAt        DateTime          @default(now())
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -730,18 +753,24 @@ model VipResearchEmailLog {
 }
 
 model VipSubscriptionPayment {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   userId            String
-  provider          String   @default("PARAM")
-  providerReference String   @unique
+  provider          String    @default("PARAM")
+  providerReference String    @unique
   amountTry         Float
+  currency          String    @default("TRY")
+  status            String    @default("PAID")
   paidAt            DateTime
   paidUntil         DateTime
+  refundedAt        DateTime?
+  revokedAt         DateTime?
   rawPayload        Json?
-  createdAt         DateTime @default(now())
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, paidAt])
+  @@index([status, paidUntil])
   @@index([paidUntil])
 }
 
@@ -905,20 +934,104 @@ model AiDailyQueryUsage {
   @@index([dayKey])
 }
 
+model AiQueryReservation {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  dayKey     String
+  purpose    String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dayKey, purpose])
+  @@index([expiresAt, consumedAt])
+}
+
+model SecurityRateLimit {
+  keyHash      String    @id
+  scope        String
+  windowStart  DateTime
+  count        Int       @default(0)
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  @@index([scope, windowStart])
+  @@index([blockedUntil])
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  category     String
+  entityType   String
+  entityId     String
+  action       String
+  actorUserId  String?
+  payload      Json?
+  previousHash String?
+  eventHash    String   @unique
+  createdAt    DateTime @default(now())
+
+  @@index([category, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model OperationalJobHeartbeat {
+  jobKey          String    @id
+  lastStartedAt   DateTime?
+  lastSucceededAt DateTime?
+  lastFailedAt    DateTime?
+  lastError       String?
+  metadata        Json?
+  updatedAt       DateTime  @updatedAt
+}
+
 model ChatRoom {
-  id              String         @id @default(cuid())
-  code            String         @unique
+  id              String               @id @default(cuid())
+  code            String               @unique
   name            String
   type            ChatRoomType
   createdByUserId String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  createdBy       User?          @relation("CreatedChatRooms", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  createdBy       User?                @relation("CreatedChatRooms", fields: [createdByUserId], references: [id], onDelete: SetNull)
   messages        ChatMessage[]
   presences       ChatPresence[]
+  memberships     ChatRoomMembership[]
 
   @@index([type, createdAt])
   @@index([createdByUserId])
+}
+
+model ChatRoomMembership {
+  id       String   @id @default(cuid())
+  roomId   String
+  userId   String
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now())
+  room     ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId, joinedAt])
+}
+
+model ChatUpload {
+  id         String    @id @default(cuid())
+  userId     String
+  storedName String    @unique
+  mimeType   String
+  sizeBytes  Int
+  status     String    @default("STAGED")
+  expiresAt  DateTime
+  linkedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@index([userId, createdAt])
 }
 
 model ChatMessage {

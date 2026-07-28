@@ -78,7 +78,7 @@ export default async function LoginPage({
           </div>
           <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
           <a
-            href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(loginReturnTo)}`}
+            href={`/api/auth/google/start?locale=${locale}&returnTo=${encodeURIComponent(loginReturnTo)}&intent=login`}
             rel="nofollow"
             className="google-auth-button-v3 flex min-h-12 items-center justify-center gap-3 px-5 py-3 text-center text-sm font-semibold"
           >

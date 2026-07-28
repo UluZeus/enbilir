@@ -43,10 +43,16 @@ function loadDotEnv() {
 
 loadDotEnv();
 
-const secret = process.env.AI_AGENT_CRON_SECRET;
+const secrets = {
+  ai: process.env.AI_AGENT_CRON_SECRET,
+  vipResearch: process.env.VIP_RESEARCH_CRON_SECRET,
+  vipAgents: process.env.VIP_AGENTS_CRON_SECRET,
+  signalEvaluation: process.env.AI_SIGNAL_EVALUATION_CRON_SECRET,
+};
 
-if (!secret) {
-  console.error("[ai-agent-cron] AI_AGENT_CRON_SECRET is missing.");
+const missingSecrets = Object.entries(secrets).filter(([, value]) => !value).map(([key]) => key);
+if (missingSecrets.length > 0) {
+  console.error(`[ai-agent-cron] Dedicated cron secrets are missing: ${missingSecrets.join(", ")}.`);
   process.exit(1);
 }
 
@@ -59,11 +65,11 @@ if (process.argv.includes("--force")) {
   agentUrl.searchParams.set("force", "true");
 }
 
-function post(url) {
+function post(url, headerName, secret) {
   return new Promise((resolveRequest, rejectRequest) => {
     const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
       method: "POST",
-      headers: { "x-ai-agent-secret": secret },
+      headers: { [headerName]: secret },
     }, (response) => {
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
@@ -83,9 +89,9 @@ function post(url) {
   });
 }
 
-async function runJob(label, url) {
+async function runJob(label, url, headerName, secret) {
   try {
-    const response = await post(url);
+    const response = await post(url, headerName, secret);
 
     console.log(`[${label}] ${new Date().toISOString()} ${response.status} ${response.body}`);
     return response.status >= 200 && response.status < 300;
@@ -95,16 +101,27 @@ async function runJob(label, url) {
   }
 }
 
-const agentOk = await runJob("ai-agent-cron", agentUrl);
+const agentOk = await runJob("ai-agent-cron", agentUrl, "x-ai-agent-secret", secrets.ai);
 const vipUrl = new URL("/api/vip-research/run", siteUrl);
 
 if (process.argv.includes("--force")) {
   vipUrl.searchParams.set("force", "true");
 }
 
-const vipOk = await runJob("vip-research-cron", vipUrl);
-const evaluationOk = await runJob("ai-signal-evaluation-cron", new URL("/api/ai-market/evaluate-signals", siteUrl));
+const vipOk = await runJob("vip-research-cron", vipUrl, "x-vip-research-cron-secret", secrets.vipResearch);
+const vipAgentsOk = await runJob(
+  "vip-agents-cron",
+  new URL("/api/vip-agents/run", siteUrl),
+  "x-vip-agents-cron-secret",
+  secrets.vipAgents,
+);
+const evaluationOk = await runJob(
+  "ai-signal-evaluation-cron",
+  new URL("/api/ai-market/evaluate-signals", siteUrl),
+  "x-ai-signal-evaluation-secret",
+  secrets.signalEvaluation,
+);
 
-if (!agentOk || !vipOk || !evaluationOk) {
+if (!agentOk || !vipOk || !vipAgentsOk || !evaluationOk) {
   process.exit(1);
 }

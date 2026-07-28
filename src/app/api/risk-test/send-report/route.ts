@@ -6,10 +6,10 @@ import {
   getRiskProfileByKeyForLocale,
 } from "@/data/risk-appetite-test";
 import { getSafeLocale } from "@/i18n/config";
+import { getSessionUser } from "@/lib/auth";
+import { consumeDurableRateLimit } from "@/lib/durable-rate-limit";
 import { sendEmail } from "@/lib/email";
 import { getSiteUrl } from "@/lib/site-url";
-
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function escapeHtml(value: string) {
   return value
@@ -21,17 +21,49 @@ function escapeHtml(value: string) {
 }
 
 export async function POST(request: Request) {
+  const user = await getSessionUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, message: "Bu raporu göndermek için giriş yapmalısınız." },
+      { status: 401, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  const rateLimit = await consumeDurableRateLimit({
+    scope: "risk-report-email",
+    identity: user.id,
+    maxAttempts: 3,
+    windowMs: 60 * 60 * 1000,
+    blockMs: 60 * 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { ok: false, message: "Çok sık rapor istendi. Lütfen daha sonra tekrar deneyin." },
+      { status: 429, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
   const body = (await request.json().catch(() => null)) as { email?: string; averageScore?: string | number; profileKey?: string; locale?: string } | null;
-  const email = body?.email?.trim() ?? "";
   const score = Number(body?.averageScore);
   const locale = getSafeLocale(body?.locale ?? "tr");
   const profile = getRiskProfileByKeyForLocale(body?.profileKey ?? "", locale);
   const legalWarning = getRiskLegalWarningForLocale(locale);
   const recommendedNextSteps = getRecommendedNextStepsForLocale(locale);
   const isEnglish = locale === "en";
+  const requestedEmail = body?.email?.trim().toLowerCase() ?? "";
 
-  if (!emailPattern.test(email)) {
-    return NextResponse.json({ ok: false, message: isEnglish ? "A valid email address is required." : "Geçerli bir e-posta adresi girilmelidir." }, { status: 400 });
+  if (requestedEmail !== user.email.toLowerCase()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: isEnglish
+          ? "For security, the report can only be sent to the email address registered to your account."
+          : "Güvenlik nedeniyle rapor yalnızca hesabınızda kayıtlı e-posta adresine gönderilebilir.",
+      },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } },
+    );
   }
 
   if (!profile || !Number.isFinite(score) || score < 1 || score > 5) {
@@ -83,11 +115,14 @@ export async function POST(request: Request) {
   `;
 
   await sendEmail({
-    to: email,
+    to: user.email,
     subject: `${isEnglish ? "Enbilir Risk Appetite Test" : "Enbilir Risk İştahı Testi"}: ${profile.title}`,
     text,
     html,
   });
 
-  return NextResponse.json({ ok: true, message: isEnglish ? "The report summary was sent to your email address." : "Rapor özeti e-posta adresine gönderildi." });
+  return NextResponse.json(
+    { ok: true, message: isEnglish ? "The report summary was sent to your account email address." : "Rapor özeti hesabınızdaki e-posta adresine gönderildi." },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }

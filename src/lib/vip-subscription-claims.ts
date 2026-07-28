@@ -10,6 +10,7 @@ import {
   liveVipSubscriptionClaimStatuses,
   normalizeVipPaymentReference,
 } from "@/lib/vip-subscription-claim-policy";
+import { appendAuditEvent } from "@/lib/audit-log";
 
 const MAX_PENDING_CLAIMS_PER_DAY = 3;
 
@@ -73,6 +74,14 @@ export async function submitVipSubscriptionClaim(input: { userId: string; provid
         },
         select: { id: true, userId: true, status: true },
       });
+      await appendAuditEvent(transaction, {
+        category: "PAYMENT",
+        entityType: "VipSubscriptionClaim",
+        entityId: claim.id,
+        action: "CLAIM_SUBMITTED",
+        actorUserId: input.userId,
+        payload: { provider: "PARAM", providerReference },
+      });
 
       return { reused: false, ...claim };
     });
@@ -120,6 +129,14 @@ export async function reviewVipSubscriptionClaim(input: {
         where: { id: claim.id },
         data: { status: "REJECTED", adminNote, reviewedBy: input.reviewerEmail, reviewedAt },
       });
+      await appendAuditEvent(transaction, {
+        category: "PAYMENT",
+        entityType: "VipSubscriptionClaim",
+        entityId: claim.id,
+        action: "CLAIM_REJECTED",
+        payload: { reviewerEmail: input.reviewerEmail },
+        createdAt: reviewedAt,
+      });
       return { reused: false, status: "REJECTED", user: claim.user };
     }
 
@@ -144,7 +161,89 @@ export async function reviewVipSubscriptionClaim(input: {
       where: { id: claim.id },
       data: { status: "APPROVED", amountTry, adminNote, reviewedBy: input.reviewerEmail, reviewedAt },
     });
+    await appendAuditEvent(transaction, {
+      category: "PAYMENT",
+      entityType: "VipSubscriptionClaim",
+      entityId: claim.id,
+      action: "CLAIM_APPROVED",
+      payload: { reviewerEmail: input.reviewerEmail, amountTry },
+      createdAt: reviewedAt,
+    });
 
     return { reused: false, status: "APPROVED", activation, user: claim.user };
+  });
+}
+
+export async function activateVipSubscriptionClaimFromWebhook(input: {
+  claimId: string;
+  providerReference: string;
+  amountTry: number;
+  rawPayload?: unknown;
+}) {
+  const providerReference = normalizeVipPaymentReference(input.providerReference);
+
+  if (!input.claimId || !isValidVipPaymentReference(providerReference)) {
+    throw new Error("Hesaba bağlı ödeme bildirimi ve geçerli Param referansı zorunludur.");
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const claim = await transaction.vipSubscriptionClaim.findUnique({
+      where: { id: input.claimId },
+      include: { user: { select: { email: true } } },
+    });
+
+    if (!claim || claim.provider !== "PARAM" || claim.providerReference !== providerReference) {
+      throw new Error("Ödeme bildirimi bu hesap ve Param referansıyla eşleşmiyor.");
+    }
+
+    if (claim.status === "APPROVED") {
+      const payment = await transaction.vipSubscriptionPayment.findFirst({
+        where: {
+          userId: claim.userId,
+          OR: [
+            { providerReference: canonicalizeVipPaymentReference(providerReference) },
+            { providerReference },
+          ],
+        },
+        select: { id: true, paidUntil: true },
+      });
+      if (!payment) throw new Error("Onay kaydına bağlı ödeme bulunamadı.");
+      return { reused: true, paymentId: payment.id, userId: claim.userId, paidUntil: payment.paidUntil };
+    }
+
+    if (claim.status !== "PENDING") {
+      throw new Error("Bu ödeme bildirimi artık etkinleştirilemez.");
+    }
+
+    const amountTry = Number(input.amountTry);
+    const months = Math.floor(amountTry / membershipConfig.vipMonthlyAmountTry);
+    const expectedAmount = months * membershipConfig.vipMonthlyAmountTry;
+
+    if (months < 1 || months > 12 || Math.abs(amountTry - expectedAmount) > 0.001) {
+      throw new Error("Doğrulanan tutar VIP aylık ücretinin 1-12 aylık tam katı olmalıdır.");
+    }
+
+    const paidAt = new Date();
+    const activation = await activateVipSubscriptionInTransaction(transaction, {
+      email: claim.user.email,
+      provider: claim.provider,
+      providerReference,
+      amountTry,
+      paidAt,
+      months,
+      rawPayload: input.rawPayload,
+    });
+
+    await transaction.vipSubscriptionClaim.update({
+      where: { id: claim.id },
+      data: {
+        status: "APPROVED",
+        amountTry,
+        reviewedBy: "SYSTEM_VERIFIED_PAYMENT",
+        reviewedAt: paidAt,
+      },
+    });
+
+    return activation;
   });
 }

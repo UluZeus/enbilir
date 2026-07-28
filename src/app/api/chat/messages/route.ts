@@ -15,7 +15,19 @@ import type { Prisma } from "@/generated/prisma/client";
 export const dynamic = "force-dynamic";
 
 function hasAttachmentUrl(attachment: Record<string, unknown> | null) {
-  return typeof attachment?.url === "string" && attachment.url.startsWith("/uploads/chat/");
+  return typeof attachment?.url === "string" && (
+    attachment.url.startsWith("/uploads/chat/") ||
+    attachment.url.startsWith("/api/chat/uploads/")
+  );
+}
+
+function getStagedUploadName(attachment: Record<string, unknown> | null) {
+  if (typeof attachment?.url !== "string" || !attachment.url.startsWith("/api/chat/uploads/")) {
+    return null;
+  }
+
+  const storedName = decodeURIComponent(attachment.url.slice("/api/chat/uploads/".length));
+  return /^[a-f0-9]{32}-[\w.-]{1,80}$/i.test(storedName) ? storedName : null;
 }
 
 function hasLocation(attachment: Record<string, unknown> | null) {
@@ -56,6 +68,7 @@ export async function POST(request: Request) {
   const message = normalizeChatMessage(body.message);
   const type = normalizeChatMessageType(body.type);
   const attachment = normalizeChatAttachment(body.attachment);
+  const stagedUploadName = getStagedUploadName(attachment);
   const pollOptions = normalizePollOptions(body.pollOptions);
 
   if (type === "TEXT" && !message) {
@@ -64,6 +77,15 @@ export async function POST(request: Request) {
 
   if ((type === "FILE" || type === "IMAGE" || type === "VIDEO") && !hasAttachmentUrl(attachment)) {
     return NextResponse.json({ authenticated: true, error: "Dosya yüklenmeden mesaj gönderilemez." }, { status: 400 });
+  }
+
+  if (
+    (type === "FILE" || type === "IMAGE" || type === "VIDEO") &&
+    typeof attachment?.url === "string" &&
+    attachment.url.startsWith("/api/chat/uploads/") &&
+    !stagedUploadName
+  ) {
+    return NextResponse.json({ authenticated: true, error: "Yüklenen dosya adresi geçersiz." }, { status: 400 });
   }
 
   if (type === "LOCATION" && !hasLocation(attachment)) {
@@ -85,23 +107,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ authenticated: true, error: "Sohbet odası bulunamadı." }, { status: 404 });
   }
 
-  await prisma.chatMessage.create({
-    data: {
-      roomId: room.id,
-      userId: user.id,
-      type,
-      body: message || getFallbackBody(type),
-      attachment: attachment as Prisma.InputJsonValue | undefined,
-      pollOptions: type === "POLL"
-        ? {
-            create: pollOptions.map((label, index) => ({
-              label,
-              sortOrder: index,
-            })),
-          }
-        : undefined,
-    },
-  });
+  try {
+    await prisma.$transaction(async (transaction) => {
+      if (stagedUploadName) {
+        const linked = await transaction.chatUpload.updateMany({
+          where: {
+            storedName: stagedUploadName,
+            userId: user.id,
+            status: "STAGED",
+            expiresAt: { gt: new Date() },
+          },
+          data: { status: "LINKED", linkedAt: new Date() },
+        });
+        if (linked.count !== 1) throw new Error("Yüklenen dosyanın süresi dolmuş veya dosya daha önce kullanılmış.");
+      }
+
+      await transaction.chatMessage.create({
+        data: {
+          roomId: room.id,
+          userId: user.id,
+          type,
+          body: message || getFallbackBody(type),
+          attachment: attachment as Prisma.InputJsonValue | undefined,
+          pollOptions: type === "POLL"
+            ? {
+                create: pollOptions.map((label, index) => ({
+                  label,
+                  sortOrder: index,
+                })),
+              }
+            : undefined,
+        },
+      });
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { authenticated: true, error: error instanceof Error ? error.message : "Mesaj gönderilemedi." },
+      { status: 400 },
+    );
+  }
   await markChatPresence({ roomId: room.id, userId: user.id });
 
   const state = await getChatRoomState({ user, roomCode: room.code });

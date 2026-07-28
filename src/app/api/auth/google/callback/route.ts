@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
-import { masterAdminEmail, setSessionCookie } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/auth";
+import { getSelfServiceRegistrationDefaults } from "@/lib/auth-role-policy";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
+import {
+  canCreateGoogleAccount,
+  hasRequiredLegalConsents,
+  type GoogleOAuthStartContext,
+} from "@/lib/google-oauth-consent";
 import { prisma } from "@/lib/prisma";
 import { ensureVirtualAccount } from "@/lib/portfolio";
 import { getSafeLocaleReturnPath } from "@/lib/safe-navigation";
@@ -17,7 +23,7 @@ function isConfiguredGoogleValue(value: string | undefined) {
   return Boolean(value && value !== "..." && !value.startsWith("your-") && !value.startsWith("change-"));
 }
 
-type GoogleState = {
+type GoogleState = GoogleOAuthStartContext & {
   state: string;
   locale: string;
   returnTo: string | null;
@@ -68,6 +74,11 @@ function parseState(value: string | undefined): GoogleState | null {
       state: parsed.state,
       locale,
       returnTo: getSafeLocaleReturnPath(parsed.returnTo, locale),
+      intent: parsed.intent === "register" ? "register" : "login",
+      kvkkDisclosureAccepted: parsed.kvkkDisclosureAccepted === true,
+      termsAccepted: parsed.termsAccepted === true,
+      noInvestmentAdviceAccepted: parsed.noInvestmentAdviceAccepted === true,
+      electronicCommunicationConsent: parsed.electronicCommunicationConsent === true,
     };
   } catch {
     return null;
@@ -128,6 +139,11 @@ export async function GET(request: NextRequest) {
     response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
     return response;
   };
+  const registrationErrorResponse = (message: string) => {
+    const response = NextResponse.redirect(getRedirect(request, locale, "kayit", message));
+    response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
+    return response;
+  };
 
   if (!cookieState || !returnedState || cookieState.state !== returnedState) {
     return errorResponse("Google giriş doğrulaması başarısız oldu.");
@@ -139,8 +155,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const googleUser = await getGoogleUser(request, code);
-    const role = googleUser.email === masterAdminEmail ? "MASTER_ADMIN" : "USER";
-    const nickname = googleUser.email === masterAdminEmail ? "UluZeus" : null;
+    const registrationDefaults = getSelfServiceRegistrationDefaults(googleUser.email);
+    const now = new Date();
     let createdWithGoogle = false;
     let user = await prisma.user.findFirst({
       where: {
@@ -151,16 +167,46 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
+      select: {
+        id: true,
+        name: true,
+        nickname: true,
+        displayNameMode: true,
+        email: true,
+        role: true,
+        isActive: true,
+        kvkkDisclosureAccepted: true,
+        termsAccepted: true,
+        noInvestmentAdviceAccepted: true,
+      },
     });
 
     if (!user) {
       const existingUser = await prisma.user.findUnique({
         where: { email: googleUser.email },
-        select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          nickname: true,
+          displayNameMode: true,
+          email: true,
+          role: true,
+          isActive: true,
+          kvkkDisclosureAccepted: true,
+          termsAccepted: true,
+          noInvestmentAdviceAccepted: true,
+        },
       });
 
       if (existingUser) {
+        if (!hasRequiredLegalConsents(existingUser) && !canCreateGoogleAccount(cookieState)) {
+          return registrationErrorResponse(
+            locale === "en"
+              ? "Complete the required declarations on the registration page before linking this Google account."
+              : "Bu Google hesabını bağlamadan önce kayıt sayfasındaki zorunlu onayları tamamlayın.",
+          );
+        }
+
         await prisma.oAuthAccount.upsert({
           where: {
             provider_providerAccountId: {
@@ -175,34 +221,71 @@ export async function GET(request: NextRequest) {
           },
           update: { userId: existingUser.id },
         });
-        if (!existingUser.isActive) {
-          const activatedUser = await prisma.user.update({
-            where: { id: existingUser.id },
-            data: {
-              isActive: true,
-              emailVerifiedAt: new Date(),
-              emailVerificationTokenHash: null,
-              emailVerificationExpiresAt: null,
-              emailVerificationSentAt: null,
-            },
-            select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
-          });
-
-          user = activatedUser;
-        } else {
-          user = existingUser;
-        }
+        user = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            isActive: true,
+            emailVerifiedAt: now,
+            emailVerificationTokenHash: null,
+            emailVerificationExpiresAt: null,
+            emailVerificationSentAt: null,
+            ...(!existingUser.kvkkDisclosureAccepted && cookieState.kvkkDisclosureAccepted ? {
+              kvkkDisclosureAccepted: true,
+              kvkkDisclosureAcceptedAt: now,
+            } : {}),
+            ...(!existingUser.termsAccepted && cookieState.termsAccepted ? {
+              termsAccepted: true,
+              termsAcceptedAt: now,
+            } : {}),
+            ...(!existingUser.noInvestmentAdviceAccepted && cookieState.noInvestmentAdviceAccepted ? {
+              noInvestmentAdviceAccepted: true,
+              noInvestmentAdviceAcceptedAt: now,
+            } : {}),
+            ...(cookieState.electronicCommunicationConsent ? {
+              electronicCommunicationConsent: true,
+              electronicCommunicationConsentAt: now,
+            } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            nickname: true,
+            displayNameMode: true,
+            email: true,
+            role: true,
+            isActive: true,
+            kvkkDisclosureAccepted: true,
+            termsAccepted: true,
+            noInvestmentAdviceAccepted: true,
+          },
+        });
       } else {
+        if (!canCreateGoogleAccount(cookieState)) {
+          return registrationErrorResponse(
+            locale === "en"
+              ? "No account was found. Register with Google after accepting the required declarations."
+              : "Hesap bulunamadı. Zorunlu onayları verdikten sonra Google ile kayıt olun.",
+          );
+        }
+
         user = await prisma.user.create({
           data: {
             name: googleUser.name,
-            nickname,
-            displayNameMode: nickname ? "NICKNAME" : "REAL_NAME",
+            nickname: registrationDefaults.nickname,
+            displayNameMode: registrationDefaults.displayNameMode,
             email: googleUser.email,
             passwordHash: null,
             isActive: true,
-            emailVerifiedAt: new Date(),
-            role,
+            emailVerifiedAt: now,
+            role: registrationDefaults.role,
+            kvkkDisclosureAccepted: true,
+            kvkkDisclosureAcceptedAt: now,
+            termsAccepted: true,
+            termsAcceptedAt: now,
+            noInvestmentAdviceAccepted: true,
+            noInvestmentAdviceAcceptedAt: now,
+            electronicCommunicationConsent: cookieState.electronicCommunicationConsent,
+            electronicCommunicationConsentAt: cookieState.electronicCommunicationConsent ? now : null,
             oauthAccounts: {
               create: {
                 provider: GOOGLE_PROVIDER,
@@ -217,11 +300,71 @@ export async function GET(request: NextRequest) {
               },
             },
           },
-          select: { id: true, name: true, nickname: true, displayNameMode: true, email: true, role: true },
+          select: {
+            id: true,
+            name: true,
+            nickname: true,
+            displayNameMode: true,
+            email: true,
+            role: true,
+            isActive: true,
+            kvkkDisclosureAccepted: true,
+            termsAccepted: true,
+            noInvestmentAdviceAccepted: true,
+          },
         });
         createdWithGoogle = true;
         await sendGoogleWelcomeEmail({ to: googleUser.email, name: googleUser.name }).catch((error: unknown) => {
           console.error("[google-welcome-email]", error instanceof Error ? error.message : error);
+        });
+      }
+    } else {
+      if (!hasRequiredLegalConsents(user) && !canCreateGoogleAccount(cookieState)) {
+        return registrationErrorResponse(
+          locale === "en"
+            ? "Complete the required declarations on the registration page before signing in with Google."
+            : "Google ile girişten önce kayıt sayfasındaki zorunlu onayları tamamlayın.",
+        );
+      }
+
+      if (!user.isActive || !hasRequiredLegalConsents(user) || cookieState.electronicCommunicationConsent) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isActive: true,
+            emailVerifiedAt: now,
+            emailVerificationTokenHash: null,
+            emailVerificationExpiresAt: null,
+            emailVerificationSentAt: null,
+            ...(!user.kvkkDisclosureAccepted && cookieState.kvkkDisclosureAccepted ? {
+              kvkkDisclosureAccepted: true,
+              kvkkDisclosureAcceptedAt: now,
+            } : {}),
+            ...(!user.termsAccepted && cookieState.termsAccepted ? {
+              termsAccepted: true,
+              termsAcceptedAt: now,
+            } : {}),
+            ...(!user.noInvestmentAdviceAccepted && cookieState.noInvestmentAdviceAccepted ? {
+              noInvestmentAdviceAccepted: true,
+              noInvestmentAdviceAcceptedAt: now,
+            } : {}),
+            ...(cookieState.electronicCommunicationConsent ? {
+              electronicCommunicationConsent: true,
+              electronicCommunicationConsentAt: now,
+            } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            nickname: true,
+            displayNameMode: true,
+            email: true,
+            role: true,
+            isActive: true,
+            kvkkDisclosureAccepted: true,
+            termsAccepted: true,
+            noInvestmentAdviceAccepted: true,
+          },
         });
       }
     }

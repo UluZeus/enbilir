@@ -7,6 +7,7 @@ import {
   normalizeVipPaymentProvider,
   normalizeVipPaymentReference,
 } from "@/lib/vip-subscription-claim-policy";
+import { appendAuditEvent } from "@/lib/audit-log";
 
 type ActivateVipInput = {
   email: string;
@@ -15,6 +16,13 @@ type ActivateVipInput = {
   amountTry: number;
   paidAt?: Date;
   months?: number;
+  rawPayload?: unknown;
+};
+
+type RevokeVipInput = {
+  provider?: string;
+  providerReference: string;
+  reason: "REFUNDED" | "CHARGEBACK" | "REVOKED";
   rawPayload?: unknown;
 };
 
@@ -78,6 +86,8 @@ export async function activateVipSubscriptionInTransaction(
       provider,
       providerReference,
       amountTry: input.amountTry,
+      currency: "TRY",
+      status: "PAID",
       paidAt,
       paidUntil,
       rawPayload: (input.rawPayload ?? {}) as Prisma.InputJsonValue,
@@ -97,10 +107,94 @@ export async function activateVipSubscriptionInTransaction(
     where: { userId: user.id, provider, providerReference: providerPaymentId, status: "PENDING" },
     data: { status: "APPROVED", amountTry: input.amountTry, reviewedBy: "SYSTEM_VERIFIED_PAYMENT", reviewedAt: paidAt },
   });
+  await appendAuditEvent(transaction, {
+    category: "PAYMENT",
+    entityType: "VipSubscriptionPayment",
+    entityId: payment.id,
+    action: "VIP_ACTIVATED",
+    actorUserId: user.id,
+    payload: {
+      provider,
+      providerReference,
+      amountTry: input.amountTry,
+      months,
+      paidUntil: paidUntil.toISOString(),
+    },
+    createdAt: paidAt,
+  });
 
   return { reused: false, paymentId: payment.id, userId: user.id, paidUntil };
 }
 
 export async function activateVipSubscription(input: ActivateVipInput) {
   return prisma.$transaction((transaction) => activateVipSubscriptionInTransaction(transaction, input));
+}
+
+export async function revokeVipSubscription(input: RevokeVipInput) {
+  const provider = normalizeVipPaymentProvider(input.provider);
+  const normalizedReference = normalizeVipPaymentReference(input.providerReference, provider);
+  const providerReference = canonicalizeVipPaymentReference(normalizedReference, provider);
+  const now = new Date();
+
+  if (!normalizedReference) {
+    throw new Error("Ödeme referansı zorunludur.");
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const payment = await transaction.vipSubscriptionPayment.findFirst({
+      where: { OR: [{ providerReference }, { providerReference: normalizedReference }] },
+      select: { id: true, userId: true, status: true },
+    });
+
+    if (!payment) {
+      throw new Error("İptal edilecek VIP ödemesi bulunamadı.");
+    }
+
+    if (payment.status !== "PAID") {
+      return { reused: true, paymentId: payment.id, userId: payment.userId };
+    }
+
+    await transaction.vipSubscriptionPayment.update({
+      where: { id: payment.id },
+      data: {
+        status: input.reason,
+        refundedAt: input.reason === "REFUNDED" ? now : null,
+        revokedAt: now,
+      },
+    });
+
+    const remainingPayments = await transaction.vipSubscriptionPayment.findMany({
+      where: {
+        userId: payment.userId,
+        status: "PAID",
+        revokedAt: null,
+        paidUntil: { gt: now },
+      },
+      orderBy: { paidUntil: "desc" },
+      take: 1,
+      select: { paidUntil: true, paidAt: true },
+    });
+    const remaining = remainingPayments[0] ?? null;
+
+    await transaction.user.update({
+      where: { id: payment.userId },
+      data: {
+        membershipTier: remaining ? "VIP" : "STANDARD",
+        vipStartedAt: remaining?.paidAt ?? null,
+        vipPaidUntil: remaining?.paidUntil ?? null,
+        vipLastReminderSentAt: null,
+      },
+    });
+    await appendAuditEvent(transaction, {
+      category: "PAYMENT",
+      entityType: "VipSubscriptionPayment",
+      entityId: payment.id,
+      action: input.reason,
+      actorUserId: payment.userId,
+      payload: { provider, providerReference },
+      createdAt: now,
+    });
+
+    return { reused: false, paymentId: payment.id, userId: payment.userId };
+  });
 }

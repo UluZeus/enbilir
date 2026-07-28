@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { activateVipSubscription } from "@/lib/vip-subscription";
+import { revokeVipSubscription } from "@/lib/vip-subscription";
+import { activateVipSubscriptionClaimFromWebhook } from "@/lib/vip-subscription-claims";
 
 export const dynamic = "force-dynamic";
 
@@ -71,22 +72,25 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json() as {
-      email?: string;
+      event?: "PAID" | "REFUNDED" | "CHARGEBACK" | "REVOKED";
+      claimId?: string;
       provider?: string;
       providerReference?: string;
       amountTry?: number;
-      paidAt?: string;
-      months?: number;
     };
-    const result = await activateVipSubscription({
-      email: payload.email ?? "",
-      provider: payload.provider ?? "PARAM",
-      providerReference: payload.providerReference ?? "",
-      amountTry: Number(payload.amountTry),
-      paidAt: payload.paidAt ? new Date(payload.paidAt) : undefined,
-      months: payload.months,
-      rawPayload: payload,
-    });
+    const event = payload.event ?? "PAID";
+    const result = event === "PAID"
+      ? await activateVipSubscriptionClaimFromWebhook({
+        claimId: payload.claimId ?? "",
+        providerReference: payload.providerReference ?? "",
+        amountTry: Number(payload.amountTry),
+        rawPayload: payload,
+      })
+      : await revokeVipSubscription({
+        provider: payload.provider ?? "PARAM",
+        providerReference: payload.providerReference ?? "",
+        reason: event,
+      });
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {

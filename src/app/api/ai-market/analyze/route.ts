@@ -9,6 +9,11 @@ import { analyzeSignal } from "@/lib/ai-market/signal-engine";
 import { logMarketAnalysisSignal } from "@/lib/ai-market/signal-logger";
 import { getWatchSymbol } from "@/lib/ai-market/symbols";
 import type { Candle, MarketAnalysis, MarketExchange, WatchSymbol } from "@/lib/ai-market/types";
+import {
+  assessCandleFreshness,
+  buildMarketDataProvenance,
+  toAnalysisDataStatus,
+} from "@/lib/ai-market/data-freshness";
 
 export const dynamic = "force-dynamic";
 
@@ -50,13 +55,13 @@ async function loadCandlesWithFallback(symbol: WatchSymbol, exchange: MarketExch
     try {
       return {
         candles: await fetchYahooCandles(symbol.yahooSymbol ?? symbol.symbol, interval),
-        exchange,
+        exchange: "yahoo" as const,
         error: null,
       };
     } catch (error) {
       return {
         candles: [],
-        exchange,
+        exchange: "yahoo" as const,
         error: error instanceof Error ? error.message : "Yahoo public piyasa verisi alinamadi.",
       };
     }
@@ -105,6 +110,12 @@ function buildFallbackAnalysis(symbol: ReturnType<typeof getWatchSymbol>, exchan
     updatedAt: new Date().toISOString(),
     dataStatus: "error" as const,
     error,
+    provenance: buildMarketDataProvenance({
+      provider: exchange,
+      candleOpenTime: 0,
+      assetClass: symbol.assetClass,
+      interval,
+    }),
   };
 
   return {
@@ -127,9 +138,30 @@ export async function GET(request: Request) {
   }
 
   const indicators = calculateIndicators(candles);
-  const signal = analyzeSignal(candles, indicators);
+  const calculatedSignal = analyzeSignal(candles, indicators);
   const risk = assessRisk(candles, indicators);
   const latest = candles[candles.length - 1];
+  const freshness = assessCandleFreshness({
+    candleOpenTime: latest.openTime,
+    assetClass: symbol.assetClass,
+    interval,
+  });
+  const verifiedLiveData = freshness === "FRESH" && !error;
+  const signal = verifiedLiveData
+    ? calculatedSignal
+    : {
+        signal: "NO_TRADE" as const,
+        confidence: 0,
+        reasons: [
+          freshness === "MARKET_CLOSED"
+            ? `Piyasa kapalı. Son doğrulanmış mum: ${new Date(latest.openTime).toISOString()}.`
+            : freshness === "FUTURE"
+              ? "Kaynak zaman damgası gelecekte; yön sinyali yayımlanmadı."
+              : freshness === "STALE"
+                ? `Kaynak verisi güncel değil. Son mum: ${new Date(latest.openTime).toISOString()}.`
+                : "Birincil veri sağlayıcı doğrulanamadı; yön sinyali yayımlanmadı.",
+        ],
+      };
   const base = {
     symbol: symbol.symbol,
     name: symbol.name,
@@ -141,9 +173,17 @@ export async function GET(request: Request) {
     indicators,
     signal,
     risk,
-    updatedAt: new Date().toISOString(),
-    dataStatus: error ? ("fallback" as const) : ("live" as const),
-    error: error ?? undefined,
+    updatedAt: new Date(latest.openTime).toISOString(),
+    dataStatus: verifiedLiveData ? ("live" as const) : toAnalysisDataStatus(freshness, Boolean(error)),
+    error: error ?? (freshness === "FRESH" ? undefined : "Kaynak mum verisi işlem için güncel değil."),
+    provenance: buildMarketDataProvenance({
+      provider: exchange,
+      primaryProvider: symbol.assetClass === "CRYPTO" ? requestedExchange : "yahoo",
+      candleOpenTime: latest.openTime,
+      assetClass: symbol.assetClass,
+      interval,
+      isFallback: Boolean(error),
+    }),
   };
 
   const analysis: MarketAnalysis = {

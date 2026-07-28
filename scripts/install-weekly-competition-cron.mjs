@@ -3,17 +3,22 @@ import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { PRODUCTION_APP_DIRECTORY, PRODUCTION_ENV_FILE } from "./lib/production-paths.mjs";
+
 const marker = "# enbilir-weekly-competition-cron";
-const appDir = "/srv/enbilir/app";
-// The production host uses UTC. 05:30 UTC is 08:30 in Europe/Istanbul and
-// leaves the 07:00 VIP research window clear.
-const cronLine = `30 5 * * 1 cd ${appDir} && flock -n /tmp/enbilir-weekly-competition.lock node scripts/publish-weekly-competition-results.mjs --apply --confirm-production >> /var/log/enbilir-weekly-competition-cron.log 2>&1 ${marker}`;
+const appDir = PRODUCTION_APP_DIRECTORY;
+const envFile = PRODUCTION_ENV_FILE;
+// The production host uses UTC. Sunday 21:05 UTC is Monday 00:05 in Istanbul.
+const cronLine = `5 21 * * 0 set -a && . ${envFile} && set +a && cd ${appDir} && flock -n /tmp/enbilir-weekly-competition.lock node scripts/run-with-heartbeat.mjs --job weekly-competition --log-dir /var/log/enbilir -- node scripts/run-weekly-competition-cron.mjs ${marker}`;
 
 function getCurrentCrontab() {
   try {
     return execFileSync("crontab", ["-l"], { encoding: "utf8" });
-  } catch {
-    return "";
+  } catch (error) {
+    if (error?.status === 1 && !String(error?.stdout ?? "").trim() && !String(error?.stderr ?? "").trim()) {
+      return "";
+    }
+    throw new Error(`Mevcut crontab okunamadı; güvenlik için üzerine yazılmadı. ${error instanceof Error ? error.message : error}`);
   }
 }
 

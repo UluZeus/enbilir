@@ -313,7 +313,10 @@ function buildEmail(dueEmail: DueEmail) {
 async function getDueEmails(now: Date, limit: number) {
   const monthlyPeriodKey = `monthly-${getIstanbulMonthKey(now)}`;
   const users = await prisma.user.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      electronicCommunicationConsent: true,
+    },
     select: {
       id: true,
       name: true,

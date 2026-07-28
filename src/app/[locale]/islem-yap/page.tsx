@@ -168,7 +168,7 @@ export default async function TradePage({
         <AdBanner ads={topAds} locale={locale} />
       </div>
       <section className="grid min-w-0 gap-4 md:gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
-        <aside className="order-1 grid min-w-0 content-start gap-5 self-start xl:sticky xl:top-24 xl:col-start-1 xl:row-start-1">
+        <aside className="order-1 grid min-w-0 content-start gap-5 self-start xl:sticky xl:top-[calc(var(--enb-header-height)+0.75rem)] xl:col-start-1 xl:row-start-1">
           <TradePortfolioPanel snapshot={snapshot} copy={copy.trade} locale={locale} />
         </aside>
 

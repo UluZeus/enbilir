@@ -1,4 +1,13 @@
 import { NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth";
+import {
+  DailyAiQueryLimitReachedError,
+  getAiQueryQuota,
+  reserveAiQuery,
+} from "@/lib/ai-query-quota";
+import { createVoiceAiQueryReservation } from "@/lib/ai-query-reservation";
+import { getMembershipSnapshot } from "@/lib/membership";
+import { prisma } from "@/lib/prisma";
 import { FixedWindowRateLimiter, getRateLimitClientKey } from "@/lib/request-rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +24,7 @@ const allowedAudioTypes = new Set([
 ]);
 const rateLimiter = new FixedWindowRateLimiter({
   windowMs: 60_000,
-  maxRequests: 12,
+  maxRequests: 6,
   maxEntries: 10_000,
 });
 
@@ -48,10 +57,22 @@ export async function POST(request: Request) {
   let locale: "tr" | "en" = "tr";
 
   try {
-    const clientKey = getRateLimitClientKey(request.headers);
+    const sessionUser = await getSessionUser();
+
+    if (!sessionUser) {
+      return NextResponse.json(
+        { error: "Sesli soru için giriş yapmalısınız.", code: "AUTH_REQUIRED" },
+        { status: 401, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    const clientKey = `${sessionUser.id}:${getRateLimitClientKey(request.headers)}`;
 
     if (rateLimiter.isRateLimited(clientKey)) {
-      return NextResponse.json({ error: "Çok sık sesli soru gönderildi. Lütfen biraz sonra tekrar deneyin." }, { status: 429 });
+      return NextResponse.json(
+        { error: "Çok sık sesli soru gönderildi. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429, headers: { "Cache-Control": "private, no-store" } },
+      );
     }
 
     let formData: FormData;
@@ -79,10 +100,65 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: getErrorMessage(locale, "type") }, { status: 415 });
     }
 
+    const fullUser = await prisma.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { createdAt: true, membershipTier: true, vipPaidUntil: true },
+    });
+
+    if (!fullUser) {
+      return NextResponse.json(
+        { error: locale === "en" ? "Your account could not be verified." : "Hesabınız doğrulanamadı.", code: "AUTH_REQUIRED" },
+        { status: 401, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    const membership = getMembershipSnapshot(fullUser);
+    const currentQuota = await getAiQueryQuota({
+      userId: sessionUser.id,
+      isPaidVipActive: membership.isPaidVipActive,
+    });
+
+    if (currentQuota.remaining <= 0) {
+      return NextResponse.json(
+        {
+          error: locale === "en"
+            ? "Your daily AI query allowance is exhausted. It resets at 00:00 Istanbul time."
+            : "Günlük AI sorgu hakkınız doldu. Haklarınız İstanbul saatiyle 00.00'da yenilenir.",
+          code: "DAILY_QUERY_LIMIT_REACHED",
+          quota: currentQuota,
+        },
+        { status: 429, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json({ error: getErrorMessage(locale, "config") }, { status: 500 });
+    }
+
+    let quota;
+
+    try {
+      quota = await reserveAiQuery({
+        userId: sessionUser.id,
+        isPaidVipActive: membership.isPaidVipActive,
+      });
+    } catch (error) {
+      if (error instanceof DailyAiQueryLimitReachedError) {
+        return NextResponse.json(
+          {
+            error: locale === "en"
+              ? "Your daily AI query allowance is exhausted. It resets at 00:00 Istanbul time."
+              : "Günlük AI sorgu hakkınız doldu. Haklarınız İstanbul saatiyle 00.00'da yenilenir.",
+            code: "DAILY_QUERY_LIMIT_REACHED",
+            quota: error.quota,
+          },
+          { status: 429, headers: { "Cache-Control": "private, no-store" } },
+        );
+      }
+
+      throw error;
     }
 
     const openAiForm = new FormData();
@@ -114,7 +190,16 @@ export async function POST(request: Request) {
       }, { status: 502 });
     }
 
-    return NextResponse.json({ text: payload.text.trim().slice(0, 700) });
+    const voiceReservation = await createVoiceAiQueryReservation({ userId: sessionUser.id });
+
+    return NextResponse.json(
+      {
+        text: payload.text.trim().slice(0, 700),
+        voiceReservation,
+        quota,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     return NextResponse.json(
       {

@@ -6,6 +6,9 @@ import process from "node:process";
 import Database from "better-sqlite3";
 
 const initialCashUsd = 1_000_000;
+const args = new Set(process.argv.slice(2));
+const apply = args.has("--apply");
+const confirmProduction = args.has("--confirm-production");
 
 function resolveDatabasePath() {
   const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
@@ -26,6 +29,21 @@ const databasePath = resolveDatabasePath();
 
 if (!existsSync(databasePath)) {
   throw new Error(`Database file not found: ${databasePath}`);
+}
+
+if (!apply) {
+  console.log(`[DRY-RUN] Virtual portfolios would be reset in: ${databasePath}`);
+  console.log("No data was changed. Add --apply after taking and verifying a database backup.");
+  process.exit(0);
+}
+
+if (
+  (process.env.NODE_ENV === "production" || /production\.db$/i.test(databasePath)) &&
+  (!confirmProduction || process.env.CONFIRM_VIRTUAL_PORTFOLIO_RESET !== "RESET_ALL_VIRTUAL_PORTFOLIOS")
+) {
+  throw new Error(
+    "Production reset refused. Require --confirm-production and CONFIRM_VIRTUAL_PORTFOLIO_RESET=RESET_ALL_VIRTUAL_PORTFOLIOS.",
+  );
 }
 
 const db = new Database(databasePath);

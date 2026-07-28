@@ -6,10 +6,14 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260727210000_add_ai_daily_query_usage";
+const prismaSchemaVersion = "20260728150000_p1_audit_and_trade_accounting";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl && process.env.NODE_ENV === "production") {
+    throw new Error("DATABASE_URL must be configured explicitly in production.");
+  }
 
   return databaseUrl ?? "file:./dev.db";
 }
@@ -66,6 +70,10 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     vipTradingAgentDecision?: unknown;
     vipTradingAgentSnapshot?: unknown;
     aiDailyQueryUsage?: unknown;
+    aiQueryReservation?: unknown;
+    auditEvent?: unknown;
+    operationalJobHeartbeat?: unknown;
+    chatUpload?: unknown;
   };
 
   return Boolean(
@@ -115,7 +123,11 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.vipTradingAgentTrade &&
       candidate?.vipTradingAgentDecision &&
       candidate?.vipTradingAgentSnapshot &&
-      candidate?.aiDailyQueryUsage,
+      candidate?.aiDailyQueryUsage &&
+      candidate?.aiQueryReservation &&
+      candidate?.auditEvent &&
+      candidate?.operationalJobHeartbeat &&
+      candidate?.chatUpload
   );
 }
 

@@ -16,7 +16,7 @@ export function LegalTableOfContents({ label, headings }: LegalTableOfContentsPr
   }
 
   return (
-    <nav className="legal-page-toc lg:sticky lg:top-28" aria-label={label}>
+    <nav className="legal-page-toc lg:sticky lg:top-[calc(var(--enb-header-height)+0.75rem)]" aria-label={label}>
       <p className="text-xs font-black uppercase text-[#0f766e]">{label}</p>
       <ol className="mt-4 grid gap-2 border-l border-slate-300 pl-4">
         {headings.map((heading, index) => {

@@ -4,6 +4,10 @@ import path from "node:path";
 import process from "node:process";
 import Database from "better-sqlite3";
 
+console.warn(
+  "WARNING: This read-only legacy inspection uses fixed FX assumptions and must not be treated as authoritative valuation or release evidence.",
+);
+
 function resolveDatabasePath() {
   const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
 

@@ -10,7 +10,7 @@ export function UsageGuidePanel({ locale, compact = false }: { locale: Locale; c
   return (
     <section className={`grid gap-4 ${compact ? "" : "lg:grid-cols-[320px_1fr]"}`}>
       {!compact ? (
-        <aside className="premium-card h-fit p-5 lg:sticky lg:top-32">
+        <aside className="premium-card h-fit p-5 lg:sticky lg:top-[calc(var(--enb-header-height)+0.75rem)]">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0f766e]">{content.eyebrow}</p>
           <h2 className="mt-2 text-2xl font-black text-[#152033]">{content.title}</h2>
           <p className="mt-3 text-sm leading-7 text-slate-600">{content.intro}</p>

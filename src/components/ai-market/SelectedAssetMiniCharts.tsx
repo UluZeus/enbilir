@@ -108,16 +108,18 @@ function MiniLineChart({
   references = [],
   min,
   max,
+  ariaLabel,
 }: {
   lines: LineDefinition[];
   references?: ReferenceLine[];
   min?: number;
   max?: number;
+  ariaLabel: string;
 }) {
   const bounds = getBounds(lines, references, min, max);
 
   return (
-    <svg className="mt-3 h-24 w-full overflow-visible" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-hidden="true">
+    <svg className="mt-3 h-24 w-full overflow-visible" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={ariaLabel}>
       <line x1="0" x2={chartWidth} y1="0" y2="0" stroke="#e2e8f0" strokeWidth="1" />
       <line x1="0" x2={chartWidth} y1={chartHeight / 2} y2={chartHeight / 2} stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
       <line x1="0" x2={chartWidth} y1={chartHeight} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
@@ -154,7 +156,7 @@ function ValueRow({ values }: { values: Array<{ label: string; value: string; to
     <div className="mt-3 grid grid-cols-2 gap-2">
       {values.map((item) => (
         <div key={item.label} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
-          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{item.label}</p>
+          <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-600">{item.label}</p>
           <p className={`mt-0.5 truncate text-xs font-black ${item.tone ?? "text-slate-700"}`}>{item.value}</p>
         </div>
       ))}
@@ -198,7 +200,13 @@ function MiniChartCard({
         </div>
       </div>
       <ValueRow values={values} />
-      <MiniLineChart lines={lines} references={references} min={min} max={max} />
+      <MiniLineChart
+        lines={lines}
+        references={references}
+        min={min}
+        max={max}
+        ariaLabel={`${title}. ${meta}. ${lines.map((line) => `${line.label}: ${formatNumber(lastValue(line.values))}`).join(", ")}.`}
+      />
       {footer ? <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">{footer}</p> : null}
     </article>
   );
