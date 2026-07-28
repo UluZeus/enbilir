@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import path from "node:path";
 
 const mocks = vi.hoisted(() => ({
@@ -55,8 +55,15 @@ describe("operational readiness", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const syntheticRuntimeRoot = path.resolve("synthetic-health-runtime");
-    process.env.DATABASE_URL = `file:${path.join(syntheticRuntimeRoot, "production.db")}`;
-    process.env.BACKUP_DIR = path.join(syntheticRuntimeRoot, "backups");
+    vi.stubEnv("DATABASE_URL", `file:${path.join(syntheticRuntimeRoot, "production.db")}`);
+    vi.stubEnv("BACKUP_DIR", path.join(syntheticRuntimeRoot, "backups"));
+    vi.stubEnv("MIN_FREE_DISK_BYTES", "1073741824");
+    vi.stubEnv("BACKUP_MAX_AGE_HOURS", "26");
+    vi.stubEnv("RESTORE_REHEARSAL_MAX_AGE_HOURS", String(24 * 31));
+    vi.stubEnv(
+      "REQUIRED_JOB_HEARTBEATS",
+      "ai-agent:120,subscription-emails:1560,weekly-competition:11640,chat-upload-cleanup:1560",
+    );
     mocks.access.mockResolvedValue(undefined);
     mocks.readdir.mockResolvedValue([
       { name: "20260728150000_p1_audit_and_trade_accounting", isDirectory: () => true },
@@ -86,6 +93,10 @@ describe("operational readiness", () => {
       rehearsedAt: new Date("2026-07-29T09:00:00.000Z"),
       backupSet: "enbilir-20260729T090000Z",
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("checks SQLite readability and writability without mutating operational heartbeats", async () => {
