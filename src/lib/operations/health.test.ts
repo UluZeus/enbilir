@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
 
 const mocks = vi.hoisted(() => ({
   access: vi.fn(),
@@ -53,8 +54,9 @@ import { getOperationalReadiness } from "@/lib/operations/health";
 describe("operational readiness", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.DATABASE_URL = "file:C:/enbilir-test/production.db";
-    process.env.BACKUP_DIR = "C:/enbilir-test/backups";
+    const syntheticRuntimeRoot = path.resolve("synthetic-health-runtime");
+    process.env.DATABASE_URL = `file:${path.join(syntheticRuntimeRoot, "production.db")}`;
+    process.env.BACKUP_DIR = path.join(syntheticRuntimeRoot, "backups");
     mocks.access.mockResolvedValue(undefined);
     mocks.readdir.mockResolvedValue([
       { name: "20260728150000_p1_audit_and_trade_accounting", isDirectory: () => true },
