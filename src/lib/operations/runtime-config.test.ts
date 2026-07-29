@@ -24,6 +24,7 @@ const productionEnv = {
   SMTP_PASSWORD: "k".repeat(40),
   SMTP_FROM: "Enbilir <no-reply@example.test>",
   OPENAI_API_KEY: "synthetic-openai-key-for-tests-only",
+  PARAM_VIP_PAYMENT_URL: "https://isyerim.param.com.tr/#/paymentform/paymentrequest/SYNTHETIC_token-123",
   CHAT_UPLOAD_DIR: "/srv/enbilir/uploads/chat",
   ADMIN_UPLOAD_DIR: "/srv/enbilir/uploads/admin",
   BACKUP_DIR: "/srv/enbilir/backups",
@@ -102,12 +103,28 @@ describe("runtime configuration validation", () => {
       ADMIN_UPLOAD_DIR: "/srv/enbilir/uploads-staging/admin",
       BACKUP_DIR: "/srv/enbilir/backups-staging",
       OPERATIONS_LOG_DIR: "/var/log/enbilir-staging",
+      PARAM_VIP_PAYMENT_URL: undefined,
     };
 
     expect(getRuntimeConfigIssues(stagingEnv, "/srv/enbilir/app")).toEqual([]);
     expect(
       getRuntimeConfigIssues({ ...stagingEnv, VIP_AGENTS_CRON_SECRET: undefined }, "/srv/enbilir/app"),
     ).toContainEqual({ key: "VIP_AGENTS_CRON_SECRET", code: "missing" });
+  });
+
+  it("requires an exact Param VIP payment URL only in production", () => {
+    expect(
+      getRuntimeConfigIssues(
+        { ...productionEnv, PARAM_VIP_PAYMENT_URL: undefined },
+        "/srv/enbilir/app",
+      ),
+    ).toContainEqual({ key: "PARAM_VIP_PAYMENT_URL", code: "missing" });
+    expect(
+      getRuntimeConfigIssues(
+        { ...productionEnv, PARAM_VIP_PAYMENT_URL: "https://example.test/payment" },
+        "/srv/enbilir/app",
+      ),
+    ).toContainEqual({ key: "PARAM_VIP_PAYMENT_URL", code: "invalid" });
   });
 
   it("fails closed when the production administrator identity is missing or malformed", () => {

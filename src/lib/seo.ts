@@ -333,12 +333,12 @@ const pageSeo = {
     tr: {
       title: "Kayıt Ol | Enbilir Tanıtım Döneminde Tam VIP Erişim",
       description:
-        "Enbilir'e ücretsiz kayıt olun; tanıtım döneminde tam VIP içerik, günlük 5 AI sorgusu, sanal portföy, raporlar ve ajan performansını kullanın.",
+        "Enbilir'e ücretsiz kayıt olun; tanıtım döneminde tam VIP içerik, günlük 10 AI sorgusu, sanal portföy, raporlar ve ajan performansını kullanın.",
     },
     en: {
       title: "Register | Full VIP Access During the Enbilir Launch",
       description:
-        "Register free for full VIP content during the launch, 5 daily AI queries, virtual portfolios, reports, and transparent agent performance.",
+        "Register free for full VIP content during the launch, 10 daily AI queries, virtual portfolios, reports, and transparent agent performance.",
     },
   },
   login: {
@@ -629,8 +629,8 @@ export function buildStructuredData(locale: Locale) {
           price: "0",
           priceCurrency: "TRY",
           description: locale === "tr"
-            ? "Tanıtım döneminde ücretsiz tam VIP içerik erişimi ve günlük 5 AI sorgusu."
-            : "Free full VIP content access and 5 daily AI queries during the launch promotion.",
+            ? "Tanıtım döneminde ücretsiz tam VIP içerik erişimi ve günlük 10 AI sorgusu."
+            : "Free full VIP content access and 10 daily AI queries during the launch promotion.",
         },
         description: getSeoPage("home", locale).description,
         keywords,

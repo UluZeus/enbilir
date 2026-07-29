@@ -136,6 +136,7 @@ model User {
   aiChatOnboardingCompletedAt      DateTime?
   leaderboardOnboardingCompletedAt DateTime?
   onboardingCompletedAt            DateTime?
+  supportIntroShownAt              DateTime?
   createdAt                        DateTime                     @default(now())
   updatedAt                        DateTime                     @updatedAt
   virtualAccount                   VirtualAccount?
@@ -169,6 +170,8 @@ model User {
   vipSubscriptionClaims            VipSubscriptionClaim[]
   aiDailyQueryUsages               AiDailyQueryUsage[]
   aiQueryReservations              AiQueryReservation[]
+  supportReminderPeriods           SupportReminderPeriod[]
+  supportReminderEntries           SupportReminderEntry[]
   chatRoomMemberships              ChatRoomMembership[]
   chatUploads                      ChatUpload[]
 }
@@ -653,6 +656,38 @@ model SubscriptionEmailLog {
   @@index([sentAt])
 }
 
+model SupportReminderPeriod {
+  id                String                 @id @default(cuid())
+  userId            String
+  periodKey         String
+  onsitePromptCount Int                    @default(0)
+  suppressedAt      DateTime?
+  emailAttemptedAt  DateTime?
+  emailSentAt       DateTime?
+  emailStatus       String?
+  emailError        String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries           SupportReminderEntry[]
+
+  @@unique([userId, periodKey])
+  @@index([periodKey, emailAttemptedAt])
+}
+
+model SupportReminderEntry {
+  id             String                @id @default(cuid())
+  userId         String
+  periodId       String
+  entryTokenHash String
+  createdAt      DateTime              @default(now())
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period         SupportReminderPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, entryTokenHash])
+  @@index([userId, createdAt])
+}
+
 model VipResearchReport {
   id                 String                @id @default(cuid())
   periodKey          String                @unique
@@ -779,7 +814,11 @@ model VipSubscriptionClaim {
   userId            String
   provider          String    @default("PARAM")
   providerReference String
+  activeReferenceKey String?   @unique
   amountTry         Float     @default(100)
+  verifiedPayerEmail String?
+  verifiedCurrency   String?
+  verifiedAmountTry  Float?
   status            String    @default("PENDING")
   userNote          String?
   adminNote         String?

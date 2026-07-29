@@ -4,12 +4,9 @@ export const membershipConfig = {
   fullVipPromotionEnabled: true,
   trialDays: 30,
   trialReminderDaysBeforeEnd: 7,
-  standardMonthlyAmountTry: 70,
   vipMonthlyAmountTry: 100,
-  freeDailyAiQueryLimit: 5,
+  freeDailyAiQueryLimit: 10,
   paidVipDailyAiQueryLimit: 15,
-  standardPaymentLink: "https://isyerim.param.com.tr/#/paymentform/paymentrequest/3Ew19YnOU",
-  vipPaymentLink: "https://isyerim.param.com.tr/#/paymentform/paymentrequest/hSern8=Ca",
 } as const;
 
 export type MembershipSnapshot = {
@@ -66,8 +63,8 @@ export function formatTryAmount(amount: number) {
 
 export function getMembershipLabel(tier: MembershipTier | "STANDARD" | "VIP", locale: "tr" | "en") {
   if (tier === "VIP") {
-    return locale === "tr" ? "VIP üyelik" : "VIP membership";
+    return locale === "tr" ? "VIP destekçi" : "VIP supporter";
   }
 
-  return locale === "tr" ? "Standart üyelik" : "Standard membership";
+  return locale === "tr" ? "Ücretsiz" : "Free";
 }

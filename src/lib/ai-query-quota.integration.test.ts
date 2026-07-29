@@ -27,7 +27,7 @@ describe("release gate: daily AI quota reservation", () => {
   });
 
   it.each([
-    { paid: false, allowedCount: 5, rejectedCount: 6 },
+    { paid: false, allowedCount: 10, rejectedCount: 11 },
     { paid: true, allowedCount: 15, rejectedCount: 16 },
   ])("enforces the $allowedCount-query allowance atomically for paid=$paid", async ({
     paid,

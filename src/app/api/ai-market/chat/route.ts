@@ -74,12 +74,12 @@ function getQuotaLimitError(locale: MarketChatLocale, isPaidVipActive: boolean) 
   if (locale === "en") {
     return isPaidVipActive
       ? "You have used today's 15 AI queries. Your allowance resets at midnight Istanbul time."
-      : "You have used today's 5 free AI queries. Your allowance resets at midnight Istanbul time. Upgrade with the 100 TL VIP payment for 15 daily queries.";
+      : "You have used today's 10 free AI queries. Your allowance resets at midnight Istanbul time. Upgrade with the 100 TL VIP payment for 15 daily queries.";
   }
 
   return isPaidVipActive
     ? "Bugünkü 15 AI sorgu hakkınızı kullandınız. Hakkınız İstanbul saatiyle gece 00.00'da yenilenir."
-    : "Bugünkü 5 ücretsiz AI sorgu hakkınızı kullandınız. Hakkınız İstanbul saatiyle gece 00.00'da yenilenir. Günlük 15 sorgu için 100 TL VIP ödemesine geçebilirsiniz.";
+    : "Bugünkü 10 ücretsiz AI sorgu hakkınızı kullandınız. Hakkınız İstanbul saatiyle gece 00.00'da yenilenir. Günlük 15 sorgu için 100 TL VIP ödemesine geçebilirsiniz.";
 }
 
 function getQueryUpgradeUrl(locale: MarketChatLocale) {

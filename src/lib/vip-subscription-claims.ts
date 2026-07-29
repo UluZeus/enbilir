@@ -14,8 +14,21 @@ import { appendAuditEvent } from "@/lib/audit-log";
 
 const MAX_PENDING_CLAIMS_PER_DAY = 3;
 
+function isUniqueConstraintError(error: unknown) {
+  return (
+    (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
+    || (
+      typeof error === "object"
+      && error !== null
+      && "code" in error
+      && error.code === "P2002"
+    )
+  );
+}
+
 export async function submitVipSubscriptionClaim(input: { userId: string; providerReference: string; userNote?: string }) {
   const providerReference = normalizeVipPaymentReference(input.providerReference);
+  const activeReferenceKey = canonicalizeVipPaymentReference(providerReference);
   const userNote = input.userNote?.trim().slice(0, 500) || null;
 
   if (!isValidVipPaymentReference(providerReference)) {
@@ -27,8 +40,10 @@ export async function submitVipSubscriptionClaim(input: { userId: string; provid
       const existing = await transaction.vipSubscriptionClaim.findFirst({
         where: {
           provider: "PARAM",
-          providerReference,
-          userId: input.userId,
+          OR: [
+            { activeReferenceKey },
+            { providerReference },
+          ],
           status: { in: [...liveVipSubscriptionClaimStatuses] },
         },
         orderBy: { createdAt: "desc" },
@@ -69,6 +84,7 @@ export async function submitVipSubscriptionClaim(input: { userId: string; provid
         data: {
           userId: input.userId,
           providerReference,
+          activeReferenceKey,
           amountTry: membershipConfig.vipMonthlyAmountTry,
           userNote,
         },
@@ -86,12 +102,11 @@ export async function submitVipSubscriptionClaim(input: { userId: string; provid
       return { reused: false, ...claim };
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isUniqueConstraintError(error)) {
       const existing = await prisma.vipSubscriptionClaim.findFirst({
         where: {
           provider: "PARAM",
-          providerReference,
-          userId: input.userId,
+          activeReferenceKey,
           status: { in: [...liveVipSubscriptionClaimStatuses] },
         },
         orderBy: { createdAt: "desc" },
@@ -109,8 +124,9 @@ export async function reviewVipSubscriptionClaim(input: {
   reviewerEmail: string;
   decision: "APPROVE" | "REJECT";
   amountTry?: number;
+  currency?: string;
+  payerEmail?: string;
   adminNote?: string;
-  payerIdentityConfirmed?: boolean;
 }) {
   return prisma.$transaction(async (transaction) => {
     const claim = await transaction.vipSubscriptionClaim.findUnique({
@@ -127,7 +143,13 @@ export async function reviewVipSubscriptionClaim(input: {
     if (input.decision === "REJECT") {
       await transaction.vipSubscriptionClaim.update({
         where: { id: claim.id },
-        data: { status: "REJECTED", adminNote, reviewedBy: input.reviewerEmail, reviewedAt },
+        data: {
+          status: "REJECTED",
+          activeReferenceKey: null,
+          adminNote,
+          reviewedBy: input.reviewerEmail,
+          reviewedAt,
+        },
       });
       await appendAuditEvent(transaction, {
         category: "PAYMENT",
@@ -140,13 +162,15 @@ export async function reviewVipSubscriptionClaim(input: {
       return { reused: false, status: "REJECTED", user: claim.user };
     }
 
-    if (!input.payerIdentityConfirmed) {
-      throw new Error("Param kaydındaki ödeyen e-postasının Enbilir hesabıyla eşleştiğini onaylamalısınız.");
+    const payerEmail = input.payerEmail?.trim().toLowerCase() ?? "";
+    if (!payerEmail || payerEmail !== claim.user.email.trim().toLowerCase()) {
+      throw new Error("Param kaydındaki ödeyen e-postası bağlı Enbilir hesabıyla eşleşmelidir.");
     }
 
     const amountTry = Number(input.amountTry ?? claim.amountTry);
-    if (!Number.isFinite(amountTry) || amountTry < membershipConfig.vipMonthlyAmountTry) {
-      throw new Error("Doğrulanan ödeme tutarı VIP ücretinden düşük olamaz.");
+    const currency = input.currency?.trim().toUpperCase() ?? "";
+    if (currency !== "TRY" || amountTry !== membershipConfig.vipMonthlyAmountTry) {
+      throw new Error("Doğrulanan ödeme tam 100 TL ve TRY olmalıdır.");
     }
 
     const activation = await activateVipSubscriptionInTransaction(transaction, {
@@ -154,12 +178,22 @@ export async function reviewVipSubscriptionClaim(input: {
       provider: claim.provider,
       providerReference: claim.providerReference,
       amountTry,
+      currency,
       rawPayload: { source: "ADMIN_VERIFIED_CLAIM", claimId: claim.id, reviewedBy: input.reviewerEmail },
     });
 
     await transaction.vipSubscriptionClaim.update({
       where: { id: claim.id },
-      data: { status: "APPROVED", amountTry, adminNote, reviewedBy: input.reviewerEmail, reviewedAt },
+      data: {
+        status: "APPROVED",
+        amountTry,
+        verifiedPayerEmail: payerEmail,
+        verifiedCurrency: currency,
+        verifiedAmountTry: amountTry,
+        adminNote,
+        reviewedBy: input.reviewerEmail,
+        reviewedAt,
+      },
     });
     await appendAuditEvent(transaction, {
       category: "PAYMENT",
@@ -178,6 +212,8 @@ export async function activateVipSubscriptionClaimFromWebhook(input: {
   claimId: string;
   providerReference: string;
   amountTry: number;
+  currency: string;
+  payerEmail: string;
   rawPayload?: unknown;
 }) {
   const providerReference = normalizeVipPaymentReference(input.providerReference);
@@ -216,11 +252,14 @@ export async function activateVipSubscriptionClaimFromWebhook(input: {
     }
 
     const amountTry = Number(input.amountTry);
-    const months = Math.floor(amountTry / membershipConfig.vipMonthlyAmountTry);
-    const expectedAmount = months * membershipConfig.vipMonthlyAmountTry;
+    const currency = input.currency.trim().toUpperCase();
+    const payerEmail = input.payerEmail.trim().toLowerCase();
 
-    if (months < 1 || months > 12 || Math.abs(amountTry - expectedAmount) > 0.001) {
-      throw new Error("Doğrulanan tutar VIP aylık ücretinin 1-12 aylık tam katı olmalıdır.");
+    if (currency !== "TRY" || amountTry !== membershipConfig.vipMonthlyAmountTry) {
+      throw new Error("Doğrulanan ödeme tam 100 TL ve TRY olmalıdır.");
+    }
+    if (!payerEmail || payerEmail !== claim.user.email.trim().toLowerCase()) {
+      throw new Error("Param kaydındaki ödeyen e-postası bağlı Enbilir hesabıyla eşleşmelidir.");
     }
 
     const paidAt = new Date();
@@ -229,8 +268,8 @@ export async function activateVipSubscriptionClaimFromWebhook(input: {
       provider: claim.provider,
       providerReference,
       amountTry,
+      currency,
       paidAt,
-      months,
       rawPayload: input.rawPayload,
     });
 
@@ -239,6 +278,9 @@ export async function activateVipSubscriptionClaimFromWebhook(input: {
       data: {
         status: "APPROVED",
         amountTry,
+        verifiedPayerEmail: payerEmail,
+        verifiedCurrency: currency,
+        verifiedAmountTry: amountTry,
         reviewedBy: "SYSTEM_VERIFIED_PAYMENT",
         reviewedAt: paidAt,
       },

@@ -40,6 +40,7 @@ import { appendAuditEvent } from "@/lib/audit-log";
 import { calculateRealizedTradePnl, getVirtualExecutionCosts } from "@/lib/trade-accounting";
 import { syncPortfolioPositionCorporateAction } from "@/lib/portfolio-corporate-actions";
 import { isExecutableMarketQuote } from "@/lib/executable-quote";
+import { updateElectronicCommunicationConsent } from "@/lib/communication-consent";
 
 export type TradeActionState = {
   ok: boolean;
@@ -537,6 +538,31 @@ export async function logoutAction(formData: FormData) {
   redirect(getRedirect(locale, "giris"));
 }
 
+export async function updateElectronicCommunicationConsentAction(formData: FormData) {
+  const locale = formData.get("locale");
+  const sessionUser = await requireSession(
+    locale,
+    "panel",
+    "Elektronik ileti tercihini değiştirmek için giriş yapmalısınız.",
+  );
+  const consent = formData.get("electronicCommunicationConsent") === "on";
+
+  await updateElectronicCommunicationConsent({
+    userId: sessionUser.id,
+    consent,
+  });
+  const safeLocale = getSafeLocale(String(locale ?? "tr"));
+  revalidatePath(`/${safeLocale}/panel`);
+  redirect(getRedirect(
+    locale,
+    "panel",
+    undefined,
+    consent
+      ? "Elektronik ileti izniniz kaydedildi."
+      : "Elektronik ileti izniniz geri çekildi; yeni destek e-postası gönderilmeyecek.",
+  ));
+}
+
 export async function submitVipPaymentClaimAction(formData: FormData) {
   const locale = formData.get("locale");
   const safeLocale = getSafeLocale(String(locale ?? "tr"));
@@ -587,8 +613,9 @@ export async function reviewVipPaymentClaimAction(formData: FormData) {
       reviewerEmail: admin.email,
       decision,
       amountTry: normalizeOptionalNumber(formData.get("amountTry"), 0),
+      currency: normalizeText(formData.get("currency")),
+      payerEmail: normalizeText(formData.get("payerEmail")),
       adminNote: normalizeText(formData.get("adminNote")),
-      payerIdentityConfirmed: formData.get("payerIdentityConfirmed") === "yes",
     });
   } catch (error) {
     redirect(getRedirect(locale, "admin", error instanceof Error ? error.message : "VIP ödeme bildirimi işlenemedi."));
@@ -598,12 +625,12 @@ export async function reviewVipPaymentClaimAction(formData: FormData) {
     const approved = reviewResult.status === "APPROVED";
     await sendEmail({
       to: reviewResult.user.email,
-      subject: approved ? "Enbilir VIP erişiminiz açıldı" : "Enbilir VIP ödeme bildiriminiz incelendi",
+      subject: approved ? "Enbilir VIP destek ödemeniz doğrulandı" : "Enbilir VIP ödeme bildiriminiz incelendi",
       text: approved
-        ? "Param ödemeniz doğrulandı ve Enbilir VIP erişiminiz açıldı. VIP araştırma ve ajan masasına hesabınızla giriş yaparak ulaşabilirsiniz."
+        ? "Param ödemeniz doğrulandı. Tanıtım dönemindeki tam VIP içerik erişiminiz ücretsiz devam eder; günlük AI sorgu hakkınız ödeme dönemi boyunca 10'dan 15'e çıktı."
         : "VIP ödeme bildiriminiz Param kayıtlarıyla doğrulanamadı. Lütfen dekont numaranızı kontrol edip yeniden bildirin.",
       html: approved
-        ? "<p>Param ödemeniz doğrulandı ve <strong>Enbilir VIP erişiminiz açıldı.</strong></p><p>VIP araştırma ve ajan masasına hesabınızla giriş yaparak ulaşabilirsiniz.</p>"
+        ? "<p>Param ödemeniz doğrulandı. Tanıtım dönemindeki tam VIP içerik erişiminiz ücretsiz devam eder; <strong>günlük AI sorgu hakkınız ödeme dönemi boyunca 10'dan 15'e çıktı.</strong></p>"
         : "<p>VIP ödeme bildiriminiz Param kayıtlarıyla doğrulanamadı.</p><p>Lütfen dekont numaranızı kontrol edip yeniden bildirin.</p>",
     }).catch((error: unknown) => console.error("[vip-claim-email]", error instanceof Error ? error.message : error));
   }
@@ -616,7 +643,7 @@ export async function reviewVipPaymentClaimAction(formData: FormData) {
   const reviewMessage = reviewResult.reused
     ? `Bu ödeme bildirimi daha önce ${reviewResult.status === "APPROVED" ? "onaylanmış" : "reddedilmiş"}. Yeni işlem ve e-posta oluşturulmadı.`
     : reviewResult.status === "APPROVED"
-      ? "VIP ödeme doğrulandı ve erişim açıldı."
+      ? "VIP ödeme doğrulandı ve günlük AI sorgu hakkı ödeme dönemi boyunca 15'e çıkarıldı."
       : "VIP ödeme bildirimi reddedildi.";
   redirect(getRedirect(locale, "admin", undefined, reviewMessage));
 }

@@ -10,6 +10,7 @@ import {
   createLeagueAction,
   logoutAction,
   sendFriendRequestAction,
+  updateElectronicCommunicationConsentAction,
   updateProfileDisplayAction,
 } from "@/lib/actions";
 import { getDisplayName, getSessionUser } from "@/lib/auth";
@@ -17,7 +18,8 @@ import { getBadgeDashboard } from "@/lib/badges";
 import { getCompetitionRankingsForUser } from "@/lib/competition-periods";
 import { getFriendDashboard } from "@/lib/friends";
 import { getUserLeagues, leagueTypes } from "@/lib/leagues";
-import { getMembershipLabel, getMembershipSnapshot, membershipConfig } from "@/lib/membership";
+import { getMembershipSnapshot } from "@/lib/membership";
+import { getParamVipPaymentUrl } from "@/lib/param-vip-payment";
 import { calculatePortfolioHealth } from "@/lib/portfolio-health";
 import { getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
@@ -88,17 +90,19 @@ function getPanelCopy(locale: "tr" | "en") {
         currentFriends: "Current friends",
         noFriends: "You have not added friends yet.",
         membership: "Membership",
-        membershipBody: "During the launch promotion, every signed-in member receives full VIP access. Free accounts have 5 AI queries per day; an active 100 TL VIP payment raises this to 15.",
-        trial: "Free trial",
-        trialEnds: "Trial ends",
+        membershipBody: "During the launch promotion, every signed-in member receives full VIP content access. Billing remains Free unless a verified 100 TL monthly VIP contribution is active.",
         currentTier: "Current tier",
-        standardSupport: "Standard support",
-        vipUpgrade: "VIP upgrade",
-        standardBody: "The 70 TL contribution is optional and supports the platform; full promotional access continues without payment.",
-        vipBody: "The 100 TL VIP payment raises your daily AI query allowance from 5 to 15.",
-        standardPay: "Pay 70 TL voluntary support",
-        vipPay: "Pay 100 TL VIP",
+        freePlan: "Free",
+        freeBody: "Full VIP content access and 10 AI queries per day. No payment is required.",
+        vipUpgrade: "100 TL VIP",
+        vipBody: "A voluntary 100 TL monthly contribution supports AI costs and raises your daily allowance from 10 to 15. It does not renew automatically.",
+        vipPay: "Contribute 100 TL securely",
         vipUntil: "VIP paid until",
+        paymentUnavailable: "Secure payment is temporarily unavailable. Your Free access continues unchanged.",
+        communicationTitle: "Electronic communication preference",
+        communicationBody: "Under KVKK, promotional and informational electronic messages are optional. You may grant or withdraw this consent at any time without affecting your account, Free access, or VIP content.",
+        communicationCheckbox: "I consent to receive promotional and informational electronic communications.",
+        communicationSave: "Save communication preference",
       }
     : {
         loginTitle: "Giriş gerekli",
@@ -153,17 +157,19 @@ function getPanelCopy(locale: "tr" | "en") {
         currentFriends: "Mevcut arkadaşlar",
         noFriends: "Henüz arkadaş eklemediniz.",
         membership: "Üyelik",
-        membershipBody: "Tanıtım döneminde giriş yapan her üye tam VIP erişimi kullanır. Ücretsiz hesapların günlük 5, aktif 100 TL VIP ödemesi olanların günlük 15 AI sorgu hakkı vardır.",
-        trial: "Ücretsiz deneme",
-        trialEnds: "Deneme bitişi",
+        membershipBody: "Tanıtım döneminde giriş yapan her üye tam VIP içerik erişimini kullanır. Doğrulanmış aylık 100 TL VIP katkısı yoksa faturalandırma etiketi Free olarak kalır.",
         currentTier: "Güncel üyelik",
-        standardSupport: "Standart destek",
-        vipUpgrade: "VIP yükseltme",
-        standardBody: "70 TL katkı isteğe bağlıdır ve platformu destekler; ödeme olmadan da tanıtım kapsamındaki tam erişim sürer.",
-        vipBody: "100 TL VIP ödemesi günlük AI sorgu hakkınızı 5'ten 15'e çıkarır.",
-        standardPay: "70 TL gönüllü katkı öde",
-        vipPay: "100 TL VIP öde",
+        freePlan: "Free",
+        freeBody: "Tam VIP içerik erişimi ve günlük 10 AI sorgusu. Ödeme yapmanız gerekmez.",
+        vipUpgrade: "100 TL VIP",
+        vipBody: "Aylık 100 TL gönüllü katkı AI maliyetlerini destekler ve günlük hakkınızı 10'dan 15'e çıkarır. Otomatik yenilenmez.",
+        vipPay: "Güvenle 100 TL katkı yap",
         vipUntil: "VIP bitiş tarihi",
+        paymentUnavailable: "Güvenli ödeme şu anda kullanılamıyor. Free erişiminiz değişmeden devam eder.",
+        communicationTitle: "Elektronik ileti tercihi",
+        communicationBody: "KVKK kapsamında kampanya ve bilgilendirme amaçlı elektronik iletiler isteğe bağlıdır. Bu izni hesabınızı, Free erişiminizi veya VIP içeriklerinizi etkilemeden dilediğiniz zaman verebilir ya da geri çekebilirsiniz.",
+        communicationCheckbox: "Kampanya ve bilgilendirme amaçlı elektronik ileti almak istiyorum.",
+        communicationSave: "İletişim tercihini kaydet",
       };
 }
 
@@ -172,7 +178,7 @@ export default async function DashboardPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ error?: string; view?: string }>;
+  searchParams?: Promise<{ error?: string; message?: string; view?: string }>;
 }) {
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
@@ -182,6 +188,7 @@ export default async function DashboardPage({
   const copy = getPanelCopy(locale);
   const activeView = ["portfolio", "community", "settings"].includes(query.view ?? "") ? query.view! : "overview";
   const user = await getSessionUser();
+  const paymentUrl = await getParamVipPaymentUrl();
 
   if (!user) {
     return (
@@ -220,7 +227,7 @@ export default async function DashboardPage({
     activeView === "overview" ? prisma.aiMarketReportEvent.count({ where: { userId: user.id, eventType: "READ" } }) : Promise.resolve(0),
     activeView === "settings" ? prisma.user.findUnique({
       where: { id: user.id },
-      select: { createdAt: true, membershipTier: true, vipPaidUntil: true },
+      select: { createdAt: true, membershipTier: true, vipPaidUntil: true, electronicCommunicationConsent: true },
     }) : Promise.resolve(null),
     activeView === "portfolio" ? prisma.virtualTrade.findMany({
       where: { userId: user.id },
@@ -281,7 +288,7 @@ export default async function DashboardPage({
         description={locale === "tr" ? "Bugünkü önerilerini, portföyünü, liglerini ve hesap ayarlarını tek yerden yönet." : "Manage today's suggestions, your portfolio, leagues, and account settings in one place."}
         locale={locale}
       />
-      <FormMessage message={query.error} />
+      <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
 
       <nav className="sticky top-[calc(var(--enb-header-height)+0.75rem)] z-20 -mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" aria-label={locale === "tr" ? "Panel bölümleri" : "Dashboard sections"}>
         {[
@@ -311,33 +318,65 @@ export default async function DashboardPage({
       </section> : null}
 
       {membership && activeView === "settings" ? (
-        <section className="premium-card grid gap-4 p-6 md:grid-cols-[minmax(0,1fr)_320px]">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">{copy.membership}</p>
-            <h2 className="mt-2 text-2xl font-black text-[#152033]">{getMembershipLabel(membership.effectiveTier, locale)}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{copy.membershipBody}</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <PanelSoftMetric label={copy.currentTier} value={getMembershipLabel(membership.effectiveTier, locale)} />
-              <PanelSoftMetric label={copy.trialEnds} value={new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium" }).format(membership.trialEndsAt)} />
-              <PanelSoftMetric label={copy.vipUntil} value={membership.vipPaidUntil ? new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium" }).format(membership.vipPaidUntil) : "-"} />
+        <section className="premium-card p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a6a5d]">{copy.membership}</p>
+              <h2 className="mt-2 text-2xl font-black text-[#152033]">
+                {membership.isPaidVipActive ? (locale === "tr" ? "VIP destekçi" : "VIP supporter") : copy.freePlan}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{copy.membershipBody}</p>
             </div>
+            <PanelSoftMetric
+              label={membership.isPaidVipActive ? copy.vipUntil : copy.currentTier}
+              value={membership.isPaidVipActive && membership.vipPaidUntil
+                ? new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium" }).format(membership.vipPaidUntil)
+                : copy.freePlan}
+            />
           </div>
-          <div className="grid content-start gap-3">
-            <div className="rounded-2xl border border-[#d1bfa7]/45 bg-[#fffaf6] p-4">
-              <p className="font-black text-[#152033]">{copy.standardSupport}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{copy.standardBody}</p>
-              <a href={membershipConfig.standardPaymentLink} target="_blank" rel="noreferrer" className="premium-action mt-3 inline-flex px-4 py-2 text-sm font-black">
-                {copy.standardPay}
-              </a>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className={`rounded-2xl border p-5 ${membership.isPaidVipActive ? "border-slate-200 bg-white" : "border-[#0f766e] bg-emerald-50 ring-2 ring-[#0f766e]/15"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-lg font-black text-[#152033]">{copy.freePlan}</p>
+                {!membership.isPaidVipActive ? <span className="rounded-full bg-[#0f766e] px-3 py-1 text-xs font-black text-white">{copy.currentTier}</span> : null}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{copy.freeBody}</p>
             </div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="font-black text-[#152033]">{copy.vipUpgrade}</p>
+            <div className={`rounded-2xl border p-5 ${membership.isPaidVipActive ? "border-amber-400 bg-amber-50 ring-2 ring-amber-400/20" : "border-amber-200 bg-[#fffaf0]"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-lg font-black text-[#152033]">{copy.vipUpgrade}</p>
+                {membership.isPaidVipActive ? <span className="rounded-full bg-amber-700 px-3 py-1 text-xs font-black text-white">{copy.currentTier}</span> : null}
+              </div>
               <p className="mt-2 text-sm leading-6 text-slate-700">{copy.vipBody}</p>
-              <a href={membershipConfig.vipPaymentLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-black text-white">
-                {copy.vipPay}
-              </a>
+              {!membership.isPaidVipActive && paymentUrl ? (
+                <a href={paymentUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center rounded-md border border-amber-800 bg-amber-800 px-4 py-2 text-sm font-black text-white">
+                  {copy.vipPay}
+                  <span className="sr-only"> ({locale === "tr" ? "yeni sekmede açılır" : "opens in a new tab"})</span>
+                </a>
+              ) : !membership.isPaidVipActive ? <p className="mt-3 text-xs font-bold leading-5 text-amber-950">{copy.paymentUnavailable}</p> : null}
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {membershipUser && activeView === "settings" ? (
+        <section className="premium-card p-6">
+          <h2 className="text-xl font-black text-[#152033]">{copy.communicationTitle}</h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{copy.communicationBody}</p>
+          <form action={updateElectronicCommunicationConsentAction} className="mt-4 grid gap-4">
+            <input type="hidden" name="locale" value={locale} />
+            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm font-bold leading-6 text-slate-700">
+              <input
+                type="checkbox"
+                name="electronicCommunicationConsent"
+                defaultChecked={membershipUser.electronicCommunicationConsent}
+                className="mt-1 h-5 w-5 shrink-0 accent-[#0f766e]"
+              />
+              <span>{copy.communicationCheckbox}</span>
+            </label>
+            <button className="premium-action min-h-11 w-fit px-5 py-3 text-sm font-black">{copy.communicationSave}</button>
+          </form>
         </section>
       ) : null}
 

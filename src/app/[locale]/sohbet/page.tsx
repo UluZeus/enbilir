@@ -5,7 +5,8 @@ import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getSessionUser } from "@/lib/auth";
 import { generalChatRoomCode, getChatRoomState, normalizeRoomCode } from "@/lib/chat";
-import { getMembershipSnapshot, membershipConfig } from "@/lib/membership";
+import { getMembershipSnapshot } from "@/lib/membership";
+import { getParamVipPaymentUrl } from "@/lib/param-vip-payment";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -37,6 +38,7 @@ export default async function ChatPage({
       : Promise.resolve(null),
   ]);
   const membership = membershipUser ? getMembershipSnapshot(membershipUser) : null;
+  const paymentUrl = await getParamVipPaymentUrl();
 
   return (
     <div className="grid gap-5">
@@ -73,8 +75,7 @@ export default async function ChatPage({
         membershipTier={membership?.effectiveTier ?? "STANDARD"}
         isPaidVipActive={membership?.isPaidVipActive ?? false}
         vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null}
-        standardPaymentLink={membershipConfig.standardPaymentLink}
-        vipPaymentLink={membershipConfig.vipPaymentLink}
+        paymentUrl={paymentUrl}
       />
       <ChatRoomClient
         locale={locale}

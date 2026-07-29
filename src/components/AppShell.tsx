@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { MobileHeaderMenu } from "@/components/MobileHeaderMenu";
 import { MobileDockVisibility } from "@/components/MobileDockVisibility";
 import { MobileMenuDockButton } from "@/components/MobileMenuDockButton";
+import { MemberNoticeGate } from "@/components/notices/MemberNoticeGate";
 import { GuidedHelp } from "@/components/onboarding/GuidedHelp";
 import type { Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -138,6 +139,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
         userId={sessionUser?.id}
         progress={onboardingProgress}
       />
+      {sessionUser ? <MemberNoticeGate locale={locale} /> : null}
       <header className="site-header-v3 sticky top-0 z-50">
         <div className="site-desktop-header-v3 hidden xl:block">
           <div className="site-container-v3 flex h-[72px] items-center gap-5">

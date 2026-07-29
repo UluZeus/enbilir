@@ -4,6 +4,7 @@ import { VipAgentOverview } from "@/components/vip-agents/VipAgentViews";
 import { getSafeLocale } from "@/i18n/config";
 import { canAccessAdmin, getSessionUser } from "@/lib/auth";
 import { getMembershipSnapshot } from "@/lib/membership";
+import { getParamVipPaymentUrl } from "@/lib/param-vip-payment";
 import { prisma } from "@/lib/prisma";
 import { getVipAgentDailyTips, getVipAgentSummaries } from "@/lib/vip-agents/dashboard";
 
@@ -23,9 +24,10 @@ export default async function VipAgentsPage({ params }: { params: Promise<{ loca
   const { locale: rawLocale } = await params;
   const locale = getSafeLocale(rawLocale);
   const session = await getSessionUser();
+  const paymentUrl = await getParamVipPaymentUrl();
   const user = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { createdAt: true, membershipTier: true, vipPaidUntil: true } }) : null;
   const membership = user ? getMembershipSnapshot(user) : null;
-  if (!session || (!membership?.isVipActive && !canAccessAdmin(session.role))) return <VipPaywall locale={locale} isSignedIn={Boolean(session)} />;
+  if (!session || (!membership?.isVipActive && !canAccessAdmin(session.role))) return <VipPaywall locale={locale} isSignedIn={Boolean(session)} paymentUrl={paymentUrl} />;
   const [agents, dailyTips] = await Promise.all([
     getVipAgentSummaries(),
     getVipAgentDailyTips(),

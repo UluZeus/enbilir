@@ -36,9 +36,11 @@ describe("SEO routing", () => {
     const structuredData = JSON.stringify(buildStructuredData("tr"));
 
     expect(registerSeo.title).toContain("Tanıtım Döneminde Tam VIP Erişim");
-    expect(registerSeo.description).toContain("günlük 5 AI sorgusu");
+    expect(registerSeo.description).toContain("günlük 10 AI sorgusu");
     expect(registerSeo.title).not.toContain("30 Gün");
     expect(structuredData).toContain("ücretsiz tam VIP içerik erişimi");
+    expect(structuredData).toContain("günlük 10 AI sorgusu");
+    expect(structuredData).not.toContain("günlük 5 AI sorgusu");
     expect(structuredData).not.toContain("30 gün ücretsiz");
   });
 });

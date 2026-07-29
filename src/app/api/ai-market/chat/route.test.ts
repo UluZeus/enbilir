@@ -76,9 +76,9 @@ vi.mock("@/lib/vip-agents/dashboard", () => ({
 import { POST } from "@/app/api/ai-market/chat/route";
 
 const quota = {
-  limit: 5,
+  limit: 10,
   used: 1,
-  remaining: 4,
+  remaining: 9,
   resetAt: "2026-07-30T21:00:00.000Z",
   isPaidVipActive: false,
 };
@@ -151,6 +151,7 @@ describe("AI market chat route resilience", () => {
     expect(payload).toMatchObject({
       code: "DAILY_QUERY_LIMIT_REACHED",
       quota: exhaustedQuota,
+      error: expect.stringContaining("10 ücretsiz"),
     });
     expect(mocks.getLiveMarketItems).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();

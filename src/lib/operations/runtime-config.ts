@@ -39,6 +39,10 @@ const requiredProductionValues = [
   "OPERATIONS_LOG_DIR",
 ] as const;
 
+const requiredProductionOnlyValues = [
+  "PARAM_VIP_PAYMENT_URL",
+] as const;
+
 const secretKeys = [
   "AUTH_SECRET",
   "RATE_LIMIT_HASH_SECRET",
@@ -116,6 +120,14 @@ export function getRuntimeConfigIssues(
     }
   }
 
+  if (runtimeEnvironment === "production") {
+    for (const key of requiredProductionOnlyValues) {
+      if (!env[key]?.trim()) {
+        addIssue(issues, { key, code: "missing" });
+      }
+    }
+  }
+
   const siteUrl = env.NEXT_PUBLIC_SITE_URL?.trim();
   if (siteUrl) {
     try {
@@ -125,6 +137,23 @@ export function getRuntimeConfigIssues(
       }
     } catch {
       addIssue(issues, { key: "NEXT_PUBLIC_SITE_URL", code: "invalid" });
+    }
+  }
+
+  const paramVipPaymentUrl = env.PARAM_VIP_PAYMENT_URL?.trim();
+  if (runtimeEnvironment === "production" && paramVipPaymentUrl) {
+    try {
+      const parsed = new URL(paramVipPaymentUrl);
+      if (
+        parsed.origin !== "https://isyerim.param.com.tr"
+        || parsed.pathname !== "/"
+        || parsed.search
+        || !/^#\/paymentform\/paymentrequest\/[A-Za-z0-9=_-]{4,256}$/.test(parsed.hash)
+      ) {
+        addIssue(issues, { key: "PARAM_VIP_PAYMENT_URL", code: "invalid" });
+      }
+    } catch {
+      addIssue(issues, { key: "PARAM_VIP_PAYMENT_URL", code: "invalid" });
     }
   }
 

@@ -736,8 +736,8 @@ export default async function AdminPage({
             <h2 className="mt-2 text-2xl font-black text-[#152033]">{locale === "tr" ? "Bekleyen ödeme doğrulamaları" : "Pending payment verifications"}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
               {locale === "tr"
-                ? "Dekontu Param i-Şube kayıtlarından doğrula. İşlem numarası, tutar ve ödeyen e-postası Enbilir hesabıyla birebir eşleşmeden onaylama; onay VIP erişimini bir ay açar."
-                : "Verify the receipt against Param i-Şube. Approve only when the transaction, amount and payer email exactly match the Enbilir account; approval opens VIP access for one month."}
+                ? "Dekontu Param i-Şube kayıtlarından doğrula. İşlem numarası, tam 100 TRY tutarı ve ödeyen e-postası Enbilir hesabıyla birebir eşleşmeden onaylama; onay günlük 15 AI sorgu hakkını bir aylık ödeme dönemi boyunca etkinleştirir."
+                : "Verify the receipt against Param i-Şube. Approve only when the transaction, exact 100 TRY amount and payer email match the Enbilir account; approval enables 15 daily AI queries for the one-month payment period."}
             </p>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-center">
@@ -773,12 +773,13 @@ export default async function AdminPage({
                 </label>
                 <div className="flex gap-2">
                   <button name="decision" value="REJECT" className="rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-black text-rose-700">{locale === "tr" ? "Reddet" : "Reject"}</button>
-                  <button name="decision" value="APPROVE" className="rounded-md bg-emerald-700 px-4 py-2.5 text-xs font-black text-white">{locale === "tr" ? "Doğrula ve VIP aç" : "Verify and activate"}</button>
+                  <button name="decision" value="APPROVE" className="rounded-md bg-emerald-700 px-4 py-2.5 text-xs font-black text-white">{locale === "tr" ? "Doğrula · 15 sorguyu 1 ay etkinleştir" : "Verify · enable 15 queries for 1 month"}</button>
                 </div>
               </div>
-              <label className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-950">
-                <input name="payerIdentityConfirmed" value="yes" type="checkbox" className="mt-0.5 h-4 w-4 accent-emerald-700" />
-                <span>{locale === "tr" ? `Param i-Şube kaydındaki ödeyen e-postasının ${claim.user.email} olduğunu doğruladım. Bu kutu yalnız onay işlemi için zorunludur.` : `I verified that the payer email in Param i-Şube is ${claim.user.email}. This confirmation is required only for approval.`}</span>
+              <label className="mt-4 grid gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-950">
+                <span>{locale === "tr" ? `Param i-Şube kaydındaki ödeyen e-postasını yazın; ${claim.user.email} ile birebir eşleşmelidir.` : `Type the payer email from Param i-Şube; it must exactly match ${claim.user.email}.`}</span>
+                <input name="payerEmail" type="email" required autoComplete="off" className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-950" />
+                <input name="currency" type="hidden" value="TRY" />
               </label>
             </form>
           ))}

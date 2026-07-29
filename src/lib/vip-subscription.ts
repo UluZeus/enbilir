@@ -14,8 +14,8 @@ type ActivateVipInput = {
   provider?: string;
   providerReference: string;
   amountTry: number;
+  currency?: string;
   paidAt?: Date;
-  months?: number;
   rawPayload?: unknown;
 };
 
@@ -26,9 +26,17 @@ type RevokeVipInput = {
   rawPayload?: unknown;
 };
 
-function addMonths(date: Date, months: number) {
+export function addOneClampedCalendarMonth(date: Date) {
+  const originalDay = date.getUTCDate();
   const next = new Date(date);
-  next.setUTCMonth(next.getUTCMonth() + months);
+  next.setUTCDate(1);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  const lastDayOfTargetMonth = new Date(Date.UTC(
+    next.getUTCFullYear(),
+    next.getUTCMonth() + 1,
+    0,
+  )).getUTCDate();
+  next.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
   return next;
 }
 
@@ -40,20 +48,20 @@ export async function activateVipSubscriptionInTransaction(
   const provider = normalizeVipPaymentProvider(input.provider);
   const providerPaymentId = normalizeVipPaymentReference(input.providerReference, provider);
   const providerReference = canonicalizeVipPaymentReference(providerPaymentId, provider);
-  const months = Math.max(1, Math.min(12, Math.trunc(input.months ?? 1)));
   const paidAt = input.paidAt ?? new Date();
+  const currency = (input.currency ?? "TRY").trim().toUpperCase();
 
   if (!email || !providerPaymentId) {
     throw new Error("E-posta ve ödeme referansı zorunludur.");
   }
 
-  if (!Number.isFinite(input.amountTry) || input.amountTry < membershipConfig.vipMonthlyAmountTry * months) {
-    throw new Error("Ödeme tutarı seçilen VIP süresi için yetersiz.");
+  if (currency !== "TRY" || input.amountTry !== membershipConfig.vipMonthlyAmountTry) {
+    throw new Error("VIP desteği için doğrulanmış ödeme tam 100 TL ve TRY olmalıdır.");
   }
 
   const user = await transaction.user.findUnique({
     where: { email },
-    select: { id: true, vipPaidUntil: true },
+    select: { id: true, vipStartedAt: true, vipPaidUntil: true },
   });
 
   if (!user) {
@@ -79,14 +87,14 @@ export async function activateVipSubscriptionInTransaction(
   }
 
   const startAt = user.vipPaidUntil && user.vipPaidUntil > paidAt ? user.vipPaidUntil : paidAt;
-  const paidUntil = addMonths(startAt, months);
+  const paidUntil = addOneClampedCalendarMonth(startAt);
   const payment = await transaction.vipSubscriptionPayment.create({
     data: {
       userId: user.id,
       provider,
       providerReference,
       amountTry: input.amountTry,
-      currency: "TRY",
+      currency,
       status: "PAID",
       paidAt,
       paidUntil,
@@ -98,7 +106,7 @@ export async function activateVipSubscriptionInTransaction(
     where: { id: user.id },
     data: {
       membershipTier: "VIP",
-      vipStartedAt: paidAt,
+      vipStartedAt: user.vipStartedAt ?? paidAt,
       vipPaidUntil: paidUntil,
       vipLastReminderSentAt: null,
     },
@@ -117,7 +125,7 @@ export async function activateVipSubscriptionInTransaction(
       provider,
       providerReference,
       amountTry: input.amountTry,
-      months,
+      months: 1,
       paidUntil: paidUntil.toISOString(),
     },
     createdAt: paidAt,

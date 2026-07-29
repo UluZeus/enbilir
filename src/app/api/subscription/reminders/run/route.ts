@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runSubscriptionEmailJob, subscriptionEmailConfig } from "@/lib/subscription-emails";
+import { runSubscriptionEmailJob } from "@/lib/subscription-emails";
 import { isCronRequestAuthorized } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
@@ -15,15 +15,13 @@ export async function POST(request: Request) {
 
   const url = new URL(request.url);
   const dryRun = url.searchParams.get("dryRun") === "true";
-  const testEmail = url.searchParams.get("testEmail")?.trim() || undefined;
   const limitParam = Number(url.searchParams.get("limit") ?? 1000);
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 5000) : 1000;
   const startedAt = new Date();
-  const result = await runSubscriptionEmailJob({ now: startedAt, dryRun, testEmail, limit });
+  const result = await runSubscriptionEmailJob({ now: startedAt, dryRun, limit });
 
   return NextResponse.json({
     ranAt: startedAt.toISOString(),
-    paymentLink: subscriptionEmailConfig.paymentLink,
     ...result,
   });
 }

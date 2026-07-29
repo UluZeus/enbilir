@@ -46,6 +46,11 @@ function getArgValue(name) {
   return match ? match.slice(prefix.length) : null;
 }
 
+if (process.argv.some((arg) => arg === "--test-email" || arg.startsWith("--test-email="))) {
+  console.error("[subscription-emails-cron] --test-email is not supported.");
+  process.exit(1);
+}
+
 loadDotEnv();
 
 const secret = process.env.SUBSCRIPTION_CRON_SECRET;
@@ -60,12 +65,6 @@ const url = new URL("/api/subscription/reminders/run", siteUrl);
 
 if (process.argv.includes("--dry-run")) {
   url.searchParams.set("dryRun", "true");
-}
-
-const testEmail = getArgValue("test-email");
-
-if (testEmail) {
-  url.searchParams.set("testEmail", testEmail);
 }
 
 const limit = getArgValue("limit");

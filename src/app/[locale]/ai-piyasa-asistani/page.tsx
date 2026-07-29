@@ -8,7 +8,8 @@ import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { getSessionUser } from "@/lib/auth";
 import { getLocalizedAiMarketSymbols } from "@/lib/ai-market/symbols";
-import { getMembershipSnapshot, membershipConfig } from "@/lib/membership";
+import { getMembershipSnapshot } from "@/lib/membership";
+import { getParamVipPaymentUrl } from "@/lib/param-vip-payment";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -44,20 +45,20 @@ export default async function AiMarketAssistantPage({
     }),
   ]);
   const membership = fullUser ? getMembershipSnapshot(fullUser) : null;
-
-  const isVip = membership?.effectiveTier === "VIP";
+  const paymentUrl = await getParamVipPaymentUrl();
+  const isPaidVipActive = membership?.isPaidVipActive ?? false;
 
   return (
     <div className="mx-auto grid max-w-[1600px] gap-3 md:gap-4">
       {user ? <OnboardingVisitTracker step={activeTab === "chat" ? "chat" : "assistant"} locale={locale} /> : null}
-      <section className={`overflow-hidden rounded-xl border p-4 text-white shadow-xl md:p-5 ${isVip ? "border-amber-300/25 bg-[linear-gradient(120deg,#07101d_0%,#101827_62%,#2a2111_140%)]" : "border-slate-800 bg-[linear-gradient(120deg,#07101d,#101827)]"}`}>
+      <section className={`overflow-hidden rounded-xl border p-4 text-white shadow-xl md:p-5 ${isPaidVipActive ? "border-amber-300/25 bg-[linear-gradient(120deg,#07101d_0%,#101827_62%,#2a2111_140%)]" : "border-slate-800 bg-[linear-gradient(120deg,#07101d,#101827)]"}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${isVip ? "text-amber-200" : "text-cyan-200"}`}>{isEnglish ? "AI market workspace" : "AI piyasa çalışma alanı"}</p>
+            <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${isPaidVipActive ? "text-amber-200" : "text-cyan-200"}`}>{isEnglish ? "AI market workspace" : "AI piyasa çalışma alanı"}</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{copy.terminal}</h1>
           </div>
-          <span className={`w-fit rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${isVip ? "border-amber-300/30 bg-amber-300/10 text-amber-100" : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>
-            {isVip ? "VIP · WEB + ENBİLİR" : isEnglish ? "STANDARD · ENBİLİR DATA" : "STANDART · ENBİLİR VERİSİ"}
+          <span className={`w-fit rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${isPaidVipActive ? "border-amber-300/30 bg-amber-300/10 text-amber-100" : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>
+            {isPaidVipActive ? "VIP · 15 / DAY" : isEnglish ? "FREE · 10 / DAY" : "FREE · GÜNLÜK 10"}
           </span>
         </div>
         <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">
@@ -103,7 +104,7 @@ export default async function AiMarketAssistantPage({
 
       {activeTab === "chat" ? (
         <div className="grid gap-4">
-          <AiMarketChatPanel locale={locale} membershipTier={membership?.effectiveTier ?? "STANDARD"} isPaidVipActive={membership?.isPaidVipActive ?? false} vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null} standardPaymentLink={membershipConfig.standardPaymentLink} vipPaymentLink={membershipConfig.vipPaymentLink} />
+          <AiMarketChatPanel locale={locale} membershipTier={membership?.effectiveTier ?? "STANDARD"} isPaidVipActive={isPaidVipActive} vipPaidUntil={membership?.vipPaidUntil?.toISOString() ?? null} paymentUrl={paymentUrl} />
           <AiScenarioLab locale={locale} />
         </div>
       ) : null}

@@ -77,6 +77,8 @@ export async function POST(request: Request) {
       provider?: string;
       providerReference?: string;
       amountTry?: number;
+      currency?: string;
+      payerEmail?: string;
     };
     const event = payload.event ?? "PAID";
     const result = event === "PAID"
@@ -84,6 +86,8 @@ export async function POST(request: Request) {
         claimId: payload.claimId ?? "",
         providerReference: payload.providerReference ?? "",
         amountTry: Number(payload.amountTry),
+        currency: payload.currency ?? "",
+        payerEmail: payload.payerEmail ?? "",
         rawPayload: payload,
       })
       : await revokeVipSubscription({

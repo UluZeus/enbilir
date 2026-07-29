@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260728150000_p1_audit_and_trade_accounting";
+const prismaSchemaVersion = "20260729143000_single_vip_support_reminders";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -74,6 +74,8 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     auditEvent?: unknown;
     operationalJobHeartbeat?: unknown;
     chatUpload?: unknown;
+    supportReminderPeriod?: unknown;
+    supportReminderEntry?: unknown;
   };
 
   return Boolean(
@@ -127,7 +129,9 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.aiQueryReservation &&
       candidate?.auditEvent &&
       candidate?.operationalJobHeartbeat &&
-      candidate?.chatUpload
+      candidate?.chatUpload &&
+      candidate?.supportReminderPeriod &&
+      candidate?.supportReminderEntry
   );
 }
 

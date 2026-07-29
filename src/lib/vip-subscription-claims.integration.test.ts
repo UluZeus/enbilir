@@ -68,13 +68,15 @@ describe("release gate: account-bound VIP claim activation", () => {
       claimId: "claim-1",
       providerReference: "PARAM-OTHER",
       amountTry: 100,
+      currency: "TRY",
+      payerEmail: "member@example.test",
     })).rejects.toThrow("eşleşmiyor");
 
     expect(claimMocks.activate).not.toHaveBeenCalled();
     expect(claimMocks.claimUpdate).not.toHaveBeenCalled();
   });
 
-  it("rejects fractional or excessive subscription periods", async () => {
+  it("rejects every amount other than exactly one 100 TRY month", async () => {
     claimMocks.claimFindUnique.mockResolvedValue({
       id: "claim-1",
       userId: "user-1",
@@ -88,13 +90,24 @@ describe("release gate: account-bound VIP claim activation", () => {
     await expect(activateVipSubscriptionClaimFromWebhook({
       claimId: "claim-1",
       providerReference: "PARAM-EXPECTED",
-      amountTry: 150,
-    })).rejects.toThrow("tam katı");
+      amountTry: 99,
+      currency: "TRY",
+      payerEmail: "member@example.test",
+    })).rejects.toThrow("tam 100 TL");
     await expect(activateVipSubscriptionClaimFromWebhook({
       claimId: "claim-1",
       providerReference: "PARAM-EXPECTED",
-      amountTry: 1_300,
-    })).rejects.toThrow("tam katı");
+      amountTry: 200,
+      currency: "TRY",
+      payerEmail: "member@example.test",
+    })).rejects.toThrow("tam 100 TL");
+    await expect(activateVipSubscriptionClaimFromWebhook({
+      claimId: "claim-1",
+      providerReference: "PARAM-EXPECTED",
+      amountTry: 100,
+      currency: "EUR",
+      payerEmail: "member@example.test",
+    })).rejects.toThrow("TRY");
 
     expect(claimMocks.activate).not.toHaveBeenCalled();
   });
@@ -113,7 +126,9 @@ describe("release gate: account-bound VIP claim activation", () => {
     await expect(activateVipSubscriptionClaimFromWebhook({
       claimId: "claim-1",
       providerReference: "PARAM-EXPECTED",
-      amountTry: 200,
+      amountTry: 100,
+      currency: "TRY",
+      payerEmail: "member@example.test",
       rawPayload: { fixture: true },
     })).resolves.toMatchObject({
       reused: false,
@@ -125,22 +140,25 @@ describe("release gate: account-bound VIP claim activation", () => {
       email: "member@example.test",
       provider: "PARAM",
       providerReference: "PARAM-EXPECTED",
-      amountTry: 200,
-      months: 2,
+      amountTry: 100,
+      currency: "TRY",
       rawPayload: { fixture: true },
     }));
     expect(claimMocks.claimUpdate).toHaveBeenCalledWith({
       where: { id: "claim-1" },
       data: expect.objectContaining({
         status: "APPROVED",
-        amountTry: 200,
+        amountTry: 100,
         reviewedBy: "SYSTEM_VERIFIED_PAYMENT",
         reviewedAt: expect.any(Date),
+        verifiedPayerEmail: "member@example.test",
+        verifiedCurrency: "TRY",
+        verifiedAmountTry: 100,
       }),
     });
   });
 
-  it("requires payer identity confirmation for manual approval", async () => {
+  it("requires a typed payer email matching the bound account", async () => {
     claimMocks.claimFindUnique.mockResolvedValue({
       id: "claim-1",
       userId: "user-1",
@@ -156,9 +174,31 @@ describe("release gate: account-bound VIP claim activation", () => {
       reviewerEmail: "admin@example.test",
       decision: "APPROVE",
       amountTry: 100,
-      payerIdentityConfirmed: false,
-    })).rejects.toThrow("eşleştiğini onaylamalısınız");
+      currency: "TRY",
+      payerEmail: "other@example.test",
+    })).rejects.toThrow("eşleşmelidir");
 
+    expect(claimMocks.activate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a webhook payer email that does not match the bound account", async () => {
+    claimMocks.claimFindUnique.mockResolvedValue({
+      id: "claim-1",
+      userId: "user-1",
+      provider: "PARAM",
+      providerReference: "PARAM-EXPECTED",
+      amountTry: 100,
+      status: "PENDING",
+      user: { email: "member@example.test" },
+    });
+
+    await expect(activateVipSubscriptionClaimFromWebhook({
+      claimId: "claim-1",
+      providerReference: "PARAM-EXPECTED",
+      amountTry: 100,
+      currency: "TRY",
+      payerEmail: "other@example.test",
+    })).rejects.toThrow("eşleşmelidir");
     expect(claimMocks.activate).not.toHaveBeenCalled();
   });
 });

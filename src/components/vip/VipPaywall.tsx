@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { membershipConfig } from "@/lib/membership";
 import { submitVipPaymentClaimAction } from "@/lib/actions";
 
 type LatestClaim = { status: string; providerReference: string; createdAt: Date } | null;
@@ -10,8 +9,8 @@ const inputClass = "rounded-xl border border-slate-300 bg-white px-3.5 py-3 text
 function Stepper({ locale, activeStep }: { locale: Locale; activeStep: number }) {
   const isEnglish = locale === "en";
   const steps = isEnglish
-    ? ["Pay on Param", "Submit receipt", "Verification", "VIP access"]
-    : ["Param’da öde", "Dekontu bildir", "Doğrulama", "VIP erişimi"];
+    ? ["Pay on Param", "Submit receipt", "Verification", "15 daily queries"]
+    : ["Param’da öde", "Dekontu bildir", "Doğrulama", "Günlük 15 sorgu"];
   return (
     <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label={isEnglish ? "VIP subscription steps" : "VIP abonelik adımları"}>
       {steps.map((step, index) => {
@@ -35,7 +34,17 @@ function ReportPreview({ locale }: { locale: Locale }) {
   );
 }
 
-export function VipPaywall({ locale, isSignedIn, latestClaim }: { locale: Locale; isSignedIn: boolean; latestClaim?: LatestClaim }) {
+export function VipPaywall({
+  locale,
+  isSignedIn,
+  latestClaim,
+  paymentUrl = null,
+}: {
+  locale: Locale;
+  isSignedIn: boolean;
+  latestClaim?: LatestClaim;
+  paymentUrl?: string | null;
+}) {
   const isEnglish = locale === "en";
   const pending = latestClaim?.status === "PENDING";
   const activeStep = pending ? 3 : 1;
@@ -60,15 +69,15 @@ export function VipPaywall({ locale, isSignedIn, latestClaim }: { locale: Locale
         <aside className="self-start rounded-[1.75rem] border border-[#e7c977]/35 bg-[#0b1526]/95 p-5 shadow-2xl md:p-7">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e7c977]">{isEnglish ? "Launch promotion" : "Tanıtım dönemi"}</p>
           <div className="mt-3 flex items-end gap-2"><p className="text-5xl font-bold tracking-tight text-white">0 TL</p><p className="pb-1.5 text-sm font-medium text-slate-300">{isEnglish ? "full access" : "tam erişim"}</p></div>
-          <p className="mt-3 text-sm leading-6 text-slate-300">{isEnglish ? "Sign in for full VIP features and 5 AI queries per day. The allowance resets at midnight Istanbul time. A verified 100 TL VIP payment raises the daily allowance to 15." : "Tam VIP özellikleri ve günlük 5 AI sorgusu için giriş yapın. Haklar İstanbul saatiyle gece 00.00'da sıfırlanır. Doğrulanmış 100 TL VIP ödemesi günlük hakkı 15'e çıkarır."}</p>
-          <div className="mt-6"><Stepper locale={locale} activeStep={activeStep}/></div>
+          <p className="mt-3 text-sm leading-6 text-slate-300">{isEnglish ? "Sign in for free full VIP content and 10 AI queries per day. A voluntary 100 TL monthly contribution raises the allowance to 15, supports AI operating costs, and never renews automatically." : "Ücretsiz tam VIP içerik ve günlük 10 AI sorgusu için giriş yapın. Aylık 100 TL gönüllü katkı hakkı 15'e çıkarır, AI işletim maliyetlerini destekler ve otomatik yenilenmez."}</p>
+          {paymentUrl || pending ? <div className="mt-6"><Stepper locale={locale} activeStep={activeStep}/></div> : null}
 
           {isSignedIn ? <>
-            <a href={membershipConfig.vipPaymentLink} target="_blank" rel="noreferrer" className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-[#e7c977] px-5 py-3.5 text-sm font-semibold text-[#07111f] transition hover:bg-[#f3dda0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e7c977] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1526]">{isEnglish ? "Pay 100 TL for 15 daily queries ↗" : "Günlük 15 sorgu için 100 TL öde ↗"}</a>
-            {pending ? <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4" role="status"><div className="flex items-center gap-3"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-amber-300"/><strong className="text-sm text-amber-100">{isEnglish ? "Payment verification in progress" : "Ödeme doğrulaması sürüyor"}</strong></div><p className="mt-2 text-xs leading-5 text-slate-300">{isEnglish ? "Receipt" : "Dekont"}: <span className="font-semibold text-white">{latestClaim.providerReference}</span></p><p className="mt-1 text-xs leading-5 text-slate-400">{isEnglish ? "VIP access will open after an authorised review." : "Yetkili inceleme tamamlandığında VIP erişimi açılır."}</p></div> : <form action={submitVipPaymentClaimAction} className="mt-4 grid gap-4 rounded-2xl border border-white/12 bg-white/6 p-4"><input type="hidden" name="locale" value={locale}/><label className="grid gap-2 text-xs font-semibold text-slate-200">{isEnglish ? "Param receipt / transaction number" : "Param dekont / işlem numarası"}<input name="providerReference" required minLength={4} maxLength={100} autoComplete="off" placeholder={isEnglish ? "Enter the reference after payment" : "Ödeme sonrası referansı yazın"} className={inputClass}/></label><label className="grid gap-2 text-xs font-semibold text-slate-200">{isEnglish ? "Optional note" : "İsteğe bağlı not"}<input name="userNote" maxLength={500} className={inputClass}/></label><button className="rounded-xl border border-[#e7c977]/70 px-4 py-3 text-sm font-semibold text-[#f3dda0] transition hover:bg-[#e7c977] hover:text-[#07111f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e7c977] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1526]">{isEnglish ? "Submit receipt for verification" : "Dekontu doğrulamaya gönder"}</button></form>}
+            {paymentUrl && !pending ? <a href={paymentUrl} target="_blank" rel="noreferrer" className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-[#e7c977] px-5 py-3.5 text-sm font-semibold text-[#07111f] transition hover:bg-[#f3dda0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e7c977] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1526]">{isEnglish ? "Support with 100 TL for 15 daily queries ↗" : "Günlük 15 sorgu için 100 TL ile destek ol ↗"}</a> : null}
+            {pending ? <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4" role="status"><div className="flex items-center gap-3"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-amber-300"/><strong className="text-sm text-amber-100">{isEnglish ? "Payment verification in progress" : "Ödeme doğrulaması sürüyor"}</strong></div><p className="mt-2 text-xs leading-5 text-slate-300">{isEnglish ? "Receipt" : "Dekont"}: <span className="font-semibold text-white">{latestClaim.providerReference}</span></p><p className="mt-1 text-xs leading-5 text-slate-400">{isEnglish ? "Your daily allowance becomes 15 after authorised verification." : "Yetkili doğrulama tamamlandığında günlük hakkınız 15 olur."}</p></div> : paymentUrl ? <form action={submitVipPaymentClaimAction} className="mt-4 grid gap-4 rounded-2xl border border-white/12 bg-white/6 p-4"><input type="hidden" name="locale" value={locale}/><label className="grid gap-2 text-xs font-semibold text-slate-200">{isEnglish ? "Param receipt / transaction number" : "Param dekont / işlem numarası"}<input name="providerReference" required minLength={4} maxLength={100} autoComplete="off" placeholder={isEnglish ? "Enter the reference after payment" : "Ödeme sonrası referansı yazın"} className={inputClass}/></label><label className="grid gap-2 text-xs font-semibold text-slate-200">{isEnglish ? "Optional note" : "İsteğe bağlı not"}<input name="userNote" maxLength={500} className={inputClass}/></label><button className="rounded-xl border border-[#e7c977]/70 px-4 py-3 text-sm font-semibold text-[#f3dda0] transition hover:bg-[#e7c977] hover:text-[#07111f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e7c977] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1526]">{isEnglish ? "Submit receipt for verification" : "Dekontu doğrulamaya gönder"}</button></form> : <p className="mt-5 rounded-xl border border-amber-200/25 bg-amber-200/10 px-4 py-3 text-sm font-semibold leading-6 text-amber-100">{isEnglish ? "Secure payment is temporarily unavailable. Your free content access and 10 daily queries continue unchanged." : "Güvenli ödeme şu anda kullanılamıyor. Ücretsiz içerik erişiminiz ve günlük 10 sorgu hakkınız değişmeden devam eder."}</p>}
           </> : <Link href={`/${locale}/giris?returnTo=/${locale}/vip`} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-[#e7c977] px-5 py-3.5 text-sm font-semibold text-[#07111f] transition hover:bg-[#f3dda0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e7c977] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1526]">{isEnglish ? "Sign in for free full access" : "Ücretsiz tam erişim için giriş yap"}</Link>}
 
-          <div className="mt-5 grid gap-2 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><p>✓ {isEnglish ? "Param secure payment flow" : "Param güvenli ödeme akışı"}</p><p>✓ {isEnglish ? "Account-matched manual verification" : "Hesapla eşleşen yetkili doğrulama"}</p><p>✓ {isEnglish ? "No receipt number alone can grant access" : "Yalnız dekont numarası erişim sağlamaz"}</p></div>
+          {paymentUrl ? <div className="mt-5 grid gap-2 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><p>✓ {isEnglish ? "Param secure payment flow" : "Param güvenli ödeme akışı"}</p><p>✓ {isEnglish ? "Account-matched manual verification" : "Hesapla eşleşen yetkili doğrulama"}</p><p>✓ {isEnglish ? "No receipt number alone can grant access" : "Yalnız dekont numarası erişim sağlamaz"}</p></div> : null}
         </aside>
       </div>
     </section>

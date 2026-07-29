@@ -6,8 +6,8 @@ import {
 } from "@/lib/ai-query-policy";
 
 describe("daily AI query policy", () => {
-  it("allows five daily queries to promotional members and fifteen to paid VIP members", () => {
-    expect(getDailyAiQueryLimit(false)).toBe(5);
+  it("allows ten daily queries to promotional members and fifteen to paid VIP members", () => {
+    expect(getDailyAiQueryLimit(false)).toBe(10);
     expect(getDailyAiQueryLimit(true)).toBe(15);
   });
 
@@ -27,7 +27,7 @@ describe("daily AI query policy", () => {
       used: 3,
       isPaidVipActive: false,
       resetAt: "2026-07-27T21:00:00.000Z",
-    })).toMatchObject({ limit: 5, used: 3, remaining: 2 });
+    })).toMatchObject({ limit: 10, used: 3, remaining: 7 });
 
     expect(buildAiQueryQuota({
       used: 16,

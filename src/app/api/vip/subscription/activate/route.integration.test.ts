@@ -52,6 +52,8 @@ describe("release gate: VIP payment callback authorization", () => {
         claimId: "claim-1",
         providerReference: "PARAM-123456",
         amountTry: 100,
+        currency: "TRY",
+        payerEmail: "member@example.test",
       }),
     }));
 
@@ -78,6 +80,8 @@ describe("release gate: VIP payment callback authorization", () => {
         claimId: "claim-1",
         providerReference: "PARAM-123456",
         amountTry: 100,
+        currency: "TRY",
+        payerEmail: "member@example.test",
       }),
     }));
 
@@ -86,11 +90,15 @@ describe("release gate: VIP payment callback authorization", () => {
       claimId: "claim-1",
       providerReference: "PARAM-123456",
       amountTry: 100,
+      currency: "TRY",
+      payerEmail: "member@example.test",
       rawPayload: {
         event: "PAID",
         claimId: "claim-1",
         providerReference: "PARAM-123456",
         amountTry: 100,
+        currency: "TRY",
+        payerEmail: "member@example.test",
       },
     });
     expect(paymentMocks.revoke).not.toHaveBeenCalled();
