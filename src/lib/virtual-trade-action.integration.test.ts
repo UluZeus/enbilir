@@ -144,10 +144,13 @@ describe("release gate: virtual BUY/SELL accounting", () => {
       name: "Apple",
       market: "NASDAQ",
       category: "NASDAQ",
+      dataStatus: "live",
       priceUsd: 100,
+      price: "100",
       quoteCurrency: "USD",
       source: "yahoo",
-      sourceAsOf: "2026-07-28T12:00:00.000Z",
+      sourceAsOf: new Date().toISOString(),
+      marketState: "REGULAR",
       executionEligible: true,
     });
     tradeMocks.accrueRepo.mockResolvedValue({
@@ -201,7 +204,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     expect(tradeData.executionNotionalUsd + tradeData.feeUsd).toBeCloseTo(500, 8);
     expect(tradeData.priceUsd).toBeGreaterThan(100);
     expect(tradeData.priceSource).toBe("yahoo");
-    expect(tradeData.priceAsOf.toISOString()).toBe("2026-07-28T12:00:00.000Z");
+    expect(Date.now() - tradeData.priceAsOf.getTime()).toBeLessThan(5_000);
   });
 
   it("blocks insufficient BUY cash before opening a database transaction", async () => {
@@ -210,6 +213,33 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     expect(result).toEqual({
       ok: false,
       message: "Bu alım için yeterli sanal nakdin yok.",
+    });
+    expect(tradeMocks.transaction).not.toHaveBeenCalled();
+    expect(tradeMocks.tradeCreate).not.toHaveBeenCalled();
+  });
+
+  it("rechecks and rejects an internally inconsistent executable quote", async () => {
+    tradeMocks.getLiveMarketItem.mockResolvedValue({
+      symbol: "AAPL",
+      dataSymbol: "AAPL",
+      name: "Apple",
+      market: "NASDAQ",
+      category: "NASDAQ",
+      dataStatus: "live",
+      priceUsd: 100,
+      price: "100",
+      quoteCurrency: "USD",
+      source: "yahoo",
+      sourceAsOf: new Date().toISOString(),
+      marketState: "CLOSED",
+      executionEligible: true,
+    });
+
+    const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Bu ürün için açık piyasa saatine ait güncel ve doğrulanmış fiyat yok. İşlem güvenlik amacıyla uygulanmadı.",
     });
     expect(tradeMocks.transaction).not.toHaveBeenCalled();
     expect(tradeMocks.tradeCreate).not.toHaveBeenCalled();

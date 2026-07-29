@@ -38,14 +38,61 @@ type AnalysisState = {
 
 const MARKET_RESULT_BATCH_SIZE = 40;
 
-function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
+function SubmitButton({
+  label,
+  pendingLabel,
+  disabled,
+  disabledReason,
+}: {
+  label: string;
+  pendingLabel: string;
+  disabled: boolean;
+  disabledReason: string | null;
+}) {
   const { pending } = useFormStatus();
 
   return (
-    <button disabled={pending} className="premium-cta w-full px-4 py-2.5 text-sm font-black disabled:cursor-wait disabled:opacity-70 sm:w-auto md:px-5 md:py-3">
+    <button
+      type="submit"
+      disabled={pending || disabled}
+      aria-label={disabled && disabledReason ? `${label}: ${disabledReason}` : undefined}
+      className="premium-cta w-full px-4 py-2.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto md:px-5 md:py-3"
+    >
       {pending ? pendingLabel : label}
     </button>
   );
+}
+
+export function getTradeExecutionStatus(item: MarketItem | null, locale: "tr" | "en") {
+  if (item?.executionEligible === true) {
+    return { eligible: true, label: locale === "en" ? "Active" : "Aktif" };
+  }
+
+  const marketState = item?.marketState?.toUpperCase() ?? "";
+
+  if (
+    item?.source === "representative" ||
+    item?.dataStatus === "representative" ||
+    marketState === "UNAVAILABLE"
+  ) {
+    return {
+      eligible: false,
+      label: locale === "en" ? "No verified execution source" : "Doğrulanmış işlem kaynağı yok",
+    };
+  }
+
+  if (marketState === "CLOSED") {
+    return { eligible: false, label: locale === "en" ? "Market closed" : "Piyasa kapalı" };
+  }
+
+  if (item?.dataStatus === "delayed" || item?.dataStatus === "close") {
+    return { eligible: false, label: locale === "en" ? "Price is stale" : "Fiyat güncel değil" };
+  }
+
+  return {
+    eligible: false,
+    label: locale === "en" ? "Current price unavailable" : "Güncel fiyat yok",
+  };
 }
 
 function formatUpdatedAt(value: string | null, locale: string) {
@@ -336,6 +383,7 @@ export function TradeTicketForm({
       : effectiveSelectedItem && effectiveSelectedItem.changePercent < 0
         ? "red"
         : "slate";
+  const executionStatus = getTradeExecutionStatus(effectiveSelectedItem, safeLocale);
 
   return (
     <div className="grid min-w-0 gap-4 md:gap-5">
@@ -408,7 +456,12 @@ export function TradeTicketForm({
 
           <div className="flex items-end">
             {hasProducts ? (
-              <SubmitButton label={copy.submit} pendingLabel={copy.submitting} />
+              <SubmitButton
+                label={copy.submit}
+                pendingLabel={copy.submitting}
+                disabled={!executionStatus.eligible}
+                disabledReason={executionStatus.eligible ? null : executionStatus.label}
+              />
             ) : (
               <button disabled className="w-full rounded-lg border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-500 sm:w-auto">
                 {copy.noProductData}
@@ -445,7 +498,11 @@ export function TradeTicketForm({
 
         <div className="order-3 mt-3 grid grid-cols-3 gap-2 md:order-4 md:mt-4 md:gap-3">
           <TrendBadge label={safeLocale === "en" ? "Displayed" : "Görüntülenen"} value={`${visibleItems.length}/${filteredItems.length}`} tone="slate" />
-          <TrendBadge label={safeLocale === "en" ? "Buy / Sell" : "Alım / Satım"} value={safeLocale === "en" ? "Active" : "Aktif"} tone="green" />
+          <TrendBadge
+            label={safeLocale === "en" ? "Buy / Sell" : "Alım / Satım"}
+            value={executionStatus.label}
+            tone={executionStatus.eligible ? "green" : "slate"}
+          />
           <TrendBadge label={safeLocale === "en" ? "Refresh" : "Yenileme"} value={safeLocale === "en" ? "30 sec" : "30 saniye"} tone="slate" />
         </div>
 

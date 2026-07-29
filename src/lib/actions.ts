@@ -39,6 +39,7 @@ import { getPersistentAdminUploadDirectory } from "@/lib/media-storage";
 import { appendAuditEvent } from "@/lib/audit-log";
 import { calculateRealizedTradePnl, getVirtualExecutionCosts } from "@/lib/trade-accounting";
 import { syncPortfolioPositionCorporateAction } from "@/lib/portfolio-corporate-actions";
+import { isExecutableMarketQuote } from "@/lib/executable-quote";
 
 export type TradeActionState = {
   ok: boolean;
@@ -657,16 +658,14 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   }
 
   if (
-    marketItem.executionEligible !== true ||
-    !["binance", "yahoo"].includes(marketItem.source) ||
-    !marketItem.sourceAsOf
+    !isExecutableMarketQuote(marketItem)
   ) {
     return {
       ok: false,
       message: "Bu ürün için açık piyasa saatine ait güncel ve doğrulanmış fiyat yok. İşlem güvenlik amacıyla uygulanmadı.",
     };
   }
-  const verifiedPriceAsOf = new Date(marketItem.sourceAsOf);
+  const verifiedPriceAsOf = new Date(marketItem.sourceAsOf!);
 
   let existingPosition = await prisma.portfolioPosition.findUnique({
     where: { userId_symbol: { userId, symbol } },

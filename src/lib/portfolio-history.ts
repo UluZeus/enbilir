@@ -295,6 +295,9 @@ export async function captureActivePortfolioEquitySnapshots(capturedAt = new Dat
     const batch = users.slice(index, index + concurrency);
     const results = await Promise.allSettled(batch.map(async (user) => {
       const snapshot = await getPortfolioSnapshot(user.id, marketItems);
+      if (snapshot.hasUnreliableValuation) {
+        throw new Error("Portfolio valuation is unreliable.");
+      }
       const captured = await captureHourlyPortfolioValue(user.id, snapshot.totalValueUsd, capturedAt);
 
       if (!captured) {
@@ -318,7 +321,6 @@ export async function captureActivePortfolioEquitySnapshots(capturedAt = new Dat
 
 export async function getPortfolioPerformancePeriods(userId: string, totalValueUsd: number): Promise<PortfolioPerformancePeriod[]> {
   const now = new Date();
-  await captureHourlyPortfolioValue(userId, totalValueUsd, now);
   const [snapshots, weeklyBaselines] = await Promise.all([
     prisma.portfolioSnapshot.findMany({
       where: { userId },

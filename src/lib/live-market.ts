@@ -2,6 +2,10 @@ import { fetchJsonWithFallback } from "@/lib/http-json";
 import { formatMarketItemValue, mixedMarketItems, type MarketItem } from "@/lib/market-data";
 import { assessQuoteFreshness } from "@/lib/ai-market/data-freshness";
 import {
+  canInferYahooCommodityOpen,
+  isExecutableMarketQuote,
+} from "@/lib/executable-quote";
+import {
   mapSettledWithConcurrency,
   ProviderRequestBudget,
   withProviderRetry,
@@ -15,6 +19,13 @@ type LiveQuote = {
   currency: string;
   sourceAsOf: string;
   marketState: string;
+  marketStateSource: "provider" | "inferred-commodity-session";
+  providerSymbol?: string;
+  instrumentType?: string;
+  exchange?: string;
+  regularSessionStart?: string;
+  regularSessionEnd?: string;
+  exchangeDataDelayedBy?: number;
 };
 
 type BinanceTicker = {
@@ -36,6 +47,16 @@ type YahooSparkResponse = {
           previousClose?: number;
           regularMarketTime?: number;
           marketState?: string;
+          instrumentType?: string;
+          exchange?: string;
+          exchangeName?: string;
+          currentTradingPeriod?: {
+            regular?: {
+              start?: number;
+              end?: number;
+            };
+          };
+          exchangeDataDelayedBy?: number;
         };
       }>;
     }>;
@@ -156,11 +177,18 @@ function getYahooQuoteSymbol(item: MarketItem) {
 }
 
 function getYahooBatchSymbols(items: MarketItem[]) {
+  const derivedQuoteDependencies: Readonly<Record<string, string[]>> = {
+    GRAM_GOLD_USD: ["GC=F"],
+    GRAM_SILVER_USD: ["SI=F"],
+  };
   const symbols = Array.from(
     new Set(
-      items
-        .filter((item) => item.source !== "representative" && item.category !== "CRYPTO")
-        .map((item) => getYahooQuoteSymbol(item))
+      items.flatMap((item) => [
+        ...(item.source !== "representative" && item.category !== "CRYPTO"
+          ? [getYahooQuoteSymbol(item)]
+          : []),
+        ...(derivedQuoteDependencies[item.symbol] ?? []),
+      ])
         .filter((symbol): symbol is string => Boolean(symbol)),
     ),
   );
@@ -232,8 +260,17 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
     sourceAsOf: quote.sourceAsOf,
     provider: quote.provider,
     marketState: quote.marketState,
+    isCommodity: fallback.category === "COMMODITY",
   });
-  const executionEligible = priceUsd !== null && freshness === "FRESH";
+  const quoteProvenance = {
+    marketStateSource: quote.marketStateSource,
+    providerSymbol: quote.providerSymbol,
+    instrumentType: quote.instrumentType,
+    exchange: quote.exchange,
+    regularSessionStart: quote.regularSessionStart,
+    regularSessionEnd: quote.regularSessionEnd,
+    exchangeDataDelayedBy: quote.exchangeDataDelayedBy,
+  };
 
   if (priceUsd === null) {
     return {
@@ -245,11 +282,12 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
       sourceAsOf: quote.sourceAsOf,
       retrievedAt,
       marketState: "FX_CONVERSION_UNAVAILABLE",
+      ...quoteProvenance,
       executionEligible: false,
     };
   }
 
-  return {
+  const normalizedItem: MarketItem = {
     ...fallback,
     price: formatMarketItemValue(priceUsd, fallback.category),
     priceUsd,
@@ -261,8 +299,15 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
     sourceAsOf: quote.sourceAsOf,
     retrievedAt,
     marketState: quote.marketState,
-    executionEligible,
+    ...quoteProvenance,
+    executionEligible: false,
   };
+
+  normalizedItem.executionEligible =
+    freshness === "FRESH" &&
+    isExecutableMarketQuote(normalizedItem, { requireEligibilityFlag: false });
+
+  return normalizedItem;
 }
 
 export function getFallbackMarketItems(): MarketItem[] {
@@ -317,6 +362,7 @@ async function fetchBinanceQuotes(items: MarketItem[]) {
         Number.isFinite(entry.closeTime) && Number(entry.closeTime) > 0 ? Number(entry.closeTime) : 0,
       ).toISOString(),
       marketState: "REGULAR",
+      marketStateSource: "provider",
     });
   }
 
@@ -348,16 +394,46 @@ async function fetchYahooSparkQuotes(symbols: string[]) {
         continue;
       }
 
+      const providerMarketState = String(meta?.marketState ?? "UNKNOWN").toUpperCase();
+      const providerSymbol = symbol;
+      const instrumentType = String(meta?.instrumentType ?? "").toUpperCase();
+      const exchange = String(meta?.exchangeName ?? meta?.exchange ?? "").toUpperCase();
+      const regularSessionStart = meta?.currentTradingPeriod?.regular?.start
+        ? new Date(meta.currentTradingPeriod.regular.start * 1000).toISOString()
+        : "";
+      const regularSessionEnd = meta?.currentTradingPeriod?.regular?.end
+        ? new Date(meta.currentTradingPeriod.regular.end * 1000).toISOString()
+        : "";
+      const sourceAsOf = meta?.regularMarketTime
+        ? new Date(meta.regularMarketTime * 1000).toISOString()
+        : new Date(0).toISOString();
+      const exchangeDataDelayedBy = toFiniteNumber(meta?.exchangeDataDelayedBy) ?? undefined;
+      const inferredOpen =
+        providerMarketState === "UNKNOWN" &&
+        canInferYahooCommodityOpen({
+          providerSymbol,
+          instrumentType,
+          exchange,
+          sourceAsOf,
+          regularSessionStart,
+          regularSessionEnd,
+          exchangeDataDelayedBy,
+        });
       const nextQuote: LiveQuote = {
         symbol,
         open: previousClose && previousClose > 0 ? previousClose : price,
         close: price,
         provider: "yahoo",
         currency: String(meta?.currency ?? "USD").toUpperCase(),
-        sourceAsOf: meta?.regularMarketTime
-          ? new Date(meta.regularMarketTime * 1000).toISOString()
-          : new Date(0).toISOString(),
-        marketState: String(meta?.marketState ?? "UNKNOWN").toUpperCase(),
+        sourceAsOf,
+        marketState: inferredOpen ? "INFERRED_REGULAR" : providerMarketState,
+        marketStateSource: inferredOpen ? "inferred-commodity-session" : "provider",
+        providerSymbol,
+        instrumentType,
+        exchange,
+        regularSessionStart,
+        regularSessionEnd,
+        exchangeDataDelayedBy,
       };
       const currentQuote = merged.get(symbol);
 
@@ -386,6 +462,13 @@ function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
       currency: gold.currency,
       sourceAsOf: gold.sourceAsOf,
       marketState: gold.marketState,
+      marketStateSource: gold.marketStateSource,
+      providerSymbol: gold.providerSymbol,
+      instrumentType: gold.instrumentType,
+      exchange: gold.exchange,
+      regularSessionStart: gold.regularSessionStart,
+      regularSessionEnd: gold.regularSessionEnd,
+      exchangeDataDelayedBy: gold.exchangeDataDelayedBy,
     });
   }
 
@@ -398,6 +481,13 @@ function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
       currency: silver.currency,
       sourceAsOf: silver.sourceAsOf,
       marketState: silver.marketState,
+      marketStateSource: silver.marketStateSource,
+      providerSymbol: silver.providerSymbol,
+      instrumentType: silver.instrumentType,
+      exchange: silver.exchange,
+      regularSessionStart: silver.regularSessionStart,
+      regularSessionEnd: silver.regularSessionEnd,
+      exchangeDataDelayedBy: silver.exchangeDataDelayedBy,
     });
   }
 }

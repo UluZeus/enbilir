@@ -31,6 +31,13 @@ export type MarketItem = {
   sourceAsOf?: string | null;
   retrievedAt?: string | null;
   marketState?: string;
+  marketStateSource?: "provider" | "inferred-commodity-session";
+  providerSymbol?: string;
+  instrumentType?: string;
+  exchange?: string;
+  regularSessionStart?: string;
+  regularSessionEnd?: string;
+  exchangeDataDelayedBy?: number;
   executionEligible?: boolean;
 };
 

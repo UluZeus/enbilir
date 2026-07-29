@@ -174,11 +174,13 @@ export function assessQuoteFreshness({
   sourceAsOf,
   provider,
   marketState,
+  isCommodity = false,
   now = Date.now(),
 }: {
   sourceAsOf: string;
   provider: "binance" | "yahoo";
   marketState: string;
+  isCommodity?: boolean;
   now?: number;
 }): CandleFreshness {
   const sourceTime = Date.parse(sourceAsOf);
@@ -193,12 +195,20 @@ export function assessQuoteFreshness({
     return "FUTURE";
   }
 
-  const providerMarketOpen = provider === "binance" || marketState.toUpperCase() === "REGULAR";
+  const normalizedMarketState = marketState.toUpperCase();
+  const providerMarketOpen =
+    provider === "binance" ||
+    normalizedMarketState === "REGULAR" ||
+    (isCommodity && normalizedMarketState === "INFERRED_REGULAR");
 
   if (!providerMarketOpen && age <= 96 * 60 * 60 * 1000) {
     return "MARKET_CLOSED";
   }
 
-  const maximumAgeMs = provider === "binance" ? 5 * 60_000 : 20 * 60_000;
+  const maximumAgeMs = provider === "binance"
+    ? 5 * 60_000
+    : isCommodity
+      ? 2 * 60_000
+      : 20 * 60_000;
   return age <= maximumAgeMs ? "FRESH" : "STALE";
 }

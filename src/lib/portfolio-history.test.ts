@@ -1,12 +1,55 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const historyMocks = vi.hoisted(() => ({
+  userFindMany: vi.fn(),
+  baselineUpsert: vi.fn(),
+  baselineDeleteMany: vi.fn(),
+  baselineFindMany: vi.fn(),
+  snapshotFindMany: vi.fn(),
+  getLiveItems: vi.fn(),
+  getPortfolioSnapshot: vi.fn(),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    user: {
+      findMany: historyMocks.userFindMany,
+    },
+    weeklyPortfolioBaseline: {
+      upsert: historyMocks.baselineUpsert,
+      deleteMany: historyMocks.baselineDeleteMany,
+      findMany: historyMocks.baselineFindMany,
+    },
+    portfolioSnapshot: {
+      findMany: historyMocks.snapshotFindMany,
+    },
+  },
+}));
+
+vi.mock("@/lib/live-market", () => ({
+  getLiveMarketItemsForSymbols: historyMocks.getLiveItems,
+}));
+
+vi.mock("@/lib/portfolio", () => ({
+  getPortfolioSnapshot: historyMocks.getPortfolioSnapshot,
+}));
+
 import {
   calculatePercentChange,
   calculatePortfolioPeriodCoverage,
+  captureActivePortfolioEquitySnapshots,
+  getPortfolioPerformancePeriods,
   getPortfolioSeriesForRange,
   normalizePortfolioHistory,
 } from "@/lib/portfolio-history";
 
 describe("portfolio history", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    historyMocks.baselineFindMany.mockResolvedValue([]);
+    historyMocks.snapshotFindMany.mockResolvedValue([]);
+  });
+
   it("calculates signed percent change without inventing a zero baseline", () => {
     expect(calculatePercentChange(1_000_000, 1_025_000)).toBe(2.5);
     expect(calculatePercentChange(1_000_000, 975_000)).toBe(-2.5);
@@ -78,5 +121,37 @@ describe("portfolio history", () => {
 
     expect(series[0].valueUsd).toBe(1_002_000);
     expect(series.at(-1)?.valueUsd).toBe(1_015_000);
+  });
+
+  it("does not persist an official history point for an unreliable valuation", async () => {
+    historyMocks.userFindMany.mockResolvedValue([{
+      id: "synthetic-user",
+      positions: [{ symbol: "AAPL" }],
+    }]);
+    historyMocks.getLiveItems.mockResolvedValue([]);
+    historyMocks.getPortfolioSnapshot.mockResolvedValue({
+      totalValueUsd: 1_500_000,
+      hasUnreliableValuation: true,
+    });
+
+    const summary = await captureActivePortfolioEquitySnapshots(
+      new Date("2026-07-29T12:00:00.000Z"),
+    );
+
+    expect(historyMocks.baselineUpsert).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({
+      eligibleUsers: 1,
+      capturedUsers: 0,
+      failedUsers: 1,
+    });
+  });
+
+  it("keeps portfolio performance reads free of hourly baseline writes", async () => {
+    const periods = await getPortfolioPerformancePeriods("synthetic-user", 1_500_000);
+
+    expect(periods).toHaveLength(6);
+    expect(historyMocks.snapshotFindMany).toHaveBeenCalledOnce();
+    expect(historyMocks.baselineFindMany).toHaveBeenCalledOnce();
+    expect(historyMocks.baselineUpsert).not.toHaveBeenCalled();
   });
 });
