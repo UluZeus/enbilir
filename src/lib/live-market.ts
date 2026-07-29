@@ -2,6 +2,7 @@ import { fetchJsonWithFallback } from "@/lib/http-json";
 import { formatMarketItemValue, mixedMarketItems, type MarketItem } from "@/lib/market-data";
 import { assessQuoteFreshness } from "@/lib/ai-market/data-freshness";
 import {
+  canUseYahooUnknownFxQuote,
   canInferYahooCommodityOpen,
   gateCommodityContracts,
   gateCommodityPriceUnits,
@@ -119,6 +120,26 @@ const liveMarketCacheTtlMs = 30_000;
 const gramTroyOunceDivisor = 31.1034768;
 let liveMarketItemsCache: { items: MarketItem[]; expiresAt: number } | null = null;
 let liveMarketItemsRequest: Promise<MarketItem[]> | null = null;
+const executableQuoteCache = new Map<string, MarketItem>();
+type GateQuoteWatermark = {
+  sourceAsOf: number;
+  retrievedAt: number;
+  stablecoinAsOf: number;
+};
+const gateQuoteWatermarks = new Map<string, GateQuoteWatermark>();
+const symbolSourceAsOfWatermarks = new Map<string, number>();
+
+export function resetLiveMarketCachesForTests() {
+  if (process.env.NODE_ENV !== "test") {
+    return;
+  }
+
+  liveMarketItemsCache = null;
+  liveMarketItemsRequest = null;
+  executableQuoteCache.clear();
+  gateQuoteWatermarks.clear();
+  symbolSourceAsOfWatermarks.clear();
+}
 
 function liveFetchEnabled() {
   return process.env.ENABLE_LIVE_MARKET_FETCH !== "false";
@@ -285,7 +306,34 @@ function normalizeUsdPrice(fallback: MarketItem, quote: LiveQuote, quoteMap: Map
   }
 
   const usdTry = quoteMap.get("USDTRY=X");
-  if (!usdTry || usdTry.close <= 0 || !isFreshQuote(usdTry)) {
+  const isVerifiedUnknownUsdTry =
+    usdTry?.provider === "yahoo" &&
+    usdTry.marketState === "UNKNOWN" &&
+    usdTry.marketStateSource === "provider" &&
+    Boolean(
+      usdTry.providerSymbol &&
+      usdTry.instrumentType &&
+      usdTry.exchange &&
+      usdTry.regularSessionStart &&
+      usdTry.regularSessionEnd &&
+      canUseYahooUnknownFxQuote({
+        symbol: "USD/TRY",
+        providerSymbol: usdTry.providerSymbol!,
+        instrumentType: usdTry.instrumentType!,
+        exchange: usdTry.exchange!,
+        sourceAsOf: usdTry.sourceAsOf,
+        regularSessionStart: usdTry.regularSessionStart!,
+        regularSessionEnd: usdTry.regularSessionEnd!,
+        exchangeDataDelayedBy: usdTry.exchangeDataDelayedBy,
+        priceNative: usdTry.close,
+      })
+    );
+
+  if (
+    !usdTry ||
+    usdTry.close <= 0 ||
+    (!isFreshQuote(usdTry) && !isVerifiedUnknownUsdTry)
+  ) {
     return null;
   }
 
@@ -315,6 +363,29 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
     marketState: quote.marketState,
     isCommodity: fallback.category === "COMMODITY",
   });
+  const isVerifiedUnknownFxQuote =
+    fallback.category === "FX" &&
+    quote.provider === "yahoo" &&
+    quote.marketState === "UNKNOWN" &&
+    Boolean(
+      quote.providerSymbol &&
+      quote.instrumentType &&
+      quote.exchange &&
+      quote.regularSessionStart &&
+      quote.regularSessionEnd &&
+      canUseYahooUnknownFxQuote({
+        symbol: fallback.symbol,
+        providerSymbol: quote.providerSymbol!,
+        instrumentType: quote.instrumentType!,
+        exchange: quote.exchange!,
+        sourceAsOf: quote.sourceAsOf,
+        regularSessionStart: quote.regularSessionStart!,
+        regularSessionEnd: quote.regularSessionEnd!,
+        exchangeDataDelayedBy: quote.exchangeDataDelayedBy,
+        priceNative: quote.priceNative ?? quote.close,
+      })
+    );
+  const quoteIsFresh = freshness === "FRESH" || isVerifiedUnknownFxQuote;
   const quoteProvenance = {
     marketStateSource: quote.marketStateSource,
     providerSymbol: quote.providerSymbol,
@@ -363,7 +434,7 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
     price: formatMarketItemValue(priceUsd, fallback.category),
     priceUsd,
     changePercent,
-    dataStatus: freshness === "FRESH" ? "live" : "close",
+    dataStatus: quoteIsFresh ? "live" : "close",
     source: quote.provider,
     quoteCurrency: quote.currency,
     priceNative: quote.priceNative ?? quote.close,
@@ -375,7 +446,7 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
   };
 
   normalizedItem.executionEligible =
-    freshness === "FRESH" &&
+    quoteIsFresh &&
     isExecutableMarketQuote(normalizedItem, { requireEligibilityFlag: false });
 
   return normalizedItem;
@@ -478,27 +549,33 @@ async function fetchGateCommodityQuotes(items: MarketItem[]) {
   }
 
   const stablecoin = stablecoinPayload as CoinbaseTicker;
-  const stablecoinRate = toFiniteNumber(stablecoin.price);
   const stablecoinBid = toFiniteNumber(stablecoin.bid);
   const stablecoinAsk = toFiniteNumber(stablecoin.ask);
   const stablecoinTime = Date.parse(String(stablecoin.time ?? ""));
   const stablecoinAge = Date.now() - stablecoinTime;
+  const stablecoinMidpoint =
+    stablecoinBid !== null && stablecoinAsk !== null
+      ? (stablecoinBid + stablecoinAsk) / 2
+      : null;
 
   if (
-    stablecoinRate === null ||
     stablecoinBid === null ||
     stablecoinAsk === null ||
     stablecoinBid <= 0 ||
-    stablecoinBid > stablecoinRate ||
-    stablecoinRate > stablecoinAsk ||
-    stablecoinRate < 0.995 ||
-    stablecoinRate > 1.005 ||
+    stablecoinAsk <= 0 ||
+    stablecoinBid > stablecoinAsk ||
+    stablecoinMidpoint === null ||
+    !Number.isFinite(stablecoinMidpoint) ||
+    stablecoinMidpoint < 0.995 ||
+    stablecoinMidpoint > 1.005 ||
+    (stablecoinAsk - stablecoinBid) / stablecoinMidpoint > 0.005 ||
     !Number.isFinite(stablecoinTime) ||
     stablecoinAge < 0 ||
     stablecoinAge > 120_000
   ) {
     return new Map<string, LiveQuote>();
   }
+  const stablecoinRate = stablecoinMidpoint;
 
   const tradePayloads = await fetchJsonBatch<unknown[]>(
     requestedContracts.map((contract) =>
@@ -767,6 +844,142 @@ async function loadQuotedItems(items: MarketItem[]): Promise<MarketItem[]> {
   });
 }
 
+function cacheExecutableQuotes(items: MarketItem[]) {
+  return items.map((item) => {
+    if (!isExecutableMarketQuote(item)) {
+      return item;
+    }
+
+    const candidateSourceAsOf = parseQuoteTime(item.sourceAsOf);
+    const currentSourceAsOf = symbolSourceAsOfWatermarks.get(item.symbol);
+
+    if (
+      candidateSourceAsOf === null ||
+      (currentSourceAsOf !== undefined && candidateSourceAsOf < currentSourceAsOf)
+    ) {
+      return { ...item, executionEligible: false };
+    }
+
+    if (item.source === "gate") {
+      const candidateWatermark = getGateQuoteWatermark(item);
+      const currentWatermark = gateQuoteWatermarks.get(item.symbol);
+
+      if (
+        !candidateWatermark ||
+        (
+          currentWatermark &&
+          (
+            candidateWatermark.sourceAsOf < currentWatermark.sourceAsOf ||
+            candidateWatermark.retrievedAt < currentWatermark.retrievedAt ||
+            candidateWatermark.stablecoinAsOf < currentWatermark.stablecoinAsOf
+          )
+        )
+      ) {
+        return { ...item, executionEligible: false };
+      }
+
+      gateQuoteWatermarks.set(item.symbol, candidateWatermark);
+    }
+
+    symbolSourceAsOfWatermarks.set(item.symbol, candidateSourceAsOf);
+
+    const cached = executableQuoteCache.get(item.symbol);
+
+    if (!cached || !isExecutableMarketQuote(cached) || isNewerQuoteSnapshot(item, cached)) {
+      executableQuoteCache.set(item.symbol, { ...item });
+    }
+
+    return item;
+  });
+}
+
+function parseQuoteTime(value: string | null | undefined) {
+  const parsed = Date.parse(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getGateQuoteWatermark(item: MarketItem): GateQuoteWatermark | null {
+  const sourceAsOf = parseQuoteTime(item.sourceAsOf);
+  const retrievedAt = parseQuoteTime(item.retrievedAt);
+  const stablecoinAsOf = parseQuoteTime(item.stablecoinAsOf);
+
+  return sourceAsOf === null || retrievedAt === null || stablecoinAsOf === null
+    ? null
+    : { sourceAsOf, retrievedAt, stablecoinAsOf };
+}
+
+function isNewerQuoteSnapshot(candidate: MarketItem, cached: MarketItem) {
+  const candidateSourceTime = parseQuoteTime(candidate.sourceAsOf);
+  const cachedSourceTime = parseQuoteTime(cached.sourceAsOf);
+
+  if (candidateSourceTime === null || cachedSourceTime === null) {
+    return false;
+  }
+
+  const candidateRetrievedTime = parseQuoteTime(candidate.retrievedAt);
+  const cachedRetrievedTime = parseQuoteTime(cached.retrievedAt);
+
+  if (candidate.source === "gate" && cached.source === "gate") {
+    if (
+      candidateRetrievedTime === null ||
+      cachedRetrievedTime === null
+    ) {
+      return false;
+    }
+
+    const candidateStablecoinTime = parseQuoteTime(candidate.stablecoinAsOf);
+    const cachedStablecoinTime = parseQuoteTime(cached.stablecoinAsOf);
+
+    if (candidateStablecoinTime === null || cachedStablecoinTime === null) {
+      return false;
+    }
+
+    return (
+      candidateSourceTime >= cachedSourceTime &&
+      candidateRetrievedTime >= cachedRetrievedTime &&
+      candidateStablecoinTime >= cachedStablecoinTime &&
+      (
+        candidateSourceTime > cachedSourceTime ||
+        candidateRetrievedTime > cachedRetrievedTime ||
+        candidateStablecoinTime > cachedStablecoinTime
+      )
+    );
+  }
+
+  if (candidateSourceTime !== cachedSourceTime) {
+    return candidateSourceTime > cachedSourceTime;
+  }
+
+  return (
+    candidateRetrievedTime !== null &&
+    (cachedRetrievedTime === null || candidateRetrievedTime > cachedRetrievedTime)
+  );
+}
+
+function getCachedExecutableQuote(symbol: string) {
+  const cached = executableQuoteCache.get(symbol);
+
+  if (!cached) {
+    return undefined;
+  }
+
+  if (!isExecutableMarketQuote(cached)) {
+    executableQuoteCache.delete(symbol);
+    return undefined;
+  }
+
+  return { ...cached };
+}
+
+function isTransientQuoteMiss(item: MarketItem | undefined) {
+  return (
+    !item ||
+    item.source === "fallback" ||
+    item.source === "representative" ||
+    item.marketState === "UNAVAILABLE"
+  );
+}
+
 export async function getLiveMarketItems(): Promise<MarketItem[]> {
   const fallbackItems = getFallbackMarketItems();
 
@@ -788,11 +1001,12 @@ export async function getLiveMarketItems(): Promise<MarketItem[]> {
     if (!liveMarketItemsRequest) {
       liveMarketItemsRequest = Promise.race([loadItems(), timeout(7500, fallbackItems)])
         .then((items) => {
+          const acceptedItems = cacheExecutableQuotes(items);
           liveMarketItemsCache = {
-            items,
+            items: acceptedItems,
             expiresAt: Date.now() + liveMarketCacheTtlMs,
           };
-          return items;
+          return acceptedItems;
         })
         .finally(() => {
           liveMarketItemsRequest = null;
@@ -814,13 +1028,17 @@ export async function getLiveMarketItemsForSymbols(symbols: string[]): Promise<M
   }
 
   try {
-    return await loadQuotedItems(fallbackItems);
+    const items = await loadQuotedItems(fallbackItems);
+    return cacheExecutableQuotes(items);
   } catch {
     return fallbackItems;
   }
 }
 
-export async function getLiveMarketItem(symbol: string): Promise<MarketItem | undefined> {
+export async function getLiveMarketItem(
+  symbol: string,
+  options: { refresh?: boolean } = {},
+): Promise<MarketItem | undefined> {
   const fallbackItem = getFallbackMarketItems().find((item) => item.symbol === symbol);
 
   if (!liveFetchEnabled()) {
@@ -829,9 +1047,15 @@ export async function getLiveMarketItem(symbol: string): Promise<MarketItem | un
 
   try {
     const items = await getLiveMarketItemsForSymbols([symbol]);
-    return items.find((item) => item.symbol === symbol) ?? fallbackItem;
+    const item = items.find((candidate) => candidate.symbol === symbol) ?? fallbackItem;
+
+    if (!options.refresh && isTransientQuoteMiss(item)) {
+      return getCachedExecutableQuote(symbol) ?? item;
+    }
+
+    return item;
   } catch {
-    return fallbackItem;
+    return options.refresh ? fallbackItem : getCachedExecutableQuote(symbol) ?? fallbackItem;
   }
 }
 

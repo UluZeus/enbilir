@@ -19,6 +19,8 @@ const tradeMocks = vi.hoisted(() => ({
   tradeCount: vi.fn(),
   appendAudit: vi.fn(),
   syncCorporateAction: vi.fn(),
+  reconcileOnboarding: vi.fn(),
+  revalidatePath: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -30,7 +32,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
+  revalidatePath: tradeMocks.revalidatePath,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -89,10 +91,13 @@ vi.mock("@/lib/analytics", () => ({
 }));
 
 vi.mock("@/lib/onboarding", () => ({
-  reconcileOnboardingCompletion: vi.fn(),
+  reconcileOnboardingCompletion: tradeMocks.reconcileOnboarding,
 }));
 
 import { tradeAction } from "@/lib/actions";
+import { Prisma } from "@/generated/prisma/client";
+import { isExecutableMarketQuote } from "@/lib/executable-quote";
+import type { MarketItem } from "@/lib/market-data";
 
 const transactionClient = {
   virtualAccount: {
@@ -129,6 +134,11 @@ function tradeForm(input: {
 describe("release gate: virtual BUY/SELL accounting", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    tradeMocks.getLiveMarketItem.mockReset();
+    tradeMocks.getCashRate.mockReset();
+    tradeMocks.cookieSet.mockReset();
+    tradeMocks.revalidatePath.mockReset();
+    tradeMocks.transaction.mockReset();
     tradeMocks.getSessionUser.mockResolvedValue({
       id: "user-1",
       name: "Release User",
@@ -174,6 +184,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     tradeMocks.tradeCount.mockResolvedValue(2);
     tradeMocks.appendAudit.mockResolvedValue({ id: "audit-1" });
     tradeMocks.syncCorporateAction.mockResolvedValue({ reliable: true, updated: false });
+    tradeMocks.reconcileOnboarding.mockResolvedValue(undefined);
     tradeMocks.transaction.mockImplementation(
       (callback: (transaction: typeof transactionClient) => unknown) => callback(transactionClient),
     );
@@ -257,7 +268,9 @@ describe("release gate: virtual BUY/SELL accounting", () => {
       market: "Emtia",
       category: "COMMODITY",
       dataStatus: "live",
+      price: "100",
       priceUsd: 100,
+      changePercent: 0,
       markPriceUsd: 100,
       indexPriceUsd: 100,
       lastPriceUsd: 100,
@@ -341,6 +354,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
         }),
       }),
     );
+    expect(tradeMocks.getLiveMarketItem).toHaveBeenCalledTimes(1);
   });
 
   it("refetches a Gate quote after non-USD cash conversion and blocks a stale second quote", async () => {
@@ -353,7 +367,9 @@ describe("release gate: virtual BUY/SELL accounting", () => {
       market: "Emtia",
       category: "COMMODITY",
       dataStatus: "live",
+      price: "100",
       priceUsd: 100,
+      changePercent: 0,
       markPriceUsd: 100,
       indexPriceUsd: 100,
       lastPriceUsd: 100,
@@ -407,6 +423,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     });
     tradeMocks.getCashRate.mockImplementation(async () => {
       callOrder.push("cash-rate");
+      validGateQuote.retrievedAt = new Date(Date.now() - 15_001).toISOString();
       return 1;
     });
     const form = tradeForm({ side: "BUY", amountUsd: 500 });
@@ -500,5 +517,343 @@ describe("release gate: virtual BUY/SELL accounting", () => {
       message: "Bu işlemi yalnızca kendi hesabın için yapabilirsin.",
     });
     expect(tradeMocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("returns success and revalidates after post-commit onboarding reconciliation fails", async () => {
+    tradeMocks.reconcileOnboarding.mockRejectedValueOnce(new Error("synthetic onboarding failure"));
+
+    const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Alım işlemi başarıyla gerçekleşti.",
+    });
+    expect(tradeMocks.tradeCreate).toHaveBeenCalledTimes(1);
+    expect(tradeMocks.revalidatePath).toHaveBeenCalled();
+  });
+
+  it("refreshes an expired Yahoo quote once immediately before the transaction and recalculates execution", async () => {
+    const initialQuote = {
+      symbol: "AAPL",
+      dataSymbol: "AAPL",
+      name: "Apple",
+      market: "NASDAQ",
+      category: "NASDAQ",
+      dataStatus: "live",
+      priceUsd: 100,
+      price: "100",
+      quoteCurrency: "USD",
+      source: "yahoo",
+      sourceAsOf: new Date().toISOString(),
+      marketState: "REGULAR",
+      executionEligible: true,
+    };
+    const refreshedQuote = {
+      ...initialQuote,
+      priceUsd: 125,
+      price: "125",
+      sourceAsOf: new Date().toISOString(),
+    };
+    tradeMocks.getLiveMarketItem
+      .mockResolvedValueOnce(initialQuote)
+      .mockResolvedValueOnce(refreshedQuote);
+    tradeMocks.getCashRate.mockImplementation(async () => {
+      initialQuote.sourceAsOf = new Date(Date.now() - 20 * 60_000 - 1).toISOString();
+      return 1;
+    });
+
+    const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+    expect(result.ok).toBe(true);
+    expect(tradeMocks.getLiveMarketItem).toHaveBeenNthCalledWith(2, "AAPL", { refresh: true });
+    expect(tradeMocks.tradeCreate.mock.calls[0][0].data.quantity).toBeCloseTo(
+      500 / 125.0375,
+      6,
+    );
+  });
+
+  it("fails closed when a non-Gate quote expires and its single refresh is not executable", async () => {
+    const initialQuote = {
+      symbol: "AAPL",
+      dataSymbol: "AAPL",
+      name: "Apple",
+      market: "NASDAQ",
+      category: "NASDAQ",
+      dataStatus: "live",
+      priceUsd: 100,
+      price: "100",
+      source: "yahoo",
+      sourceAsOf: new Date().toISOString(),
+      marketState: "REGULAR",
+      executionEligible: true,
+    };
+    tradeMocks.getLiveMarketItem
+      .mockResolvedValueOnce(initialQuote)
+      .mockResolvedValueOnce({ ...initialQuote, marketState: "CLOSED" });
+    tradeMocks.getCashRate.mockImplementation(async () => {
+      initialQuote.sourceAsOf = new Date(Date.now() - 20 * 60_000 - 1).toISOString();
+      return 1;
+    });
+
+    const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+    expect(result.ok).toBe(false);
+    expect(tradeMocks.getLiveMarketItem).toHaveBeenCalledTimes(2);
+    expect(tradeMocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("recalculates SELL quantity from the refreshed quote before rejecting position size", async () => {
+    const position = {
+      id: "position-1",
+      userId: "user-1",
+      symbol: "AAPL",
+      quantity: 4.5,
+      averagePriceUsd: 90,
+      positionCycleId: "cycle-1",
+    };
+    const initialQuote = {
+      symbol: "AAPL",
+      dataSymbol: "AAPL",
+      name: "Apple",
+      market: "NASDAQ",
+      category: "NASDAQ",
+      dataStatus: "live",
+      priceUsd: 100,
+      price: "100",
+      source: "yahoo",
+      sourceAsOf: new Date().toISOString(),
+      marketState: "REGULAR",
+      executionEligible: true,
+    };
+    tradeMocks.positionFindUnique.mockResolvedValue(position);
+    tradeMocks.txPositionFindUnique.mockResolvedValue(position);
+    tradeMocks.getLiveMarketItem
+      .mockResolvedValueOnce(initialQuote)
+      .mockResolvedValueOnce({
+        ...initialQuote,
+        priceUsd: 125,
+        price: "125",
+        sourceAsOf: new Date().toISOString(),
+      });
+    tradeMocks.getCashRate.mockImplementation(async () => {
+      initialQuote.sourceAsOf = new Date(Date.now() - 20 * 60_000 - 1).toISOString();
+      return 1;
+    });
+
+    const result = await tradeAction(undefined, tradeForm({ side: "SELL", amountUsd: 500 }));
+
+    expect(result.ok).toBe(true);
+    expect(tradeMocks.getLiveMarketItem).toHaveBeenCalledTimes(2);
+    expect(tradeMocks.tradeCreate.mock.calls[0][0].data.quantity).toBe(4);
+  });
+
+  it("returns success when cookie persistence and path revalidation fail after commit", async () => {
+    tradeMocks.cookieSet.mockImplementationOnce(() => {
+      throw new Error("synthetic cookie failure");
+    });
+    tradeMocks.revalidatePath.mockImplementation(() => {
+      throw new Error("synthetic revalidation failure");
+    });
+
+    const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Alım işlemi başarıyla gerçekleşti.",
+    });
+    expect(tradeMocks.tradeCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not enter a transaction when Gate watermark rejects an otherwise executable refresh", async () => {
+    const sourceAsOf = new Date(Date.now() - 20_000).toISOString();
+    const gateQuote = {
+      symbol: "XAU/USD",
+      dataSymbol: "xauusd",
+      name: "Gold",
+      market: "Emtia",
+      category: "COMMODITY",
+      dataStatus: "live",
+      price: "100",
+      priceUsd: 100,
+      changePercent: 0,
+      markPriceUsd: 100,
+      indexPriceUsd: 100,
+      lastPriceUsd: 100,
+      bidPriceUsd: 99.9,
+      askPriceUsd: 100.1,
+      markPriceNative: 100,
+      indexPriceNative: 100,
+      lastPriceNative: 100,
+      bidPriceNative: 99.9,
+      askPriceNative: 100.1,
+      quoteCurrency: "USDT",
+      source: "gate",
+      sourceAsOf,
+      retrievedAt: new Date().toISOString(),
+      marketState: "REGULAR",
+      marketStateSource: "gate-contract-status",
+      providerSymbol: "XAU_USDT",
+      providerStatus: "trading",
+      providerDelisting: false,
+      settleCurrency: "USDT",
+      priceType: "MARK",
+      priceUnit: "TROY_OUNCE",
+      instrumentType: "PERPETUAL_FUTURE",
+      exchange: "GATE_USDT_FUTURES",
+      stablecoinRate: 1,
+      stablecoinAsOf: new Date().toISOString(),
+      stablecoinProvider: "coinbase",
+      executionEligible: true,
+    } satisfies MarketItem;
+    const rejectedRefresh = {
+      ...gateQuote,
+      sourceAsOf: new Date(Date.now() - 25_000).toISOString(),
+      retrievedAt: new Date().toISOString(),
+      executionEligible: false,
+    };
+    tradeMocks.getLiveMarketItem
+      .mockResolvedValueOnce(gateQuote)
+      .mockResolvedValueOnce(rejectedRefresh);
+    tradeMocks.getCashRate.mockImplementation(async () => {
+      gateQuote.retrievedAt = new Date(Date.now() - 15_001).toISOString();
+      return 1;
+    });
+    const form = tradeForm({ side: "BUY", amountUsd: 500 });
+    form.set("symbol", "XAU/USD");
+
+    const result = await tradeAction(undefined, form);
+
+    expect(isExecutableMarketQuote(rejectedRefresh, {
+      requireEligibilityFlag: false,
+    })).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(tradeMocks.getLiveMarketItem).toHaveBeenCalledTimes(2);
+    expect(tradeMocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("does not enter a transaction when the symbol watermark rejects an older Yahoo provider switch", async () => {
+    const currentTime = Date.now();
+    const gateQuote = {
+      symbol: "XAU/USD",
+      dataSymbol: "xauusd",
+      name: "Gold",
+      market: "Emtia",
+      category: "COMMODITY",
+      dataStatus: "live",
+      price: "100",
+      priceUsd: 100,
+      changePercent: 0,
+      markPriceUsd: 100,
+      indexPriceUsd: 100,
+      lastPriceUsd: 100,
+      bidPriceUsd: 99.9,
+      askPriceUsd: 100.1,
+      markPriceNative: 100,
+      indexPriceNative: 100,
+      lastPriceNative: 100,
+      bidPriceNative: 99.9,
+      askPriceNative: 100.1,
+      quoteCurrency: "USDT",
+      source: "gate",
+      sourceAsOf: new Date(currentTime - 20_000).toISOString(),
+      retrievedAt: new Date(currentTime).toISOString(),
+      marketState: "REGULAR",
+      marketStateSource: "gate-contract-status",
+      providerSymbol: "XAU_USDT",
+      providerStatus: "trading",
+      providerDelisting: false,
+      settleCurrency: "USDT",
+      priceType: "MARK",
+      priceUnit: "TROY_OUNCE",
+      instrumentType: "PERPETUAL_FUTURE",
+      exchange: "GATE_USDT_FUTURES",
+      stablecoinRate: 1,
+      stablecoinAsOf: new Date(currentTime).toISOString(),
+      stablecoinProvider: "coinbase",
+      executionEligible: true,
+    } satisfies MarketItem;
+    const rejectedYahoo = {
+      symbol: "XAU/USD",
+      dataSymbol: "xauusd",
+      name: "Gold",
+      market: "Emtia",
+      category: "COMMODITY",
+      dataStatus: "live",
+      price: "2350",
+      priceUsd: 2_350,
+      priceNative: 2_350,
+      changePercent: 0,
+      source: "yahoo",
+      sourceAsOf: new Date(currentTime - 25_000).toISOString(),
+      marketState: "INFERRED_REGULAR",
+      marketStateSource: "inferred-commodity-session",
+      providerSymbol: "GC=F",
+      instrumentType: "FUTURE",
+      exchange: "CMX",
+      regularSessionStart: new Date(currentTime - 60 * 60_000).toISOString(),
+      regularSessionEnd: new Date(currentTime + 60 * 60_000).toISOString(),
+      exchangeDataDelayedBy: 0,
+      executionEligible: false,
+    } satisfies MarketItem;
+    tradeMocks.getLiveMarketItem
+      .mockResolvedValueOnce(gateQuote)
+      .mockResolvedValueOnce(rejectedYahoo);
+    tradeMocks.getCashRate.mockImplementation(async () => {
+      gateQuote.retrievedAt = new Date(Date.now() - 15_001).toISOString();
+      return 1;
+    });
+    const form = tradeForm({ side: "BUY", amountUsd: 500 });
+    form.set("symbol", "XAU/USD");
+
+    const result = await tradeAction(undefined, form);
+
+    expect(isExecutableMarketQuote(rejectedYahoo, {
+      requireEligibilityFlag: false,
+    })).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(tradeMocks.getLiveMarketItem).toHaveBeenCalledTimes(2);
+    expect(tradeMocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("treats only the VirtualTrade idempotency unique target as duplicate success", async () => {
+    tradeMocks.transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "duplicate virtual trade",
+      {
+        code: "P2002",
+        clientVersion: "test",
+        meta: {
+          modelName: "VirtualTrade",
+          target: ["userId", "idempotencyKey"],
+        },
+      },
+    ));
+
+    const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Bu işlem zaten uygulanmıştı; tekrar yazılmadı.",
+    });
+  });
+
+  it("does not report a position unique violation as duplicate trade success", async () => {
+    tradeMocks.transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "duplicate portfolio position",
+      {
+        code: "P2002",
+        clientVersion: "test",
+        meta: {
+          modelName: "PortfolioPosition",
+          target: ["userId", "symbol"],
+        },
+      },
+    ));
+
+    const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+    expect(result).toEqual({
+      ok: false,
+      message: "duplicate portfolio position",
+    });
   });
 });

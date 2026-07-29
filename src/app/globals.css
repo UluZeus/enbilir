@@ -7278,7 +7278,7 @@ body:has(.enbilir-shell-v3) {
 
 @media (prefers-reduced-motion: reduce) {
   .macro-report-ticker__track,
-  .ai-market-radar-track {
+  .ai-market-radar-track--auto {
     animation: none !important;
     transform: none !important;
     will-change: auto;

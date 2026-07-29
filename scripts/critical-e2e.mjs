@@ -76,6 +76,110 @@ async function stopServer() {
   }
 }
 
+async function readTickerFrame(track) {
+  return track.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      animationName: styles.animationName,
+      transform: styles.transform,
+      x: element.getBoundingClientRect().x,
+    };
+  });
+}
+
+async function assertTickerAdvances(page, track, label) {
+  const before = await readTickerFrame(track);
+  if (before.animationName !== "ai-market-radar-ticker") {
+    throw new Error(`${label} does not use the radar ticker animation: ${before.animationName}`);
+  }
+
+  await page.waitForTimeout(350);
+  const after = await readTickerFrame(track);
+  if (Math.abs(after.x - before.x) < 0.25 && after.transform === before.transform) {
+    throw new Error(`${label} did not advance (${before.transform} -> ${after.transform}).`);
+  }
+}
+
+async function installTerminalApiFixtures(page) {
+  let interceptionCount = 0;
+  let resolveFirstInterception;
+  const firstInterception = new Promise((resolve) => {
+    resolveFirstInterception = resolve;
+  });
+
+  await page.route("**/api/ai-market/**", async (route) => {
+    const requestUrl = new URL(route.request().url());
+    const endpoint = requestUrl.pathname;
+
+    if (endpoint === "/api/ai-market/favorites") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ favorites: [] }),
+      });
+      return;
+    }
+
+    if (
+      endpoint === "/api/ai-market/analyze" ||
+      endpoint === "/api/ai-market/performance" ||
+      endpoint === "/api/ai-market/batch-analyze"
+    ) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Synthetic critical-E2E fixture blocks provider-backed analysis.",
+        }),
+      });
+      return;
+    }
+
+    if (endpoint !== "/api/ai-market/market-scan") {
+      await route.abort("blockedbyclient");
+      throw new Error(`Critical E2E blocked unexpected AI market endpoint: ${endpoint}`);
+    }
+
+    interceptionCount += 1;
+    resolveFirstInterception();
+    const interval = requestUrl.searchParams.get("interval") || "1h";
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        alerts: [
+          {
+            key: `critical-e2e-${interval}`,
+            symbol: "BTCUSDT",
+            displayName: "Bitcoin",
+            interval,
+            alertType: "BUY_WATCH",
+            confidence: 72,
+            recommendationScore: 68,
+            riskScore: 28,
+            priority: 10,
+          },
+        ],
+      }),
+    });
+  });
+
+  return {
+    async assertIntercepted(label) {
+      await Promise.race([
+        firstInterception,
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`${label} did not request the synthetic market-scan fixture.`)), 5_000);
+        }),
+      ]);
+      if (interceptionCount < 1) {
+        throw new Error(`${label} market-scan interception count is ${interceptionCount}.`);
+      }
+    },
+  };
+}
+
 async function main() {
   const chatUploadDirectory = path.join(testRoot, "uploads", "chat");
   const adminUploadDirectory = path.join(testRoot, "uploads", "admin");
@@ -106,6 +210,7 @@ async function main() {
     SMTP_PASSWORD: randomBytes(32).toString("base64url"),
     SMTP_FROM: "Enbilir <no-reply@enbilir.invalid>",
     OPENAI_API_KEY: randomBytes(32).toString("base64url"),
+    ENABLE_LIVE_MARKET_FETCH: "false",
     CHAT_UPLOAD_DIR: chatUploadDirectory,
     ADMIN_UPLOAD_DIR: adminUploadDirectory,
     BACKUP_DIR: backupDirectory,
@@ -141,7 +246,9 @@ async function main() {
     const firstFocus = await page.evaluate(() => document.activeElement?.getAttribute("href"));
     if (firstFocus !== "#main-content") throw new Error("Skip link is not the first keyboard target.");
 
+    const desktopMarketScanFixture = await installTerminalApiFixtures(page);
     await page.goto(`${baseUrl}/tr/ai-piyasa-asistani?tab=terminal`, { waitUntil: "domcontentloaded" });
+    await desktopMarketScanFixture.assertIntercepted("Default desktop terminal");
     await page.evaluate(() => window.scrollTo(0, 900));
     await page.waitForTimeout(200);
     const stickyGeometry = await page.locator('nav[aria-label="AI çalışma alanı sekmeleri"]').evaluate((nav) => {
@@ -161,6 +268,9 @@ async function main() {
     if (stickyGeometry.navTop + 1 < stickyGeometry.headerBottom) {
       throw new Error(`Sticky navigation overlaps the header (${stickyGeometry.navTop} < ${stickyGeometry.headerBottom}).`);
     }
+    const desktopRadarTrack = page.locator(".ai-market-radar-track").first();
+    await page.getByRole("button", { name: "Akışı duraklat" }).waitFor();
+    await assertTickerAdvances(page, desktopRadarTrack, "Default desktop radar");
     await desktop.close();
 
     const mobile = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -192,11 +302,31 @@ async function main() {
       localStorage.setItem("enbilir-guided-help:v3:guest:tr", "1");
     });
     const reducedPage = await reducedMotion.newPage();
+    const reducedMarketScanFixture = await installTerminalApiFixtures(reducedPage);
     await reducedPage.goto(`${baseUrl}/tr/ai-piyasa-asistani?tab=terminal`, { waitUntil: "domcontentloaded" });
-    const animationName = await reducedPage.locator(".ai-market-radar-track").first().evaluate(
+    await reducedMarketScanFixture.assertIntercepted("Reduced-motion terminal");
+    const reducedRadarTrack = reducedPage.locator(".ai-market-radar-track").first();
+    const animationName = await reducedRadarTrack.evaluate(
       (element) => getComputedStyle(element).animationName,
     );
     if (animationName !== "none") throw new Error(`Radar animation remains active under reduced motion: ${animationName}`);
+    const startRadarButton = reducedPage.getByRole("button", { name: "Akışı başlat" });
+    await startRadarButton.waitFor();
+    await startRadarButton.click();
+    await assertTickerAdvances(reducedPage, reducedRadarTrack, "Explicitly started reduced-motion radar");
+
+    await reducedPage.getByRole("button", { name: "Akışı duraklat" }).click();
+    await reducedPage.getByRole("button", { name: "Akışı sürdür" }).waitFor();
+    await reducedPage.waitForTimeout(100);
+    const pausedBefore = await readTickerFrame(reducedRadarTrack);
+    await reducedPage.waitForTimeout(350);
+    const pausedAfter = await readTickerFrame(reducedRadarTrack);
+    if (pausedAfter.animationName !== "none") {
+      throw new Error(`Paused reduced-motion radar remains animated: ${pausedAfter.animationName}`);
+    }
+    if (Math.abs(pausedAfter.x - pausedBefore.x) >= 0.1 || pausedAfter.transform !== pausedBefore.transform) {
+      throw new Error(`Paused reduced-motion radar kept moving (${pausedBefore.transform} -> ${pausedAfter.transform}).`);
+    }
     await reducedMotion.close();
   } finally {
     await browser.close();

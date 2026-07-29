@@ -8,7 +8,12 @@ vi.mock("@/lib/http-json", () => ({
   fetchJsonWithFallback: gateMocks.fetchJson,
 }));
 
-import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
+import {
+  getLiveMarketItem,
+  getLiveMarketItemsForSymbols,
+  resetLiveMarketCachesForTests,
+} from "@/lib/live-market";
+import { isExecutableMarketQuote } from "@/lib/executable-quote";
 
 const now = new Date("2026-07-29T12:00:00.000Z");
 const mappings = {
@@ -52,6 +57,7 @@ type ProviderOptions = {
   rejectGate?: boolean;
   rejectCoinbase?: boolean;
   tradeDelayMs?: number;
+  yahooOverrides?: Record<string, unknown>;
 };
 
 function installProviders(options: ProviderOptions = {}) {
@@ -132,6 +138,7 @@ function installProviders(options: ProviderOptions = {}) {
                 chartPreviousClose: 2_340,
                 regularMarketTime: Math.floor((now.getTime() - 10 * 60_000) / 1000),
                 marketState: "REGULAR",
+                ...options.yahooOverrides,
               },
             }],
           })),
@@ -149,6 +156,7 @@ describe("Gate commodity adapter", () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
     process.env.ENABLE_LIVE_MARKET_FETCH = "true";
+    resetLiveMarketCachesForTests();
   });
 
   it("uses explicit semantic mappings and prefers valid Gate quotes over stale Yahoo", async () => {
@@ -220,6 +228,8 @@ describe("Gate commodity adapter", () => {
     }],
     ["stale USDT", { coinbaseOverrides: { time: new Date(now.getTime() - 120_001).toISOString() } }],
     ["depegged USDT", { coinbaseOverrides: { price: "0.98", bid: "0.979", ask: "0.981" } }],
+    ["wide USDT book", { coinbaseOverrides: { price: "1", bid: "0.996", ask: "1.004" } }],
+    ["crossed USDT book", { coinbaseOverrides: { price: "1", bid: "1.001", ask: "0.999" } }],
     ["unavailable USDT conversion", { rejectCoinbase: true }],
   ])("fails Gate closed for %s without stitching provider fields", async (_case, options) => {
     installProviders(options);
@@ -265,6 +275,23 @@ describe("Gate commodity adapter", () => {
     expect(gold.executionEligible).toBe(true);
   });
 
+  it("derives USDT/USD from the verified book midpoint even when the last trade is outside the book", async () => {
+    installProviders({
+      coinbaseOverrides: {
+        price: "1.003",
+        bid: "0.9989",
+        ask: "0.9991",
+      },
+    });
+
+    const [gold] = await getLiveMarketItemsForSymbols(["XAU/USD"]);
+
+    expect(gold.source).toBe("gate");
+    expect(gold.stablecoinRate).toBe(0.999);
+    expect(gold.priceUsd).toBeCloseTo(2_400 * 0.999, 10);
+    expect(gold.executionEligible).toBe(true);
+  });
+
   it("falls back independently when Gate requests fail", async () => {
     installProviders({ rejectGate: true });
 
@@ -285,5 +312,105 @@ describe("Gate commodity adapter", () => {
 
     expect(gold.source).not.toBe("gate");
     expect(gold.executionEligible).toBe(false);
+  });
+
+  it("does not replace equal-source Gate provenance with an older retrieval snapshot", async () => {
+    installProviders({
+      coinbaseOverrides: {
+        time: new Date(now.getTime() - 10_000).toISOString(),
+      },
+    });
+    const [newerRetrieval] = await getLiveMarketItemsForSymbols(["XAU/USD"]);
+    installProviders({
+      coinbaseOverrides: {
+        time: new Date(now.getTime() - 30_000).toISOString(),
+      },
+    });
+    await getLiveMarketItemsForSymbols(["XAU/USD"]);
+    gateMocks.fetchJson.mockResolvedValue(null);
+
+    const cached = await getLiveMarketItem("XAU/USD");
+
+    expect(newerRetrieval.retrievedAt).toBe("2026-07-29T12:00:00.000Z");
+    expect(cached).toMatchObject({
+      source: "gate",
+      sourceAsOf: newerRetrieval.sourceAsOf,
+      retrievedAt: newerRetrieval.retrievedAt,
+      stablecoinAsOf: newerRetrieval.stablecoinAsOf,
+    });
+  });
+
+  it("keeps an expired Gate snapshot watermark and rejects an independently executable older refresh", async () => {
+    installProviders({
+      trades: [{
+        contract: "XAU_USDT",
+        price: "2400",
+        create_time: now.getTime() / 1000 - 20,
+      }],
+    });
+    const [cached] = await getLiveMarketItemsForSymbols(["XAU/USD"]);
+    vi.setSystemTime(new Date(now.getTime() + 16_000));
+    installProviders({
+      trades: [{
+        contract: "XAU_USDT",
+        price: "2400",
+        create_time: now.getTime() / 1000 - 25,
+      }],
+    });
+
+    const refreshed = await getLiveMarketItem("XAU/USD", { refresh: true });
+
+    expect(cached.executionEligible).toBe(true);
+    expect(refreshed).toMatchObject({
+      source: "gate",
+      sourceAsOf: new Date(now.getTime() - 25_000).toISOString(),
+      executionEligible: false,
+    });
+    expect(isExecutableMarketQuote(refreshed!, {
+      now: now.getTime() + 16_000,
+      requireEligibilityFlag: false,
+    })).toBe(true);
+  });
+
+  it("rejects an older executable Yahoo refresh after an expired Gate snapshot", async () => {
+    installProviders({
+      trades: [{
+        contract: "XAU_USDT",
+        price: "2400",
+        create_time: now.getTime() / 1000 - 20,
+      }],
+    });
+    const [cachedGate] = await getLiveMarketItemsForSymbols(["XAU/USD"]);
+    vi.setSystemTime(new Date(now.getTime() + 16_000));
+    installProviders({
+      rejectGate: true,
+      rejectCoinbase: true,
+      yahooOverrides: {
+        regularMarketTime: Math.floor((now.getTime() - 25_000) / 1000),
+        marketState: "UNKNOWN",
+        instrumentType: "FUTURE",
+        exchangeName: "CMX",
+        currentTradingPeriod: {
+          regular: {
+            start: Math.floor((now.getTime() - 60 * 60_000) / 1000),
+            end: Math.floor((now.getTime() + 60 * 60_000) / 1000),
+          },
+        },
+        exchangeDataDelayedBy: 0,
+      },
+    });
+
+    const refreshed = await getLiveMarketItem("XAU/USD", { refresh: true });
+
+    expect(cachedGate).toMatchObject({ source: "gate", executionEligible: true });
+    expect(refreshed).toMatchObject({
+      source: "yahoo",
+      sourceAsOf: new Date(now.getTime() - 25_000).toISOString(),
+      executionEligible: false,
+    });
+    expect(isExecutableMarketQuote(refreshed!, {
+      now: now.getTime() + 16_000,
+      requireEligibilityFlag: false,
+    })).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import type { MarketItem } from "@/lib/market-data";
 
 const maximumYahooCommodityAgeMs = 2 * 60_000;
+const maximumYahooUnknownFxAgeMs = 2 * 60_000;
 const maximumYahooAgeMs = 20 * 60_000;
 const maximumBinanceAgeMs = 5 * 60_000;
 const maximumGateAgeMs = 2 * 60_000;
@@ -43,6 +44,19 @@ export const knownYahooCommodityFutures: Readonly<Record<string, string>> = {
   "NG=F": "NYM",
 };
 
+export const knownYahooFxSymbols: Readonly<Record<string, string>> = {
+  "USD/TRY": "USDTRY=X",
+  "EUR/TRY": "EURTRY=X",
+  "GBP/TRY": "GBPTRY=X",
+  "CHF/TRY": "CHFTRY=X",
+  "EUR/USD": "EURUSD=X",
+  "GBP/USD": "GBPUSD=X",
+  "USD/JPY": "USDJPY=X",
+  "USD/CHF": "USDCHF=X",
+  "AUD/USD": "AUDUSD=X",
+  "USD/CAD": "USDCAD=X",
+};
+
 type YahooCommoditySessionMetadata = {
   providerSymbol: string;
   instrumentType: string;
@@ -75,6 +89,70 @@ export function canInferYahooCommodityOpen(
     Number.isFinite(sessionStart) &&
     Number.isFinite(sessionEnd) &&
     sessionStart < sessionEnd &&
+    now >= sessionStart &&
+    now <= sessionEnd
+  );
+}
+
+type YahooFxSessionMetadata = {
+  symbol: string;
+  providerSymbol: string;
+  instrumentType: string;
+  exchange: string;
+  sourceAsOf: string;
+  regularSessionStart: string;
+  regularSessionEnd: string;
+  exchangeDataDelayedBy?: number;
+  priceNative: number;
+};
+
+function isExpectedNewYorkFxOpen(timestamp: number) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(timestamp);
+  const weekday = parts.find((part) => part.type === "weekday")?.value;
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+
+  if (!weekday || !Number.isFinite(hour)) {
+    return false;
+  }
+
+  return !(
+    (weekday === "Fri" && hour >= 17) ||
+    weekday === "Sat" ||
+    (weekday === "Sun" && hour < 17)
+  );
+}
+
+export function canUseYahooUnknownFxQuote(
+  metadata: YahooFxSessionMetadata,
+  now = Date.now(),
+) {
+  const sourceTime = Date.parse(metadata.sourceAsOf);
+  const sessionStart = Date.parse(metadata.regularSessionStart);
+  const sessionEnd = Date.parse(metadata.regularSessionEnd);
+  const age = now - sourceTime;
+
+  return (
+    knownYahooFxSymbols[metadata.symbol.toUpperCase()] === metadata.providerSymbol.toUpperCase() &&
+    metadata.instrumentType.toUpperCase() === "CURRENCY" &&
+    metadata.exchange.toUpperCase() === "CCY" &&
+    Number.isFinite(metadata.priceNative) &&
+    metadata.priceNative > 0 &&
+    Number.isFinite(sourceTime) &&
+    age >= 0 &&
+    age <= maximumYahooUnknownFxAgeMs &&
+    (!Number.isFinite(metadata.exchangeDataDelayedBy) || Number(metadata.exchangeDataDelayedBy) <= 0) &&
+    isExpectedNewYorkFxOpen(sourceTime) &&
+    isExpectedNewYorkFxOpen(now) &&
+    Number.isFinite(sessionStart) &&
+    Number.isFinite(sessionEnd) &&
+    sessionStart < sessionEnd &&
+    sourceTime >= sessionStart &&
+    sourceTime <= sessionEnd &&
     now >= sessionStart &&
     now <= sessionEnd
   );
@@ -115,6 +193,14 @@ export function isExecutableMarketQuote(
     return false;
   }
 
+  if (
+    item.source === "yahoo" &&
+    item.category === "BIST" &&
+    item.exchangeDataDelayedBy !== 0
+  ) {
+    return false;
+  }
+
   const marketState = String(item.marketState ?? "UNKNOWN").toUpperCase();
   const isInferredCommodityState =
     item.source === "yahoo" &&
@@ -122,6 +208,30 @@ export function isExecutableMarketQuote(
     marketState === "INFERRED_REGULAR" &&
     item.marketStateSource === "inferred-commodity-session";
   const isExplicitOpenState = marketState === "REGULAR";
+  const isVerifiedUnknownFxState =
+    item.source === "yahoo" &&
+    item.category === "FX" &&
+    marketState === "UNKNOWN" &&
+    item.marketStateSource === "provider" &&
+    Boolean(
+      item.providerSymbol &&
+      item.instrumentType &&
+      item.exchange &&
+      item.regularSessionStart &&
+      item.regularSessionEnd &&
+      Number.isFinite(item.priceNative) &&
+      canUseYahooUnknownFxQuote({
+        symbol: item.symbol,
+        providerSymbol: item.providerSymbol!,
+        instrumentType: item.instrumentType!,
+        exchange: item.exchange!,
+        sourceAsOf: item.sourceAsOf,
+        regularSessionStart: item.regularSessionStart!,
+        regularSessionEnd: item.regularSessionEnd!,
+        exchangeDataDelayedBy: item.exchangeDataDelayedBy,
+        priceNative: item.priceNative!,
+      }, now)
+    );
 
   if (item.source === "gate") {
     const expectedContract = gateCommodityContracts[item.symbol];
@@ -233,7 +343,7 @@ export function isExecutableMarketQuote(
   }
 
   if (!isExplicitOpenState) {
-    return false;
+    return isVerifiedUnknownFxState;
   }
 
   return age <= maximumYahooAgeMs;

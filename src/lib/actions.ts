@@ -741,22 +741,11 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
 
   let quantity = amountUsd / tradePriceUsd;
 
-  if (side === "SELL") {
-    if (!existingPosition || existingPosition.quantity <= 0) {
-      return { ok: false, message: "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor." };
-    }
-
-    if (existingPosition.quantity + 0.000001 < quantity) {
-      return { ok: false, message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla." };
-    }
-  }
-
-  if (marketItem.source === "gate") {
-    const refreshedMarketItem = await getLiveMarketItem(symbol);
+  if (!isExecutableMarketQuote(marketItem)) {
+    const refreshedMarketItem = await getLiveMarketItem(symbol, { refresh: true });
 
     if (
       !refreshedMarketItem ||
-      refreshedMarketItem.source !== "gate" ||
       !isExecutableMarketQuote(refreshedMarketItem)
     ) {
       return {
@@ -767,20 +756,24 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
 
     marketItem = refreshedMarketItem;
     verifiedPriceAsOf = new Date(marketItem.sourceAsOf!);
-    tradePriceUsd = side === "BUY" ? marketItem.askPriceUsd! : marketItem.bidPriceUsd!;
+    tradePriceUsd = side === "BUY"
+      ? marketItem.askPriceUsd ?? marketItem.priceUsd
+      : marketItem.bidPriceUsd ?? marketItem.priceUsd;
     quantity = amountUsd / tradePriceUsd;
 
     if (!Number.isFinite(tradePriceUsd) || tradePriceUsd <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
       return { ok: false, message: "Seçilen ürün için geçerli fiyat bulunamadı." };
     }
 
-    if (side === "SELL" && (!existingPosition || existingPosition.quantity + 0.000001 < quantity)) {
-      return {
-        ok: false,
-        message: existingPosition
-          ? "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla."
-          : "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor.",
-      };
+  }
+
+  if (side === "SELL") {
+    if (!existingPosition || existingPosition.quantity <= 0) {
+      return { ok: false, message: "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor." };
+    }
+
+    if (existingPosition.quantity + 0.000001 < quantity) {
+      return { ok: false, message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla." };
     }
   }
 
@@ -953,7 +946,19 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       });
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    const duplicateTarget = error instanceof Prisma.PrismaClientKnownRequestError
+      ? error.meta?.target
+      : undefined;
+    const isVirtualTradeIdempotencyConflict =
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      error.meta?.modelName === "VirtualTrade" &&
+      Array.isArray(duplicateTarget) &&
+      duplicateTarget.length === 2 &&
+      duplicateTarget.includes("userId") &&
+      duplicateTarget.includes("idempotencyKey");
+
+    if (isVirtualTradeIdempotencyConflict) {
       return { ok: true, message: "Bu işlem zaten uygulanmıştı; tekrar yazılmadı." };
     }
 
@@ -964,13 +969,17 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: transactionError };
   }
 
-  cookieStore.set(nonceCookieName, idempotencyKey, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 10,
-  });
+  try {
+    cookieStore.set(nonceCookieName, idempotencyKey, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 10,
+    });
+  } catch {
+    // The database idempotency key remains authoritative if nonce persistence fails.
+  }
 
   try {
     await evaluateTradeBadges(userId);
@@ -999,9 +1008,17 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     // Analytics must never block a completed virtual trade.
   }
 
-  await reconcileOnboardingCompletion(userId);
+  try {
+    await reconcileOnboardingCompletion(userId);
+  } catch {
+    // Onboarding reconciliation is secondary; the virtual trade is already committed.
+  }
 
-  revalidatePortfolioViews(locale);
+  try {
+    revalidatePortfolioViews(locale);
+  } catch {
+    // Cache revalidation is secondary; the virtual trade is already committed.
+  }
 
   return {
     ok: true,

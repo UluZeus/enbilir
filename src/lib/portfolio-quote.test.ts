@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { hasVerifiedPortfolioQuote } from "@/lib/portfolio";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getCashModeUsdRate, hasVerifiedPortfolioQuote } from "@/lib/portfolio";
 import type { MarketItem } from "@/lib/market-data";
 
 const now = new Date("2026-07-29T12:00:00.000Z").getTime();
@@ -59,5 +59,54 @@ describe("portfolio Gate quote reliability", () => {
     ["broken provenance", { providerSymbol: "XAG_USDT" }],
   ])("rejects a %s Gate valuation", (_case, overrides) => {
     expect(hasVerifiedPortfolioQuote(gateQuote(overrides), now)).toBe(false);
+  });
+});
+
+describe("cash conversion quote policy", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function tryRepoQuote(overrides: Partial<MarketItem> = {}): MarketItem {
+    return {
+      symbol: "USD/TRY",
+      dataSymbol: "usdtry",
+      name: "Dolar TL",
+      market: "Majör Döviz",
+      category: "FX",
+      dataStatus: "live",
+      source: "yahoo",
+      price: "32",
+      priceUsd: 32,
+      priceNative: 32,
+      changePercent: 0,
+      quoteCurrency: "TRY",
+      sourceAsOf: new Date(now - 30_000).toISOString(),
+      marketState: "UNKNOWN",
+      marketStateSource: "provider",
+      providerSymbol: "USDTRY=X",
+      instrumentType: "CURRENCY",
+      exchange: "CCY",
+      regularSessionStart: new Date(now - 60 * 60_000).toISOString(),
+      regularSessionEnd: new Date(now + 60 * 60_000).toISOString(),
+      exchangeDataDelayedBy: 0,
+      executionEligible: true,
+      ...overrides,
+    };
+  }
+
+  it("accepts a fresh UNKNOWN TRY_REPO conversion with strict Yahoo FX provenance", async () => {
+    await expect(getCashModeUsdRate("TRY_REPO", [tryRepoQuote()], true)).resolves.toBe(1 / 32);
+  });
+
+  it("rejects a stale UNKNOWN TRY_REPO conversion", async () => {
+    await expect(getCashModeUsdRate("TRY_REPO", [
+      tryRepoQuote({ sourceAsOf: new Date(now - 120_001).toISOString() }),
+    ], true)).resolves.toBeNull();
   });
 });

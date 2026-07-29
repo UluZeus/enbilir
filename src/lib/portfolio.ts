@@ -113,7 +113,12 @@ export async function getCashModeUsdRate(
   const items = marketItems ?? await getLiveMarketItemsForSymbols([symbol]);
   const item = findMarketItemForPosition(items, symbol);
 
-  if (!item || !hasVerifiedPortfolioQuote(item) || (requireExecutable && item.executionEligible !== true)) {
+  if (
+    !item ||
+    !hasVerifiedPortfolioQuote(item) ||
+    !isExecutableMarketQuote(item) ||
+    (requireExecutable && item.executionEligible !== true)
+  ) {
     return null;
   }
 

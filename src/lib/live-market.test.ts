@@ -8,7 +8,12 @@ vi.mock("@/lib/http-json", () => ({
   fetchJsonWithFallback: liveMarketMocks.fetchJson,
 }));
 
-import { getLiveMarketItems, getLiveMarketItemsForSymbols } from "@/lib/live-market";
+import {
+  getLiveMarketItem,
+  getLiveMarketItems,
+  getLiveMarketItemsForSymbols,
+  resetLiveMarketCachesForTests,
+} from "@/lib/live-market";
 
 const now = new Date("2026-07-29T12:00:00.000Z");
 const regularStart = Math.floor((now.getTime() - 60 * 60_000) / 1000);
@@ -66,6 +71,7 @@ describe("live commodity quotes", () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
     process.env.ENABLE_LIVE_MARKET_FETCH = "true";
+    resetLiveMarketCachesForTests();
   });
 
   it("requests explicit gram-metal dependencies and gives single/full-universe parity", async () => {
@@ -150,5 +156,240 @@ describe("live commodity quotes", () => {
 
     expect(gold.executionEligible).toBe(false);
     expect(gold.marketState).toBe("UNKNOWN");
+  });
+});
+
+describe("server-owned executable quote cache", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    process.env.ENABLE_LIVE_MARKET_FETCH = "true";
+    resetLiveMarketCachesForTests();
+  });
+
+  it("falls back to a still-executable cached snapshot after a transient provider miss", async () => {
+    let yahooAvailable = true;
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+
+      if (url.hostname === "api.binance.com") return [];
+      if (!url.hostname.includes("finance.yahoo.com")) return null;
+      if (!yahooAvailable) return null;
+
+      return {
+        spark: {
+          result: [{
+            symbol: "AAPL",
+            response: [{
+              meta: yahooMeta({
+                regularMarketPrice: 200,
+                chartPreviousClose: 198,
+                marketState: "REGULAR",
+                instrumentType: "EQUITY",
+                exchangeName: "NMS",
+              }),
+            }],
+          }],
+        },
+      };
+    });
+
+    const [first] = await getLiveMarketItemsForSymbols(["AAPL"]);
+    yahooAvailable = false;
+    const cached = await getLiveMarketItem("AAPL");
+    const forcedRefresh = await getLiveMarketItem("AAPL", { refresh: true });
+
+    expect(first).toMatchObject({ source: "yahoo", priceUsd: 200, executionEligible: true });
+    expect(cached).toEqual(first);
+    expect(forcedRefresh).toMatchObject({
+      symbol: "AAPL",
+      source: "fallback",
+      executionEligible: false,
+    });
+  });
+
+  it("rejects a cached snapshot once its executable freshness window expires", async () => {
+    let yahooAvailable = true;
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+
+      if (url.hostname === "api.binance.com") return [];
+      if (!url.hostname.includes("finance.yahoo.com")) return null;
+      if (!yahooAvailable) return null;
+
+      return {
+        spark: {
+          result: [{
+            symbol: "MSFT",
+            response: [{
+              meta: yahooMeta({
+                regularMarketPrice: 500,
+                chartPreviousClose: 495,
+                marketState: "REGULAR",
+                instrumentType: "EQUITY",
+                exchangeName: "NMS",
+              }),
+            }],
+          }],
+        },
+      };
+    });
+
+    const first = await getLiveMarketItem("MSFT");
+    yahooAvailable = false;
+    vi.setSystemTime(new Date(now.getTime() + 20 * 60_000 + 1));
+    const rejected = await getLiveMarketItem("MSFT");
+
+    expect(first?.executionEligible).toBe(true);
+    expect(rejected).toMatchObject({
+      symbol: "MSFT",
+      source: "fallback",
+      executionEligible: false,
+    });
+  });
+
+  it("does not roll the executable cache back to an older out-of-order quote", async () => {
+    let sourceAsOf = now.getTime() - 10_000;
+    let yahooAvailable = true;
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+
+      if (url.hostname === "api.binance.com") return [];
+      if (!url.hostname.includes("finance.yahoo.com") || !yahooAvailable) return null;
+
+      return {
+        spark: {
+          result: [{
+            symbol: "NVDA",
+            response: [{
+              meta: yahooMeta({
+                regularMarketPrice: sourceAsOf === now.getTime() - 10_000 ? 200 : 190,
+                regularMarketTime: Math.floor(sourceAsOf / 1000),
+                marketState: "REGULAR",
+                instrumentType: "EQUITY",
+                exchangeName: "NMS",
+              }),
+            }],
+          }],
+        },
+      };
+    });
+
+    const [newer] = await getLiveMarketItemsForSymbols(["NVDA"]);
+    sourceAsOf = now.getTime() - 20_000;
+    await getLiveMarketItemsForSymbols(["NVDA"]);
+    yahooAvailable = false;
+    const cached = await getLiveMarketItem("NVDA");
+
+    expect(newer.priceUsd).toBe(200);
+    expect(cached).toMatchObject({
+      priceUsd: 200,
+      sourceAsOf: new Date(now.getTime() - 10_000).toISOString(),
+    });
+  });
+
+  it("uses a verified UNKNOWN USD/TRY quote to normalize delayed BIST without making it executable", async () => {
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+
+      if (!url.hostname.includes("finance.yahoo.com")) return [];
+
+      return {
+        spark: {
+          result: [
+            {
+              symbol: "THYAO.IS",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 320,
+                  chartPreviousClose: 318,
+                  marketState: "REGULAR",
+                  instrumentType: "EQUITY",
+                  exchangeName: "IST",
+                  exchangeDataDelayedBy: 15,
+                }),
+              }],
+            },
+            {
+              symbol: "USDTRY=X",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 32,
+                  chartPreviousClose: 31.9,
+                  marketState: "UNKNOWN",
+                  instrumentType: "CURRENCY",
+                  exchangeName: "CCY",
+                  exchangeDataDelayedBy: 0,
+                }),
+              }],
+            },
+          ],
+        },
+      };
+    });
+
+    const [thyao] = await getLiveMarketItemsForSymbols(["THYAO.IS"]);
+
+    expect(thyao).toMatchObject({
+      source: "yahoo",
+      priceNative: 320,
+      priceUsd: 10,
+      exchangeDataDelayedBy: 15,
+      executionEligible: false,
+    });
+  });
+
+  it("keeps a REGULAR BIST quote fail-closed when delay evidence is missing", async () => {
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+
+      if (!url.hostname.includes("finance.yahoo.com")) return [];
+
+      return {
+        spark: {
+          result: [
+            {
+              symbol: "THYAO.IS",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 320,
+                  marketState: "REGULAR",
+                  instrumentType: "EQUITY",
+                  exchangeName: "IST",
+                  exchangeDataDelayedBy: undefined,
+                }),
+              }],
+            },
+            {
+              symbol: "USDTRY=X",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 32,
+                  marketState: "UNKNOWN",
+                  instrumentType: "CURRENCY",
+                  exchangeName: "CCY",
+                  exchangeDataDelayedBy: 0,
+                }),
+              }],
+            },
+          ],
+        },
+      };
+    });
+
+    const [thyao] = await getLiveMarketItemsForSymbols(["THYAO.IS"]);
+
+    expect(thyao).toMatchObject({
+      source: "yahoo",
+      priceUsd: 10,
+      marketState: "REGULAR",
+      executionEligible: false,
+    });
+    expect(thyao.exchangeDataDelayedBy).toBeUndefined();
   });
 });
