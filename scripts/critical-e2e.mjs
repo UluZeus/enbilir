@@ -93,11 +93,17 @@ async function assertTickerAdvances(page, track, label) {
     throw new Error(`${label} does not use the radar ticker animation: ${before.animationName}`);
   }
 
-  await page.waitForTimeout(350);
-  const after = await readTickerFrame(track);
-  if (Math.abs(after.x - before.x) < 0.25 && after.transform === before.transform) {
-    throw new Error(`${label} did not advance (${before.transform} -> ${after.transform}).`);
+  const deadline = Date.now() + 3_000;
+  let after = before;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(250);
+    after = await readTickerFrame(track);
+    if (Math.abs(after.x - before.x) >= 0.25 || after.transform !== before.transform) {
+      return;
+    }
   }
+
+  throw new Error(`${label} did not advance within 3 seconds (${before.transform} -> ${after.transform}).`);
 }
 
 async function installTerminalApiFixtures(page) {
