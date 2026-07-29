@@ -28,6 +28,7 @@ const productionEnv = {
   CHAT_UPLOAD_DIR: "/srv/enbilir/uploads/chat",
   ADMIN_UPLOAD_DIR: "/srv/enbilir/uploads/admin",
   BACKUP_DIR: "/srv/enbilir/backups",
+  BACKUP_HEALTH_GID: "987",
   OPERATIONS_LOG_DIR: "/var/log/enbilir",
 } satisfies NodeJS.ProcessEnv;
 
@@ -91,6 +92,27 @@ describe("runtime configuration validation", () => {
 
   it("accepts a fully separated production configuration", () => {
     expect(getRuntimeConfigIssues(productionEnv, "/srv/enbilir/app")).toEqual([]);
+  });
+
+  it("requires a positive numeric backup health group id in production", () => {
+    expect(
+      getRuntimeConfigIssues(
+        { ...productionEnv, BACKUP_HEALTH_GID: undefined },
+        "/srv/enbilir/app",
+      ),
+    ).toContainEqual({ key: "BACKUP_HEALTH_GID", code: "missing" });
+    expect(
+      getRuntimeConfigIssues(
+        { ...productionEnv, BACKUP_HEALTH_GID: "0" },
+        "/srv/enbilir/app",
+      ),
+    ).toContainEqual({ key: "BACKUP_HEALTH_GID", code: "invalid" });
+    expect(
+      getRuntimeConfigIssues(
+        { ...productionEnv, BACKUP_HEALTH_GID: "12.5" },
+        "/srv/enbilir/app",
+      ),
+    ).toContainEqual({ key: "BACKUP_HEALTH_GID", code: "invalid" });
   });
 
   it("applies the same fail-closed validation to staging deployments", () => {

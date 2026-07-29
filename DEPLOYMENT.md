@@ -158,6 +158,7 @@ RATE_LIMIT_HASH_SECRET="ayri-guvenli-rastgele-secret"
 CHAT_UPLOAD_DIR="/srv/enbilir/uploads/chat"
 ADMIN_UPLOAD_DIR="/srv/enbilir/uploads/admin"
 BACKUP_DIR="/srv/enbilir/backups"
+BACKUP_HEALTH_GID="<enbilir-app grubunun sayisal GID degeri>"
 OPERATIONS_LOG_DIR="/var/log/enbilir"
 REQUIRED_JOB_HEARTBEATS="ai-agent:120,subscription-emails:1560,weekly-competition:11640,chat-upload-cleanup:1560"
 VIP_RESEARCH_MODEL="gpt-5.6-terra"
@@ -180,6 +181,10 @@ Degisken aciklamalari:
 - `AI_AGENT_CRON_ORIGIN`: Sunucu icindeki cron isteklerinin ulastigi lokal Enbilir adresidir; mevcut production PM2 portu icin `http://127.0.0.1:3006` kullanilir.
 - `CHAT_UPLOAD_DIR` ve `ADMIN_UPLOAD_DIR`: Release disinda kalan kalici medya dizinleridir.
 - `BACKUP_DIR`: Dogrulanan SQLite ve upload backup setlerinin release disindaki dizinidir.
+- `BACKUP_HEALTH_GID`: Readiness surecinin yalnizca backup metadata'sini okuyabilmesi icin
+  `enbilir-app` servis grubunun pozitif sayisal GID degeridir. Grup adi veya tahmini bir sayi
+  yazmayin. Sunucuda `getent group enbilir-app` ve `id -g enbilir-app` ciktilarinin ayni GID'yi
+  gosterdigini dogrulayin; ortam dosyasina yalnizca bu sayisal degeri kaydedin.
 - `OPERATIONS_LOG_DIR`: Redakte edilmis ve boyuta gore dondurulen cron loglarinin dizinidir.
 - `VIP_RESEARCH_MODEL`: VIP arastirma modelidir; varsayilan `gpt-5.6-terra` degeridir.
 - `VIP_SUBSCRIPTION_WEBHOOK_SECRET`: Guvenilir bir odeme dogrulama katmaninin `/api/vip/subscription/activate` JSON endpoint'ine yaptigi cagrilari korur.
@@ -552,6 +557,13 @@ calistirir. Backup setleri ayri bir hesap/depolama alanina kopyalanmali; yerel V
 olmamalidir. Otomatik saklama silme politikasi eklenmemistir; silme ayri, gozden gecirilen
 bir politika olmalidir.
 
+Backup araci sahiplik ve mod degisikligi yaptigi icin production backup cron'u `root`
+crontab'i altinda calismali, restore-prova komutu da root tarafindan elle calistirilmalidir.
+Kurulumdan sonra `sudo crontab -l` ile yalniz zamanlanan `operations:backup` komutunun root
+tarafindan calistirildigini dogrulayin; `operations:install-cron` restore provasi zamanlamaz.
+Uygulama process'i root olarak calistirilmaz; `enbilir-app` kullanicisinin ek grubu
+bulunmamali ve primary GID degeri `BACKUP_HEALTH_GID` ile ayni olmalidir.
+
 Restore provasi canli veritabaninin uzerine yazmaz. Secilen set gecici bir dizine kopyalanir;
 tum checksumlar, SQLite butunlugu ve migration gecmisi dogrulanir:
 
@@ -562,6 +574,18 @@ npm run operations:rehearse-restore -- --set enbilir-YYYYMMDDTHHMMSSZ --record
 `--record`, readiness kontrolunun kullandigi son basarili prova isaretini backup dizinine
 yazar. Production yayini icin backup en fazla 26 saat, restore provasi en fazla 31 gun eski
 olmalidir.
+
+Bu izin modelini ilk kez devreye alirken mevcut en yeni backup setini de backfill edin.
+`/srv/enbilir/backups` altindan exact `enbilir-YYYYMMDDTHHMMSSZ` adli en yeni tamamlanmis
+seti belirleyin ve yukaridaki `operations:rehearse-restore -- --set ... --record` komutunu
+root olarak calistirin. Komut checksum/SQLite kontrolleri, set izinleri ve yeni marker
+hazirligi tamamlanmadan onceki iyi marker'i degistirmez. Son durumda:
+
+- backup root, secili set ve manifestteki dosyalarin gerekli ust dizinleri `root:enbilir-app 0750`;
+- yalniz `manifest.json` ve `last-restore-rehearsal.json` `root:enbilir-app 0640`;
+- database ve upload payload dosyalari `root:root 0600`
+
+olmalidir. Payload dosyalarini servis grubuna okunur yapmayin.
 
 ### Rollback
 
@@ -576,6 +600,15 @@ Geriye uyumsuz veya veri donusumu yapan migration'da:
 5. Readiness PASS olmadan trafigi acmayin.
 
 Migration dosyalarini silmek veya SQLite schema'sini elle geriye cevirmek rollback degildir.
+
+Backup metadata izin degisikligi uygulama release rollback'inden bagimsizdir ve normal SHA
+rollback'inde korunur. Pre-permission bir SHA'ya donulurse root backup cron'unun eski scriptle
+yeni `0700` set uretmesine izin vermeyin: cron'u gecici durdurun veya bu surumdeki/yeni uyumlu
+operations scriptine sabitleyin. Tam izin rollback'i zorunluysa once non-root uygulamayi ve
+root cronlarini durdurun; backup root/set dizinlerini `root:root 0700`, manifest ve marker'i
+`root:root 0600` yapin, sonra `BACKUP_HEALTH_GID` ayarini kaldirin. Bu geri alis non-root
+readiness backup kontrollerini bilincli olarak bozar; trafik ancak secilen eski release'in
+readiness kontrolu PASS olduktan sonra acilmalidir.
 
 ### Health ve readiness
 

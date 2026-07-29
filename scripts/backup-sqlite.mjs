@@ -1,8 +1,9 @@
-import { copyFileSync, chmodSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, chmodSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import Database from "better-sqlite3";
 
+import { publishBackupSet } from "./lib/backup-health-access.mjs";
 import { requireBackupSourceDirectory } from "./lib/backup-source.mjs";
 import {
   getSqliteDatabasePath,
@@ -60,8 +61,8 @@ if (!apply) {
 
 mkdirSync(backupRoot, { recursive: true, mode: 0o700 });
 const setName = `enbilir-${timestampForName()}`;
-const partialPath = path.join(backupRoot, `.partial-${setName}-${process.pid}`);
-const finalPath = path.join(backupRoot, setName);
+const physicalSetName = `.partial-${setName}-${process.pid}`;
+const partialPath = path.join(backupRoot, physicalSetName);
 mkdirSync(partialPath, { recursive: false, mode: 0o700 });
 
 try {
@@ -118,7 +119,7 @@ try {
   };
   const manifestPath = path.join(partialPath, "manifest.json");
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  renameSync(partialPath, finalPath);
+  publishBackupSet({ backupRoot, setName, physicalSetName });
   console.log(`[backup] Created and verified backup set ${setName}.`);
 } catch (error) {
   rmSync(partialPath, { recursive: true, force: true });

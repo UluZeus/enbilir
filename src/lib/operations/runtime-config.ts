@@ -40,6 +40,7 @@ const requiredProductionValues = [
 ] as const;
 
 const requiredProductionOnlyValues = [
+  "BACKUP_HEALTH_GID",
   "PARAM_VIP_PAYMENT_URL",
 ] as const;
 
@@ -155,6 +156,14 @@ export function getRuntimeConfigIssues(
     } catch {
       addIssue(issues, { key: "PARAM_VIP_PAYMENT_URL", code: "invalid" });
     }
+  }
+
+  const backupHealthGroupId = env.BACKUP_HEALTH_GID?.trim();
+  if (
+    backupHealthGroupId
+    && (!/^[1-9]\d*$/.test(backupHealthGroupId) || Number(backupHealthGroupId) > 2_147_483_647)
+  ) {
+    addIssue(issues, { key: "BACKUP_HEALTH_GID", code: "invalid" });
   }
 
   const databaseUrl = env.DATABASE_URL?.trim();

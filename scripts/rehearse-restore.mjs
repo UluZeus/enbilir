@@ -1,9 +1,20 @@
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import Database from "better-sqlite3";
 
+import {
+  assertBackupSetName,
+  publishRestoreRehearsalMarker,
+} from "./lib/backup-health-access.mjs";
 import {
   isSafeChildPath,
   loadLocalEnvironment,
@@ -22,13 +33,15 @@ const backupRoot = requireExternalAbsoluteDirectory(
   "BACKUP_DIR",
 );
 const requestedSet = getArgument("--set");
-if (!requestedSet || path.basename(requestedSet) !== requestedSet || requestedSet.startsWith(".")) {
-  throw new Error("Specify a backup set directory name with --set.");
-}
+assertBackupSetName(requestedSet);
 const setPath = path.join(backupRoot, requestedSet);
 if (!isSafeChildPath(backupRoot, setPath)) throw new Error("Unsafe backup set path.");
 
 const manifestPath = path.join(setPath, "manifest.json");
+const manifestStats = lstatSync(manifestPath);
+if (manifestStats.isSymbolicLink() || !manifestStats.isFile() || manifestStats.nlink !== 1) {
+  throw new Error("Backup manifest must be a single-link regular file.");
+}
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 if (manifest.version !== 1 || manifest.setName !== requestedSet || !Array.isArray(manifest.files)) {
   throw new Error("Backup manifest is invalid.");
@@ -39,10 +52,17 @@ for (const file of manifest.files) {
     throw new Error("Backup manifest file entry is invalid.");
   }
   const source = path.join(setPath, file.path);
-  if (!isSafeChildPath(setPath, source) || !existsSync(source)) {
-    throw new Error("Backup manifest references an unsafe or missing file.");
+  if (!isSafeChildPath(setPath, source)) {
+    throw new Error("Backup manifest references an unsafe file.");
   }
-  if (statSync(source).size !== file.sizeBytes || sha256File(source) !== file.sha256) {
+  const sourceStats = lstatSync(source);
+  if (
+    sourceStats.isSymbolicLink()
+    || !sourceStats.isFile()
+    || sourceStats.nlink !== 1
+    || sourceStats.size !== file.sizeBytes
+    || sha256File(source) !== file.sha256
+  ) {
     throw new Error(`Backup checksum mismatch for ${file.path}.`);
   }
 }
@@ -66,20 +86,16 @@ try {
   }
 
   if (process.argv.includes("--record")) {
-    writeFileSync(
-      path.join(backupRoot, "last-restore-rehearsal.json"),
-      `${JSON.stringify(
-        {
-          version: 1,
-          rehearsedAt: new Date().toISOString(),
-          backupSet: requestedSet,
-          databaseSha256: sha256File(restoredDatabasePath),
-        },
-        null,
-        2,
-      )}\n`,
-      { encoding: "utf8", mode: 0o600 },
-    );
+    publishRestoreRehearsalMarker({
+      backupRoot,
+      setName: requestedSet,
+      marker: {
+        version: 1,
+        rehearsedAt: new Date().toISOString(),
+        backupSet: requestedSet,
+        databaseSha256: sha256File(restoredDatabasePath),
+      },
+    });
   }
   console.log(`[restore-rehearsal] Backup set ${requestedSet} passed checksum and SQLite integrity checks.`);
 } finally {
