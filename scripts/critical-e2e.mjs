@@ -236,7 +236,10 @@ async function main() {
   const { chromium } = await import("playwright");
   const browser = await launchBrowser(chromium);
   try {
-    const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const desktop = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      reducedMotion: "no-preference",
+    });
     await desktop.addInitScript(() => {
       localStorage.setItem("enbilir-guided-help:v3:guest:tr", "1");
     });
