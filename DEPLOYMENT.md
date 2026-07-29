@@ -71,6 +71,21 @@ sudo apt install -y git build-essential nginx sqlite3
 
 PM2 daha sonra global npm paketi olarak kurulacaktir.
 
+### Kilitli uygulama kullanicisi
+
+Next.js process'i root olarak calistirilmaz. Bir kez kilitli servis hesabi olusturun:
+
+```bash
+sudo groupadd --system enbilir-app
+sudo useradd --system --gid enbilir-app --no-create-home \
+  --home-dir /nonexistent --shell /usr/sbin/nologin enbilir-app
+sudo passwd --lock enbilir-app
+id enbilir-app
+```
+
+`id -G enbilir-app` yalniz `id -g enbilir-app` ile ayni primary GID'yi gostermelidir.
+Servis hesabina supplementary grup, sudo yetkisi, login shell veya home dizini vermeyin.
+
 ## 3. Projeyi sunucuya alma
 
 ### Git clone ile yukleme
@@ -78,9 +93,8 @@ PM2 daha sonra global npm paketi olarak kurulacaktir.
 Ornek dizin:
 
 ```bash
-sudo mkdir -p /srv/enbilir
-sudo chown -R $USER:$USER /srv/enbilir
-mkdir -p /srv/enbilir/build
+sudo install -d -o root -g enbilir-app -m 0750 /srv/enbilir
+sudo install -d -o "$USER" -g "$USER" -m 0750 /srv/enbilir/build
 cd /srv/enbilir/build
 git clone <REPO_URL> enbilir
 cd enbilir
@@ -93,8 +107,9 @@ cd enbilir
 Kod zip olarak aktarilacaksa:
 
 ```bash
-sudo mkdir -p /srv/enbilir/build/enbilir
-sudo chown -R $USER:$USER /srv/enbilir
+sudo install -d -o root -g enbilir-app -m 0750 /srv/enbilir
+sudo install -d -o "$USER" -g "$USER" -m 0750 /srv/enbilir/build
+mkdir -p /srv/enbilir/build/enbilir
 cd /srv/enbilir/build/enbilir
 unzip /path/to/enbilir.zip
 ```
@@ -108,15 +123,19 @@ Onerilen production klasor yapisi:
 ```text
 /srv/enbilir/
   build/enbilir/       # Temiz build calisma agaci; canli trafik almaz
-  releases/<git-sha>/  # Degismez release dizinleri
-  current -> releases/<git-sha>  # Aktif release baglantisi
+  artifacts/<git-sha>/ # Kaynak artifact; root-owned ve degismez
+  releases/<git-sha>/  # Dogrulanmis release kopyasi; root-owned ve degismez
+  runtimes/<git-sha>/  # Non-root calisma kopyasi; kod salt-okunur
+  current -> runtimes/<git-sha>  # Aktif runtime baglantisi
   data/                # Kalici SQLite veritabani dosyasi
   backups/             # Gunluk veritabani yedekleri
   uploads/             # Kalici chat ve admin yuklemeleri
 ```
 
-Release dizinleri yerinde degistirilmez. `current` sembolik baglantisi yalnizca dogrulanmis bir
-Git SHA dizinine atomik olarak cevrilir. `data`, `backups` ve `uploads` release disinda kalicidir.
+Artifact ve release SHA dizinleri yerinde degistirilmez. Runtime, dogrulanmis release'in ayri
+bir kopyasidir; yalniz `.next/cache` yazilabilir. `current` sembolik baglantisi yalnizca
+hazirlanmis ve non-root smoke testi gecmis bir `runtimes/<git-sha>` dizinine atomik olarak
+cevrilir. `data`, `backups` ve `uploads` runtime disinda kalicidir.
 
 ## 4. Environment degiskenleri
 
@@ -124,10 +143,11 @@ Secret ve ortam ayarlari release dizinine yazilmaz. Tek production ortam dosyasi
 disinda `/etc/enbilir/enbilir.env` olarak olusturun:
 
 ```bash
-sudo install -d -m 750 -o "$USER" -g "$USER" /etc/enbilir
+sudo install -d -m 750 -o root -g root /etc/enbilir
 umask 077
-nano /etc/enbilir/enbilir.env
-chmod 600 /etc/enbilir/enbilir.env
+sudoedit /etc/enbilir/enbilir.env
+sudo chown root:root /etc/enbilir/enbilir.env
+sudo chmod 600 /etc/enbilir/enbilir.env
 ```
 
 Ornek production ortam dosyasi:
@@ -201,7 +221,8 @@ openssl rand -base64 48
 
 Ortam dosyasi Git'e commit edilmemeli ve Linux'ta `chmod 600` ile korunmalidir. Degerleri
 `echo`, process listesi veya loglarla yazdirmayin. Varlik kontrolu icin `test -n "$DEGISKEN"` kullanin.
-Uygulama veya cron baslatmadan once `set -a; . /etc/enbilir/enbilir.env; set +a` ile yukleyin.
+Uygulama veya cron baslatmadan once root yonetim shell'inde
+`set -a; . /etc/enbilir/enbilir.env; set +a` ile yukleyin.
 
 Development, test, staging ve production ayni database dosyasini, upload/backup/log dizinini,
 OAuth istemcisini, SMTP gondericisini, payment endpoint'ini veya cron secret'ini paylasmamalidir.
@@ -228,37 +249,37 @@ DATABASE_URL="file:/srv/enbilir/data/production.db"
 ### Kalici klasor olusturma
 
 ```bash
-sudo mkdir -p /srv/enbilir/data
-sudo chown -R $USER:$USER /srv/enbilir/data
-chmod 750 /srv/enbilir/data
+sudo install -d -o enbilir-app -g enbilir-app -m 0750 /srv/enbilir/data
+sudo install -d -o enbilir-app -g enbilir-app -m 0750 /srv/enbilir/uploads
 ```
 
-SQLite dosyasi migration calistiginda yoksa olusturulur.
+SQLite dosyasi migration calistiginda yoksa olusturulur. Mevcut database dosyasi
+`enbilir-app:enbilir-app 0600` olmalidir; WAL/SHM dosyalari varsa ayni sahiplikle `0600`
+oldugunu dogrulayin.
 
 ### Migration calistirma
 
-Migration, canli release dizininde degil temiz build calisma agacinda calistirilir:
-
-```bash
-cd /srv/enbilir/build/enbilir
-set -a; . /etc/enbilir/enbilir.env; set +a
-npm ci
-npm run db:deploy
-```
+Migration'i bu asamada calistirmayin. Once hedef artifact/release/runtime ile onceki fallback
+runtime'i hazirlayip non-root smoke testlerini tamamlayin, production clone migration
+provasini gecirin ve release guard PASS alin. Gercek `db:deploy`, asagidaki atomik cutover
+akisi icinde trafik gecisinden hemen once temiz build calisma agacindan calistirilir.
 
 ### VIP sabah raporu cron'u
 
 Mevcut AI cron kurulumu VIP route'unu da her saat kontrol eder; route yalnizca Europe/Istanbul saat diliminde 07.00'de rapor uretir, aktif VIP uyelere e-posta yollar, vadesi gelen 1/3/6/12 aylik performans kayitlarini kapatir ve SABİT/OLGUN/YILDIRIM sanal portfoylerini calistirir. Her ajan 1.100.000 USD toplam bakiye ile baslar; 100.000 USD rezerve edilir ve butun pozisyon/getiri hesaplari sabit 1.000.000 USD performans tabani uzerinden yapilir:
 
 ```bash
+sudo -i
 cd /srv/enbilir/current
+set -a; . /etc/enbilir/enbilir.env; set +a
 npm run agent:install-cron
 npm run subscription:install-cron
 npm run weekly:install-cron
 npm run operations:install-cron
 ```
 
-Her cron kendi `/tmp/enbilir-*.lock` kilidini kullanir. Cron komutlari
+Bu kurulumlar root crontab'ina yazilir; ozellikle backup sahiplik islemleri nedeniyle
+operations cron'u root kalmalidir. Her cron kendi `/tmp/enbilir-*.lock` kilidini kullanir. Cron komutlari
 `run-with-heartbeat.mjs` uzerinden calisir; sonuc veritabanina kalp atisi olarak yazilir,
 yanit govdelerindeki secret, token ve e-posta degerleri redakte edilir ve loglar dondurulur.
 Haftalik is Istanbul saatine gore Pazartesi 00.05'te calisir.
@@ -279,91 +300,164 @@ Standalone production build yalnizca `/srv/enbilir/build/enbilir` altindaki temi
 calisma agacinda yapilir. `/srv/enbilir/current` altinda `npm ci`, `git pull` veya build
 calistirilmaz.
 
-### Production server baslatma
+## 7. Immutable release, runtime ve PM2
 
-Enbilir production servisi reverse proxy arkasinda `3006` portunda calisir; portu acikca belirtin:
+### Artifact ve release hazirlama
 
-```bash
-cd /srv/enbilir/current
-set -a; . /etc/enbilir/enbilir.env; set +a
-PORT=3006 HOSTNAME=127.0.0.1 node server.js
-```
-
-Farkli port kullanmak icin:
-
-```bash
-PORT=<PORT> HOSTNAME=127.0.0.1 node server.js
-```
-
-Sunucu icinden test:
-
-```bash
-curl -I http://127.0.0.1:3006
-```
-
-## 7. Surekli calistirma
-
-### PM2 kurulumu
-
-```bash
-sudo npm install -g pm2
-```
-
-### PM2 ile baslatma
-
-```bash
-cd /srv/enbilir/current
-set -a; . /etc/enbilir/enbilir.env; set +a
-PORT=3006 HOSTNAME=127.0.0.1 pm2 start /srv/enbilir/current/server.js \
-  --name enbilir --cwd /srv/enbilir/current --interpreter node
-```
-
-Durum kontrolu:
-
-```bash
-pm2 status
-pm2 logs enbilir
-```
-
-### Otomatik restart
-
-Sunucu yeniden basladiginda PM2 processlerinin otomatik acilmasi icin:
-
-```bash
-pm2 startup
-```
-
-Bu komut ekrana `sudo ...` ile baslayan bir komut yazdirir. Ekranda verilen komutu kopyalayip calistirin.
-
-Ardindan mevcut process listesini kaydedin:
-
-```bash
-pm2 save
-```
-
-Yeni surum icin mevcut release dizininde `git pull` veya yerinde build yapmayin. Once temiz
-bir calisma agacinda release preflight ve immutable artifact olusturun:
+Canli runtime veya release dizininde `git pull`, `npm ci` ya da build calistirmayin. Temiz
+build calisma agacinda exact hedef SHA icin preflight ve artifact olusturun:
 
 ```bash
 cd /srv/enbilir/build/enbilir
+git status --short
 npm ci
 npm run release:preflight
-npm run release:artifact -- --output /srv/enbilir/releases
-npm run release:verify -- --release /srv/enbilir/releases/$(git rev-parse HEAD) --commit $(git rev-parse HEAD)
+TARGET_SHA="$(git rev-parse HEAD)"
+sudo install -d -o root -g root -m 0750 \
+  /srv/enbilir/artifacts /srv/enbilir/releases
+sudo install -d -o root -g enbilir-app -m 0550 /srv/enbilir/runtimes
+sudo npm run release:artifact -- --output /srv/enbilir/artifacts
+sudo cp -a "/srv/enbilir/artifacts/$TARGET_SHA" "/srv/enbilir/releases/$TARGET_SHA"
+sudo chown -R root:root \
+  "/srv/enbilir/artifacts/$TARGET_SHA" "/srv/enbilir/releases/$TARGET_SHA"
+sudo find "/srv/enbilir/artifacts/$TARGET_SHA" "/srv/enbilir/releases/$TARGET_SHA" \
+  -type d -exec chmod 0550 {} +
+sudo find "/srv/enbilir/artifacts/$TARGET_SHA" "/srv/enbilir/releases/$TARGET_SHA" \
+  -type f -exec chmod 0440 {} +
+sudo npm run release:verify -- \
+  --release "/srv/enbilir/artifacts/$TARGET_SHA" --commit "$TARGET_SHA"
+sudo npm run release:verify -- \
+  --release "/srv/enbilir/releases/$TARGET_SHA" --commit "$TARGET_SHA"
 ```
 
-Artifact araci `.next/BUILD_ID` degerinin `HEAD` SHA ile ayni olmasini zorunlu tutar, calisabilir
-standalone `server.js`, public/statik varliklar, cron scriptleri ve migration envanterini kopyalar;
-manifestte server dahil tum payload dosyalarinin SHA-256 degerini yazar. Linux'ta release
-dosyalari salt-okunur (`0440`), dizinleri salt-okunur/gecisli (`0550`) olur. Release SHA
-dizininde manifestteki commit SHA, eksik/fazla dosya bulunmadigi, boyutlar ve tum SHA-256
-degerleri `release:verify` ile yeniden dogrulanmadan aktif symlink'i degistirmeyin. Veritabani backup
-ve restore provasi guncel degilse migration veya trafik gecisi yapmayin. Migration yalnizca
-ayni veritabaninin disposable klonunda `db:deploy` basarili olduktan sonra gercek hedefe
-uygulanir. Trafik gecisi `current` sembolik baglantisini yeni SHA dizinine atomik cevirmek,
-`/etc/enbilir/enbilir.env` dosyasini yeniden yuklemek ve PM2'yi `--update-env` ile yeniden
-baslatmaktir. Bu adimlar, ancak kullanicinin acik production
-yayin yetkisi ve release guard PASS karariyla uygulanir.
+Artifact ve release strict verification sonrasinda degismezdir. Bunlara cache, log, upload,
+PID veya runtime dosyasi yazilmaz.
+
+### Non-root runtime olusturma ve sertlestirme
+
+Runtime, dogrulanmis release'in ayri kopyasidir:
+
+```bash
+sudo cp -a "/srv/enbilir/releases/$TARGET_SHA" "/srv/enbilir/runtimes/$TARGET_SHA"
+sudo chown -R root:enbilir-app "/srv/enbilir/runtimes/$TARGET_SHA"
+sudo find "/srv/enbilir/runtimes/$TARGET_SHA" -type d -exec chmod 0550 {} +
+sudo find "/srv/enbilir/runtimes/$TARGET_SHA" -type f -exec chmod 0440 {} +
+sudo install -d -o enbilir-app -g enbilir-app -m 0700 \
+  "/srv/enbilir/runtimes/$TARGET_SHA/.next/cache"
+sudo chown -R enbilir-app:enbilir-app \
+  "/srv/enbilir/runtimes/$TARGET_SHA/.next/cache"
+sudo find "/srv/enbilir/runtimes/$TARGET_SHA/.next/cache" -type d -exec chmod 0700 {} +
+sudo find "/srv/enbilir/runtimes/$TARGET_SHA/.next/cache" -type f -exec chmod 0600 {} +
+sudo diff -qr --exclude=cache \
+  "/srv/enbilir/releases/$TARGET_SHA" "/srv/enbilir/runtimes/$TARGET_SHA"
+sudo -u enbilir-app test ! -w "/srv/enbilir/runtimes/$TARGET_SHA/server.js"
+```
+
+Runtime kod dizinleri `root:enbilir-app 0550`, dosyalari `root:enbilir-app 0440` olmalidir.
+Tek istisna `.next/cache` olup `enbilir-app:enbilir-app 0700`, icindeki dosyalar `0600`
+olabilir. Release ile runtime envanterini `.next/cache` haric karsilastirin; runtime'da bunun
+disinda eksik veya fazla entry kabul etmeyin. Artifact ve release icin `release:verify`
+kontrolunu runtime kopyasindan sonra tekrar calistirin.
+
+### Hedef ve fallback non-root smoke
+
+Migration veya cutover'dan once hem hedef runtime hem de onceki dogrulanmis fallback runtime
+hazir, salt-okunur ve non-root smoke testini gecmis olmalidir. Fallback yoksa yayin yapmayin.
+Root PM2 parent'i ortam dosyasini yukler; child process servis hesabina dusurulur:
+
+```bash
+sudo -i
+TARGET_SHA="<exact-git-sha>"
+set -a; . /etc/enbilir/enbilir.env; set +a
+PORT=3017 HOSTNAME=127.0.0.1 pm2 start \
+  "/srv/enbilir/runtimes/$TARGET_SHA/server.js" \
+  --name "enbilir-candidate-$TARGET_SHA" \
+  --cwd "/srv/enbilir/runtimes/$TARGET_SHA" --interpreter node \
+  --uid enbilir-app --gid enbilir-app
+curl --fail --silent http://127.0.0.1:3017/api/health/live > /dev/null
+curl --fail --silent http://127.0.0.1:3017/api/health/ready > /dev/null
+CANDIDATE_PID="$(pm2 pid "enbilir-candidate-$TARGET_SHA")"
+grep -E '^(Uid|Gid|Groups|CapEff):' "/proc/$CANDIDATE_PID/status"
+pm2 delete "enbilir-candidate-$TARGET_SHA"
+```
+
+Onceki exact `FALLBACK_SHA` icin ayni testi farkli bir loopback portunda, ornegin `3018`,
+`/srv/enbilir/runtimes/$FALLBACK_SHA/server.js` ve ayri PM2 adi ile tekrarlayin. Smoke
+processleri public interface'e baglanmaz; Nginx hala mevcut `127.0.0.1:3006` servisine gider.
+
+### Process kimligi ve capability dogrulamasi
+
+Her candidate ve production baslangicindan sonra child PID'yi ve kernel kimligini kontrol edin:
+
+```bash
+APP_PID="$(sudo pm2 pid enbilir)"
+sudo grep -E '^(Uid|Gid|Groups|CapEff):' "/proc/$APP_PID/status"
+```
+
+`Uid` alanindaki tum degerler `id -u enbilir-app`, `Gid` alanindaki tum degerler
+`id -g enbilir-app` olmalidir. `Groups` yalniz ayni primary GID'yi icermeli, `CapEff`
+`0000000000000000` olmalidir. Child root, supplementary gruplu veya capability sahibi ise
+restart yeterli degildir; process'i silip asagidaki `--uid/--gid` komutuyla yeniden olusturun.
+
+### Migration ve atomik cutover
+
+Yayin sirasi sabittir:
+
+1. Hedef ve fallback artifact/release strict verification.
+2. Hedef ve fallback runtime non-root smoke.
+3. Guncel backup ve restore provasi.
+4. Production database'in disposable klonunda `db:deploy`, integrity ve migration kontrolu.
+5. Release guard PASS ve acik Production yayin yetkisi.
+6. Gercek `db:deploy`, hedef runtime gecisi ve non-root PM2 baslangici.
+
+Gercek migration temiz exact-SHA build agacinda calistirilir. Ardindan database sahipligini
+yeniden dogrulayin:
+
+```bash
+sudo -i
+TARGET_SHA="<exact-git-sha>"
+cd /srv/enbilir/build/enbilir
+test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+set -a; . /etc/enbilir/enbilir.env; set +a
+npm run db:deploy
+chown enbilir-app:enbilir-app /srv/enbilir/data/production.db
+chmod 0600 /srv/enbilir/data/production.db
+```
+
+Cutover'da `current` yalniz hedef runtime'a atomik cevrilir. Nginx konfigurasyonu ve upstream
+portu degismez:
+
+```bash
+TARGET_SHA="<exact-git-sha>"
+sudo ln -s "/srv/enbilir/runtimes/$TARGET_SHA" "/srv/enbilir/.current-$TARGET_SHA"
+sudo mv -Tf "/srv/enbilir/.current-$TARGET_SHA" /srv/enbilir/current
+sudo -i
+TARGET_SHA="<exact-git-sha>"
+set -a; . /etc/enbilir/enbilir.env; set +a
+pm2 delete enbilir
+PORT=3006 HOSTNAME=127.0.0.1 pm2 start /srv/enbilir/current/server.js \
+  --name enbilir --cwd /srv/enbilir/current --interpreter node \
+  --uid enbilir-app --gid enbilir-app
+pm2 save
+curl --fail --silent http://127.0.0.1:3006/api/health/live > /dev/null
+curl --fail --silent http://127.0.0.1:3006/api/health/ready > /dev/null
+```
+
+Process kimligi/capability kontrolunu, `current` hedefini, runtime envanterini ve immutable
+artifact/release strict verification'i yeniden calistirin.
+
+### PM2 otomatik restart
+
+PM2 parent root tarafindan yonetilir, child her zaman `enbilir-app` olur:
+
+```bash
+sudo pm2 startup
+sudo pm2 save
+```
+
+Startup komutunun root PM2 process listesini geri yukledigini ve kayitli Enbilir process'inde
+`--uid enbilir-app --gid enbilir-app` kimliginin korundugunu kontrollu reboot testinde
+dogrulayin.
 
 ## 8. Domain yonlendirme
 
@@ -589,9 +683,30 @@ olmalidir. Payload dosyalarini servis grubuna okunur yapmayin.
 
 ### Rollback
 
-Uygulama rollback'i, onceki dogrulanmis SHA release dizinine `current` baglantisini geri
-cevirip PM2'yi yeniden baslatmaktir. Migration geriye uyumluysa veritabani geri alinmaz.
-Geriye uyumsuz veya veri donusumu yapan migration'da:
+Uygulama rollback'i yalniz onceden strict-verify edilmis, hazirlanmis ve non-root smoke
+testini gecmis exact `/srv/enbilir/runtimes/$FALLBACK_SHA` dizinine yapilir. Nginx
+konfigurasyonu degismez:
+
+```bash
+FALLBACK_SHA="<exact-onceki-git-sha>"
+sudo ln -s "/srv/enbilir/runtimes/$FALLBACK_SHA" \
+  "/srv/enbilir/.current-rollback-$FALLBACK_SHA"
+sudo mv -Tf "/srv/enbilir/.current-rollback-$FALLBACK_SHA" /srv/enbilir/current
+sudo -i
+FALLBACK_SHA="<exact-onceki-git-sha>"
+set -a; . /etc/enbilir/enbilir.env; set +a
+pm2 delete enbilir
+PORT=3006 HOSTNAME=127.0.0.1 pm2 start /srv/enbilir/current/server.js \
+  --name enbilir --cwd /srv/enbilir/current --interpreter node \
+  --uid enbilir-app --gid enbilir-app
+pm2 save
+curl --fail --silent http://127.0.0.1:3006/api/health/live > /dev/null
+curl --fail --silent http://127.0.0.1:3006/api/health/ready > /dev/null
+```
+
+Rollback sonrasinda PID `Uid/Gid/Groups/CapEff`, exact `current` runtime hedefi ve immutable
+fallback artifact/release dogrulamasi tekrar kontrol edilir. Migration geriye uyumluysa
+veritabani geri alinmaz. Geriye uyumsuz veya veri donusumu yapan migration'da:
 
 1. Trafigi bakim moduna alin ve yazmalari durdurun.
 2. Basarisiz release sonrasindaki veriyi ayri bir dosyada koruyun.
@@ -601,13 +716,13 @@ Geriye uyumsuz veya veri donusumu yapan migration'da:
 
 Migration dosyalarini silmek veya SQLite schema'sini elle geriye cevirmek rollback degildir.
 
-Backup metadata izin degisikligi uygulama release rollback'inden bagimsizdir ve normal SHA
+Backup metadata izin degisikligi uygulama runtime rollback'inden bagimsizdir ve normal SHA
 rollback'inde korunur. Pre-permission bir SHA'ya donulurse root backup cron'unun eski scriptle
 yeni `0700` set uretmesine izin vermeyin: cron'u gecici durdurun veya bu surumdeki/yeni uyumlu
 operations scriptine sabitleyin. Tam izin rollback'i zorunluysa once non-root uygulamayi ve
 root cronlarini durdurun; backup root/set dizinlerini `root:root 0700`, manifest ve marker'i
 `root:root 0600` yapin, sonra `BACKUP_HEALTH_GID` ayarini kaldirin. Bu geri alis non-root
-readiness backup kontrollerini bilincli olarak bozar; trafik ancak secilen eski release'in
+readiness backup kontrollerini bilincli olarak bozar; trafik ancak secilen fallback runtime'in
 readiness kontrolu PASS olduktan sonra acilmalidir.
 
 ### Health ve readiness
@@ -630,6 +745,12 @@ olarak kapatmak readiness PASS sayilmaz.
 
 ## 12. Sorun giderme
 
+Asagidaki `pm2 restart ... --update-env` komutlari yalniz mevcut child process'in
+`enbilir-app` Uid/Gid'si, tek primary grubu ve sifir `CapEff` degeri daha once dogrulanmissa
+kullanilir. Process root veya yanlis kimlikle calisiyorsa restart yeterli degildir; process'i
+silip runtime bolumundeki root PM2 parent + `--uid enbilir-app --gid enbilir-app` komutuyla
+yeniden olusturun.
+
 ### `Production icin DATABASE_URL tanimlanmalidir`
 
 Sebep: Production ortam dosyasi yuklenmemistir veya `DATABASE_URL` tanimli degildir.
@@ -637,6 +758,7 @@ Sebep: Production ortam dosyasi yuklenmemistir veya `DATABASE_URL` tanimli degil
 Cozum:
 
 ```bash
+sudo -i
 test -r /etc/enbilir/enbilir.env && echo "production ortam dosyasi okunabilir"
 set -a; . /etc/enbilir/enbilir.env; set +a
 test -n "$DATABASE_URL" && echo "DATABASE_URL tanimli"
@@ -656,6 +778,8 @@ openssl rand -base64 48
 Ardindan:
 
 ```bash
+sudo -i
+set -a; . /etc/enbilir/enbilir.env; set +a
 pm2 restart enbilir --update-env
 ```
 
@@ -665,6 +789,7 @@ Ortami yukledikten sonra degerlerin yalnizca tanimli oldugunu kontrol edin; dege
 yazdirmayin:
 
 ```bash
+sudo -i
 set -a; . /etc/enbilir/enbilir.env; set +a
 for key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASSWORD SMTP_FROM; do
   test -n "$(printenv "$key")" || echo "$key eksik"
@@ -680,6 +805,8 @@ gonderimini ayirin. Kimlik bilgilerini komuta arguman, log veya destek ciktisi o
 Kontrol edilecekler:
 
 ```bash
+sudo -i
+set -a; . /etc/enbilir/enbilir.env; set +a
 test -n "$GOOGLE_CLIENT_ID" && echo "GOOGLE_CLIENT_ID tanimli"
 test -n "$GOOGLE_CLIENT_SECRET" && echo "GOOGLE_CLIENT_SECRET tanimli"
 test -n "$NEXT_PUBLIC_SITE_URL" && echo "NEXT_PUBLIC_SITE_URL tanimli"
@@ -694,6 +821,8 @@ https://enbilir.com/api/auth/google/callback
 Eger uygulama farkli bir domain, preview URL veya reverse proxy arkasinda calisiyorsa `NEXT_PUBLIC_SITE_URL` degerini o public adrese gore ayarlayin ve uygulamayi yeniden baslatin:
 
 ```bash
+sudo -i
+set -a; . /etc/enbilir/enbilir.env; set +a
 pm2 restart enbilir --update-env
 ```
 
@@ -704,6 +833,7 @@ Sebep: `DATABASE_URL` yanlis, SQLite klasoru yazilabilir degil veya migration do
 Kontrol:
 
 ```bash
+sudo -i
 cd /srv/enbilir/build/enbilir
 set -a; . /etc/enbilir/enbilir.env; set +a
 test -n "$DATABASE_URL" && echo "DATABASE_URL tanimli"
@@ -724,11 +854,13 @@ Sebep: Uygulamayi calistiran kullanicinin `/srv/enbilir/data` klasorune yazma iz
 Cozum:
 
 ```bash
-sudo chown -R $USER:$USER /srv/enbilir/data
-chmod 750 /srv/enbilir/data
+sudo chown -R enbilir-app:enbilir-app /srv/enbilir/data
+sudo find /srv/enbilir/data -type d -exec chmod 0750 {} +
+sudo find /srv/enbilir/data -type f -exec chmod 0600 {} +
 ```
 
-PM2 farkli bir kullanici ile calisiyorsa klasor sahibi o kullanici olmalidir.
+PM2 child process'i farkli bir kullanici ile calisiyorsa bu bir izin ayari degil release
+ihlali olarak ele alinmali; process non-root `enbilir-app` kimligiyle yeniden olusturulmalidir.
 
 ### `npm run build` basarisiz
 
@@ -750,8 +882,8 @@ Sebep: Nginx/Apache Next.js uygulamasina ulasamiyordur.
 Kontrol:
 
 ```bash
-pm2 status
-pm2 logs enbilir
+sudo pm2 status
+sudo pm2 logs enbilir
 curl -I http://127.0.0.1:3006
 sudo nginx -t
 sudo systemctl status nginx
@@ -760,10 +892,12 @@ sudo systemctl status nginx
 PM2 process calismiyorsa:
 
 ```bash
+sudo -i
 cd /srv/enbilir/current
 set -a; . /etc/enbilir/enbilir.env; set +a
 PORT=3006 HOSTNAME=127.0.0.1 pm2 start /srv/enbilir/current/server.js \
-  --name enbilir --cwd /srv/enbilir/current --interpreter node
+  --name enbilir --cwd /srv/enbilir/current --interpreter node \
+  --uid enbilir-app --gid enbilir-app
 pm2 save
 ```
 
@@ -801,13 +935,14 @@ Let's Encrypt dogrulamasi icin `enbilir.com` ve `www.enbilir.com` DNS kayitlari 
 
 ### Degisiklikler deploy sonrasi gorunmuyor
 
-`current` sembolik baglantisinin beklenen Git SHA release dizinini gosterdigini, release
-manifestini ve PM2'nin calisma dizinini kontrol edin. Canli release dizininde `git pull` veya
-yerinde build yapmayin. Dogru SHA'ya atomik gecis ve restart, yalnizca release guard PASS
-sonrasinda uygulanir.
+`current` sembolik baglantisinin beklenen exact Git SHA runtime dizinini gosterdigini,
+artifact/release manifestlerini, runtime'in `.next/cache` disinda release ile ayni oldugunu
+ve PM2 child kimligini kontrol edin. Canli runtime, artifact veya release dizininde `git pull`,
+`npm ci` ya da yerinde build yapmayin. Dogru runtime SHA'sina atomik gecis ve non-root PM2
+baslangici yalnizca release guard PASS sonrasinda uygulanir.
 
 PM2 loglari:
 
 ```bash
-pm2 logs enbilir
+sudo pm2 logs enbilir
 ```
