@@ -235,10 +235,20 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
           animation: ai-market-radar-ticker 64s linear infinite;
           will-change: transform;
         }
+        @media (prefers-reduced-motion: no-preference) {
+          .visual-motion-off .ai-market-radar-track--auto {
+            animation: ai-market-radar-ticker 64s linear infinite !important;
+            will-change: transform;
+          }
+        }
+        .visual-motion-off .ai-market-radar-track--motion-enabled {
+          animation: ai-market-radar-ticker 64s linear infinite !important;
+          will-change: transform;
+        }
         .ai-market-radar-track--static {
           width: 100%;
           flex-wrap: wrap;
-          animation: none;
+          animation: none !important;
           transform: none;
           will-change: auto;
         }
