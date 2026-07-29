@@ -639,7 +639,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   const idempotencyKey = String(formData.get("idempotencyKey") ?? "");
   const cookieStore = await cookies();
   const nonceCookieName = `enbilir_trade_${userId}`;
-  const marketItem = await getLiveMarketItem(symbol);
+  let marketItem = await getLiveMarketItem(symbol);
 
   if (!/^[a-zA-Z0-9_-]{16,128}$/.test(idempotencyKey)) {
     return { ok: false, message: "İşlem güvenlik anahtarı geçersiz. Sayfayı yenileyip tekrar deneyin." };
@@ -665,12 +665,14 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       message: "Bu ürün için açık piyasa saatine ait güncel ve doğrulanmış fiyat yok. İşlem güvenlik amacıyla uygulanmadı.",
     };
   }
-  const verifiedPriceAsOf = new Date(marketItem.sourceAsOf!);
+  let verifiedPriceAsOf = new Date(marketItem.sourceAsOf!);
 
   let existingPosition = await prisma.portfolioPosition.findUnique({
     where: { userId_symbol: { userId, symbol } },
   });
-  const tradePriceUsd = marketItem.priceUsd;
+  let tradePriceUsd = side === "BUY"
+    ? marketItem.askPriceUsd ?? marketItem.priceUsd
+    : marketItem.bidPriceUsd ?? marketItem.priceUsd;
 
   if (!Number.isFinite(tradePriceUsd) || tradePriceUsd <= 0) {
     return { ok: false, message: "Seçilen ürün için geçerli fiyat bulunamadı." };
@@ -710,7 +712,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: "Bu alım için yeterli sanal nakdin yok." };
   }
 
-  const quantity = amountUsd / tradePriceUsd;
+  let quantity = amountUsd / tradePriceUsd;
 
   if (side === "SELL") {
     if (!existingPosition || existingPosition.quantity <= 0) {
@@ -719,6 +721,39 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
 
     if (existingPosition.quantity + 0.000001 < quantity) {
       return { ok: false, message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla." };
+    }
+  }
+
+  if (marketItem.source === "gate") {
+    const refreshedMarketItem = await getLiveMarketItem(symbol);
+
+    if (
+      !refreshedMarketItem ||
+      refreshedMarketItem.source !== "gate" ||
+      !isExecutableMarketQuote(refreshedMarketItem)
+    ) {
+      return {
+        ok: false,
+        message: "Bu ürün için açık piyasa saatine ait güncel ve doğrulanmış fiyat yok. İşlem güvenlik amacıyla uygulanmadı.",
+      };
+    }
+
+    marketItem = refreshedMarketItem;
+    verifiedPriceAsOf = new Date(marketItem.sourceAsOf!);
+    tradePriceUsd = side === "BUY" ? marketItem.askPriceUsd! : marketItem.bidPriceUsd!;
+    quantity = amountUsd / tradePriceUsd;
+
+    if (!Number.isFinite(tradePriceUsd) || tradePriceUsd <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+      return { ok: false, message: "Seçilen ürün için geçerli fiyat bulunamadı." };
+    }
+
+    if (side === "SELL" && (!existingPosition || existingPosition.quantity + 0.000001 < quantity)) {
+      return {
+        ok: false,
+        message: existingPosition
+          ? "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla."
+          : "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor.",
+      };
     }
   }
 
@@ -739,7 +774,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       const execution = getVirtualExecutionCosts({
         category: marketItem.category,
         side,
-        quotePriceUsd: marketItem.priceUsd,
+        quotePriceUsd: tradePriceUsd,
         requestedAmountUsd: amountUsd,
       });
       const currentTradePriceUsd = execution.executionPriceUsd;
@@ -781,6 +816,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
               quantity: totalQuantity,
               averagePriceUsd: totalCost / totalQuantity,
               positionCycleId,
+              providerSymbol: marketItem.providerSymbol ?? marketItem.dataSymbol,
             },
           });
         } else {
@@ -790,7 +826,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
               userId,
               positionCycleId,
               symbol,
-              providerSymbol: marketItem.dataSymbol,
+              providerSymbol: marketItem.providerSymbol ?? marketItem.dataSymbol,
               name: marketItem.name,
               market: marketItem.market,
               quantity: currentQuantity,
@@ -853,7 +889,33 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
         payload: {
           symbol,
           quantity: currentQuantity,
-          quotePriceUsd: marketItem.priceUsd,
+          providerSymbol: marketItem.providerSymbol ?? marketItem.dataSymbol,
+          valuationPriceType: marketItem.priceType ?? null,
+          executionReferencePriceType: side === "BUY" ? "ASK" : "BID",
+          priceUnit: marketItem.priceUnit ?? null,
+          quotePriceUsd: tradePriceUsd,
+          quoteCurrency: marketItem.quoteCurrency ?? "USD",
+          sourceAsOf: marketItem.sourceAsOf,
+          bidPriceUsd: marketItem.bidPriceUsd ?? null,
+          askPriceUsd: marketItem.askPriceUsd ?? null,
+          markPriceUsd: marketItem.markPriceUsd ?? null,
+          indexPriceUsd: marketItem.indexPriceUsd ?? null,
+          lastPriceUsd: marketItem.lastPriceUsd ?? null,
+          bidPriceNative: marketItem.bidPriceNative ?? null,
+          askPriceNative: marketItem.askPriceNative ?? null,
+          markPriceNative: marketItem.markPriceNative ?? null,
+          indexPriceNative: marketItem.indexPriceNative ?? null,
+          lastPriceNative: marketItem.lastPriceNative ?? null,
+          stablecoinRate: marketItem.stablecoinRate ?? null,
+          stablecoinAsOf: marketItem.stablecoinAsOf ?? null,
+          providerStatus: marketItem.providerStatus ?? null,
+          providerDelisting: marketItem.providerDelisting ?? null,
+          source: marketItem.source,
+          retrievedAt: marketItem.retrievedAt ?? null,
+          stablecoinProvider: marketItem.stablecoinProvider ?? null,
+          instrumentType: marketItem.instrumentType ?? null,
+          exchange: marketItem.exchange ?? null,
+          settleCurrency: marketItem.settleCurrency ?? null,
           executionPriceUsd: currentTradePriceUsd,
           requestedAmountUsd: amountUsd,
           executionNotionalUsd: execution.executionNotionalUsd,

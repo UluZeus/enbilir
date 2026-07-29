@@ -2,6 +2,25 @@ import { describe, expect, it } from "vitest";
 import { calculateRealizedTradePnl, getVirtualExecutionCosts } from "@/lib/trade-accounting";
 
 describe("virtual trade accounting", () => {
+  it("applies adverse slippage to the supplied side-specific ask/bid reference", () => {
+    const buy = getVirtualExecutionCosts({
+      category: "COMMODITY",
+      side: "BUY",
+      quotePriceUsd: 101,
+      requestedAmountUsd: 1_000,
+    });
+    const sell = getVirtualExecutionCosts({
+      category: "COMMODITY",
+      side: "SELL",
+      quotePriceUsd: 99,
+      requestedAmountUsd: 990,
+    });
+
+    expect(buy.executionPriceUsd).toBeGreaterThan(101);
+    expect(sell.executionPriceUsd).toBeLessThan(99);
+    expect(sell.quantity).toBe(10);
+  });
+
   it("keeps a buy cash budget inclusive of fee and adverse slippage", () => {
     const result = getVirtualExecutionCosts({
       category: "NASDAQ",

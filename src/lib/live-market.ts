@@ -3,6 +3,8 @@ import { formatMarketItemValue, mixedMarketItems, type MarketItem } from "@/lib/
 import { assessQuoteFreshness } from "@/lib/ai-market/data-freshness";
 import {
   canInferYahooCommodityOpen,
+  gateCommodityContracts,
+  gateCommodityPriceUnits,
   isExecutableMarketQuote,
 } from "@/lib/executable-quote";
 import {
@@ -15,17 +17,37 @@ type LiveQuote = {
   symbol: string;
   open: number;
   close: number;
-  provider: "binance" | "yahoo";
+  provider: "binance" | "yahoo" | "gate";
   currency: string;
   sourceAsOf: string;
   marketState: string;
-  marketStateSource: "provider" | "inferred-commodity-session";
+  marketStateSource: "provider" | "inferred-commodity-session" | "gate-contract-status";
+  retrievedAt?: string;
+  priceNative?: number;
   providerSymbol?: string;
+  providerStatus?: string;
+  providerDelisting?: boolean;
+  settleCurrency?: string;
+  priceType?: "MARK";
+  priceUnit?: MarketItem["priceUnit"];
   instrumentType?: string;
   exchange?: string;
   regularSessionStart?: string;
   regularSessionEnd?: string;
   exchangeDataDelayedBy?: number;
+  markPriceNative?: number;
+  indexPriceNative?: number;
+  lastPriceNative?: number;
+  bidPriceNative?: number;
+  askPriceNative?: number;
+  markPriceUsd?: number;
+  indexPriceUsd?: number;
+  lastPriceUsd?: number;
+  bidPriceUsd?: number;
+  askPriceUsd?: number;
+  stablecoinRate?: number;
+  stablecoinAsOf?: string;
+  stablecoinProvider?: "coinbase";
 };
 
 type BinanceTicker = {
@@ -63,7 +85,38 @@ type YahooSparkResponse = {
   };
 };
 
+type GateContract = {
+  name?: string;
+  status?: string;
+  in_delisting?: boolean;
+  type?: string;
+};
+
+type GateTicker = {
+  contract?: string;
+  mark_price?: string;
+  index_price?: string;
+  last?: string;
+  highest_bid?: string;
+  lowest_ask?: string;
+};
+
+type GateTrade = {
+  contract?: string;
+  price?: string;
+  create_time?: number | string;
+  create_time_ms?: number | string;
+};
+
+type CoinbaseTicker = {
+  price?: string;
+  bid?: string;
+  ask?: string;
+  time?: string;
+};
+
 const liveMarketCacheTtlMs = 30_000;
+const gramTroyOunceDivisor = 31.1034768;
 let liveMarketItemsCache: { items: MarketItem[]; expiresAt: number } | null = null;
 let liveMarketItemsRequest: Promise<MarketItem[]> | null = null;
 
@@ -265,11 +318,29 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
   const quoteProvenance = {
     marketStateSource: quote.marketStateSource,
     providerSymbol: quote.providerSymbol,
+    providerStatus: quote.providerStatus,
+    providerDelisting: quote.providerDelisting,
+    settleCurrency: quote.settleCurrency,
+    priceType: quote.priceType,
+    priceUnit: quote.priceUnit,
     instrumentType: quote.instrumentType,
     exchange: quote.exchange,
     regularSessionStart: quote.regularSessionStart,
     regularSessionEnd: quote.regularSessionEnd,
     exchangeDataDelayedBy: quote.exchangeDataDelayedBy,
+    markPriceNative: quote.markPriceNative,
+    indexPriceNative: quote.indexPriceNative,
+    lastPriceNative: quote.lastPriceNative,
+    bidPriceNative: quote.bidPriceNative,
+    askPriceNative: quote.askPriceNative,
+    markPriceUsd: quote.markPriceUsd,
+    indexPriceUsd: quote.indexPriceUsd,
+    lastPriceUsd: quote.lastPriceUsd,
+    bidPriceUsd: quote.bidPriceUsd,
+    askPriceUsd: quote.askPriceUsd,
+    stablecoinRate: quote.stablecoinRate,
+    stablecoinAsOf: quote.stablecoinAsOf,
+    stablecoinProvider: quote.stablecoinProvider,
   };
 
   if (priceUsd === null) {
@@ -278,9 +349,9 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
       dataStatus: "close",
       source: "fallback",
       quoteCurrency: quote.currency,
-      priceNative: quote.close,
+      priceNative: quote.priceNative ?? quote.close,
       sourceAsOf: quote.sourceAsOf,
-      retrievedAt,
+      retrievedAt: quote.retrievedAt ?? retrievedAt,
       marketState: "FX_CONVERSION_UNAVAILABLE",
       ...quoteProvenance,
       executionEligible: false,
@@ -295,9 +366,9 @@ function normalizeLiveQuote(fallback: MarketItem, quoteMap: Map<string, LiveQuot
     dataStatus: freshness === "FRESH" ? "live" : "close",
     source: quote.provider,
     quoteCurrency: quote.currency,
-    priceNative: quote.close,
+    priceNative: quote.priceNative ?? quote.close,
     sourceAsOf: quote.sourceAsOf,
-    retrievedAt,
+    retrievedAt: quote.retrievedAt ?? retrievedAt,
     marketState: quote.marketState,
     ...quoteProvenance,
     executionEligible: false,
@@ -364,6 +435,182 @@ async function fetchBinanceQuotes(items: MarketItem[]) {
       marketState: "REGULAR",
       marketStateSource: "provider",
     });
+  }
+
+  return quoteMap;
+}
+
+function parseGateTradeTime(value: GateTrade) {
+  const milliseconds = toFiniteNumber(value.create_time_ms);
+
+  if (milliseconds !== null && milliseconds > 0) {
+    return milliseconds >= 1_000_000_000_000 ? milliseconds : milliseconds * 1000;
+  }
+
+  const seconds = toFiniteNumber(value.create_time);
+  return seconds !== null && seconds > 0 ? seconds * 1000 : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+async function fetchGateCommodityQuotes(items: MarketItem[]) {
+  const targets = items
+    .map((item) => ({ item, contract: gateCommodityContracts[item.symbol] }))
+    .filter((target): target is { item: MarketItem; contract: string } => Boolean(target.contract));
+  const requestedContracts = Array.from(new Set(targets.map((target) => target.contract)));
+
+  if (requestedContracts.length === 0) {
+    return new Map<string, LiveQuote>();
+  }
+
+  const [contractPayload, tickerResult, stablecoinPayload] = await Promise.all([
+    fetchJson<unknown>("https://api.gateio.ws/api/v4/futures/usdt/contracts", 5_000),
+    fetchJson<unknown>("https://api.gateio.ws/api/v4/futures/usdt/tickers", 5_000)
+      .then((payload) => ({ payload, retrievedAt: new Date().toISOString() })),
+    fetchJson<unknown>("https://api.exchange.coinbase.com/products/USDT-USD/ticker", 5_000),
+  ]);
+  const tickerPayload = tickerResult.payload;
+
+  if (!Array.isArray(contractPayload) || !Array.isArray(tickerPayload) || !isRecord(stablecoinPayload)) {
+    return new Map<string, LiveQuote>();
+  }
+
+  const stablecoin = stablecoinPayload as CoinbaseTicker;
+  const stablecoinRate = toFiniteNumber(stablecoin.price);
+  const stablecoinBid = toFiniteNumber(stablecoin.bid);
+  const stablecoinAsk = toFiniteNumber(stablecoin.ask);
+  const stablecoinTime = Date.parse(String(stablecoin.time ?? ""));
+  const stablecoinAge = Date.now() - stablecoinTime;
+
+  if (
+    stablecoinRate === null ||
+    stablecoinBid === null ||
+    stablecoinAsk === null ||
+    stablecoinBid <= 0 ||
+    stablecoinBid > stablecoinRate ||
+    stablecoinRate > stablecoinAsk ||
+    stablecoinRate < 0.995 ||
+    stablecoinRate > 1.005 ||
+    !Number.isFinite(stablecoinTime) ||
+    stablecoinAge < 0 ||
+    stablecoinAge > 120_000
+  ) {
+    return new Map<string, LiveQuote>();
+  }
+
+  const tradePayloads = await fetchJsonBatch<unknown[]>(
+    requestedContracts.map((contract) =>
+      `https://api.gateio.ws/api/v4/futures/usdt/trades?contract=${encodeURIComponent(contract)}&limit=1`),
+    5_000,
+  );
+  const contractsByName = new Map(
+    contractPayload
+      .filter(isRecord)
+      .map((entry) => [String(entry.name ?? "").toUpperCase(), entry as GateContract]),
+  );
+  const tickersByContract = new Map(
+    tickerPayload
+      .filter(isRecord)
+      .map((entry) => [String(entry.contract ?? "").toUpperCase(), entry as GateTicker]),
+  );
+  const tradesByContract = new Map<string, GateTrade>();
+
+  requestedContracts.forEach((contract, index) => {
+    const latest = (tradePayloads[index] ?? [])
+      .filter((entry): entry is GateTrade =>
+        isRecord(entry) && String(entry.contract ?? "").toUpperCase() === contract)
+      .map((trade) => ({ trade, time: parseGateTradeTime(trade) }))
+      .filter((entry): entry is { trade: GateTrade; time: number } =>
+        entry.time !== null && Number.isFinite(entry.time))
+      .sort((left, right) => right.time - left.time)[0];
+
+    if (latest) {
+      tradesByContract.set(contract, latest.trade);
+    }
+  });
+
+  const retrievedAt = tickerResult.retrievedAt;
+  const quoteMap = new Map<string, LiveQuote>();
+
+  for (const { item, contract } of targets) {
+    const contractMeta = contractsByName.get(contract);
+    const ticker = tickersByContract.get(contract);
+    const trade = tradesByContract.get(contract);
+    const tradeTime = trade ? parseGateTradeTime(trade) : null;
+    const tradePrice = toFiniteNumber(trade?.price);
+    const mark = toFiniteNumber(ticker?.mark_price);
+    const index = toFiniteNumber(ticker?.index_price);
+    const last = toFiniteNumber(ticker?.last);
+    const bid = toFiniteNumber(ticker?.highest_bid);
+    const ask = toFiniteNumber(ticker?.lowest_ask);
+
+    if (
+      !contractMeta ||
+      !ticker ||
+      !trade ||
+      String(contractMeta.name ?? "").toUpperCase() !== contract ||
+      String(ticker.contract ?? "").toUpperCase() !== contract ||
+      contractMeta.status !== "trading" ||
+      contractMeta.in_delisting !== false ||
+      contractMeta.type !== "direct" ||
+      tradeTime === null ||
+      tradePrice === null ||
+      tradePrice <= 0 ||
+      mark === null ||
+      index === null ||
+      last === null ||
+      bid === null ||
+      ask === null
+    ) {
+      continue;
+    }
+
+    if (last <= 0 || Math.abs(tradePrice - last) / last > 0.01) {
+      continue;
+    }
+
+    const divisor = item.symbol.startsWith("GRAM_") ? gramTroyOunceDivisor : 1;
+    const toUsd = (price: number) => price * stablecoinRate / divisor;
+    const quote: LiveQuote = {
+      symbol: item.symbol,
+      open: toUsd(mark),
+      close: toUsd(mark),
+      provider: "gate",
+      currency: "USDT",
+      sourceAsOf: new Date(tradeTime).toISOString(),
+      retrievedAt,
+      marketState: "REGULAR",
+      marketStateSource: "gate-contract-status",
+      priceNative: mark / divisor,
+      providerSymbol: contract,
+      providerStatus: contractMeta.status,
+      providerDelisting: contractMeta.in_delisting,
+      settleCurrency: "USDT",
+      priceType: "MARK",
+      priceUnit: gateCommodityPriceUnits[item.symbol],
+      instrumentType: "PERPETUAL_FUTURE",
+      exchange: "GATE_USDT_FUTURES",
+      markPriceNative: mark,
+      indexPriceNative: index,
+      lastPriceNative: tradePrice,
+      bidPriceNative: bid,
+      askPriceNative: ask,
+      markPriceUsd: toUsd(mark),
+      indexPriceUsd: toUsd(index),
+      lastPriceUsd: toUsd(tradePrice),
+      bidPriceUsd: toUsd(bid),
+      askPriceUsd: toUsd(ask),
+      stablecoinRate,
+      stablecoinAsOf: new Date(stablecoinTime).toISOString(),
+      stablecoinProvider: "coinbase",
+    };
+    const normalized = normalizeLiveQuote(item, new Map(), quote);
+
+    if (normalized.executionEligible) {
+      quoteMap.set(item.symbol, quote);
+    }
   }
 
   return quoteMap;
@@ -456,8 +703,8 @@ function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
   if (gold && Number.isFinite(gold.close) && gold.close > 0) {
     quoteMap.set("GRAM_GOLD_USD", {
       symbol: "GRAM_GOLD_USD",
-      open: gold.open / 31.1035,
-      close: gold.close / 31.1035,
+      open: gold.open / gramTroyOunceDivisor,
+      close: gold.close / gramTroyOunceDivisor,
       provider: "yahoo",
       currency: gold.currency,
       sourceAsOf: gold.sourceAsOf,
@@ -475,8 +722,8 @@ function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
   if (silver && Number.isFinite(silver.close) && silver.close > 0) {
     quoteMap.set("GRAM_SILVER_USD", {
       symbol: "GRAM_SILVER_USD",
-      open: silver.open / 31.1035,
-      close: silver.close / 31.1035,
+      open: silver.open / gramTroyOunceDivisor,
+      close: silver.close / gramTroyOunceDivisor,
       provider: "yahoo",
       currency: silver.currency,
       sourceAsOf: silver.sourceAsOf,
@@ -494,8 +741,9 @@ function deriveGramMetalQuotes(quoteMap: Map<string, LiveQuote>) {
 
 async function loadQuotedItems(items: MarketItem[]): Promise<MarketItem[]> {
   const quoteMap = new Map<string, LiveQuote>();
-  const [binanceQuotes, yahooQuotes] = await Promise.all([
+  const [binanceQuotes, gateQuotes, yahooQuotes] = await Promise.all([
     fetchBinanceQuotes(items),
+    fetchGateCommodityQuotes(items),
     fetchYahooSparkQuotes(getYahooBatchSymbols(items)),
   ]);
 
@@ -511,7 +759,11 @@ async function loadQuotedItems(items: MarketItem[]): Promise<MarketItem[]> {
 
   return items.map((fallback) => {
     const key = getQuoteKey(fallback).toUpperCase();
-    return normalizeLiveQuote(fallback, quoteMap, quoteMap.get(key));
+    return normalizeLiveQuote(
+      fallback,
+      quoteMap,
+      gateQuotes.get(fallback.symbol) ?? quoteMap.get(key),
+    );
   });
 }
 

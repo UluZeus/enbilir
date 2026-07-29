@@ -25,6 +25,21 @@ function executableYahooItem(overrides: Partial<MarketItem> = {}): MarketItem {
 }
 
 describe("central executable quote validation", () => {
+  it("keeps Copper non-executable even with a fresh complete Yahoo futures provenance", () => {
+    expect(isExecutableMarketQuote(executableYahooItem({
+      symbol: "COPPER",
+      dataSymbol: "hg.f",
+      category: "COMMODITY",
+      providerSymbol: "HG=F",
+      instrumentType: "FUTURE",
+      exchange: "CMX",
+      marketState: "INFERRED_REGULAR",
+      marketStateSource: "inferred-commodity-session",
+      regularSessionStart: new Date(now - 60_000).toISOString(),
+      regularSessionEnd: new Date(now + 60_000).toISOString(),
+    }), { now })).toBe(false);
+  });
+
   it.each([
     ["malformed price", { priceUsd: Number.NaN }],
     ["future timestamp", { sourceAsOf: new Date(now + 1).toISOString() }],

@@ -95,6 +95,22 @@ export function getTradeExecutionStatus(item: MarketItem | null, locale: "tr" | 
   };
 }
 
+export function getGateExecutionNote(source: string | null | undefined, locale: "tr" | "en") {
+  if (source !== "gate") {
+    return null;
+  }
+
+  return locale === "en"
+    ? {
+        title: "Gate contract price reference",
+        body: "The displayed price is the mark value of the Gate USDT perpetual contract. Virtual BUY uses the current ask and SELL uses the current bid, including the applicable simulation cost. It is not a spot or Grand Bazaar price.",
+      }
+    : {
+        title: "Gate sözleşme fiyatı referansı",
+        body: "Görüntülenen fiyat, Gate USDT sürekli vadeli işlem sözleşmesinin mark değeridir. Sanal BUY güncel ask, SELL ise güncel bid referansından, uygulanan simülasyon maliyetiyle işlenir. Spot veya Kapalı Çarşı fiyatı değildir.",
+      };
+}
+
 function formatUpdatedAt(value: string | null, locale: string) {
   if (!value) {
     return "-";
@@ -136,7 +152,10 @@ function TrendBadge({ label, value, tone }: { label: string; value: string; tone
 
 function buildMarketSignature(items: MarketItem[]) {
   return items
-    .map((item) => `${item.symbol}:${item.priceUsd}:${item.changePercent}:${item.category}:${item.dataStatus}`)
+    .map(
+      (item) =>
+        `${item.symbol}:${item.priceUsd}:${item.changePercent}:${item.category}:${item.dataStatus}:${item.source}:${item.executionEligible}`,
+    )
     .join("|");
 }
 
@@ -384,6 +403,7 @@ export function TradeTicketForm({
         ? "red"
         : "slate";
   const executionStatus = getTradeExecutionStatus(effectiveSelectedItem, safeLocale);
+  const gateExecutionNote = getGateExecutionNote(effectiveSelectedItem?.source, safeLocale);
 
   return (
     <div className="grid min-w-0 gap-4 md:gap-5">
@@ -475,6 +495,17 @@ export function TradeTicketForm({
             ? "Tutar USD cinsindendir. Emir gönderilmeden önce seçili varlığı ve alım/satım yönünü kontrol et."
             : "Amount is in USD. Review the selected asset and buy/sell direction before submitting."}
         </p>
+
+        {gateExecutionNote ? (
+          <div
+            role="note"
+            aria-label={gateExecutionNote.title}
+            className="order-1 mt-2 min-w-0 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2.5 text-teal-950 md:order-2 md:px-4"
+          >
+            <p className="break-words text-xs font-black leading-5">{gateExecutionNote.title}</p>
+            <p className="mt-1 break-words text-xs font-semibold leading-5 text-teal-900">{gateExecutionNote.body}</p>
+          </div>
+        ) : null}
 
         <label className="order-2 mt-3 grid gap-1.5 text-sm font-bold text-slate-700 md:order-3 md:mt-4 md:gap-2">
           {safeLocale === "tr" ? "İşlem gerekçesi" : "Decision note"}

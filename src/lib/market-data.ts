@@ -22,7 +22,7 @@ export type MarketItem = {
     | "EUROBOND"
     | "INDEX";
   dataStatus: "live" | "delayed" | "close" | "representative";
-  source: "binance" | "yahoo" | "fallback" | "representative";
+  source: "binance" | "yahoo" | "gate" | "fallback" | "representative";
   price: string;
   priceUsd: number;
   changePercent: number;
@@ -31,13 +31,31 @@ export type MarketItem = {
   sourceAsOf?: string | null;
   retrievedAt?: string | null;
   marketState?: string;
-  marketStateSource?: "provider" | "inferred-commodity-session";
+  marketStateSource?: "provider" | "inferred-commodity-session" | "gate-contract-status";
   providerSymbol?: string;
+  providerStatus?: string;
+  providerDelisting?: boolean;
+  settleCurrency?: string;
+  priceType?: "MARK";
+  priceUnit?: "TROY_OUNCE" | "GRAM" | "BARREL" | "MMBTU";
   instrumentType?: string;
   exchange?: string;
   regularSessionStart?: string;
   regularSessionEnd?: string;
   exchangeDataDelayedBy?: number;
+  markPriceNative?: number;
+  indexPriceNative?: number;
+  lastPriceNative?: number;
+  bidPriceNative?: number;
+  askPriceNative?: number;
+  markPriceUsd?: number;
+  indexPriceUsd?: number;
+  lastPriceUsd?: number;
+  bidPriceUsd?: number;
+  askPriceUsd?: number;
+  stablecoinRate?: number;
+  stablecoinAsOf?: string;
+  stablecoinProvider?: "coinbase";
   executionEligible?: boolean;
 };
 
@@ -562,8 +580,8 @@ const fxAndCommodities: MarketSeed[] = [
   { symbol: "USD/CAD", dataSymbol: "usdcad", name: "Dolar Kanada Doları", market: "Majör Döviz", category: "FX", priceUsd: 1.37, changePercent: 0.2 },
   { symbol: "XAU/USD", dataSymbol: "xauusd", name: "Altın Ons", market: "Emtia", category: "COMMODITY", priceUsd: 2318, changePercent: 2.44 },
   { symbol: "XAG/USD", dataSymbol: "xagusd", name: "Gümüş Ons", market: "Emtia", category: "COMMODITY", priceUsd: 27.12, changePercent: 5.38 },
-  { symbol: "GRAM_GOLD_USD", dataSymbol: "gram_gold_usd", name: "Kapalı Çarşı Gram Altın (USD)", market: "Kapalı Çarşı", category: "COMMODITY", priceUsd: 2318 / 31.1035, changePercent: 2.44, dataStatus: "representative", source: "representative" },
-  { symbol: "GRAM_SILVER_USD", dataSymbol: "gram_silver_usd", name: "Kapalı Çarşı Gram Gümüş (USD)", market: "Kapalı Çarşı", category: "COMMODITY", priceUsd: 27.12 / 31.1035, changePercent: 5.38, dataStatus: "representative", source: "representative" },
+  { symbol: "GRAM_GOLD_USD", dataSymbol: "gram_gold_usd", name: "Kapalı Çarşı Gram Altın (USD)", market: "Kapalı Çarşı", category: "COMMODITY", priceUsd: 2318 / 31.1034768, changePercent: 2.44, dataStatus: "representative", source: "representative" },
+  { symbol: "GRAM_SILVER_USD", dataSymbol: "gram_silver_usd", name: "Kapalı Çarşı Gram Gümüş (USD)", market: "Kapalı Çarşı", category: "COMMODITY", priceUsd: 27.12 / 31.1034768, changePercent: 5.38, dataStatus: "representative", source: "representative" },
   { symbol: "COPPER", dataSymbol: "hg.f", name: "Bakır", market: "Emtia", category: "COMMODITY", priceUsd: 4.61, changePercent: 1.22 },
   { symbol: "BRONZE", dataSymbol: "bronze", name: "Bronz", market: "Emtia", category: "COMMODITY", priceUsd: 4.08, changePercent: 0.74, dataStatus: "representative", source: "representative" },
   { symbol: "PALLADIUM", dataSymbol: "pa.f", name: "Paladyum", market: "Emtia", category: "COMMODITY", priceUsd: 982.4, changePercent: -0.82 },

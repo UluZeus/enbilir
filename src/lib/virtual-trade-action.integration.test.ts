@@ -245,6 +245,180 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     expect(tradeMocks.tradeCreate).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["BUY", 100.1],
+    ["SELL", 99.9],
+  ] as const)("uses the Gate %s side of book and records durable quote provenance", async (side, referencePrice) => {
+    const sourceAsOf = new Date().toISOString();
+    tradeMocks.getLiveMarketItem.mockResolvedValue({
+      symbol: "XAU/USD",
+      dataSymbol: "xauusd",
+      name: "Gold",
+      market: "Emtia",
+      category: "COMMODITY",
+      dataStatus: "live",
+      priceUsd: 100,
+      markPriceUsd: 100,
+      indexPriceUsd: 100,
+      lastPriceUsd: 100,
+      bidPriceUsd: 99.9,
+      askPriceUsd: 100.1,
+      markPriceNative: 100,
+      indexPriceNative: 100,
+      lastPriceNative: 100,
+      bidPriceNative: 99.9,
+      askPriceNative: 100.1,
+      quoteCurrency: "USDT",
+      source: "gate",
+      sourceAsOf,
+      retrievedAt: sourceAsOf,
+      marketState: "REGULAR",
+      marketStateSource: "gate-contract-status",
+      providerSymbol: "XAU_USDT",
+      providerStatus: "trading",
+      providerDelisting: false,
+      settleCurrency: "USDT",
+      priceType: "MARK",
+      priceUnit: "TROY_OUNCE",
+      instrumentType: "PERPETUAL_FUTURE",
+      exchange: "GATE_USDT_FUTURES",
+      stablecoinRate: 1,
+      stablecoinAsOf: sourceAsOf,
+      stablecoinProvider: "coinbase",
+      executionEligible: true,
+    });
+    if (side === "SELL") {
+      const position = {
+        id: "position-1",
+        userId: "user-1",
+        symbol: "AAPL",
+        quantity: 20,
+        averagePriceUsd: 90,
+        positionCycleId: "cycle-1",
+      };
+      tradeMocks.positionFindUnique.mockResolvedValue(position);
+      tradeMocks.txPositionFindUnique.mockResolvedValue(position);
+    }
+
+    const form = tradeForm({ side, amountUsd: side === "BUY" ? 500 : 198 });
+    form.set("symbol", "XAU/USD");
+    const result = await tradeAction(undefined, form);
+
+    expect(result.ok).toBe(true);
+    const tradeData = tradeMocks.tradeCreate.mock.calls.at(-1)?.[0].data;
+    expect(tradeData.priceUsd).toBe(
+      side === "BUY" ? 100.12002 : 99.88002,
+    );
+    if (side === "BUY") {
+      expect(tradeMocks.positionCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ providerSymbol: "XAU_USDT" }),
+      });
+    }
+    expect(tradeMocks.appendAudit).toHaveBeenCalledWith(
+      transactionClient,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          providerSymbol: "XAU_USDT",
+          valuationPriceType: "MARK",
+          executionReferencePriceType: side === "BUY" ? "ASK" : "BID",
+          priceUnit: "TROY_OUNCE",
+          quotePriceUsd: referencePrice,
+          bidPriceUsd: 99.9,
+          askPriceUsd: 100.1,
+          markPriceUsd: 100,
+          indexPriceUsd: 100,
+          lastPriceUsd: 100,
+          stablecoinRate: 1,
+          stablecoinAsOf: sourceAsOf,
+          sourceAsOf,
+          providerStatus: "trading",
+          source: "gate",
+          retrievedAt: sourceAsOf,
+          stablecoinProvider: "coinbase",
+          instrumentType: "PERPETUAL_FUTURE",
+          exchange: "GATE_USDT_FUTURES",
+          settleCurrency: "USDT",
+        }),
+      }),
+    );
+  });
+
+  it("refetches a Gate quote after non-USD cash conversion and blocks a stale second quote", async () => {
+    const callOrder: string[] = [];
+    const sourceAsOf = new Date().toISOString();
+    const validGateQuote = {
+      symbol: "XAU/USD",
+      dataSymbol: "xauusd",
+      name: "Gold",
+      market: "Emtia",
+      category: "COMMODITY",
+      dataStatus: "live",
+      priceUsd: 100,
+      markPriceUsd: 100,
+      indexPriceUsd: 100,
+      lastPriceUsd: 100,
+      bidPriceUsd: 99.9,
+      askPriceUsd: 100.1,
+      markPriceNative: 100,
+      indexPriceNative: 100,
+      lastPriceNative: 100,
+      bidPriceNative: 99.9,
+      askPriceNative: 100.1,
+      quoteCurrency: "USDT",
+      source: "gate",
+      sourceAsOf,
+      retrievedAt: sourceAsOf,
+      marketState: "REGULAR",
+      marketStateSource: "gate-contract-status",
+      providerSymbol: "XAU_USDT",
+      providerStatus: "trading",
+      providerDelisting: false,
+      settleCurrency: "USDT",
+      priceType: "MARK",
+      priceUnit: "TROY_OUNCE",
+      instrumentType: "PERPETUAL_FUTURE",
+      exchange: "GATE_USDT_FUTURES",
+      stablecoinRate: 1,
+      stablecoinAsOf: sourceAsOf,
+      stablecoinProvider: "coinbase",
+      executionEligible: true,
+    };
+    tradeMocks.getLiveMarketItem
+      .mockImplementationOnce(async () => {
+        callOrder.push("initial-quote");
+        return validGateQuote;
+      })
+      .mockImplementationOnce(async () => {
+        callOrder.push("refreshed-quote");
+        return {
+          ...validGateQuote,
+          retrievedAt: new Date(Date.now() - 15_001).toISOString(),
+        };
+      });
+    tradeMocks.accrueRepo.mockResolvedValue({
+      userId: "user-1",
+      cashAmount: 1_000,
+      cashMode: "EUR",
+    });
+    tradeMocks.accountFindUnique.mockResolvedValue({
+      userId: "user-1",
+      cashAmount: 1_000,
+      cashMode: "EUR",
+    });
+    tradeMocks.getCashRate.mockImplementation(async () => {
+      callOrder.push("cash-rate");
+      return 1;
+    });
+    const form = tradeForm({ side: "BUY", amountUsd: 500 });
+    form.set("symbol", "XAU/USD");
+
+    const result = await tradeAction(undefined, form);
+
+    expect(result.ok).toBe(false);
+    expect(callOrder).toEqual(["initial-quote", "cash-rate", "refreshed-quote"]);
+    expect(tradeMocks.transaction).not.toHaveBeenCalled();
+  });
+
   it("blocks an oversized SELL before changing cash or holdings", async () => {
     tradeMocks.positionFindUnique.mockResolvedValue({
       id: "position-1",

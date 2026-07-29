@@ -178,7 +178,7 @@ export function assessQuoteFreshness({
   now = Date.now(),
 }: {
   sourceAsOf: string;
-  provider: "binance" | "yahoo";
+  provider: "binance" | "yahoo" | "gate";
   marketState: string;
   isCommodity?: boolean;
   now?: number;
@@ -198,6 +198,7 @@ export function assessQuoteFreshness({
   const normalizedMarketState = marketState.toUpperCase();
   const providerMarketOpen =
     provider === "binance" ||
+    provider === "gate" ||
     normalizedMarketState === "REGULAR" ||
     (isCommodity && normalizedMarketState === "INFERRED_REGULAR");
 
@@ -207,6 +208,8 @@ export function assessQuoteFreshness({
 
   const maximumAgeMs = provider === "binance"
     ? 5 * 60_000
+    : provider === "gate"
+      ? 2 * 60_000
     : isCommodity
       ? 2 * 60_000
       : 20 * 60_000;

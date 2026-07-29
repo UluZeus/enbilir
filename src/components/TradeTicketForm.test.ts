@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getTradeExecutionStatus } from "@/components/TradeTicketForm";
+import { getGateExecutionNote, getTradeExecutionStatus } from "@/components/TradeTicketForm";
 import type { MarketItem } from "@/lib/market-data";
 
 function marketItem(overrides: Partial<MarketItem> = {}): MarketItem {
@@ -66,5 +66,24 @@ describe("getTradeExecutionStatus", () => {
         "en",
       ),
     ).toEqual({ eligible: true, label: "Active" });
+  });
+});
+
+describe("getGateExecutionNote", () => {
+  it("explains the Gate perpetual mark and simulated execution references in Turkish and English", () => {
+    expect(getGateExecutionNote("gate", "tr")).toEqual({
+      title: "Gate sözleşme fiyatı referansı",
+      body: "Görüntülenen fiyat, Gate USDT sürekli vadeli işlem sözleşmesinin mark değeridir. Sanal BUY güncel ask, SELL ise güncel bid referansından, uygulanan simülasyon maliyetiyle işlenir. Spot veya Kapalı Çarşı fiyatı değildir.",
+    });
+    expect(getGateExecutionNote("gate", "en")).toEqual({
+      title: "Gate contract price reference",
+      body: "The displayed price is the mark value of the Gate USDT perpetual contract. Virtual BUY uses the current ask and SELL uses the current bid, including the applicable simulation cost. It is not a spot or Grand Bazaar price.",
+    });
+  });
+
+  it("preserves the existing UI for non-Gate sources", () => {
+    expect(getGateExecutionNote("yahoo", "tr")).toBeNull();
+    expect(getGateExecutionNote("binance", "en")).toBeNull();
+    expect(getGateExecutionNote(undefined, "en")).toBeNull();
   });
 });

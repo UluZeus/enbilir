@@ -1,5 +1,6 @@
 import type { CashMode } from "@/generated/prisma/enums";
 import type { MarketItem } from "@/lib/market-data";
+import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
 import { syncPortfolioCorporateActions } from "@/lib/portfolio-corporate-actions";
@@ -60,7 +61,11 @@ export function getSafePortfolioPriceUsd(
   return position.averagePriceUsd;
 }
 
-function hasVerifiedPortfolioQuote(marketItem: MarketItem | undefined) {
+export function hasVerifiedPortfolioQuote(marketItem: MarketItem | undefined, now = Date.now()) {
+  if (marketItem?.source === "gate") {
+    return isExecutableMarketQuote(marketItem, { now });
+  }
+
   if (
     !marketItem ||
     !["binance", "yahoo"].includes(marketItem.source) ||
@@ -72,7 +77,7 @@ function hasVerifiedPortfolioQuote(marketItem: MarketItem | undefined) {
 
   const sourceTime = Date.parse(marketItem.sourceAsOf);
   const maximumAgeMs = marketItem.source === "binance" ? 15 * 60_000 : 7 * 86_400_000;
-  return Number.isFinite(sourceTime) && Date.now() - sourceTime >= -60_000 && Date.now() - sourceTime <= maximumAgeMs;
+  return Number.isFinite(sourceTime) && now - sourceTime >= -60_000 && now - sourceTime <= maximumAgeMs;
 }
 
 function getPortfolioPriceStatus(marketItem: MarketItem | undefined) {
