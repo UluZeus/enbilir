@@ -200,7 +200,7 @@ function getPositionImpact(position: PositionWithPerformance, period: PortfolioP
   return calculateCurrentPositionMarketImpactUsd(position.currentValueUsd, getPositionChange(position, period));
 }
 
-function resolveTotalPeriod(
+export function resolveTotalPeriod(
   period: PortfolioPerformancePeriod,
   totalValueUsd: number,
   snapshot: PortfolioPeriodSnapshot | undefined,
@@ -228,32 +228,13 @@ function resolveTotalPeriod(
     };
   }
 
-  const impacts = positions
-    .map((position) => getPositionImpact(position, period))
-    .filter(isFiniteNumber);
-
-  if (impacts.length === 0) {
-    return {
-      period,
-      percent: null,
-      usd: null,
-      points: [],
-      source: "unavailable",
-      coveredPositions: 0,
-      coveragePercent: null,
-      isPartial: true,
-    };
-  }
-
-  const estimatedUsd = impacts.reduce((sum, value) => sum + value, 0);
-
   return {
     period,
-    percent: calculatePercentFromCurrentValue(totalValueUsd, estimatedUsd),
-    usd: estimatedUsd,
+    percent: null,
+    usd: null,
     points: [],
-    source: "estimated",
-    coveredPositions: impacts.length,
+    source: "unavailable",
+    coveredPositions: 0,
     coveragePercent: null,
     isPartial: true,
   };
