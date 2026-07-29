@@ -305,7 +305,7 @@ describe("backup health metadata access", () => {
     const changedStats = lstatSync(changedPath, { bigint: true });
     const changedSnapshotStats = {
       ...changedStats,
-      dev: changedStats.dev + 1n,
+      dev: changedStats.dev + BigInt(1),
       isFile: () => changedStats.isFile(),
       isDirectory: () => changedStats.isDirectory(),
       isSymbolicLink: () => changedStats.isSymbolicLink(),
