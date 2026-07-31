@@ -195,6 +195,27 @@ describe("backup health metadata access", () => {
     ).toThrow(/manifest/i);
   });
 
+  it("distinguishes an explicit missing group id from the ambient production group id", () => {
+    const previousGroupId = process.env.BACKUP_HEALTH_GID;
+    process.env.BACKUP_HEALTH_GID = "987";
+
+    try {
+      expect(() =>
+        resolveBackupHealthGroupId(undefined, { NODE_ENV: "production", ENBILIR_ENV: "production" }),
+      ).toThrow(/BACKUP_HEALTH_GID/);
+      expect(
+        resolveBackupHealthGroupId(undefined, { NODE_ENV: "development", ENBILIR_ENV: "development" }),
+      ).toBeNull();
+      expect(resolveBackupHealthGroupId()).toBe(987);
+    } finally {
+      if (previousGroupId === undefined) {
+        delete process.env.BACKUP_HEALTH_GID;
+      } else {
+        process.env.BACKUP_HEALTH_GID = previousGroupId;
+      }
+    }
+  });
+
   it.runIf(process.platform !== "win32")("rejects symbolic links before changing permissions", () => {
     const fixture = createBackupFixture();
     const linkedPath = path.join(fixture.setPath, "uploads", "linked.txt");

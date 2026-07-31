@@ -38,8 +38,9 @@ export function assertBackupSetName(setName) {
   return setName;
 }
 
-export function resolveBackupHealthGroupId(value = process.env.BACKUP_HEALTH_GID, env = process.env) {
-  const normalizedValue = value?.trim();
+export function resolveBackupHealthGroupId(value, env = process.env) {
+  const resolvedValue = arguments.length === 0 ? env.BACKUP_HEALTH_GID : value;
+  const normalizedValue = resolvedValue?.trim();
   if (!normalizedValue) {
     if (isProductionEnvironment(env)) {
       throw new Error("BACKUP_HEALTH_GID is required in production.");
