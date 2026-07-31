@@ -45,11 +45,15 @@ export type CompetitionPeriodResult = {
   valuationAsOf: string;
   rows: CompetitionResultRow[];
   viewerRow: CompetitionViewerRow | null;
+  delayedValuationCount?: number;
   excludedCounts: {
     partialOrMissing: number;
     unreliable: number;
   };
 };
+
+const maximumPersistedValuationAgeMs = 72 * 60 * 60 * 1000;
+const verifiedEquityHistoryPrefix = "equity-hour:";
 
 export type ViewerLeagueCompetitionResult = {
   id: string;
@@ -130,7 +134,10 @@ export async function getCompetitionResults(
       distinct: ["symbol"],
     }),
     prisma.portfolioSnapshot.findMany({
-      where: { userId: { in: userIds } },
+      where: {
+        userId: { in: userIds },
+        valuationStatus: "VERIFIED",
+      },
       select: {
         userId: true,
         portfolioValueUsd: true,
@@ -140,7 +147,10 @@ export async function getCompetitionResults(
       orderBy: { capturedAt: "asc" },
     }),
     prisma.weeklyPortfolioBaseline.findMany({
-      where: { userId: { in: userIds } },
+      where: {
+        userId: { in: userIds },
+        periodKey: { startsWith: verifiedEquityHistoryPrefix },
+      },
       select: {
         userId: true,
         portfolioValueUsd: true,
@@ -167,20 +177,6 @@ export async function getCompetitionResults(
       orderBy: { joinedAt: "desc" },
     }),
   ]);
-  const liveMarketItems = await getLiveMarketItemsForSymbols(heldSymbols.map((position) => position.symbol));
-  const currentValuations = await Promise.all(users.map(async (user) => {
-    try {
-      const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
-
-      return {
-        user,
-        valueUsd: snapshot.totalValueUsd,
-        reliable: !snapshot.hasUnreliableValuation,
-      };
-    } catch {
-      return { user, valueUsd: null, reliable: false };
-    }
-  }));
   const snapshotsByUser = new Map<string, typeof snapshots>();
   const baselinesByUser = new Map<string, typeof weeklyBaselines>();
 
@@ -196,12 +192,75 @@ export async function getCompetitionResults(
     baselinesByUser.set(baseline.userId, values);
   }
 
+  const liveMarketItems = await getLiveMarketItemsForSymbols(
+    heldSymbols.map((position) => position.symbol),
+  ).catch(() => []);
+  const currentValuations = await Promise.all(users.map(async (user) => {
+    const history = normalizePortfolioHistory(
+      (snapshotsByUser.get(user.id) ?? []).map(({ portfolioValueUsd, capturedAt, period }) => ({
+        portfolioValueUsd,
+        capturedAt,
+        period,
+      })),
+      (baselinesByUser.get(user.id) ?? []).map(({ portfolioValueUsd, capturedAt }) => ({
+        portfolioValueUsd,
+        capturedAt,
+      })),
+    );
+
+    try {
+      const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
+
+      if (!snapshot.hasUnreliableValuation) {
+        return {
+          user,
+          valueUsd: snapshot.totalValueUsd,
+          valuationAsOf: now,
+          history,
+          reliable: true,
+          delayed: false,
+        };
+      }
+    } catch {
+      // A recent, persisted and verified portfolio equity point can keep the
+      // ranking available while live quote providers are temporarily offline.
+    }
+
+    const persistedEndpoint = [...history].reverse().find((entry) => {
+      const ageMs = now.getTime() - entry.capturedAt.getTime();
+
+      return ageMs >= 0 && ageMs <= maximumPersistedValuationAgeMs;
+    });
+
+    if (persistedEndpoint) {
+      return {
+        user,
+        valueUsd: persistedEndpoint.valueUsd,
+        valuationAsOf: persistedEndpoint.capturedAt,
+        history,
+        reliable: true,
+        delayed: true,
+      };
+    }
+
+    return {
+      user,
+      valueUsd: null,
+      valuationAsOf: now,
+      history,
+      reliable: false,
+      delayed: false,
+    };
+  }));
+
   const candidatesByPeriod = new Map<PortfolioPeriodKey, CompetitionCandidate[]>();
   const excludedByPeriod = new Map<PortfolioPeriodKey, CompetitionPeriodResult["excludedCounts"]>();
+  const delayedByPeriod = new Map<PortfolioPeriodKey, number>();
 
   for (const period of portfolioCompetitionPeriods) {
     candidatesByPeriod.set(period.key, []);
     excludedByPeriod.set(period.key, { partialOrMissing: 0, unreliable: 0 });
+    delayedByPeriod.set(period.key, 0);
   }
 
   for (const valuation of currentValuations) {
@@ -210,18 +269,11 @@ export async function getCompetitionResults(
       continue;
     }
 
-    const history = normalizePortfolioHistory(
-      (snapshotsByUser.get(valuation.user.id) ?? []).map(({ portfolioValueUsd, capturedAt, period }) => ({
-        portfolioValueUsd,
-        capturedAt,
-        period,
-      })),
-      (baselinesByUser.get(valuation.user.id) ?? []).map(({ portfolioValueUsd, capturedAt }) => ({
-        portfolioValueUsd,
-        capturedAt,
-      })),
+    const performances = buildPortfolioPerformancePeriods(
+      valuation.history,
+      valuation.valueUsd,
+      valuation.valuationAsOf,
     );
-    const performances = buildPortfolioPerformancePeriods(history, valuation.valueUsd, now);
 
     for (const performance of performances) {
       if (
@@ -241,6 +293,9 @@ export async function getCompetitionResults(
         valueUsd: performance.endValueUsd,
         changeUsd: performance.changeUsd,
       });
+      if (valuation.delayed) {
+        delayedByPeriod.set(performance.key, (delayedByPeriod.get(performance.key) ?? 0) + 1);
+      }
     }
   }
 
@@ -256,6 +311,7 @@ export async function getCompetitionResults(
       valuationAsOf: now.toISOString(),
       rows: createPublicRows(ranked, viewerUserId),
       viewerRow: createViewerRow(ranked, viewerUserId),
+      delayedValuationCount: delayedByPeriod.get(period.key) ?? 0,
       excludedCounts: excludedByPeriod.get(period.key)!,
     } satisfies CompetitionPeriodResult;
   });

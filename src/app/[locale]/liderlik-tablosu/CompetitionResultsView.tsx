@@ -71,6 +71,7 @@ export function CompetitionResultsView({
 
   const label = periodLabels[locale][selectedPeriod.key];
   const totalExcluded = selectedPeriod.excludedCounts.partialOrMissing + selectedPeriod.excludedCounts.unreliable;
+  const delayedValuationCount = selectedPeriod.delayedValuationCount ?? 0;
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -179,6 +180,13 @@ export function CompetitionResultsView({
           </div>
         )}
 
+        {delayedValuationCount > 0 ? (
+          <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950" role="status">
+            <span className="font-black">{isEnglish ? "Valuation timing:" : "Veri zamanı:"}</span>{" "}
+            {getDelayedValuationMessage(delayedValuationCount, locale)}
+          </p>
+        ) : null}
+
         {totalExcluded > 0 ? (
           <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600" role="status">
             {getExcludedMessage(selectedPeriod, locale)}
@@ -220,9 +228,7 @@ function PeriodSummaryCard({
 
       {period.rows.length === 0 ? (
         <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">
-          {isEnglish
-            ? "No eligible participant has complete history for this period yet."
-            : "Bu dönem için henüz tam geçmişi bulunan uygun katılımcı yok."}
+          {getEmptyPeriodMessage(locale)}
         </p>
       ) : (
         <div className="mt-4 grid min-w-0 gap-4">
@@ -338,9 +344,7 @@ function OverallStandings({ locale, period }: { locale: "tr" | "en"; period: Com
       {period.rows.length === 0 ? (
         <div className="p-5" role="status">
           <p className="font-black text-[#152033]">
-            {isEnglish
-              ? "No eligible participant has complete history for this period yet."
-              : "Bu dönem için henüz tam geçmişi bulunan uygun katılımcı yok."}
+            {getEmptyPeriodMessage(locale)}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             {isEnglish
@@ -405,10 +409,19 @@ function OverallStandings({ locale, period }: { locale: "tr" | "en"; period: Com
 }
 
 function formatPercent(value: number, locale: "tr" | "en") {
-  return `${value > 0 ? "+" : ""}${new Intl.NumberFormat(locale === "en" ? "en-US" : "tr-TR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)}%`;
+  const normalizedValue = value === 0 ? 0 : value;
+  const absoluteValue = Math.abs(normalizedValue);
+
+  if (absoluteValue > 0 && absoluteValue < 0.00005) {
+    const threshold = locale === "en" ? "0.0001" : "0,0001";
+    return normalizedValue > 0 ? `<${threshold}%` : `>-${threshold}%`;
+  }
+
+  const fractionDigits = absoluteValue > 0 && absoluteValue < 0.005 ? 4 : 2;
+  return `${normalizedValue > 0 ? "+" : ""}${new Intl.NumberFormat(locale === "en" ? "en-US" : "tr-TR", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(normalizedValue)}%`;
 }
 
 function formatReturn(value: number, locale: "tr" | "en") {
@@ -459,4 +472,19 @@ function getExcludedMessage(period: CompetitionPeriodResult, locale: "tr" | "en"
   }
 
   return `${historyCount} portföyde tam dönem geçmişi, ${unreliableCount} portföyde doğrulanmış güncel fiyat yok. Bu portföyler sıralamayı etkilemez.`;
+}
+
+function getEmptyPeriodMessage(locale: "tr" | "en") {
+  return locale === "en"
+    ? "No eligible participant has complete history for this period yet. This does not mean the period return is zero."
+    : "Bu dönem için henüz tam geçmişi bulunan uygun katılımcı yok. Bu, dönem getirisinin yüzde sıfır olduğu anlamına gelmez.";
+}
+
+function getDelayedValuationMessage(count: number, locale: "tr" | "en") {
+  if (locale === "en") {
+    const portfolioLabel = count === 1 ? "portfolio was" : "portfolios were";
+    return `${count} ${portfolioLabel} calculated with a verified stored value from the last 72 hours due to a live provider outage; no unverified price was used. This may affect the ranking valuation time.`;
+  }
+
+  return `${count} portföy, canlı sağlayıcı kesintisi nedeniyle son 72 saat içindeki doğrulanmış saklı değerle hesaplandı; doğrulanmamış fiyat kullanılmadı. Bu, sıralamanın veri anını etkileyebilir.`;
 }

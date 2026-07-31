@@ -35,6 +35,7 @@ const periods = periodKeys.map((key, index) => ({
       }
     : null,
   excludedCounts: { partialOrMissing: key === "YEARLY" ? 6 : 0, unreliable: 1 },
+  delayedValuationCount: key === "WEEKLY" ? 2 : 0,
 }));
 
 describe("CompetitionResultsView", () => {
@@ -95,13 +96,60 @@ describe("CompetitionResultsView", () => {
     expect(html).toContain('href="/tr/haftalik-liderler"');
   });
 
+  it("does not display real sub-cent returns as zero and normalizes signed zero", () => {
+    const precisionPeriods = periods.map((period) => period.key === "WEEKLY"
+      ? {
+          ...period,
+          rows: [
+            { displayName: "Küçük artış", rank: 1, returnPercent: 0.0049, isViewer: false },
+            { displayName: "Gerçek sıfır", rank: 2, returnPercent: -0, isViewer: true },
+            { displayName: "Küçük azalış", rank: 3, returnPercent: -0.0049, isViewer: false },
+          ],
+          viewerRow: {
+            ...period.viewerRow!,
+            rank: 2,
+            returnPercent: -0,
+          },
+        }
+      : period);
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView locale="tr" periods={precisionPeriods} selectedPeriodKey="WEEKLY" leagues={[]} />,
+    );
+
+    expect(html).toContain("+0,0049% · Artış");
+    expect(html).toContain("-0,0049% · Azalış");
+    expect(html).toContain("0,00% · Değişim yok");
+    expect(html).not.toContain("-0,00%");
+  });
+
+  it("discloses delayed verified valuations without implying unverified prices were used", () => {
+    const turkishHtml = renderToStaticMarkup(
+      <CompetitionResultsView locale="tr" periods={periods} selectedPeriodKey="WEEKLY" leagues={[]} />,
+    );
+    const englishHtml = renderToStaticMarkup(
+      <CompetitionResultsView locale="en" periods={periods} selectedPeriodKey="WEEKLY" leagues={[]} />,
+    );
+
+    expect(turkishHtml).toContain("2 portföy, canlı sağlayıcı kesintisi nedeniyle son 72 saat içindeki doğrulanmış saklı değerle hesaplandı");
+    expect(turkishHtml).toContain("doğrulanmamış fiyat kullanılmadı");
+    expect(turkishHtml).toContain("sıralamanın veri anını etkileyebilir");
+    expect(englishHtml).toContain("2 portfolios were calculated with a verified stored value from the last 72 hours due to a live provider outage");
+    expect(englishHtml).toContain("no unverified price was used");
+    expect(englishHtml).toContain("may affect the ranking valuation time");
+  });
+
   it("states honestly when a period has no fully covered ranking history", () => {
     const html = renderToStaticMarkup(
       <CompetitionResultsView locale="en" periods={periods} selectedPeriodKey="YEARLY" leagues={[]} />,
     );
+    const turkishHtml = renderToStaticMarkup(
+      <CompetitionResultsView locale="tr" periods={periods} selectedPeriodKey="YEARLY" leagues={[]} />,
+    );
 
     expect(html).toContain("No eligible participant has complete history for this period yet.");
+    expect(html).toContain("This does not mean the period return is zero.");
     expect(html).toContain("6 portfolio(s) lack complete period history");
     expect(html).not.toContain("$1,234,567,890,123.78");
+    expect(turkishHtml).toContain("Bu, dönem getirisinin yüzde sıfır olduğu anlamına gelmez.");
   });
 });
