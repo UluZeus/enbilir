@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
+import { MACRO_REPORT_CHART_SELECTION } from "@/lib/ai-market/report-chart-selection";
 import { sendEmail } from "@/lib/email";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
@@ -177,8 +178,15 @@ async function loadVipResearchEmailData(reportId: string) {
   );
   const agentDigest = buildVipAgentDigest(agentRecords, agentIdeas);
   const chartSet = macroRecord
-    ? await buildVipEmailChartSet(macroRecord.id, macroRecord.assets)
-    : { charts: [], attachments: [], renderedChartCount: 0, failedSymbols: [], unavailableSymbols: [] };
+    ? await buildVipEmailChartSet(macroRecord.id, macroRecord.generatedAt, macroRecord.assets)
+    : {
+        charts: [],
+        attachments: [],
+        expectedChartCount: MACRO_REPORT_CHART_SELECTION.length,
+        renderedChartCount: 0,
+        failedSymbols: [],
+        unavailableSymbols: MACRO_REPORT_CHART_SELECTION.map((selection) => selection.symbol),
+      };
   const macroReport: VipDigestMacroReport = macroRecord ? {
     id: macroRecord.id,
     generatedAt: macroRecord.generatedAt,
@@ -208,6 +216,8 @@ async function loadVipResearchEmailData(reportId: string) {
     universePulse,
     agentDigest,
     chartAttachments: chartSet.attachments,
+    expectedChartCount: chartSet.expectedChartCount,
+    renderedChartCount: chartSet.renderedChartCount,
     chartFailures: chartSet.failedSymbols,
     chartUnavailableSymbols: chartSet.unavailableSymbols,
     urls,
@@ -290,6 +300,10 @@ export async function sendVipResearchEmails(reportId: string) {
     verifiedQuoteCount: emailData.universePulse.verifiedQuoteCount,
     alertCount: emailData.universePulse.totalAlertCount,
     agentCount: emailData.agentDigest.length,
+    expectedChartCount: emailData.expectedChartCount,
+    renderedChartCount: emailData.renderedChartCount,
+    chartFailures: emailData.chartFailures,
+    chartUnavailableSymbols: emailData.chartUnavailableSymbols,
   };
 }
 
@@ -325,6 +339,8 @@ export async function sendVipResearchTestEmail(input: {
     subject: `[TEST] ${digest.subject}`,
     agentCount: emailData.agentDigest.length,
     alertCount: emailData.universePulse.totalAlertCount,
+    expectedChartCount: emailData.expectedChartCount,
+    renderedChartCount: emailData.renderedChartCount,
     chartCount: emailData.chartAttachments.length,
     chartCardCount: emailData.macroReport?.chartAssets.length ?? 0,
     chartFailures: emailData.chartFailures,

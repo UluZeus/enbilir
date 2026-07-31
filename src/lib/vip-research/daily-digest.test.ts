@@ -45,8 +45,6 @@ const ideas: VipDigestIdea[] = [
   })),
 ];
 
-const previewChartImage = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="180"><rect width="600" height="180" rx="18" fill="#f7f9fb"/><path d="M18 135 L110 118 L205 128 L300 79 L395 92 L490 45 L582 28 L582 162 L18 162 Z" fill="#d7f4ec"/><path d="M18 135 L110 118 L205 128 L300 79 L395 92 L490 45 L582 28" fill="none" stroke="#0f9f82" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="582" cy="28" r="8" fill="#fff" stroke="#0f9f82" stroke-width="5"/></svg>')}`;
-
 function agent(
   id: string,
   slug: string,
@@ -237,7 +235,9 @@ describe("VIP premium email renderer", () => {
           lastPrice: 100 + index,
           changePercent3d: index % 2 === 0 ? 1.2 : -0.8,
           direction: index % 2 === 0 ? "YUKARI" as const : "ASAGI" as const,
-          imageSrc: previewChartImage,
+          normalizedSamples: [10, 28, 24, 48, 62, 55, 78, 100],
+          asOf: "2026-07-18T03:45:00.000Z",
+          freshness: "CURRENT" as const,
           imageAlt: `${asset.label} son üç günlük fiyat eğrisi`,
         })),
       },
@@ -307,6 +307,11 @@ describe("VIP premium email renderer", () => {
     expect(digest.html.indexOf("XAG/USD")).toBeLessThan(digest.html.indexOf("XAU/USD"));
     expect(digest.html.indexOf("XAU/USD")).toBeLessThan(digest.html.indexOf("NVDA"));
     expect(digest.html).toContain("Nasdaq");
+    expect(digest.html.match(/data-email-table-chart=/g)).toHaveLength(11);
+    expect(digest.html).toContain("18.07.2026 06:45 TSİ");
+    expect(digest.html).not.toContain("cid:");
+    expect(digest.html).not.toContain("data:image");
+    expect(digest.html).not.toContain("<svg");
     expect(Buffer.byteLength(digest.html, "utf8")).toBeLessThan(90_000);
 
     if (process.env.VIP_EMAIL_PREVIEW_PATH) {

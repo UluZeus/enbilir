@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendMorningMacroReportEmails, sendWeeklyMacroReportEmails } from "@/lib/ai-market/agent/morning-report-email";
+import { sendWeeklyMacroReportEmails } from "@/lib/ai-market/agent/morning-report-email";
 import { runAiMarketAgent } from "@/lib/ai-market/agent/report-agent";
 import { captureActivePortfolioEquitySnapshots } from "@/lib/portfolio-history";
 import { prisma } from "@/lib/prisma";
@@ -86,31 +86,10 @@ export async function POST(request: Request) {
 
   const globalReport = await runAiMarketAgent({ force });
   const userReports = await Promise.allSettled(users.map((user) => runAiMarketAgent({ userId: user.id, force })));
-  let morningEmailResult: Awaited<ReturnType<typeof sendMorningMacroReportEmails>> | null = null;
   let weeklyReport: Awaited<ReturnType<typeof runAiMarketAgent>> | null = null;
   let weeklyEmailResult: Awaited<ReturnType<typeof sendWeeklyMacroReportEmails>> | null = null;
 
   if (isMorningReportTime(triggeredAt)) {
-    const standardMorningRecipients = await prisma.user.findMany({
-      where: {
-        isActive: true,
-        electronicCommunicationConsent: true,
-        OR: [
-          { membershipTier: "STANDARD" },
-          { membershipTier: "VIP", vipPaidUntil: null },
-          { membershipTier: "VIP", vipPaidUntil: { lte: triggeredAt } },
-        ],
-      },
-      select: { id: true, email: true, name: true },
-    });
-
-    if (!globalReport.reused) {
-      morningEmailResult = await sendMorningMacroReportEmails({
-        reportId: globalReport.reportId,
-        recipients: standardMorningRecipients,
-      });
-    }
-
     if (isMondayInIstanbul(triggeredAt)) {
       weeklyReport = await runAiMarketAgent({ force, reportMode: "WEEKLY" });
 
@@ -135,7 +114,6 @@ export async function POST(request: Request) {
     scheduled: true,
     portfolioEquityCapture,
     globalReport,
-    morningEmailResult,
     weeklyReport,
     weeklyEmailResult,
     userReports: userReports.map((result, index) =>

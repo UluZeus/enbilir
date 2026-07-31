@@ -281,15 +281,56 @@ function chartDirection(chart: VipEmailChart) {
   return "Veri bekleniyor";
 }
 
+function formatChartAsOf(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Istanbul",
+  }).formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${read("day")}.${read("month")}.${read("year")} ${read("hour")}:${read("minute")} TSİ`;
+}
+
+function renderEmailTableChart(chart: VipEmailChart, color: string) {
+  if (chart.normalizedSamples.length < 2) {
+    const status = chart.freshness === "STALE"
+      ? "Grafik gösterilmedi: kaynak veri 96 saatten eski."
+      : chart.freshness === "FUTURE"
+        ? "Grafik gösterilmedi: kaynak zamanı doğrulanamadı."
+        : "Grafik verisi bir sonraki taramada yenilenecek.";
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f4f6" style="height:91px;border-collapse:separate;border-radius:9px"><tr><td align="center" style="height:91px;padding:0 10px;font-size:11px;font-weight:800;line-height:1.45;color:#778391">${escapeHtml(status)}</td></tr></table>`;
+  }
+
+  const columns = chart.normalizedSamples.map((sample) => {
+    const barHeight = Math.round(14 + Math.max(0, Math.min(100, sample)) * 0.62);
+    return `<td height="78" align="center" valign="bottom"><table role="presentation" width="88%" height="${barHeight}" bgcolor="${color}"><tr><td style="font-size:1px;line-height:1px">&nbsp;</td></tr></table></td>`;
+  }).join("");
+
+  return `<table data-email-table-chart="${escapeHtml(chart.symbol)}" aria-label="${escapeHtml(chart.imageAlt)}" role="presentation" width="100%" height="91" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f4f6" style="height:91px;border-collapse:separate;border-radius:9px"><tr>${columns}</tr></table>`;
+}
+
 function renderChartCard(chart: VipEmailChart) {
   const positive = (chart.changePercent3d ?? 0) >= 0;
   const color = chart.changePercent3d === null ? "#64748b" : positive ? "#0f766e" : "#b83250";
-  const chartImage = chart.imageSrc
-    ? `<img class="chart-image" src="${escapeHtml(chart.imageSrc)}" width="302" height="91" alt="${escapeHtml(chart.imageAlt)}" style="display:block;width:100%;max-width:302px;height:auto;border:0;border-radius:9px" />`
-    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f4f6" style="height:91px;border-collapse:separate;border-radius:9px"><tr><td align="center" style="height:91px;font-size:11px;font-weight:800;color:#778391">Grafik verisi bir sonraki taramada yenilenecek.</td></tr></table>`;
+  const chartImage = renderEmailTableChart(chart, color);
+  const asOf = formatChartAsOf(chart.asOf);
+  const priceLabel = chart.freshness === "CURRENT"
+    ? `Son: ${formatChartPrice(chart.lastPrice)}`
+    : chart.freshness === "STALE"
+      ? "Son fiyat gösterilmedi · veri eski"
+      : chart.freshness === "FUTURE"
+        ? "Son fiyat gösterilmedi · zaman doğrulanamadı"
+        : "Son fiyat bekleniyor";
 
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="border:1px solid #dfe5e8;border-collapse:separate;border-radius:12px"><tr><td style="padding:13px">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td><p style="margin:0;font-size:15px;font-weight:900;color:#172033">${escapeHtml(chart.label)}</p><p style="margin:3px 0 0;font-size:11px;color:#697684">Son: ${escapeHtml(formatChartPrice(chart.lastPrice))}</p></td><td align="right" valign="top" style="font-size:13px;font-weight:900;color:${color}">${escapeHtml(formatSignedPercent(chart.changePercent3d))}</td></tr></table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td><p style="margin:0;font-size:15px;font-weight:900;color:#172033">${escapeHtml(chart.label)}</p><p style="margin:3px 0 0;font-size:11px;color:#697684">${escapeHtml(priceLabel)}</p>${asOf ? `<p style="margin:2px 0 0;font-size:10px;color:#87929d">Veri zamanı: ${escapeHtml(asOf)}</p>` : ""}</td><td align="right" valign="top" style="font-size:13px;font-weight:900;color:${color}">${escapeHtml(formatSignedPercent(chart.changePercent3d))}</td></tr></table>
     <div style="height:9px;line-height:9px;font-size:1px">&nbsp;</div>${chartImage}
     <p style="margin:8px 0 0;font-size:11px;font-weight:800;color:${color}">${escapeHtml(chartDirection(chart))} · son 3 gün</p>
   </td></tr></table>`;
