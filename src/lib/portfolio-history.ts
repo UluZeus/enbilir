@@ -58,6 +58,8 @@ const dayMs = 24 * 60 * 60 * 1000;
 const hourMs = 60 * 60 * 1000;
 const equityHistoryPrefix = "equity-hour:";
 const fullPeriodCoverageThreshold = 97.5;
+const usdPrecision = 1_000_000;
+const percentPrecision = BigInt(100_000_000);
 
 const periodConfigs: PortfolioPeriodConfig[] = [
   { key: "DAILY", label: "Günlük", days: 1, minimumSpanMs: 30 * 60 * 1000 },
@@ -67,6 +69,11 @@ const periodConfigs: PortfolioPeriodConfig[] = [
   { key: "SEMI_ANNUAL", label: "6 Aylık", days: 180, minimumSpanMs: 45 * dayMs },
   { key: "YEARLY", label: "Yıllık", days: 365, minimumSpanMs: 90 * dayMs },
 ];
+
+export const portfolioCompetitionPeriods = periodConfigs.map(({ key, days }) => ({
+  key,
+  requestedDays: days,
+}));
 
 function toValidDate(value: Date) {
   const date = value instanceof Date ? value : new Date(value);
@@ -130,9 +137,30 @@ export function calculatePercentChange(startValueUsd: number, endValueUsd: numbe
     return null;
   }
 
-  const change = ((endValueUsd - startValueUsd) / startValueUsd) * 100;
+  const startUnits = Math.round(startValueUsd * usdPrecision);
+  const endUnits = Math.round(endValueUsd * usdPrecision);
+
+  if (!Number.isSafeInteger(startUnits) || !Number.isSafeInteger(endUnits) || startUnits <= 0) {
+    return null;
+  }
+
+  const numerator = (BigInt(endUnits) - BigInt(startUnits)) * BigInt(100) * percentPrecision;
+  const denominator = BigInt(startUnits);
+  const rounded = numerator >= BigInt(0)
+    ? (numerator + denominator / BigInt(2)) / denominator
+    : -((-numerator + denominator / BigInt(2)) / denominator);
+  const change = Number(rounded) / Number(percentPrecision);
 
   return Number.isFinite(change) ? change : null;
+}
+
+function calculateUsdChange(startValueUsd: number, endValueUsd: number) {
+  const startUnits = Math.round(startValueUsd * usdPrecision);
+  const endUnits = Math.round(endValueUsd * usdPrecision);
+
+  if (!Number.isSafeInteger(startUnits) || !Number.isSafeInteger(endUnits)) return null;
+
+  return (endUnits - startUnits) / usdPrecision;
 }
 
 export function getPortfolioSeriesForRange(
@@ -319,8 +347,45 @@ export async function captureActivePortfolioEquitySnapshots(capturedAt = new Dat
   };
 }
 
+export function buildPortfolioPerformancePeriods(
+  history: PortfolioHistoryEntry[],
+  totalValueUsd: number,
+  now = new Date(),
+): PortfolioPerformancePeriod[] {
+  return periodConfigs.map((period) => {
+    const series = getPortfolioSeriesForRange(history, period.days, totalValueUsd, now, period.key);
+    const firstPoint = series[0];
+    const lastPoint = series[series.length - 1];
+    const hasEnoughHistory = firstPoint && lastPoint && lastPoint.capturedAt.getTime() - firstPoint.capturedAt.getTime() >= period.minimumSpanMs;
+    const change = hasEnoughHistory && firstPoint && lastPoint && series.length >= 2
+      ? calculatePercentChange(firstPoint.valueUsd, lastPoint.valueUsd)
+      : null;
+    const changeUsd = change === null || !firstPoint || !lastPoint
+      ? null
+      : calculateUsdChange(firstPoint.valueUsd, lastPoint.valueUsd);
+    const points = change === null ? [] : buildSparklinePoints(series);
+    const coverage = firstPoint && lastPoint
+      ? calculatePortfolioPeriodCoverage(firstPoint.capturedAt, lastPoint.capturedAt, period.days)
+      : { observedDays: null, coveragePercent: 0, isPartial: true };
+
+    return {
+      key: period.key,
+      label: period.label,
+      change,
+      changeUsd,
+      startValueUsd: change === null ? null : firstPoint?.valueUsd ?? null,
+      endValueUsd: change === null ? null : lastPoint?.valueUsd ?? null,
+      points,
+      requestedDays: period.days,
+      observedDays: coverage.observedDays,
+      coveragePercent: coverage.coveragePercent,
+      isPartial: coverage.isPartial,
+      source: change === null ? "empty" : "history",
+    };
+  });
+}
+
 export async function getPortfolioPerformancePeriods(userId: string, totalValueUsd: number): Promise<PortfolioPerformancePeriod[]> {
-  const now = new Date();
   const [snapshots, weeklyBaselines] = await Promise.all([
     prisma.portfolioSnapshot.findMany({
       where: { userId },
@@ -346,35 +411,5 @@ export async function getPortfolioPerformancePeriods(userId: string, totalValueU
   ]);
   const history = normalizePortfolioHistory(snapshots, weeklyBaselines);
 
-  return periodConfigs.map((period) => {
-    const series = getPortfolioSeriesForRange(history, period.days, totalValueUsd, now, period.key);
-    const firstPoint = series[0];
-    const lastPoint = series[series.length - 1];
-    const hasEnoughHistory = firstPoint && lastPoint && lastPoint.capturedAt.getTime() - firstPoint.capturedAt.getTime() >= period.minimumSpanMs;
-    const change = hasEnoughHistory && firstPoint && lastPoint && series.length >= 2
-      ? calculatePercentChange(firstPoint.valueUsd, lastPoint.valueUsd)
-      : null;
-    const changeUsd = change === null || !firstPoint || !lastPoint
-      ? null
-      : lastPoint.valueUsd - firstPoint.valueUsd;
-    const points = change === null ? [] : buildSparklinePoints(series);
-    const coverage = firstPoint && lastPoint
-      ? calculatePortfolioPeriodCoverage(firstPoint.capturedAt, lastPoint.capturedAt, period.days)
-      : { observedDays: null, coveragePercent: 0, isPartial: true };
-
-    return {
-      key: period.key,
-      label: period.label,
-      change,
-      changeUsd,
-      startValueUsd: change === null ? null : firstPoint?.valueUsd ?? null,
-      endValueUsd: change === null ? null : lastPoint?.valueUsd ?? null,
-      points,
-      requestedDays: period.days,
-      observedDays: coverage.observedDays,
-      coveragePercent: coverage.coveragePercent,
-      isPartial: coverage.isPartial,
-      source: change === null ? "empty" : "history",
-    };
-  });
+  return buildPortfolioPerformancePeriods(history, totalValueUsd);
 }

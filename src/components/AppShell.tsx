@@ -1,8 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
-import type { CSSProperties, ReactNode } from "react";
+import { Suspense, type CSSProperties, type ReactNode } from "react";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { ActiveNavigationLink } from "@/components/ActiveNavigationLink";
+import { CommunitySectionNavigation } from "@/components/CommunitySectionNavigation";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { MobileHeaderMenu } from "@/components/MobileHeaderMenu";
 import { MobileDockVisibility } from "@/components/MobileDockVisibility";
@@ -242,7 +243,14 @@ export async function AppShell({ children, locale }: AppShellProps) {
         />
       </header>
 
-      <main id="main-content" tabIndex={-1} className="site-main-v3 site-container-v3 w-full py-6 pb-28 outline-none md:py-8 md:pb-10">{children}</main>
+      <main id="main-content" tabIndex={-1} className="site-main-v3 site-container-v3 w-full py-6 pb-28 outline-none md:py-8 md:pb-10">
+        {sessionUser ? (
+          <Suspense fallback={null}>
+            <CommunitySectionNavigation locale={locale} />
+          </Suspense>
+        ) : null}
+        {children}
+      </main>
 
       <MobileDockVisibility locale={locale}>
         <nav aria-label={locale === "tr" ? "Hızlı erişim" : "Quick access"} className={`mobile-dock-v3 grid ${sessionUser ? "grid-cols-4" : "grid-cols-3"} gap-1.5 p-1.5`}>

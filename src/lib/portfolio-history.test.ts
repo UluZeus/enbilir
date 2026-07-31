@@ -37,6 +37,7 @@ vi.mock("@/lib/portfolio", () => ({
 import {
   calculatePercentChange,
   calculatePortfolioPeriodCoverage,
+  buildPortfolioPerformancePeriods,
   captureActivePortfolioEquitySnapshots,
   getPortfolioPerformancePeriods,
   getPortfolioSeriesForRange,
@@ -53,6 +54,7 @@ describe("portfolio history", () => {
   it("calculates signed percent change without inventing a zero baseline", () => {
     expect(calculatePercentChange(1_000_000, 1_025_000)).toBe(2.5);
     expect(calculatePercentChange(1_000_000, 975_000)).toBe(-2.5);
+    expect(calculatePercentChange(0.1, 0.3)).toBe(200);
     expect(calculatePercentChange(0, 975_000)).toBeNull();
   });
 
@@ -153,5 +155,25 @@ describe("portfolio history", () => {
     expect(historyMocks.snapshotFindMany).toHaveBeenCalledOnce();
     expect(historyMocks.baselineFindMany).toHaveBeenCalledOnce();
     expect(historyMocks.baselineUpsert).not.toHaveBeenCalled();
+  });
+
+  it("builds all period results from already-loaded history without database reads", () => {
+    const now = new Date("2026-07-30T12:00:00.000Z");
+    const history = normalizePortfolioHistory([], [
+      { portfolioValueUsd: 1_000_000, capturedAt: new Date("2025-07-30T12:00:00.000Z") },
+      { portfolioValueUsd: 1_010_000, capturedAt: new Date("2026-07-23T12:00:00.000Z") },
+      { portfolioValueUsd: 1_020_000, capturedAt: new Date("2026-07-29T12:00:00.000Z") },
+    ]);
+
+    const periods = buildPortfolioPerformancePeriods(history, 1_030_000, now);
+
+    expect(periods).toHaveLength(6);
+    expect(periods.find((period) => period.key === "DAILY")).toMatchObject({
+      change: expect.any(Number),
+      isPartial: false,
+      endValueUsd: 1_030_000,
+    });
+    expect(historyMocks.snapshotFindMany).not.toHaveBeenCalled();
+    expect(historyMocks.baselineFindMany).not.toHaveBeenCalled();
   });
 });
