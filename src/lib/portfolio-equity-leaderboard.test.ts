@@ -55,6 +55,7 @@ type ParticipantOptions = {
   updatedAt?: Date;
   positions?: Array<{
     symbol: string;
+    market?: string;
     quantity: number;
     appliedSplitFactor?: number;
     corporateActionsCheckedAt?: Date | null;
@@ -75,6 +76,7 @@ function participant(id: string, options: ParticipantOptions = {}) {
     },
     positions: (options.positions ?? []).map((position) => ({
       ...position,
+      market: position.market ?? "Nasdaq Hisse",
       appliedSplitFactor: position.appliedSplitFactor ?? 1,
       corporateActionsCheckedAt: position.corporateActionsCheckedAt === undefined
         ? new Date("2026-08-01T12:00:00.000Z")
@@ -192,7 +194,7 @@ describe("portfolio equity leaderboard", () => {
     expect(JSON.stringify(result)).not.toContain("Do Not Show");
   });
 
-  it("excludes missing position quotes instead of using average cost, while valuing reliable cash FX and positions", async () => {
+  it("never mixes a reliable live row with a missing quote when no common cohort exists", async () => {
     leaderboardMocks.userFindMany.mockResolvedValue([
       participant("reliable-eur", {
         cashMode: "EUR",
@@ -208,14 +210,53 @@ describe("portfolio equity leaderboard", () => {
 
     const result = await getPortfolioEquityLeaderboard("reliable-eur", now);
 
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0]).toMatchObject({ totalValueUsd: 1_100_000 });
-    expect(result.excludedUnreliableCount).toBe(1);
+    expect(result.rows).toEqual([]);
+    expect(result).toMatchObject({ valuationMode: "RECORDED", valuationAsOf: null });
+    expect(result.excludedUnreliableCount).toBe(2);
     expect(leaderboardMocks.getLiveItems).toHaveBeenCalledWith(["AAPL", "EUR/USD", "MISSING"]);
     expect(leaderboardMocks.getCashModeUsdRate).toHaveBeenCalledWith("EUR", expect.any(Array));
   });
 
-  it("fails closed for missing, stale, or forward corporate-action verification while keeping a freshly verified position ranked", async () => {
+  it("falls back the whole board to the latest complete recorded equity-hour cohort", async () => {
+    const recordedAt = new Date("2026-07-29T09:00:00.000Z");
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("viewer", { cashAmount: 1_500_000 }),
+      participant("alpha", { cashAmount: 1_400_000 }),
+      participant("missing-live", {
+        cashAmount: 2_000_000,
+        positions: [{ symbol: "MISSING", quantity: 1 }],
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([
+      ...["viewer", "alpha", "missing-live"].map((userId, index) => ({
+        userId,
+        periodKey: "equity-hour:2026072909",
+        portfolioValueUsd: 1_100_000 + index * 100_000,
+        capturedAt: recordedAt,
+      })),
+      {
+        userId: "viewer",
+        periodKey: "equity-hour:2026073009",
+        portfolioValueUsd: 9_000_000,
+        capturedAt: new Date("2026-07-30T09:00:00.000Z"),
+      },
+    ]);
+    leaderboardMocks.getLiveItems.mockResolvedValue([]);
+    leaderboardMocks.hasVerifiedPortfolioQuote.mockReturnValue(false);
+
+    const result = await getPortfolioEquityLeaderboard("viewer", now);
+
+    expect(result).toMatchObject({
+      valuationMode: "RECORDED",
+      valuationAsOf: recordedAt.toISOString(),
+      totalRankedParticipants: 3,
+      excludedUnreliableCount: 0,
+    });
+    expect(result.rows.map((row) => row.totalValueUsd)).toEqual([1_300_000, 1_200_000, 1_100_000]);
+    expect(result.rows.some((row) => row.totalValueUsd === 1_500_000)).toBe(false);
+  });
+
+  it("falls back all equity positions when any Yahoo corporate-action verification is not fresh", async () => {
     leaderboardMocks.userFindMany.mockResolvedValue([
       participant("fresh", { positions: [{ symbol: "AAPL", quantity: 100 }] }),
       participant("stale", {
@@ -236,40 +277,66 @@ describe("portfolio equity leaderboard", () => {
         }],
       }),
     ]);
-    leaderboardMocks.baselineFindMany.mockResolvedValue([]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue(
+      ["fresh", "stale", "missing", "forward"].map((userId, index) => ({
+        userId,
+        periodKey: "equity-hour:2026072909",
+        portfolioValueUsd: 1_100_000 + index,
+        capturedAt: new Date("2026-07-29T09:00:00.000Z"),
+      })),
+    );
     leaderboardMocks.getLiveItems.mockResolvedValue([{ symbol: "AAPL", priceUsd: 1_000 }]);
 
     const result = await getPortfolioEquityLeaderboard("fresh", now);
 
-    expect(result.rows).toEqual([expect.objectContaining({
-      alias: "Participant #D098AB",
-      totalValueUsd: 1_100_000,
-      rank: 1,
-    })]);
-    expect(result.excludedUnreliableCount).toBe(3);
+    expect(result.rows).toHaveLength(4);
+    expect(result).toMatchObject({ valuationMode: "RECORDED", excludedUnreliableCount: 0 });
   });
 
-  it("keeps null period returns in the global equity ranking and excludes unreliable valuations", async () => {
+  it("keeps null period returns while recorded cohort values replace all mixed live values", async () => {
     leaderboardMocks.userFindMany.mockResolvedValue([
       participant("viewer"),
       participant("partial", { cashAmount: 1_500_000 }),
       participant("unreliable", { positions: [{ symbol: "MISSING", quantity: 1 }], cashAmount: 2_000_000 }),
     ]);
-    leaderboardMocks.baselineFindMany.mockResolvedValue(verifiedHistory("viewer", 1_000_000));
+    leaderboardMocks.baselineFindMany.mockResolvedValue([
+      ...verifiedHistory("viewer", 1_000_000),
+      ...["viewer", "partial", "unreliable"].map((userId, index) => ({
+        userId,
+        periodKey: "equity-hour:2026072909",
+        portfolioValueUsd: 1_000_000 + index,
+        capturedAt: new Date("2026-07-29T09:00:00.000Z"),
+      })),
+    ]);
     leaderboardMocks.hasVerifiedPortfolioQuote.mockImplementation((item: { symbol?: string } | undefined) => item?.symbol !== "MISSING");
 
     const result = await getPortfolioEquityLeaderboard("viewer", now);
 
-    expect(result.rows.map((row) => row.totalValueUsd)).toEqual([1_500_000, 1_000_000]);
+    expect(result.rows.map((row) => row.totalValueUsd)).toEqual([1_000_002, 1_000_001, 1_000_000]);
     expect(result.rows[0]).toMatchObject({ weeklyReturnPercent: null, monthlyReturnPercent: null, rank: 1 });
-    expect(result.excludedUnreliableCount).toBe(1);
+    expect(result.excludedUnreliableCount).toBe(0);
+  });
+
+  it("does not require corporate-action timestamps for crypto positions", async () => {
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("viewer", {
+        positions: [{ symbol: "BTC", market: "Kripto Para", quantity: 1, corporateActionsCheckedAt: null }],
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([]);
+    leaderboardMocks.getLiveItems.mockResolvedValue([{ symbol: "BTC", priceUsd: 100_000 }]);
+
+    const result = await getPortfolioEquityLeaderboard("viewer", now);
+
+    expect(result).toMatchObject({ valuationMode: "LIVE", valuationAsOf: now.toISOString() });
+    expect(result.rows).toEqual([expect.objectContaining({ totalValueUsd: 1_100_000 })]);
   });
 
   it("shows only permitted active league labels and gives the viewer private-league rank", async () => {
     leaderboardMocks.membershipFindMany.mockImplementation(async (query: { where: { userId?: string | { in: string[] } } }) => {
       if (query.where.userId === "viewer") {
         return [{
-          league: { id: "viewer-private", name: "Viewer Private", type: "PRIVATE", memberships: [{ userId: "viewer" }, { userId: "alpha" }] },
+          league: { id: "viewer-private", name: "Viewer Private", slug: "viewer-private", type: "PRIVATE", memberships: [{ userId: "viewer" }, { userId: "alpha" }] },
         }];
       }
 
@@ -289,7 +356,7 @@ describe("portfolio equity leaderboard", () => {
     expect(result.rows[1]?.leagueNames).toEqual([]);
     expect(result.rows[2]?.leagueNames).toEqual(["Public League", "Viewer Private"]);
     expect(result.viewerLeagues).toEqual([
-      { name: "Viewer Private", type: "PRIVATE", rank: 2, totalRankedMembers: 2 },
+      { id: "viewer-private", name: "Viewer Private", slug: "viewer-private", type: "PRIVATE", rank: 2, totalRankedMembers: 2 },
     ]);
     expect(serialized).not.toContain('"viewer"');
     expect(serialized).not.toContain('"alpha"');

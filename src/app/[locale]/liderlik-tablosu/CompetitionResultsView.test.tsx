@@ -14,6 +14,7 @@ import {
 } from "./CompetitionResultsView";
 
 const globalBoard = {
+  valuationMode: "LIVE" as const,
   valuationAsOf: "2026-07-31T09:00:00.000Z",
   totalRankedParticipants: 53,
   excludedUnreliableCount: 2,
@@ -24,7 +25,16 @@ const globalBoard = {
   lastRowIndex: 50,
   viewerRank: 52,
   viewerTotalValueUsd: 123456.78,
-  viewerLeagues: [],
+  viewerLeagues: [
+    {
+      id: "league-1",
+      name: "Çok Uzun İstanbul Öğrenme ve Dayanışma Ligi",
+      slug: "istanbul-ogrenme",
+      type: "ROTARY" as const,
+      rank: 4,
+      totalRankedMembers: 18,
+    },
+  ],
   rows: [
     {
       alias: "Güvenli Takma Ad",
@@ -118,6 +128,10 @@ describe("CompetitionResultsView", () => {
     );
 
     expect(html).toContain("Toplam portföy sıralaması");
+    expect(html).toContain("Doğrulanmış güncel sıralama");
+    expect(html).toContain('<time dateTime="2026-07-31T09:00:00.000Z"');
+    expect(html).toContain("Son doğrulanmış dönem özetleri");
+    expect(html).not.toContain("Canlı dönem özetleri");
     expect(html).toContain("Güvenli Takma Ad");
     expect(html).toContain("Çok Uzun İstanbul Öğrenme ve Dayanışma Ligi");
     expect(html).toContain("Toplam portföy ($USD)");
@@ -127,6 +141,109 @@ describe("CompetitionResultsView", () => {
     expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=1&amp;toplamSayfa=3"');
     expect(html).toContain("26–50 / 53");
     expect(html).toContain("2 portföy güvenilir değerleme olmadığı için dahil edilmedi");
+  });
+
+  it("labels recorded global standings honestly, exposes the valuation time, and links to the viewer page", () => {
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="tr"
+        periods={periods}
+        selectedPeriodKey="WEEKLY"
+        leagues={[]}
+        globalBoard={{ ...globalBoard, valuationMode: "RECORDED" }}
+      />,
+    );
+
+    expect(html).toContain("Son doğrulanmış sıralama");
+    expect(html).not.toContain("Doğrulanmış güncel sıralama");
+    expect(html).toContain('<time dateTime="2026-07-31T09:00:00.000Z"');
+    expect(html).toContain("Toplam portföy sıran");
+    expect(html).toContain("#52");
+    expect(html).toContain("$123.456,78");
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=1&amp;toplamSayfa=3"');
+    expect(html).toContain("Son doğrulanmış dönem özetleri");
+    expect(html).not.toContain("Canlı dönem özetleri");
+  });
+
+  it("uses global portfolio cohort league ranks and keeps selected-period return rank separate", () => {
+    const selectedPeriodLeagues = [
+      {
+        id: "league-1",
+        name: "Eski dönem adı",
+        slug: "eski-slug",
+        type: "ROTARY" as const,
+        rank: null,
+        totalRankedMembers: 6,
+        viewerReturnPercent: null,
+      },
+    ];
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="tr"
+        periods={periods}
+        selectedPeriodKey="WEEKLY"
+        leagues={selectedPeriodLeagues}
+        globalBoard={{ ...globalBoard, valuationMode: "RECORDED" }}
+      />,
+    );
+    const englishHtml = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="en"
+        periods={periods}
+        selectedPeriodKey="WEEKLY"
+        leagues={selectedPeriodLeagues}
+        globalBoard={{ ...globalBoard, valuationMode: "RECORDED" }}
+      />,
+    );
+
+    expect(html).toContain("Çok Uzun İstanbul Öğrenme ve Dayanışma Ligi");
+    expect(html).toContain("Toplam portföy sıran");
+    expect(html).toContain("4 / 18");
+    expect(html).toContain("Seçili dönem getiri sırası henüz oluşmadı");
+    expect(html).not.toContain("Bu dönem sıralama dışında");
+    expect(html).not.toContain("Henüz aktif bir ligde değilsin");
+    expect(html).toContain('href="/tr/ligler/istanbul-ogrenme"');
+    expect(html).not.toContain('href="/tr/ligler/eski-slug"');
+    expect(englishHtml).toContain("Your total portfolio rank");
+    expect(englishHtml).toContain("The selected-period return rank has not formed yet.");
+  });
+
+  it("explains an empty recorded page and keeps the seven-column table above 1024px", () => {
+    const emptyRecordedBoard = {
+      ...globalBoard,
+      valuationMode: "RECORDED" as const,
+      valuationAsOf: null,
+      rows: [],
+      excludedUnreliableCount: 3,
+    };
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="en"
+        periods={periods}
+        selectedPeriodKey="YEARLY"
+        leagues={[]}
+        globalBoard={emptyRecordedBoard}
+      />,
+    );
+    const responsiveHtml = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="en"
+        periods={periods}
+        selectedPeriodKey="YEARLY"
+        leagues={[]}
+        globalBoard={{ ...globalBoard, valuationMode: "RECORDED" }}
+      />,
+    );
+
+    expect(html).toContain("No last verified records are available on this page");
+    expect(html).toContain('aria-label="Valuation time unavailable"');
+    expect(html).not.toContain("<time");
+    expect(html).toContain("This does not mean that excluded portfolios had zero value or zero return");
+    expect(responsiveHtml).toMatch(/class="hidden xl:block"[^>]*><table/);
+    expect(responsiveHtml).toMatch(/<ol class="[^"]*xl:hidden" aria-label="Global total portfolio standings"/);
+    expect(html).toContain("6 portfolios: missing history");
+    expect(html).toContain("2 portfolios: stale price");
+    expect(html).toContain("1 portfolio: unverified price");
   });
 
   it("renders accessible period navigation, privacy-safe standings, and equivalent responsive structures", () => {
@@ -175,7 +292,7 @@ describe("CompetitionResultsView", () => {
     expect(html).toMatch(/data-private-money="current-value" class="[^"]*break-all[^"]*"/);
     expect(html).not.toMatch(/data-private-money="[^"]+" class="[^"]*whitespace-nowrap/);
     expect(html).not.toContain("$999.999");
-    expect(html).toContain("canlı dönem görünümü");
+    expect(html).toContain("Son doğrulanmış ortak değerlemeye dayanır");
     expect(html).toContain('href="/tr/haftalik-liderler"');
     expect(html).toContain("en az bir tamamlanmış sanal işlem");
   });
@@ -233,6 +350,18 @@ describe("CompetitionResultsView", () => {
     expect(html).toContain("6 portfolio(s) lack complete period history");
     expect(html).not.toContain("$1,234,567,890,123.78");
     expect(turkishHtml).toContain("Bu, dönem getirisinin yüzde sıfır olduğu anlamına gelmez.");
+  });
+
+  it("renders a meaningful status when a period has no valuation timestamp", () => {
+    const periodsWithoutValuation = periods.map((period) => period.key === "YEARLY"
+      ? { ...period, rangeStartsAt: null, valuationAsOf: null }
+      : period);
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView locale="tr" periods={periodsWithoutValuation} selectedPeriodKey="YEARLY" leagues={[]} />,
+    );
+
+    expect(html).toContain("Değerleme kaydı yok.");
+    expect(html).not.toContain("Invalid Date");
   });
 
   it("keeps unavailable periods compact while preserving all six accessible result links", () => {

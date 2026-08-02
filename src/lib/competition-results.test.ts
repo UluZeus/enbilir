@@ -47,9 +47,19 @@ function user(id: string, name: string) {
 function fullHistory(userId: string, startingValueUsd: number) {
   return [1, 7, 30, 90, 180, 365].map((days) => ({
     userId,
+    periodKey: `equity-hour:${new Date(now.getTime() - days * 86_400_000).toISOString().slice(0, 13).replace(/[-T]/g, "")}`,
     portfolioValueUsd: startingValueUsd,
     capturedAt: new Date(now.getTime() - days * 86_400_000),
   }));
+}
+
+function recordedEndpoint(userId: string, portfolioValueUsd: number, capturedAt: Date) {
+  return {
+    userId,
+    periodKey: `equity-hour:${capturedAt.toISOString().slice(0, 13).replace(/[-T]/g, "")}`,
+    portfolioValueUsd,
+    capturedAt,
+  };
 }
 
 describe("competition results", () => {
@@ -66,14 +76,14 @@ describe("competition results", () => {
     competitionMocks.baselineFindMany.mockResolvedValue([
       ...fullHistory("viewer", 100),
       ...fullHistory("alpha", 200),
-      {
-        userId: "partial",
-        portfolioValueUsd: 100,
-        capturedAt: new Date(now.getTime() - 6 * 60 * 60 * 1000),
-      },
+      recordedEndpoint("partial", 100, new Date(now.getTime() - 6 * 60 * 60 * 1000)),
       ...fullHistory("unreliable", 100).filter(
         (entry) => now.getTime() - entry.capturedAt.getTime() > 72 * 60 * 60 * 1000,
       ),
+      recordedEndpoint("viewer", 110, now),
+      recordedEndpoint("alpha", 220, now),
+      recordedEndpoint("partial", 110, now),
+      recordedEndpoint("unreliable", 110, now),
     ]);
     competitionMocks.getLiveItems.mockResolvedValue([]);
     competitionMocks.getPortfolioSnapshot.mockImplementation(async (userId: string) => ({
@@ -111,23 +121,24 @@ describe("competition results", () => {
     ]);
   });
 
-  it("returns only reliable full-coverage live rankings and keeps USD/private member details viewer-only", async () => {
+  it("returns full-coverage recorded rankings and keeps USD/private member details viewer-only", async () => {
     const result = await getCompetitionResults("viewer", "WEEKLY", now);
     const weekly = result.periods.find((period) => period.key === "WEEKLY");
 
     expect(result.periods).toHaveLength(6);
     expect(weekly?.rows).toEqual([
       { displayName: "Alpha", rank: 1, returnPercent: 10, isViewer: false },
+      { displayName: "Unreliable", rank: 1, returnPercent: 10, isViewer: false },
       { displayName: "Viewer", rank: 1, returnPercent: 10, isViewer: true },
     ]);
     expect(weekly?.topRows).toEqual(weekly?.rows);
     expect(weekly?.bottomRows).toEqual([]);
-    expect(weekly?.totalRankedParticipants).toBe(2);
+    expect(weekly?.totalRankedParticipants).toBe(3);
     expect(weekly?.leaderReturnPercent).toBe(10);
     expect(weekly?.pageCount).toBe(1);
     expect(weekly?.firstRowIndex).toBe(1);
-    expect(weekly?.lastRowIndex).toBe(2);
-    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 1, stalePrice: 0, unreliable: 1 });
+    expect(weekly?.lastRowIndex).toBe(3);
+    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 1, stalePrice: 0, unreliable: 0 });
     expect(weekly?.viewerRow).toEqual({
       displayName: "Viewer",
       rank: 1,
@@ -156,7 +167,7 @@ describe("competition results", () => {
     expect(JSON.stringify(result.leagues)).not.toContain("alpha");
   });
 
-  it("ranks a candidate whose portfolio is reliably valued from a verified market-closed quote", async () => {
+  it("ranks a candidate from the common stored endpoint without consulting live quotes", async () => {
     competitionMocks.userFindMany.mockResolvedValue([
       user("viewer", "Viewer"),
       user("alpha", "Alpha"),
@@ -164,6 +175,8 @@ describe("competition results", () => {
     competitionMocks.baselineFindMany.mockResolvedValue([
       ...fullHistory("viewer", 100),
       ...fullHistory("alpha", 100),
+      recordedEndpoint("viewer", 105, now),
+      recordedEndpoint("alpha", 120, now),
     ]);
     competitionMocks.getPortfolioSnapshot.mockImplementation(async (userId: string) => ({
       totalValueUsd: userId === "alpha" ? 120 : 105,
@@ -179,6 +192,41 @@ describe("competition results", () => {
       { displayName: "Viewer", rank: 2, returnPercent: 5, isViewer: true },
     ]);
     expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 0, unreliable: 0 });
+    expect(competitionMocks.getPortfolioSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("calculates every period at the latest complete stored cohort endpoint, not request now", async () => {
+    const endpointAt = new Date("2026-07-29T09:00:00.000Z");
+    const historyAtEndpoint = (userId: string, valueUsd: number) => fullHistory(userId, valueUsd).map((entry) => {
+      const capturedAt = new Date(endpointAt.getTime() - (now.getTime() - entry.capturedAt.getTime()));
+      return recordedEndpoint(userId, valueUsd, capturedAt);
+    });
+    competitionMocks.userFindMany.mockResolvedValue([
+      user("viewer", "Viewer"),
+      user("alpha", "Alpha"),
+    ]);
+    competitionMocks.baselineFindMany.mockResolvedValue([
+      ...historyAtEndpoint("viewer", 100),
+      ...historyAtEndpoint("alpha", 200),
+      recordedEndpoint("viewer", 110, endpointAt),
+      recordedEndpoint("alpha", 220, endpointAt),
+      recordedEndpoint("viewer", 999, new Date("2026-07-30T09:00:00.000Z")),
+    ]);
+    competitionMocks.getPortfolioSnapshot.mockImplementation(async () => ({
+      totalValueUsd: 999,
+      hasUnreliableValuation: false,
+    }));
+
+    const result = await getCompetitionResults("viewer", "WEEKLY", now);
+    const weekly = result.periods.find((period) => period.key === "WEEKLY");
+
+    expect(weekly?.valuationAsOf).toBe(endpointAt.toISOString());
+    expect(weekly?.rangeStartsAt).toBe(new Date(endpointAt.getTime() - 7 * 86_400_000).toISOString());
+    expect(weekly?.rows).toEqual([
+      { displayName: "Alpha", rank: 1, returnPercent: 10, isViewer: false },
+      { displayName: "Viewer", rank: 1, returnPercent: 10, isViewer: true },
+    ]);
+    expect(competitionMocks.getPortfolioSnapshot).not.toHaveBeenCalled();
   });
 
   it("scopes candidates to active verified public users", async () => {
@@ -193,21 +241,13 @@ describe("competition results", () => {
     }));
   });
 
-  it("excludes a live-provider outage with a recent verified history endpoint as stale, without ranking it", async () => {
+  it("keeps a stored cohort rank available during a live-provider outage", async () => {
     const endpointAt = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
     competitionMocks.userFindMany.mockResolvedValue([user("viewer", "Viewer")]);
     competitionMocks.baselineFindMany.mockResolvedValue([
-      {
-        userId: "viewer",
-        portfolioValueUsd: 100,
-        capturedAt: new Date(endpointAt.getTime() - 7 * 86_400_000),
-      },
-      {
-        userId: "viewer",
-        portfolioValueUsd: 112,
-        capturedAt: endpointAt,
-      },
+      recordedEndpoint("viewer", 100, new Date(endpointAt.getTime() - 7 * 86_400_000)),
+      recordedEndpoint("viewer", 112, endpointAt),
     ]);
     competitionMocks.getLiveItems.mockRejectedValue(new Error("market provider unavailable"));
     competitionMocks.getPortfolioSnapshot.mockRejectedValue(new Error("provider unavailable"));
@@ -215,28 +255,22 @@ describe("competition results", () => {
     const result = await getCompetitionResults("viewer", "WEEKLY", now);
     const weekly = result.periods.find((period) => period.key === "WEEKLY");
 
-    expect(weekly?.rows).toEqual([]);
-    expect(weekly?.valuationAsOf).toBe(now.toISOString());
+    expect(weekly?.rows).toEqual([
+      { displayName: "Viewer", rank: 1, returnPercent: 12, isViewer: true },
+    ]);
+    expect(weekly?.valuationAsOf).toBe(endpointAt.toISOString());
     expect(weekly?.delayedValuationCount).toBe(0);
-    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 1, unreliable: 0 });
-    expect(competitionMocks.getPortfolioSnapshot).toHaveBeenCalledWith("viewer", []);
+    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 0, unreliable: 0 });
+    expect(competitionMocks.getPortfolioSnapshot).not.toHaveBeenCalled();
   });
 
-  it("excludes a persisted endpoint older than 72 hours when live valuation is unavailable", async () => {
+  it("uses the latest complete stored endpoint even when it is older than the former live fallback limit", async () => {
     const staleEndpointAt = new Date(now.getTime() - 72 * 60 * 60 * 1000 - 1);
 
     competitionMocks.userFindMany.mockResolvedValue([user("viewer", "Viewer")]);
     competitionMocks.baselineFindMany.mockResolvedValue([
-      {
-        userId: "viewer",
-        portfolioValueUsd: 100,
-        capturedAt: new Date(staleEndpointAt.getTime() - 7 * 86_400_000),
-      },
-      {
-        userId: "viewer",
-        portfolioValueUsd: 112,
-        capturedAt: staleEndpointAt,
-      },
+      recordedEndpoint("viewer", 100, new Date(staleEndpointAt.getTime() - 7 * 86_400_000)),
+      recordedEndpoint("viewer", 112, staleEndpointAt),
     ]);
     competitionMocks.getPortfolioSnapshot.mockResolvedValue({
       totalValueUsd: 112,
@@ -246,9 +280,12 @@ describe("competition results", () => {
     const result = await getCompetitionResults("viewer", "WEEKLY", now);
     const weekly = result.periods.find((period) => period.key === "WEEKLY");
 
-    expect(weekly?.rows).toEqual([]);
+    expect(weekly?.rows).toEqual([
+      { displayName: "Viewer", rank: 1, returnPercent: 12, isViewer: true },
+    ]);
+    expect(weekly?.valuationAsOf).toBe(staleEndpointAt.toISOString());
     expect(weekly?.delayedValuationCount).toBe(0);
-    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 0, unreliable: 1 });
+    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 0, unreliable: 0 });
   });
 
   it("queries only verified persisted portfolio history", async () => {
@@ -286,7 +323,10 @@ describe("competition results", () => {
     const viewer = participants[52];
 
     competitionMocks.userFindMany.mockResolvedValue(participants);
-    competitionMocks.baselineFindMany.mockResolvedValue(participants.flatMap((participant) => fullHistory(participant.id, 100)));
+    competitionMocks.baselineFindMany.mockResolvedValue(participants.flatMap((participant) => [
+      ...fullHistory(participant.id, 100),
+      recordedEndpoint(participant.id, 153 - Number(participant.id.slice(-2)), now),
+    ]));
     competitionMocks.getPortfolioSnapshot.mockImplementation(async (userId: string) => ({
       totalValueUsd: 153 - Number(userId.slice(-2)),
       hasUnreliableValuation: false,
@@ -329,6 +369,10 @@ describe("competition results", () => {
       ...fullHistory("alpha", 100),
       ...fullHistory("bravo", 100),
       ...fullHistory("charlie", 100),
+      recordedEndpoint("viewer", 104, now),
+      recordedEndpoint("alpha", 103, now),
+      recordedEndpoint("bravo", 102, now),
+      recordedEndpoint("charlie", 101, now),
     ]);
     competitionMocks.getPortfolioSnapshot.mockImplementation(async (userId: string) => ({
       totalValueUsd: { viewer: 104, alpha: 103, bravo: 102, charlie: 101 }[userId]!,

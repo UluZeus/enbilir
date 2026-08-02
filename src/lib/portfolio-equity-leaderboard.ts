@@ -10,6 +10,8 @@ import {
   normalizePortfolioHistory,
 } from "@/lib/portfolio-history";
 import { getCashModeUsdRate, hasVerifiedPortfolioQuote, initialCashUsd } from "@/lib/portfolio";
+import { isYahooEquityMarket } from "@/lib/portfolio-corporate-actions";
+import { selectLatestCommonPortfolioEquityCohort } from "@/lib/portfolio-equity-cohort";
 import { prisma } from "@/lib/prisma";
 import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 
@@ -27,14 +29,17 @@ export type PortfolioEquityLeaderboardRow = {
 };
 
 export type PortfolioEquityLeaderboardLeagueRank = {
+  id: string;
   name: string;
+  slug: string;
   type: LeagueType;
   rank: number | null;
   totalRankedMembers: number;
 };
 
 export type PortfolioEquityLeaderboardResult = {
-  valuationAsOf: string;
+  valuationMode: "LIVE" | "RECORDED";
+  valuationAsOf: string | null;
   rows: PortfolioEquityLeaderboardRow[];
   totalRankedParticipants: number;
   excludedUnreliableCount: number;
@@ -62,6 +67,7 @@ type RankedEquityCandidate = EquityCandidate & {
 
 type ReadOnlyPortfolioPosition = {
   symbol: string;
+  market: string;
   quantity: number;
   appliedSplitFactor: number;
   corporateActionsCheckedAt: Date | null;
@@ -163,16 +169,23 @@ function calculateReadOnlyPositionsValueUsd(
     if (!Number.isFinite(position.quantity) || position.quantity < 0) return null;
     if (position.quantity === 0) continue;
 
-    const verifiedAt = position.corporateActionsCheckedAt?.getTime();
-    const corporateActionAgeMs = verifiedAt === undefined ? Number.NaN : now.getTime() - verifiedAt;
     if (
       !Number.isFinite(position.appliedSplitFactor)
       || position.appliedSplitFactor <= 0
-      || !Number.isFinite(corporateActionAgeMs)
-      || corporateActionAgeMs < 0
-      || corporateActionAgeMs > maximumCorporateActionVerificationAgeMs
     ) {
       return null;
+    }
+
+    if (isYahooEquityMarket(position.market)) {
+      const verifiedAt = position.corporateActionsCheckedAt?.getTime();
+      const corporateActionAgeMs = verifiedAt === undefined ? Number.NaN : now.getTime() - verifiedAt;
+      if (
+        !Number.isFinite(corporateActionAgeMs)
+        || corporateActionAgeMs < 0
+        || corporateActionAgeMs > maximumCorporateActionVerificationAgeMs
+      ) {
+        return null;
+      }
     }
 
     const quote = findMarketItem(marketItems, position.symbol);
@@ -273,6 +286,7 @@ export async function getPortfolioEquityLeaderboard(
       positions: {
         select: {
           symbol: true,
+          market: true,
           quantity: true,
           appliedSplitFactor: true,
           corporateActionsCheckedAt: true,
@@ -295,7 +309,7 @@ export async function getPortfolioEquityLeaderboard(
     }),
     prisma.weeklyPortfolioBaseline.findMany({
       where: { userId: { in: userIds }, periodKey: { startsWith: "equity-hour:" } },
-      select: { userId: true, portfolioValueUsd: true, capturedAt: true },
+      select: { userId: true, periodKey: true, portfolioValueUsd: true, capturedAt: true },
       orderBy: { capturedAt: "asc" },
     }),
     prisma.leagueMembership.findMany({
@@ -309,6 +323,7 @@ export async function getPortfolioEquityLeaderboard(
           select: {
             id: true,
             name: true,
+            slug: true,
             type: true,
             memberships: { select: { userId: true } },
           },
@@ -339,8 +354,7 @@ export async function getPortfolioEquityLeaderboard(
   ])).sort();
   const marketItems = await getLiveMarketItemsForSymbols(requestedSymbols).catch(() => []);
 
-  let excludedUnreliableCount = 0;
-  const candidates: EquityCandidate[] = [];
+  const liveValueByUserId = new Map<string, number>();
   for (const user of users) {
     try {
       const totalValueUsd = await calculateReadOnlyTotalValueUsd(
@@ -350,27 +364,43 @@ export async function getPortfolioEquityLeaderboard(
         now,
       );
       const totalValueMicroUsd = totalValueUsd === null ? null : canonicalMicroUsd(totalValueUsd);
-      if (totalValueMicroUsd === null) {
-        excludedUnreliableCount += 1;
-        continue;
-      }
-
-      const canonicalTotalValueUsd = microUsdToUsd(totalValueMicroUsd);
-      const history = normalizePortfolioHistory(
-        snapshotHistoryByUserId.get(user.id) ?? [],
-        baselineHistoryByUserId.get(user.id) ?? [],
-      );
-      candidates.push({
-        userId: user.id,
-        alias: createPortfolioParticipantAlias(user.id, user.nickname, user.displayNameMode),
-        totalValueMicroUsd,
-        weeklyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, now, "WEEKLY"),
-        monthlyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, now, "MONTHLY"),
-      });
+      if (totalValueMicroUsd !== null) liveValueByUserId.set(user.id, totalValueMicroUsd);
     } catch {
-      // A current equity rank cannot use a stale or synthetic fallback valuation.
-      excludedUnreliableCount += 1;
+      // One failed live valuation switches the whole board to a common recorded cohort.
     }
+  }
+
+  const hasCompleteLiveBoard = liveValueByUserId.size === users.length;
+  const recordedCohort = hasCompleteLiveBoard
+    ? null
+    : selectLatestCommonPortfolioEquityCohort(userIds, weeklyBaselines, now);
+  const valuationMode = hasCompleteLiveBoard ? "LIVE" as const : "RECORDED" as const;
+  const valuationDate = hasCompleteLiveBoard ? now : recordedCohort?.capturedAt ?? null;
+  const candidates: EquityCandidate[] = [];
+  let excludedUnreliableCount = 0;
+
+  for (const user of users) {
+    const recordedValueUsd = recordedCohort?.valueByUserId.get(user.id);
+    const totalValueMicroUsd = hasCompleteLiveBoard
+      ? liveValueByUserId.get(user.id) ?? null
+      : recordedValueUsd === undefined ? null : canonicalMicroUsd(recordedValueUsd);
+    if (totalValueMicroUsd === null || !valuationDate) {
+      excludedUnreliableCount += 1;
+      continue;
+    }
+
+    const canonicalTotalValueUsd = microUsdToUsd(totalValueMicroUsd);
+    const history = normalizePortfolioHistory(
+      snapshotHistoryByUserId.get(user.id) ?? [],
+      baselineHistoryByUserId.get(user.id) ?? [],
+    );
+    candidates.push({
+      userId: user.id,
+      alias: createPortfolioParticipantAlias(user.id, user.nickname, user.displayNameMode),
+      totalValueMicroUsd,
+      weeklyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, valuationDate, "WEEKLY"),
+      monthlyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, valuationDate, "MONTHLY"),
+    });
   }
 
   const ranked = rankPortfolioEquityCandidates(candidates);
@@ -399,7 +429,9 @@ export async function getPortfolioEquityLeaderboard(
     const viewer = rankedMembers.find((candidate) => candidate.userId === viewerUserId);
 
     return {
+      id: league.id,
       name: league.name,
+      slug: league.slug,
       type: league.type,
       rank: viewer?.rank ?? null,
       totalRankedMembers: rankedMembers.length,
@@ -423,7 +455,8 @@ export async function getPortfolioEquityLeaderboard(
   const viewer = candidateByUserId.get(viewerUserId);
 
   return {
-    valuationAsOf: now.toISOString(),
+    valuationMode,
+    valuationAsOf: valuationDate?.toISOString() ?? null,
     rows: pageRows,
     totalRankedParticipants,
     excludedUnreliableCount,

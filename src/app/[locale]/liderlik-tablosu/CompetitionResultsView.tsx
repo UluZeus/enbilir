@@ -105,13 +105,13 @@ export function CompetitionResultsView({
               {isEnglish ? "Compare periods" : "Dönemleri karşılaştır"}
             </p>
             <h2 id="period-summaries-title" className="mt-1 text-2xl font-black text-[#152033]">
-              {isEnglish ? "Live period summaries" : "Canlı dönem özetleri"}
+              {isEnglish ? "Last verified period summaries" : "Son doğrulanmış dönem özetleri"}
             </h2>
           </div>
           <p className="max-w-2xl text-sm leading-6 text-slate-600">
             {isEnglish
-              ? "Data source: live period view, using only complete coverage and verified prices. Finalized archives are separate."
-              : "Veri kaynağı: canlı dönem görünümü, yalnız tam kapsam ve doğrulanmış fiyat. Kesinleşmiş arşiv ayrıdır."}
+              ? "Based on the last verified common valuation. Unavailable periods are not treated as zero return."
+              : "Son doğrulanmış ortak değerlemeye dayanır. Kullanılamayan dönemler sıfır getiri sayılmaz."}
           </p>
         </div>
 
@@ -242,7 +242,7 @@ export function CompetitionResultsView({
         ) : null}
       </section>
 
-      <LeagueResults locale={locale} leagues={leagues} />
+      <LeagueResults locale={locale} leagues={leagues} globalLeagues={globalBoard?.viewerLeagues} />
       <OverallStandings locale={locale} period={selectedPeriod} />
     </div>
   );
@@ -260,7 +260,11 @@ function GlobalPortfolioStandings({
   selectedPeriodPage: number;
 }) {
   const isEnglish = locale === "en";
+  const isRecorded = board.valuationMode === "RECORDED";
   const title = isEnglish ? "Global total portfolio standings" : "Toplam portföy sıralaması";
+  const viewerPage = board.viewerRank === null
+    ? null
+    : Math.ceil(board.viewerRank / board.pageSize);
 
   return (
     <section className="min-w-0 overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm" aria-labelledby="global-portfolio-standings-title">
@@ -268,7 +272,9 @@ function GlobalPortfolioStandings({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
-              {isEnglish ? "All verified portfolios" : "Tüm doğrulanmış portföyler"}
+              {isRecorded
+                ? (isEnglish ? "Last verified standings" : "Son doğrulanmış sıralama")
+                : (isEnglish ? "Verified current standings" : "Doğrulanmış güncel sıralama")}
             </p>
             <h2 id="global-portfolio-standings-title" className="mt-1 text-xl font-black text-[#152033] sm:text-2xl">
               {title}
@@ -284,31 +290,63 @@ function GlobalPortfolioStandings({
             : "Getiriye göre değil, USD toplam portföy değerine göre sıralanır."}
         </p>
         <p className="mt-1 text-xs leading-5 text-slate-500">
-          {isEnglish ? "Valuation as of" : "Değerleme zamanı"}: {formatValuationTimestamp(board.valuationAsOf, locale)}
+          {isEnglish ? "Valuation as of" : "Değerleme zamanı"}:{" "}
+          {board.valuationAsOf === null
+            ? <span aria-label={isEnglish ? "Valuation time unavailable" : "Değerleme zamanı kullanılamıyor"}>—</span>
+            : <time dateTime={board.valuationAsOf}>{formatValuationTimestamp(board.valuationAsOf, locale)}</time>}
         </p>
+        {board.viewerRank !== null || board.viewerTotalValueUsd !== null ? (
+          <aside className="mt-4 grid min-w-0 gap-3 rounded-xl border border-emerald-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" aria-label={isEnglish ? "Your global portfolio result" : "Küresel portföy sonucun"}>
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">
+                {isEnglish ? "Your total portfolio rank" : "Toplam portföy sıran"}
+              </p>
+              <p className="mt-1 break-words text-2xl font-black tabular-nums text-[#152033]">
+                <RankValue rank={board.viewerRank} locale={locale} />
+                {board.viewerRank !== null ? <span className="ml-2 text-sm text-slate-600">/ {board.totalRankedParticipants}</span> : null}
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-600">
+                {isEnglish ? "Your valued portfolio" : "Değerlenen portföyün"}:{" "}
+                <span data-private-money="global-total-value" className="break-all tabular-nums text-[#152033]">
+                  {board.viewerTotalValueUsd === null ? "—" : formatUsd(board.viewerTotalValueUsd, locale)}
+                </span>
+              </p>
+            </div>
+            {viewerPage !== null ? (
+              <Link
+                href={getGlobalLeaderboardHref(locale, selectedPeriodKey, selectedPeriodPage, viewerPage)}
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-[#0f766e] px-4 py-2 text-sm font-black text-[#0f766e] outline-none hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2"
+              >
+                {isEnglish ? "Open my rank" : "Sıramı aç"} →
+              </Link>
+            ) : null}
+          </aside>
+        ) : null}
         {board.excludedUnreliableCount > 0 ? (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950" role="status">
             {isEnglish
-              ? `${board.excludedUnreliableCount} portfolio(s) were excluded because a reliable current valuation was unavailable.`
-              : `${board.excludedUnreliableCount} portföy güvenilir değerleme olmadığı için dahil edilmedi.`}
+              ? `${board.excludedUnreliableCount} portfolio(s) were excluded because a reliable valuation was unavailable. This does not mean that excluded portfolios had zero value or zero return.`
+              : `${board.excludedUnreliableCount} portföy güvenilir değerleme olmadığı için dahil edilmedi. Bu, hariç tutulan portföylerin değerinin veya getirisinin sıfır olduğu anlamına gelmez.`}
           </p>
         ) : null}
       </div>
 
-      {board.totalRankedParticipants === 0 ? (
+      {board.rows.length === 0 ? (
         <div className="p-5" role="status">
           <p className="font-black text-[#152033]">
-            {isEnglish ? "No portfolio is ranked globally yet." : "Henüz küresel portföy sıralaması oluşmadı."}
+            {isRecorded
+              ? (isEnglish ? "No last verified records are available on this page." : "Bu sayfada gösterilecek son doğrulanmış kayıt yok.")
+              : (isEnglish ? "No verified current records are available on this page." : "Bu sayfada gösterilecek doğrulanmış güncel kayıt yok.")}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {isEnglish
-              ? "Only portfolios with a reliable current valuation are listed."
-              : "Yalnız güvenilir güncel değerlemesi bulunan portföyler listelenir."}
+            {board.totalRankedParticipants > 0
+              ? (isEnglish ? "Use the ranking pages to open an available record range." : "Kayıt bulunan aralığı açmak için sıralama sayfalarını kullan.")
+              : (isEnglish ? "Only portfolios with a reliable valuation are listed." : "Yalnız güvenilir değerlemesi bulunan portföyler listelenir.")}
           </p>
         </div>
       ) : (
         <>
-          <div className="hidden lg:block">
+          <div className="hidden xl:block">
             <table className="w-full table-fixed border-collapse text-left">
               <caption className="sr-only">{title}</caption>
               <thead className="border-b border-slate-200 text-xs font-black uppercase tracking-[0.1em] text-slate-500">
@@ -341,7 +379,7 @@ function GlobalPortfolioStandings({
             </table>
           </div>
 
-          <ol className="divide-y divide-slate-100 lg:hidden" aria-label={title}>
+          <ol className="divide-y divide-slate-100 xl:hidden" aria-label={title}>
             {board.rows.map((row, index) => (
               <li key={`${row.rank}-${row.alias}-${index}`} className={`min-w-0 p-4 ${row.isViewer ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : ""}`}>
                 <div className="flex min-w-0 items-start justify-between gap-3">
@@ -509,9 +547,14 @@ function UnavailablePeriodSummaries({
                 aria-current={selected ? "page" : undefined}
                 aria-describedby={messageId}
                 aria-label={isEnglish ? `Open ${label} results awaiting verified coverage` : `Doğrulanmış kapsam bekleyen ${label} sonuçlarını aç`}
-                className={`flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black outline-none hover:border-[#0f766e] hover:bg-white focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2 ${selected ? "border-[#0f766e] bg-white text-[#152033] ring-1 ring-[#0f766e]/20" : "border-slate-200 bg-white text-slate-700"}`}
+                className={`flex min-h-11 min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black outline-none hover:border-[#0f766e] hover:bg-white focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2 ${selected ? "border-[#0f766e] bg-white text-[#152033] ring-1 ring-[#0f766e]/20" : "border-slate-200 bg-white text-slate-700"}`}
               >
-                <span className="min-w-0 break-words">{label}</span>
+                <span className="min-w-0 break-words">
+                  <span className="block">{label}</span>
+                  <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">
+                    {getUnavailableReasonSummary(period, locale)}
+                  </span>
+                </span>
                 <span className="shrink-0 text-xs font-bold text-slate-500">{isEnglish ? "Waiting" : "Bekliyor"}</span>
               </Link>
             </li>
@@ -553,8 +596,37 @@ function SummaryList({
   );
 }
 
-function LeagueResults({ locale, leagues }: { locale: "tr" | "en"; leagues: ViewerLeagueCompetitionResult[] }) {
+function LeagueResults({
+  locale,
+  leagues,
+  globalLeagues,
+}: {
+  locale: "tr" | "en";
+  leagues: ViewerLeagueCompetitionResult[];
+  globalLeagues?: PortfolioEquityLeaderboardResult["viewerLeagues"];
+}) {
   const isEnglish = locale === "en";
+  const leagueCards = globalLeagues?.map((league) => {
+    const selectedPeriodLeague = leagues.find((candidate) => candidate.id === league.id);
+
+    return {
+      id: league.id ?? selectedPeriodLeague?.id ?? league.name,
+      name: league.name,
+      slug: league.slug ?? selectedPeriodLeague?.slug ?? "",
+      globalRank: league.rank,
+      globalTotalRankedMembers: league.totalRankedMembers,
+      selectedPeriodLeague,
+      usesGlobalCohort: true,
+    };
+  }) ?? leagues.map((league) => ({
+    id: league.id,
+    name: league.name,
+    slug: league.slug,
+    globalRank: league.rank,
+    globalTotalRankedMembers: league.totalRankedMembers,
+    selectedPeriodLeague: league,
+    usesGlobalCohort: false,
+  }));
 
   return (
     <section className="premium-card min-w-0 p-5 sm:p-6" aria-labelledby="league-results-title">
@@ -570,7 +642,7 @@ function LeagueResults({ locale, leagues }: { locale: "tr" | "en"; leagues: View
           : "Burada yalnız kendi sıran gösterilir. Ayrıntılı sıralama için ligi aç."}
       </p>
 
-      {leagues.length === 0 ? (
+      {leagueCards.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <p className="text-sm font-bold text-slate-600">
             {isEnglish ? "You are not a member of an active league yet." : "Henüz aktif bir ligde değilsin."}
@@ -581,24 +653,53 @@ function LeagueResults({ locale, leagues }: { locale: "tr" | "en"; leagues: View
         </div>
       ) : (
         <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {leagues.map((league) => (
+          {leagueCards.map((league) => (
             <article key={league.id} className="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4">
               <h3 className="break-words text-lg font-black text-[#152033]">{league.name}</h3>
-              {league.rank === null ? (
+              {!league.usesGlobalCohort && league.globalRank === null ? (
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   {isEnglish ? "Not ranked in this period" : "Bu dönem sıralama dışında"}
                 </p>
               ) : (
                 <dl data-league-metrics className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="min-w-0">
-                    <dt className="text-xs font-bold text-slate-500">{isEnglish ? "Your place" : "Sıran"}</dt>
-                    <dd data-league-metric="rank" className="mt-1 break-all text-xl font-black tabular-nums text-[#152033]">{league.rank} / {league.totalRankedMembers}</dd>
+                    <dt className="text-xs font-bold text-slate-500">
+                      {league.usesGlobalCohort
+                        ? (isEnglish ? "Your total portfolio rank" : "Toplam portföy sıran")
+                        : (isEnglish ? "Your place" : "Sıran")}
+                    </dt>
+                    <dd data-league-metric="rank" className="mt-1 break-all text-xl font-black tabular-nums text-[#152033]">
+                      {league.globalRank === null
+                        ? (isEnglish ? "Not ranked yet" : "Henüz oluşmadı")
+                        : `${league.globalRank} / ${league.globalTotalRankedMembers}`}
+                    </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-bold text-slate-500">{isEnglish ? "Your return" : "Getirin"}</dt>
-                    <dd data-league-metric="return" className="mt-1 break-all text-base font-black tabular-nums text-slate-700">
-                      {league.viewerReturnPercent === null ? "—" : formatPercent(league.viewerReturnPercent, locale)}
-                    </dd>
+                    <dt className="text-xs font-bold text-slate-500">
+                      {league.usesGlobalCohort
+                        ? (isEnglish ? "Selected-period return rank" : "Seçili dönem getiri sırası")
+                        : (isEnglish ? "Your return" : "Getirin")}
+                    </dt>
+                    {league.usesGlobalCohort ? (
+                      league.selectedPeriodLeague?.rank === null || !league.selectedPeriodLeague ? (
+                        <dd data-league-metric="return" className="mt-1 break-words text-sm font-bold leading-5 text-slate-600">
+                          {isEnglish
+                            ? "The selected-period return rank has not formed yet."
+                            : "Seçili dönem getiri sırası henüz oluşmadı."}
+                        </dd>
+                      ) : (
+                        <dd data-league-metric="return" className="mt-1 break-all text-base font-black tabular-nums text-slate-700">
+                          {league.selectedPeriodLeague.rank} / {league.selectedPeriodLeague.totalRankedMembers}
+                          {league.selectedPeriodLeague.viewerReturnPercent === null
+                            ? null
+                            : <span className="mt-1 block text-xs font-bold">{formatPercent(league.selectedPeriodLeague.viewerReturnPercent, locale)}</span>}
+                        </dd>
+                      )
+                    ) : (
+                      <dd data-league-metric="return" className="mt-1 break-all text-base font-black tabular-nums text-slate-700">
+                        {league.selectedPeriodLeague?.viewerReturnPercent === null ? "—" : formatPercent(league.selectedPeriodLeague!.viewerReturnPercent, locale)}
+                      </dd>
+                    )}
                   </div>
                 </dl>
               )}
@@ -821,7 +922,11 @@ function formatSignedUsd(value: number, locale: "tr" | "en") {
   return `${value > 0 ? "+" : ""}${formatUsd(value, locale)}`;
 }
 
-function formatPeriodRange(startsAt: string, valuationAsOf: string, locale: "tr" | "en") {
+function formatPeriodRange(startsAt: string | null, valuationAsOf: string | null, locale: "tr" | "en") {
+  if (valuationAsOf === null) {
+    return locale === "en" ? "No valuation record is available." : "Değerleme kaydı yok.";
+  }
+
   const formatter = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "tr-TR", {
     dateStyle: "medium",
     timeZone: "Europe/Istanbul",
@@ -832,9 +937,14 @@ function formatPeriodRange(startsAt: string, valuationAsOf: string, locale: "tr"
     timeZone: "Europe/Istanbul",
   });
 
-  return locale === "en"
-    ? `${formatter.format(new Date(startsAt))} – ${dateTimeFormatter.format(new Date(valuationAsOf))}`
-    : `${formatter.format(new Date(startsAt))} – ${dateTimeFormatter.format(new Date(valuationAsOf))}`;
+  if (startsAt === null) {
+    const valuationLabel = dateTimeFormatter.format(new Date(valuationAsOf));
+    return locale === "en"
+      ? `Start record unavailable – ${valuationLabel}`
+      : `Başlangıç kaydı yok – ${valuationLabel}`;
+  }
+
+  return `${formatter.format(new Date(startsAt))} – ${dateTimeFormatter.format(new Date(valuationAsOf))}`;
 }
 
 function getExcludedMessage(period: CompetitionPeriodResult, locale: "tr" | "en") {
@@ -847,6 +957,19 @@ function getExcludedMessage(period: CompetitionPeriodResult, locale: "tr" | "en"
   }
 
   return `${historyCount} portföyde tam dönem geçmişi, ${stalePriceCount} portföyde güncel fiyat eski, ${unreliableCount} portföyde doğrulanmış güncel fiyat yok. Bu değerler sıralamada kullanılmadı.`;
+}
+
+function getUnavailableReasonSummary(period: CompetitionPeriodResult, locale: "tr" | "en") {
+  const historyCount = period.excludedCounts.partialOrMissing;
+  const stalePriceCount = period.excludedCounts.stalePrice;
+  const unreliableCount = period.excludedCounts.unreliable;
+
+  if (locale === "en") {
+    const portfolios = (count: number) => `${count} ${count === 1 ? "portfolio" : "portfolios"}`;
+    return `${portfolios(historyCount)}: missing history · ${portfolios(stalePriceCount)}: stale price · ${portfolios(unreliableCount)}: unverified price`;
+  }
+
+  return `${historyCount} portföy: eksik geçmiş · ${stalePriceCount} portföy: eski fiyat · ${unreliableCount} portföy: doğrulanmamış fiyat`;
 }
 
 function getEmptyPeriodMessage(locale: "tr" | "en") {

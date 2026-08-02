@@ -22,6 +22,7 @@ vi.mock("@/lib/prisma", () => ({
 
 import {
   calculatePortfolioSplitAdjustment,
+  isYahooEquityMarket,
   shouldForceCorporateActionSyncForPrice,
   shouldSyncPortfolioCorporateAction,
   syncPortfolioCorporateActions,
@@ -87,6 +88,17 @@ describe("portfolio pre-trade stock-split adjustment", () => {
 
     expect(shouldSyncPortfolioCorporateAction(position, now)).toBe(false);
     expect(shouldSyncPortfolioCorporateAction(position, now, true)).toBe(true);
+  });
+
+  it("limits corporate-action freshness requirements to Yahoo equity markets", () => {
+    expect(isYahooEquityMarket("Nasdaq Hisse")).toBe(true);
+    expect(isYahooEquityMarket("Kripto Para")).toBe(false);
+    expect(isYahooEquityMarket("Emtia")).toBe(false);
+    expect(isYahooEquityMarket("Döviz")).toBe(false);
+    expect(shouldSyncPortfolioCorporateAction({
+      market: "Kripto Para",
+      corporateActionsCheckedAt: null,
+    }, new Date("2026-07-28T09:00:00.000Z"))).toBe(false);
   });
 
   it("requires a new corporate-action check when the market price is newer than the last check", () => {

@@ -27,7 +27,9 @@ describe("MemberPortfolioOverview leaderboard ranks", () => {
           totalRankedParticipants: 53,
           pageSize: 25,
           viewerLeagues: [{
+            id: "league-rotary-long",
             name: "Çok Uzun İstanbul Öğrenme ve Dayanışma Ligi",
+            slug: "cok-uzun-istanbul-ogrenme-ve-dayanisma-ligi",
             type: "ROTARY",
             rank: 12,
             totalRankedMembers: 210,

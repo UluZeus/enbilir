@@ -1,13 +1,12 @@
 import type { LeagueType } from "@/generated/prisma/enums";
 import { getDisplayName } from "@/lib/auth";
-import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import {
   buildPortfolioPerformancePeriods,
   normalizePortfolioHistory,
   portfolioCompetitionPeriods,
   type PortfolioPeriodKey,
 } from "@/lib/portfolio-history";
-import { getPortfolioSnapshot } from "@/lib/portfolio";
+import { selectLatestCommonPortfolioEquityCohort } from "@/lib/portfolio-equity-cohort";
 import { prisma } from "@/lib/prisma";
 import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 
@@ -41,8 +40,8 @@ export type CompetitionViewerRow = {
 export type CompetitionPeriodResult = {
   key: PortfolioPeriodKey;
   requestedDays: number;
-  rangeStartsAt: string;
-  valuationAsOf: string;
+  rangeStartsAt: string | null;
+  valuationAsOf: string | null;
   totalRankedParticipants: number;
   leaderReturnPercent: number | null;
   topRows: CompetitionResultRow[];
@@ -64,7 +63,6 @@ export type CompetitionPeriodResult = {
   };
 };
 
-const maximumPersistedValuationAgeMs = 72 * 60 * 60 * 1000;
 const verifiedEquityHistoryPrefix = "equity-hour:";
 const competitionPageSize = 25;
 
@@ -144,12 +142,7 @@ export async function getCompetitionResults(
     },
   });
   const userIds = users.map((user) => user.id);
-  const [heldSymbols, snapshots, weeklyBaselines, viewerLeagueMemberships] = await Promise.all([
-    prisma.portfolioPosition.findMany({
-      where: { userId: { in: userIds } },
-      select: { symbol: true },
-      distinct: ["symbol"],
-    }),
+  const [snapshots, weeklyBaselines, viewerLeagueMemberships] = await Promise.all([
     prisma.portfolioSnapshot.findMany({
       where: {
         userId: { in: userIds },
@@ -170,6 +163,7 @@ export async function getCompetitionResults(
       },
       select: {
         userId: true,
+        periodKey: true,
         portfolioValueUsd: true,
         capturedAt: true,
       },
@@ -209,10 +203,8 @@ export async function getCompetitionResults(
     baselinesByUser.set(baseline.userId, values);
   }
 
-  const liveMarketItems = await getLiveMarketItemsForSymbols(
-    heldSymbols.map((position) => position.symbol),
-  ).catch(() => []);
-  const currentValuations = await Promise.all(users.map(async (user) => {
+  const commonCohort = selectLatestCommonPortfolioEquityCohort(userIds, weeklyBaselines, now);
+  const recordedValuations = users.map((user) => {
     const history = normalizePortfolioHistory(
       (snapshotsByUser.get(user.id) ?? []).map(({ portfolioValueUsd, capturedAt, period }) => ({
         portfolioValueUsd,
@@ -224,44 +216,16 @@ export async function getCompetitionResults(
         capturedAt,
       })),
     );
-
-    try {
-      const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
-
-      if (!snapshot.hasUnreliableValuation) {
-        return {
-          user,
-          valueUsd: snapshot.totalValueUsd,
-          valuationAsOf: now,
-          history,
-          status: "live" as const,
-        };
-      }
-    } catch {
-      // Rankings require a current reliable valuation; persisted values only
-      // explain why a participant was excluded when live pricing is unavailable.
+    const valueUsd = commonCohort?.valueByUserId.get(user.id);
+    if (valueUsd !== undefined) {
+      return { user, history, valueUsd, status: "recorded" as const };
     }
-
-    const persistedEndpoint = [...history].reverse().find((entry) => {
-      const ageMs = now.getTime() - entry.capturedAt.getTime();
-
-      return ageMs >= 0 && ageMs <= maximumPersistedValuationAgeMs;
-    });
-
-    if (persistedEndpoint) {
-      return {
-        user,
-        history,
-        status: "stalePrice" as const,
-      };
-    }
-
     return {
       user,
       history,
       status: "unreliable" as const,
     };
-  }));
+  });
 
   const candidatesByPeriod = new Map<PortfolioPeriodKey, CompetitionCandidate[]>();
   const excludedByPeriod = new Map<PortfolioPeriodKey, CompetitionPeriodResult["excludedCounts"]>();
@@ -271,16 +235,16 @@ export async function getCompetitionResults(
     excludedByPeriod.set(period.key, { partialOrMissing: 0, stalePrice: 0, unreliable: 0 });
   }
 
-  for (const valuation of currentValuations) {
-    if (valuation.status !== "live") {
-      for (const excluded of excludedByPeriod.values()) excluded[valuation.status] += 1;
+  for (const valuation of recordedValuations) {
+    if (valuation.status !== "recorded" || !commonCohort) {
+      for (const excluded of excludedByPeriod.values()) excluded.unreliable += 1;
       continue;
     }
 
     const performances = buildPortfolioPerformancePeriods(
       valuation.history,
       valuation.valueUsd,
-      now,
+      commonCohort.capturedAt,
     );
 
     for (const performance of performances) {
@@ -324,12 +288,15 @@ export async function getCompetitionResults(
     const viewerIndex = ranked.findIndex((row) => row.userId === viewerUserId);
     const topRows = ranked.slice(0, Math.min(3, totalRankedParticipants));
     const bottomRows = ranked.slice(Math.max(3, totalRankedParticipants - 3));
+    const valuationAsOf = commonCohort?.capturedAt ?? null;
 
     return {
       key: period.key,
       requestedDays: period.requestedDays,
-      rangeStartsAt: new Date(now.getTime() - period.requestedDays * 86_400_000).toISOString(),
-      valuationAsOf: now.toISOString(),
+      rangeStartsAt: valuationAsOf
+        ? new Date(valuationAsOf.getTime() - period.requestedDays * 86_400_000).toISOString()
+        : null,
+      valuationAsOf: valuationAsOf?.toISOString() ?? null,
       totalRankedParticipants,
       leaderReturnPercent: ranked[0]?.returnPercent ?? null,
       topRows: createPublicRows(topRows, viewerUserId),

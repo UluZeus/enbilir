@@ -15,7 +15,7 @@ type PositionForCorporateAction = {
   createdAt: Date;
 };
 
-function isYahooEquityMarket(market: string) {
+export function isYahooEquityMarket(market: string) {
   return /borsa|bist|nasdaq|dow|hisse|stock/i.test(market);
 }
 
