@@ -5,14 +5,17 @@ import {
   fetchYahooCorporateActionQuote,
   getYahooCumulativeSplitFactor,
 } from "@/lib/ai-market/yahoo-corporate-actions";
-import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
+import {
+  getLiveMarketItemsForAssets,
+  type LiveMarketAssetRequest,
+} from "@/lib/live-market";
+import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import { prisma } from "@/lib/prisma";
 import {
   calculateVipAgentAccount,
   calculateVipAgentSplitAdjustment,
   areVipAgentCorporateActionsReliable,
   areVipAgentOpenPositionPricesReliable,
-  buildVipAgentPriceUniverse,
   getVipAgentBuyIneligibilityReason,
   getVipAgentPortfolioDecision,
   getVipAgentPositionExitReason,
@@ -26,7 +29,24 @@ import {
   type VipAgentStrategy,
 } from "@/lib/vip-agents/config";
 
-type PriceResult = { price: number | null; asOf: Date | null; error?: string };
+type PriceResult = {
+  price: number | null;
+  asOf: Date | null;
+  availability: "EXECUTABLE" | "SESSION_UNAVAILABLE" | "UNAVAILABLE";
+  error?: string;
+};
+
+const expectedNonExecutableMarketStates = new Set([
+  "CLOSED",
+  "PRE",
+  "PREPRE",
+  "POST",
+  "POSTPOST",
+  "PRE_MARKET",
+  "POST_MARKET",
+  "SESSION_CLOSED",
+  "SESSION_UNAVAILABLE",
+]);
 
 function roundMoney(value: number) {
   return Number(value.toFixed(2));
@@ -72,29 +92,71 @@ export async function ensureVipTradingAgents() {
   }
 }
 
-async function fetchPriceMap(items: Array<{ symbol: string; providerSymbol: string }>) {
-  const unique = Array.from(new Map(items.map((item) => [item.symbol, item])).values());
-  const marketItems = await getLiveMarketItemsForSymbols(unique.map((item) => item.symbol));
+function getPriceUnavailableResult(marketItem: Awaited<ReturnType<typeof getLiveMarketItemsForAssets>>[number] | undefined): PriceResult {
+  const marketState = String(marketItem?.marketState ?? "UNAVAILABLE").toUpperCase();
+  const isExpectedSessionState =
+    Boolean(marketItem) &&
+    marketItem!.source !== "fallback" &&
+    marketItem!.source !== "representative" &&
+    expectedNonExecutableMarketStates.has(marketState);
+
+  if (isExpectedSessionState) {
+    return {
+      price: null,
+      asOf: marketItem?.sourceAsOf ? new Date(marketItem.sourceAsOf) : null,
+      availability: "SESSION_UNAVAILABLE",
+      error: "Piyasa seansı kapalı veya açılış öncesi; güncel işlem fiyatı yok.",
+    };
+  }
+
+  return {
+    price: null,
+    asOf: marketItem?.sourceAsOf ? new Date(marketItem.sourceAsOf) : null,
+    availability: "UNAVAILABLE",
+    error: marketItem
+      ? "Güncel fiyat işlem için uygun değil; sağlayıcı tazelik veya seans doğrulaması başarısız."
+      : "Sağlayıcı eşlemesi veya güncel fiyat alınamadı.",
+  };
+}
+
+export function getVipAgentNoQuoteDecision(priceResult: Pick<PriceResult, "availability" | "error">) {
+  return priceResult.availability === "SESSION_UNAVAILABLE"
+    ? { action: "SKIP" as const, reason: priceResult.error ?? "Piyasa seansı işlem için uygun değil." }
+    : { action: "ERROR" as const, reason: priceResult.error ?? "Güncel ve doğrulanmış fiyat alınamadı." };
+}
+
+async function fetchPriceMap(items: LiveMarketAssetRequest[]) {
+  const unique = Array.from(new Map(items.map((item) => [item.symbol.toUpperCase(), item])).values());
+  const marketItems = await getLiveMarketItemsForAssets(unique);
   const marketItemBySymbol = new Map(marketItems.map((item) => [item.symbol, item]));
 
   return new Map(unique.map((item) => {
     const marketItem = marketItemBySymbol.get(item.symbol);
-    const result: PriceResult = (
-      marketItem?.executionEligible === true &&
-      marketItem.dataStatus === "live" &&
-      ["binance", "yahoo"].includes(marketItem.source) &&
-      marketItem.sourceAsOf &&
-      Number.isFinite(marketItem.priceUsd) &&
-      marketItem.priceUsd > 0
-    )
-      ? { price: marketItem.priceUsd, asOf: new Date(marketItem.sourceAsOf) }
-      : {
-        price: null,
-        asOf: marketItem?.sourceAsOf ? new Date(marketItem.sourceAsOf) : null,
-        error: "Açık piyasa saatine ait güncel ve doğrulanmış fiyat yok.",
-      };
+    const result: PriceResult = marketItem && isExecutableMarketQuote(marketItem)
+      ? { price: marketItem.priceUsd, asOf: new Date(marketItem.sourceAsOf!), availability: "EXECUTABLE" }
+      : getPriceUnavailableResult(marketItem);
     return [item.symbol, result] as const;
   }));
+}
+
+function buildVipAgentPriceRequests(
+  ideas: Array<{ symbol: string; providerSymbol: string; assetClass: string }>,
+  positions: Array<{ symbol: string; providerSymbol: string; assetClass?: string }>,
+) {
+  const requests = new Map<string, LiveMarketAssetRequest>();
+
+  for (const item of [...ideas, ...positions]) {
+    const symbol = item.symbol.trim();
+    const providerSymbol = item.providerSymbol.trim();
+    if (!symbol || !providerSymbol || requests.has(symbol.toUpperCase())) continue;
+    requests.set(symbol.toUpperCase(), {
+      symbol,
+      providerSymbol,
+      assetClass: item.assetClass,
+    });
+  }
+
+  return Array.from(requests.values());
 }
 
 function positionValue(
@@ -146,7 +208,7 @@ async function runAgent(
       return {
         positionId: position.id,
         symbol: position.symbol,
-        priceResult: { price: quote.price, asOf: quote.priceAsOf } satisfies PriceResult,
+        priceResult: { price: quote.price, asOf: quote.priceAsOf, availability: "EXECUTABLE" } satisfies PriceResult,
         adjustedData: {
           quantity: adjustment.quantity,
           averagePriceUsd: adjustment.averagePriceUsd,
@@ -165,6 +227,7 @@ async function runAgent(
         priceResult: {
           price: null,
           asOf: null,
+          availability: "UNAVAILABLE",
           error: `Kurumsal aksiyon doğrulanamadı: ${error instanceof Error ? error.message : "bilinmeyen hata"}`,
         } satisfies PriceResult,
         adjustedData: null,
@@ -188,8 +251,8 @@ async function runAgent(
       .filter((result) => result.adjustedData === null)
       .map((result) => result.positionId),
   );
-  const priceMap = await fetchPriceMap(buildVipAgentPriceUniverse(
-    ideas.map((idea) => ({ symbol: idea.symbol, providerSymbol: idea.providerSymbol })),
+  const priceMap = await fetchPriceMap(buildVipAgentPriceRequests(
+    ideas.map((idea) => ({ symbol: idea.symbol, providerSymbol: idea.providerSymbol, assetClass: idea.assetClass })),
     agent.positions.map((position) => ({ symbol: position.symbol, providerSymbol: position.providerSymbol })),
   ));
   const ideaBySymbol = new Map(ideas.map((idea) => [idea.symbol, idea]));
@@ -228,12 +291,16 @@ async function runAgent(
     const currentIdea = ideaBySymbol.get(position.symbol);
 
     if (!price) {
-      const reason = `Piyasa verisi yok: ${priceResult?.error ?? "bilinmeyen hata"}`;
+      const noQuoteDecision = getVipAgentNoQuoteDecision(priceResult ?? {
+        availability: "UNAVAILABLE",
+        error: "Sağlayıcı eşlemesi veya güncel fiyat alınamadı.",
+      });
+      const reason = noQuoteDecision.reason;
       const sourceIdeaId = currentIdea?.id ?? position.sourceIdeaId;
       await prisma.vipTradingAgentDecision.upsert({
         where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: position.symbol } },
-        create: { agentId: agent.id, runKey, symbol: position.symbol, action: "ERROR", reason, sourceIdeaId },
-        update: { action: "ERROR", priceUsd: null, reason, sourceIdeaId },
+        create: { agentId: agent.id, runKey, symbol: position.symbol, action: noQuoteDecision.action, reason, sourceIdeaId },
+        update: { action: noQuoteDecision.action, priceUsd: null, reason, sourceIdeaId },
       });
       decidedSymbols.add(position.symbol);
       decisionCount += 1;
@@ -310,7 +377,13 @@ async function runAgent(
     if (decidedSymbols.has(idea.symbol) || positions.some((position) => position.symbol === idea.symbol)) continue;
     const priceResult = priceMap.get(idea.symbol);
     const price = priceResult?.price;
-    let reason = price ? getVipAgentBuyIneligibilityReason(strategy, idea, price) : `Piyasa verisi yok: ${priceResult?.error ?? "bilinmeyen hata"}`;
+    const noQuoteDecision = priceResult
+      ? getVipAgentNoQuoteDecision(priceResult)
+      : getVipAgentNoQuoteDecision({
+        availability: "UNAVAILABLE",
+        error: "Sağlayıcı eşlemesi veya güncel fiyat alınamadı.",
+      });
+    let reason = price ? getVipAgentBuyIneligibilityReason(strategy, idea, price) : noQuoteDecision.reason;
 
     if (!reason && positions.length >= strategy.maximumPositions) reason = `Azami ${strategy.maximumPositions} açık pozisyon sınırına ulaşıldı.`;
     const minimumCash = agent.reserveUsd + agent.performanceBaseUsd * (strategy.minimumActiveCashPercent / 100);
@@ -320,8 +393,8 @@ async function runAgent(
     if (reason || !price) {
       await prisma.vipTradingAgentDecision.upsert({
         where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: idea.symbol } },
-        create: { agentId: agent.id, runKey, symbol: idea.symbol, action: price ? "SKIP" : "ERROR", priceUsd: price, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
-        update: { action: price ? "SKIP" : "ERROR", priceUsd: price, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
+        create: { agentId: agent.id, runKey, symbol: idea.symbol, action: price ? "SKIP" : noQuoteDecision.action, priceUsd: price, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
+        update: { action: price ? "SKIP" : noQuoteDecision.action, priceUsd: price, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
       });
       decisionCount += 1;
       continue;

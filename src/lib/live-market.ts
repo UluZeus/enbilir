@@ -51,6 +51,12 @@ type LiveQuote = {
   stablecoinProvider?: "coinbase";
 };
 
+export type LiveMarketAssetRequest = {
+  symbol: string;
+  providerSymbol: string;
+  assetClass?: string;
+};
+
 type BinanceTicker = {
   symbol: string;
   openPrice: string;
@@ -198,10 +204,22 @@ function toFiniteNumber(value: unknown) {
 }
 
 function getCryptoQuoteSymbol(item: MarketItem) {
+  if (item.providerSymbol?.trim().toUpperCase().endsWith("USDT")) {
+    return item.providerSymbol.trim().toUpperCase();
+  }
+
   return `${item.symbol.trim().toUpperCase()}USDT`;
 }
 
+function isYahooCryptoItem(item: MarketItem) {
+  return item.category === "CRYPTO" && Boolean(item.providerSymbol?.trim().match(/-[A-Z]+$/i));
+}
+
 function getYahooQuoteSymbol(item: MarketItem) {
+  if (item.providerSymbol?.trim()) {
+    return item.providerSymbol.trim().toUpperCase();
+  }
+
   if (item.category === "BIST") {
     const normalized = item.symbol.trim().toUpperCase();
     return normalized.endsWith(".IS") ? normalized : `${normalized}.IS`;
@@ -258,7 +276,7 @@ function getYahooBatchSymbols(items: MarketItem[]) {
   const symbols = Array.from(
     new Set(
       items.flatMap((item) => [
-        ...(item.source !== "representative" && item.category !== "CRYPTO"
+        ...(item.source !== "representative" && (item.category !== "CRYPTO" || isYahooCryptoItem(item))
           ? [getYahooQuoteSymbol(item)]
           : []),
         ...(derivedQuoteDependencies[item.symbol] ?? []),
@@ -284,6 +302,10 @@ function getQuoteKey(item: MarketItem) {
   }
 
   if (item.category === "CRYPTO") {
+    if (isYahooCryptoItem(item)) {
+      return item.providerSymbol!.trim().toUpperCase();
+    }
+
     return getCryptoQuoteSymbol(item);
   }
 
@@ -460,7 +482,7 @@ export function getFallbackMarketItems(): MarketItem[] {
 async function fetchBinanceQuotes(items: MarketItem[]) {
   const targetSymbols = new Set(
     items
-      .filter((item) => item.category === "CRYPTO" && item.source !== "representative")
+      .filter((item) => item.category === "CRYPTO" && item.source !== "representative" && !isYahooCryptoItem(item))
       .map((item) => getCryptoQuoteSymbol(item)),
   );
 
@@ -1030,6 +1052,59 @@ export async function getLiveMarketItemsForSymbols(symbols: string[]): Promise<M
   try {
     const items = await loadQuotedItems(fallbackItems);
     return cacheExecutableQuotes(items);
+  } catch {
+    return fallbackItems;
+  }
+}
+
+function getAssetCategory(request: LiveMarketAssetRequest): MarketItem["category"] {
+  const assetClass = request.assetClass?.trim().toUpperCase();
+  const providerSymbol = request.providerSymbol.trim().toUpperCase();
+
+  if (assetClass === "CRYPTO" || /-[A-Z]+$/.test(providerSymbol)) return "CRYPTO";
+  if (assetClass === "COMMODITY" || providerSymbol.endsWith("=F")) return "COMMODITY";
+  if (assetClass === "FX" || providerSymbol.endsWith("=X")) return "FX";
+  if (assetClass === "BOND") return "US_BOND";
+  if (assetClass === "BROAD_MARKET") return "INDEX";
+  if (providerSymbol.endsWith(".IS")) return "BIST";
+  return "NASDAQ";
+}
+
+function toAssetFallback(request: LiveMarketAssetRequest): MarketItem | null {
+  const symbol = request.symbol.trim();
+  const providerSymbol = request.providerSymbol.trim().toUpperCase();
+
+  if (!symbol || !providerSymbol) return null;
+
+  return {
+    symbol,
+    dataSymbol: providerSymbol,
+    name: symbol,
+    market: "VIP",
+    category: getAssetCategory({ ...request, symbol, providerSymbol }),
+    dataStatus: "close",
+    source: "fallback",
+    price: "—",
+    priceUsd: 0,
+    changePercent: 0,
+    providerSymbol,
+  };
+}
+
+export async function getLiveMarketItemsForAssets(requests: LiveMarketAssetRequest[]): Promise<MarketItem[]> {
+  const fallbackItems = Array.from(new Map(
+    requests
+      .map(toAssetFallback)
+      .filter((item): item is MarketItem => item !== null)
+      .map((item) => [item.symbol.toUpperCase(), item]),
+  ).values());
+
+  if (!liveFetchEnabled() || fallbackItems.length === 0) {
+    return fallbackItems;
+  }
+
+  try {
+    return cacheExecutableQuotes(await loadQuotedItems(fallbackItems));
   } catch {
     return fallbackItems;
   }

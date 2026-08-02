@@ -11,6 +11,7 @@ vi.mock("@/lib/http-json", () => ({
 import {
   getLiveMarketItem,
   getLiveMarketItems,
+  getLiveMarketItemsForAssets,
   getLiveMarketItemsForSymbols,
   resetLiveMarketCachesForTests,
 } from "@/lib/live-market";
@@ -156,6 +157,53 @@ describe("live commodity quotes", () => {
 
     expect(gold.executionEligible).toBe(false);
     expect(gold.marketState).toBe("UNKNOWN");
+  });
+});
+
+describe("canonical asset quote requests", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    process.env.ENABLE_LIVE_MARKET_FETCH = "true";
+    resetLiveMarketCachesForTests();
+  });
+
+  it("resolves a VIP candidate by its canonical provider symbol even when it is outside the representative list", async () => {
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+      if (url.hostname === "api.binance.com") return [];
+      if (!url.hostname.includes("finance.yahoo.com")) return null;
+
+      return {
+        spark: {
+          result: [{
+            symbol: "SPY",
+            response: [{
+              meta: yahooMeta({
+                regularMarketPrice: 600,
+                chartPreviousClose: 595,
+                marketState: "REGULAR",
+                instrumentType: "ETF",
+                exchangeName: "PCX",
+              }),
+            }],
+          }],
+        },
+      };
+    });
+
+    const [spy] = await getLiveMarketItemsForAssets([
+      { symbol: "SPY", providerSymbol: "SPY", assetClass: "EQUITY" },
+    ]);
+
+    expect(spy).toMatchObject({
+      symbol: "SPY",
+      providerSymbol: "SPY",
+      source: "yahoo",
+      priceUsd: 600,
+      executionEligible: true,
+    });
   });
 });
 
