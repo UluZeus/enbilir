@@ -104,6 +104,7 @@ describe("portfolio Yahoo market-closed valuation policy", () => {
     ["delayed", { dataStatus: "delayed" as const }],
     ["fallback", { source: "fallback" as const }],
     ["delayed exchange evidence", { exchangeDataDelayedBy: 15 }],
+    ["missing exchange delay evidence", { exchangeDataDelayedBy: undefined }],
     ["missing provider symbol", { providerSymbol: "" }],
     ["invalid source price", { priceNative: 0 }],
   ])("rejects a %s Yahoo market-closed valuation", (_case, overrides) => {

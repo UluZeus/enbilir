@@ -107,7 +107,7 @@ function isVerifiedYahooClosedPortfolioValuation(
     priceNative <= 0 ||
     !Number.isFinite(marketItem.priceUsd) ||
     marketItem.priceUsd <= 0 ||
-    (Number.isFinite(marketItem.exchangeDataDelayedBy) && Number(marketItem.exchangeDataDelayedBy) > 0)
+    marketItem.exchangeDataDelayedBy !== 0
   ) {
     return false;
   }
