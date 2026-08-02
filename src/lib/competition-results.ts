@@ -43,17 +43,30 @@ export type CompetitionPeriodResult = {
   requestedDays: number;
   rangeStartsAt: string;
   valuationAsOf: string;
+  totalRankedParticipants: number;
+  leaderReturnPercent: number | null;
+  topRows: CompetitionResultRow[];
+  bottomRows: CompetitionResultRow[];
   rows: CompetitionResultRow[];
   viewerRow: CompetitionViewerRow | null;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  firstRowIndex: number;
+  lastRowIndex: number;
+  viewerPage: number | null;
+  /** @deprecated Kept at zero while consumers migrate to stalePrice. */
   delayedValuationCount?: number;
   excludedCounts: {
     partialOrMissing: number;
+    stalePrice: number;
     unreliable: number;
   };
 };
 
 const maximumPersistedValuationAgeMs = 72 * 60 * 60 * 1000;
 const verifiedEquityHistoryPrefix = "equity-hour:";
+const competitionPageSize = 25;
 
 export type ViewerLeagueCompetitionResult = {
   id: string;
@@ -116,9 +129,13 @@ export async function getCompetitionResults(
   viewerUserId: string,
   selectedPeriod: PortfolioPeriodKey,
   now = new Date(),
+  requestedPage = 1,
 ) {
   const users = await prisma.user.findMany({
-    where: publicCompetitionUserWhere,
+    where: {
+      ...publicCompetitionUserWhere,
+      trades: { some: {} },
+    },
     select: {
       id: true,
       name: true,
@@ -217,13 +234,12 @@ export async function getCompetitionResults(
           valueUsd: snapshot.totalValueUsd,
           valuationAsOf: now,
           history,
-          reliable: true,
-          delayed: false,
+          status: "live" as const,
         };
       }
     } catch {
-      // A recent, persisted and verified portfolio equity point can keep the
-      // ranking available while live quote providers are temporarily offline.
+      // Rankings require a current reliable valuation; persisted values only
+      // explain why a participant was excluded when live pricing is unavailable.
     }
 
     const persistedEndpoint = [...history].reverse().find((entry) => {
@@ -235,44 +251,36 @@ export async function getCompetitionResults(
     if (persistedEndpoint) {
       return {
         user,
-        valueUsd: persistedEndpoint.valueUsd,
-        valuationAsOf: persistedEndpoint.capturedAt,
         history,
-        reliable: true,
-        delayed: true,
+        status: "stalePrice" as const,
       };
     }
 
     return {
       user,
-      valueUsd: null,
-      valuationAsOf: now,
       history,
-      reliable: false,
-      delayed: false,
+      status: "unreliable" as const,
     };
   }));
 
   const candidatesByPeriod = new Map<PortfolioPeriodKey, CompetitionCandidate[]>();
   const excludedByPeriod = new Map<PortfolioPeriodKey, CompetitionPeriodResult["excludedCounts"]>();
-  const delayedByPeriod = new Map<PortfolioPeriodKey, number>();
 
   for (const period of portfolioCompetitionPeriods) {
     candidatesByPeriod.set(period.key, []);
-    excludedByPeriod.set(period.key, { partialOrMissing: 0, unreliable: 0 });
-    delayedByPeriod.set(period.key, 0);
+    excludedByPeriod.set(period.key, { partialOrMissing: 0, stalePrice: 0, unreliable: 0 });
   }
 
   for (const valuation of currentValuations) {
-    if (!valuation.reliable || valuation.valueUsd === null) {
-      for (const excluded of excludedByPeriod.values()) excluded.unreliable += 1;
+    if (valuation.status !== "live") {
+      for (const excluded of excludedByPeriod.values()) excluded[valuation.status] += 1;
       continue;
     }
 
     const performances = buildPortfolioPerformancePeriods(
       valuation.history,
       valuation.valueUsd,
-      valuation.valuationAsOf,
+      now,
     );
 
     for (const performance of performances) {
@@ -293,25 +301,50 @@ export async function getCompetitionResults(
         valueUsd: performance.endValueUsd,
         changeUsd: performance.changeUsd,
       });
-      if (valuation.delayed) {
-        delayedByPeriod.set(performance.key, (delayedByPeriod.get(performance.key) ?? 0) + 1);
-      }
     }
   }
 
   const rankedByPeriod = new Map<PortfolioPeriodKey, RankedCompetitionCandidate[]>();
+  const normalizedRequestedPage = Number.isFinite(requestedPage)
+    ? Math.max(1, Math.floor(requestedPage))
+    : 1;
   const periods = portfolioCompetitionPeriods.map((period) => {
     const ranked = rankCompetitionCandidates(candidatesByPeriod.get(period.key) ?? []);
     rankedByPeriod.set(period.key, ranked);
+    const totalRankedParticipants = ranked.length;
+    const pageCount = Math.max(1, Math.ceil(totalRankedParticipants / competitionPageSize));
+    const page = period.key === selectedPeriod
+      ? Math.min(normalizedRequestedPage, pageCount)
+      : 1;
+    const pageStart = (page - 1) * competitionPageSize;
+    const isSelectedPeriod = period.key === selectedPeriod;
+    const pageRows = isSelectedPeriod
+      ? ranked.slice(pageStart, pageStart + competitionPageSize)
+      : [];
+    const viewerIndex = ranked.findIndex((row) => row.userId === viewerUserId);
+    const topRows = ranked.slice(0, Math.min(3, totalRankedParticipants));
+    const bottomRows = ranked.slice(Math.max(3, totalRankedParticipants - 3));
 
     return {
       key: period.key,
       requestedDays: period.requestedDays,
       rangeStartsAt: new Date(now.getTime() - period.requestedDays * 86_400_000).toISOString(),
       valuationAsOf: now.toISOString(),
-      rows: createPublicRows(ranked, viewerUserId),
-      viewerRow: createViewerRow(ranked, viewerUserId),
-      delayedValuationCount: delayedByPeriod.get(period.key) ?? 0,
+      totalRankedParticipants,
+      leaderReturnPercent: ranked[0]?.returnPercent ?? null,
+      topRows: createPublicRows(topRows, viewerUserId),
+      bottomRows: createPublicRows(bottomRows, viewerUserId),
+      rows: createPublicRows(pageRows, viewerUserId),
+      viewerRow: isSelectedPeriod ? createViewerRow(ranked, viewerUserId) : null,
+      page,
+      pageSize: competitionPageSize,
+      pageCount,
+      firstRowIndex: isSelectedPeriod && pageRows.length > 0 ? pageStart + 1 : 0,
+      lastRowIndex: isSelectedPeriod ? pageStart + pageRows.length : 0,
+      viewerPage: isSelectedPeriod && viewerIndex >= 0
+        ? Math.floor(viewerIndex / competitionPageSize) + 1
+        : null,
+      delayedValuationCount: 0,
       excludedCounts: excludedByPeriod.get(period.key)!,
     } satisfies CompetitionPeriodResult;
   });

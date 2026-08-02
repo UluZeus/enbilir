@@ -7,7 +7,11 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...props }, children),
 }));
 
-import { CompetitionResultsView, resolveCompetitionPeriodKey } from "./CompetitionResultsView";
+import {
+  CompetitionResultsView,
+  resolveCompetitionPage,
+  resolveCompetitionPeriodKey,
+} from "./CompetitionResultsView";
 
 const rows = [
   { displayName: "Birinci Katılımcı", rank: 1, returnPercent: 12.5, isViewer: false },
@@ -24,7 +28,11 @@ const periods = periodKeys.map((key, index) => ({
   requestedDays: [1, 7, 30, 90, 180, 365][index],
   rangeStartsAt: "2026-07-01T09:00:00.000Z",
   valuationAsOf: "2026-07-31T09:00:00.000Z",
-  rows: key === "YEARLY" ? [] : rows,
+  totalRankedParticipants: key === "YEARLY" ? 0 : rows.length,
+  leaderReturnPercent: key === "YEARLY" ? null : rows[0].returnPercent,
+  topRows: key === "YEARLY" ? [] : rows.slice(0, 3),
+  bottomRows: key === "YEARLY" ? [] : rows.slice(3),
+  rows: key === "WEEKLY" ? rows : [],
   viewerRow: key === "WEEKLY"
     ? {
         displayName: "Senin Görünen Adın",
@@ -34,8 +42,13 @@ const periods = periodKeys.map((key, index) => ({
         changeUsd: 234567890123.78,
       }
     : null,
-  excludedCounts: { partialOrMissing: key === "YEARLY" ? 6 : 0, unreliable: 1 },
-  delayedValuationCount: key === "WEEKLY" ? 2 : 0,
+  page: 1,
+  pageSize: 25,
+  pageCount: 1,
+  firstRowIndex: key === "WEEKLY" ? 1 : 0,
+  lastRowIndex: key === "WEEKLY" ? rows.length : 0,
+  viewerPage: key === "WEEKLY" ? 1 : null,
+  excludedCounts: { partialOrMissing: key === "YEARLY" ? 6 : 0, stalePrice: 2, unreliable: 1 },
 }));
 
 describe("CompetitionResultsView", () => {
@@ -44,6 +57,17 @@ describe("CompetitionResultsView", () => {
     expect(resolveCompetitionPeriodKey(["DAILY", "YEARLY"])).toBe("WEEKLY");
     expect(resolveCompetitionPeriodKey("not-a-period")).toBe("WEEKLY");
     expect(resolveCompetitionPeriodKey("monthly")).toBe("MONTHLY");
+  });
+
+  it("accepts only safe, one-based leaderboard page queries", () => {
+    expect(resolveCompetitionPage(undefined)).toBe(1);
+    expect(resolveCompetitionPage(["2", "3"])).toBe(1);
+    expect(resolveCompetitionPage("0")).toBe(1);
+    expect(resolveCompetitionPage("-2")).toBe(1);
+    expect(resolveCompetitionPage("1.5")).toBe(1);
+    expect(resolveCompetitionPage("2e3")).toBe(1);
+    expect(resolveCompetitionPage("0004")).toBe(4);
+    expect(resolveCompetitionPage("25")).toBe(25);
   });
 
   it("renders accessible period navigation, privacy-safe standings, and equivalent responsive structures", () => {
@@ -67,7 +91,7 @@ describe("CompetitionResultsView", () => {
     );
 
     expect((html.match(/donem=/g) ?? [])).toHaveLength(6);
-    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY"');
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=1"');
     expect(html).toContain('aria-current="page"');
     expect(html).not.toContain('role="tab"');
     expect(html.indexOf("#1")).toBeLessThan(html.indexOf("#2"));
@@ -94,6 +118,7 @@ describe("CompetitionResultsView", () => {
     expect(html).not.toContain("$999.999");
     expect(html).toContain("canlı dönem görünümü");
     expect(html).toContain('href="/tr/haftalik-liderler"');
+    expect(html).toContain("en az bir tamamlanmış sanal işlem");
   });
 
   it("does not display real sub-cent returns as zero and normalizes signed zero", () => {
@@ -122,7 +147,7 @@ describe("CompetitionResultsView", () => {
     expect(html).not.toContain("-0,00%");
   });
 
-  it("discloses delayed verified valuations without implying unverified prices were used", () => {
+  it("states that stale and unreliable prices are excluded instead of used", () => {
     const turkishHtml = renderToStaticMarkup(
       <CompetitionResultsView locale="tr" periods={periods} selectedPeriodKey="WEEKLY" leagues={[]} />,
     );
@@ -130,12 +155,10 @@ describe("CompetitionResultsView", () => {
       <CompetitionResultsView locale="en" periods={periods} selectedPeriodKey="WEEKLY" leagues={[]} />,
     );
 
-    expect(turkishHtml).toContain("2 portföy, canlı sağlayıcı kesintisi nedeniyle son 72 saat içindeki doğrulanmış saklı değerle hesaplandı");
-    expect(turkishHtml).toContain("doğrulanmamış fiyat kullanılmadı");
-    expect(turkishHtml).toContain("sıralamanın veri anını etkileyebilir");
-    expect(englishHtml).toContain("2 portfolios were calculated with a verified stored value from the last 72 hours due to a live provider outage");
-    expect(englishHtml).toContain("no unverified price was used");
-    expect(englishHtml).toContain("may affect the ranking valuation time");
+    expect(turkishHtml).toContain("2 portföyde güncel fiyat eski, 1 portföyde doğrulanmış güncel fiyat yok");
+    expect(turkishHtml).toContain("Bu değerler sıralamada kullanılmadı");
+    expect(englishHtml).toContain("2 portfolio(s) have a stale current price, 1 portfolio(s) lack a verified current price");
+    expect(englishHtml).toContain("Those values were not used in the ranking");
   });
 
   it("states honestly when a period has no fully covered ranking history", () => {
@@ -151,5 +174,65 @@ describe("CompetitionResultsView", () => {
     expect(html).toContain("6 portfolio(s) lack complete period history");
     expect(html).not.toContain("$1,234,567,890,123.78");
     expect(turkishHtml).toContain("Bu, dönem getirisinin yüzde sıfır olduğu anlamına gelmez.");
+  });
+
+  it("renders page links, range, and a private viewer shortcut without loading all participants", () => {
+    const manyRows = Array.from({ length: 53 }, (_, index) => ({
+      displayName: `Katılımcı ${index + 1}`,
+      rank: index + 1,
+      returnPercent: 54 - index,
+      isViewer: index === 51,
+    }));
+    const paginatedPeriods = periods.map((period) => period.key === "WEEKLY"
+      ? {
+          ...period,
+          totalRankedParticipants: 53,
+          leaderReturnPercent: 53,
+          topRows: manyRows.slice(0, 3),
+          bottomRows: manyRows.slice(50),
+          rows: manyRows.slice(25, 50),
+          viewerRow: {
+            displayName: "Katılımcı 52",
+            rank: 52,
+            returnPercent: 2,
+            valueUsd: 200,
+            changeUsd: 4,
+          },
+          page: 2,
+          pageCount: 3,
+          firstRowIndex: 26,
+          lastRowIndex: 50,
+          viewerPage: 3,
+        }
+      : period);
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView locale="tr" periods={paginatedPeriods} selectedPeriodKey="WEEKLY" leagues={[]} />,
+    );
+
+    expect(html).toContain("26–50 / 53");
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=1"');
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=3"');
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=3"');
+    expect(html).toContain("Sıramı aç");
+    expect(html).toContain("Liderle fark");
+    expect(html).not.toContain("Katılımcı 53</th>");
+  });
+
+  it("uses backend-provided, disjoint winner and loser summaries", () => {
+    const fourRows = rows.slice(0, 4);
+    const disjointPeriods = periods.map((period) => period.key === "WEEKLY"
+      ? { ...period, totalRankedParticipants: 4, topRows: fourRows.slice(0, 3), bottomRows: fourRows.slice(3), rows: fourRows, lastRowIndex: 4 }
+      : period).filter((period) => period.key === "WEEKLY");
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView locale="tr" periods={disjointPeriods} selectedPeriodKey="WEEKLY" leagues={[]} />,
+    );
+
+    const topList = html.match(/data-summary-list="top"[\s\S]*?<\/ol>/)?.[0] ?? "";
+    const bottomList = html.match(/data-summary-list="bottom"[\s\S]*?<\/ol>/)?.[0] ?? "";
+
+    expect(topList).toContain("Birinci Katılımcı");
+    expect(topList).toContain("Senin Görünen Adın");
+    expect(bottomList).toContain("Dördüncü Katılımcı");
+    expect(bottomList).not.toContain("Birinci Katılımcı");
   });
 });

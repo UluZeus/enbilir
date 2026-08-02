@@ -6,7 +6,11 @@ import { getSafeLocale } from "@/i18n/config";
 import { getSessionUser } from "@/lib/auth";
 import { getCompetitionResults } from "@/lib/competition-results";
 import { buildPageMetadata } from "@/lib/seo";
-import { CompetitionResultsView, resolveCompetitionPeriodKey } from "./CompetitionResultsView";
+import {
+  CompetitionResultsView,
+  resolveCompetitionPage,
+  resolveCompetitionPeriodKey,
+} from "./CompetitionResultsView";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
@@ -23,7 +27,7 @@ export default async function CompetitionResultsPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ donem?: string | string[] }>;
+  searchParams: Promise<{ donem?: string | string[]; sayfa?: string | string[] }>;
 }) {
   const [{ locale: rawLocale }, query] = await Promise.all([params, searchParams]);
   const locale = getSafeLocale(rawLocale);
@@ -34,7 +38,8 @@ export default async function CompetitionResultsPage({
   }
 
   const selectedPeriodKey = resolveCompetitionPeriodKey(query.donem);
-  const results = await getCompetitionResults(sessionUser.id, selectedPeriodKey);
+  const selectedPage = resolveCompetitionPage(query.sayfa);
+  const results = await getCompetitionResults(sessionUser.id, selectedPeriodKey, new Date(), selectedPage);
   const isEnglish = locale === "en";
 
   return (

@@ -120,7 +120,14 @@ describe("competition results", () => {
       { displayName: "Alpha", rank: 1, returnPercent: 10, isViewer: false },
       { displayName: "Viewer", rank: 1, returnPercent: 10, isViewer: true },
     ]);
-    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 1, unreliable: 1 });
+    expect(weekly?.topRows).toEqual(weekly?.rows);
+    expect(weekly?.bottomRows).toEqual([]);
+    expect(weekly?.totalRankedParticipants).toBe(2);
+    expect(weekly?.leaderReturnPercent).toBe(10);
+    expect(weekly?.pageCount).toBe(1);
+    expect(weekly?.firstRowIndex).toBe(1);
+    expect(weekly?.lastRowIndex).toBe(2);
+    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 1, stalePrice: 0, unreliable: 1 });
     expect(weekly?.viewerRow).toEqual({
       displayName: "Viewer",
       rank: 1,
@@ -156,11 +163,12 @@ describe("competition results", () => {
       where: {
         isActive: true,
         emailVerifiedAt: { not: null },
+        trades: { some: {} },
       },
     }));
   });
 
-  it("keeps rankings available during a provider outage using a recent persisted verified endpoint", async () => {
+  it("excludes a live-provider outage with a recent verified history endpoint as stale, without ranking it", async () => {
     const endpointAt = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
     competitionMocks.userFindMany.mockResolvedValue([user("viewer", "Viewer")]);
@@ -182,12 +190,10 @@ describe("competition results", () => {
     const result = await getCompetitionResults("viewer", "WEEKLY", now);
     const weekly = result.periods.find((period) => period.key === "WEEKLY");
 
-    expect(weekly?.rows).toEqual([
-      { displayName: "Viewer", rank: 1, returnPercent: 12, isViewer: true },
-    ]);
+    expect(weekly?.rows).toEqual([]);
     expect(weekly?.valuationAsOf).toBe(now.toISOString());
-    expect(weekly?.delayedValuationCount).toBe(1);
-    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, unreliable: 0 });
+    expect(weekly?.delayedValuationCount).toBe(0);
+    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 1, unreliable: 0 });
     expect(competitionMocks.getPortfolioSnapshot).toHaveBeenCalledWith("viewer", []);
   });
 
@@ -217,7 +223,7 @@ describe("competition results", () => {
 
     expect(weekly?.rows).toEqual([]);
     expect(weekly?.delayedValuationCount).toBe(0);
-    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, unreliable: 1 });
+    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 0, unreliable: 1 });
   });
 
   it("queries only verified persisted portfolio history", async () => {
@@ -235,5 +241,82 @@ describe("competition results", () => {
         periodKey: { startsWith: "equity-hour:" },
       },
     }));
+  });
+
+  it("excludes accounts with no persisted trade from all ranking candidates", async () => {
+    competitionMocks.userFindMany.mockResolvedValue([user("viewer", "Viewer")]);
+
+    await getCompetitionResults("viewer", "DAILY", now);
+
+    expect(competitionMocks.userFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ trades: { some: {} } }),
+    }));
+  });
+
+  it("paginates the selected period in 25-row pages while retaining global ranks and the viewer's global row", async () => {
+    const participants = Array.from({ length: 53 }, (_, index) => user(
+      `participant-${String(index + 1).padStart(2, "0")}`,
+      `Participant ${index + 1}`,
+    ));
+    const viewer = participants[52];
+
+    competitionMocks.userFindMany.mockResolvedValue(participants);
+    competitionMocks.baselineFindMany.mockResolvedValue(participants.flatMap((participant) => fullHistory(participant.id, 100)));
+    competitionMocks.getPortfolioSnapshot.mockImplementation(async (userId: string) => ({
+      totalValueUsd: 153 - Number(userId.slice(-2)),
+      hasUnreliableValuation: false,
+    }));
+
+    const [first, second, third] = await Promise.all([
+      getCompetitionResults(viewer.id, "WEEKLY", now, 1),
+      getCompetitionResults(viewer.id, "WEEKLY", now, 2),
+      getCompetitionResults(viewer.id, "WEEKLY", now, 3),
+    ]);
+    const weeklyFirst = first.periods.find((period) => period.key === "WEEKLY")!;
+    const weeklySecond = second.periods.find((period) => period.key === "WEEKLY")!;
+    const weeklyThird = third.periods.find((period) => period.key === "WEEKLY")!;
+
+    expect(weeklyFirst.rows).toHaveLength(25);
+    expect(weeklySecond.rows).toHaveLength(25);
+    expect(weeklyThird.rows).toHaveLength(3);
+    expect(weeklyFirst.rows.map((row) => row.rank)).toEqual(Array.from({ length: 25 }, (_, index) => index + 1));
+    expect(weeklySecond.rows.map((row) => row.rank)).toEqual(Array.from({ length: 25 }, (_, index) => index + 26));
+    expect(weeklyThird.rows.map((row) => row.rank)).toEqual([51, 52, 53]);
+    expect(weeklyFirst.rows.some((row) => row.isViewer)).toBe(false);
+    expect(weeklyFirst.viewerRow).toMatchObject({ rank: 53, displayName: "Participant 53" });
+    expect(weeklyFirst.viewerPage).toBe(3);
+    expect(weeklyFirst.totalRankedParticipants).toBe(53);
+    expect(weeklyFirst.pageCount).toBe(3);
+    expect(weeklyThird.firstRowIndex).toBe(51);
+    expect(weeklyThird.lastRowIndex).toBe(53);
+    expect(first.periods.find((period) => period.key === "DAILY")?.rows).toEqual([]);
+  });
+
+  it("clamps invalid page values and keeps top and bottom lists disjoint for fewer than six participants", async () => {
+    competitionMocks.userFindMany.mockResolvedValue([
+      user("viewer", "Viewer"),
+      user("alpha", "Alpha"),
+      user("bravo", "Bravo"),
+      user("charlie", "Charlie"),
+    ]);
+    competitionMocks.baselineFindMany.mockResolvedValue([
+      ...fullHistory("viewer", 100),
+      ...fullHistory("alpha", 100),
+      ...fullHistory("bravo", 100),
+      ...fullHistory("charlie", 100),
+    ]);
+    competitionMocks.getPortfolioSnapshot.mockImplementation(async (userId: string) => ({
+      totalValueUsd: { viewer: 104, alpha: 103, bravo: 102, charlie: 101 }[userId]!,
+      hasUnreliableValuation: false,
+    }));
+
+    const result = await getCompetitionResults("viewer", "WEEKLY", now, 999);
+    const weekly = result.periods.find((period) => period.key === "WEEKLY")!;
+    const listedNames = new Set(weekly.topRows.map((row) => row.displayName));
+
+    expect(weekly.page).toBe(1);
+    expect(weekly.bottomRows.every((row) => !listedNames.has(row.displayName))).toBe(true);
+    expect(weekly.topRows).toHaveLength(3);
+    expect(weekly.bottomRows).toHaveLength(1);
   });
 });

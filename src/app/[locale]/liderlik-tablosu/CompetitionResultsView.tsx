@@ -47,6 +47,13 @@ export function resolveCompetitionPeriodKey(value: string | string[] | undefined
     : "WEEKLY";
 }
 
+export function resolveCompetitionPage(value: string | string[] | undefined): number {
+  if (typeof value !== "string" || !/^[0-9]+$/.test(value)) return 1;
+
+  const page = Number(value);
+  return Number.isSafeInteger(page) && page >= 1 ? page : 1;
+}
+
 export function CompetitionResultsView({
   locale,
   periods,
@@ -70,8 +77,9 @@ export function CompetitionResultsView({
   }
 
   const label = periodLabels[locale][selectedPeriod.key];
-  const totalExcluded = selectedPeriod.excludedCounts.partialOrMissing + selectedPeriod.excludedCounts.unreliable;
-  const delayedValuationCount = selectedPeriod.delayedValuationCount ?? 0;
+  const totalExcluded = selectedPeriod.excludedCounts.partialOrMissing
+    + selectedPeriod.excludedCounts.stalePrice
+    + selectedPeriod.excludedCounts.unreliable;
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -129,18 +137,41 @@ export function CompetitionResultsView({
           <div className="mt-5 grid min-w-0 gap-4 sm:grid-cols-2">
             <article className="min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
-                {isEnglish ? "Your overall place" : "Genel sıran"}
+                {isEnglish ? "Your position" : "Senin durumun"}
               </p>
               <p className="mt-3 break-words text-3xl font-black tabular-nums text-[#152033]">
                 #{selectedPeriod.viewerRow.rank}
-                <span className="ml-2 text-sm text-slate-600">/ {selectedPeriod.rows.length}</span>
+                <span className="ml-2 text-sm text-slate-600">/ {selectedPeriod.totalRankedParticipants}</span>
               </p>
-              <p className="mt-2 text-sm font-bold tabular-nums text-slate-700">
-                {formatReturn(selectedPeriod.viewerRow.returnPercent, locale)}
-              </p>
+              <dl className="mt-3 grid gap-2 text-sm text-slate-700">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <dt className="font-bold text-slate-600">{isEnglish ? "Your return" : "Getirin"}</dt>
+                  <dd className="font-black tabular-nums">{formatReturn(selectedPeriod.viewerRow.returnPercent, locale)}</dd>
+                </div>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <dt className="font-bold text-slate-600">{isEnglish ? "Leader return" : "Lider getirisi"}</dt>
+                  <dd className="font-black tabular-nums">{selectedPeriod.leaderReturnPercent === null ? "—" : formatReturn(selectedPeriod.leaderReturnPercent, locale)}</dd>
+                </div>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <dt className="font-bold text-slate-600">{isEnglish ? "Difference from leader" : "Liderle fark"}</dt>
+                  <dd className="font-black tabular-nums">
+                    {selectedPeriod.leaderReturnPercent === null
+                      ? "—"
+                      : formatReturn(selectedPeriod.viewerRow.returnPercent - selectedPeriod.leaderReturnPercent, locale)}
+                  </dd>
+                </div>
+              </dl>
               <p className="mt-1 break-words text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">
                 {isEnglish ? "You" : "Sen"} · {selectedPeriod.viewerRow.displayName}
               </p>
+              {selectedPeriod.viewerPage && selectedPeriod.viewerPage !== selectedPeriod.page ? (
+                <Link
+                  href={getLeaderboardHref(locale, selectedPeriod.key, selectedPeriod.viewerPage)}
+                  className="mt-4 inline-flex min-h-11 items-center text-sm font-black text-[#0f766e] outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2"
+                >
+                  {isEnglish ? "Open my place" : "Sıramı aç"} →
+                </Link>
+              ) : null}
             </article>
             <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8a6a5d]">
@@ -180,13 +211,6 @@ export function CompetitionResultsView({
           </div>
         )}
 
-        {delayedValuationCount > 0 ? (
-          <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950" role="status">
-            <span className="font-black">{isEnglish ? "Valuation timing:" : "Veri zamanı:"}</span>{" "}
-            {getDelayedValuationMessage(delayedValuationCount, locale)}
-          </p>
-        ) : null}
-
         {totalExcluded > 0 ? (
           <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600" role="status">
             {getExcludedMessage(selectedPeriod, locale)}
@@ -210,30 +234,42 @@ function PeriodSummaryCard({
   selected: boolean;
 }) {
   const isEnglish = locale === "en";
-  const topRows = period.rows.slice(0, 3);
-  const bottomRows = period.rows.slice(-3);
+  const cardId = `period-summary-${period.key.toLowerCase()}`;
 
   return (
-    <article className={`min-w-0 rounded-2xl border bg-white p-4 shadow-sm ${selected ? "border-[#0f766e] ring-2 ring-[#0f766e]/20" : "border-slate-200"}`}>
+    <article aria-labelledby={cardId} className={`min-w-0 rounded-2xl border bg-white p-4 shadow-sm ${selected ? "border-[#0f766e] ring-2 ring-[#0f766e]/20" : "border-slate-200"}`}>
       <Link
-        href={`/${locale}/liderlik-tablosu?donem=${period.key}`}
+        href={getLeaderboardHref(locale, period.key, 1)}
         aria-current={selected ? "page" : undefined}
+        aria-label={isEnglish ? `Open ${periodLabels.en[period.key]} results` : `${periodLabels.tr[period.key]} sonuçlarını aç`}
         className="flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2"
       >
-        <span className="min-w-0 break-words text-lg font-black text-[#152033]">{periodLabels[locale][period.key]}</span>
+        <span id={cardId} className="min-w-0 break-words text-lg font-black text-[#152033]">{periodLabels[locale][period.key]}</span>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${selected ? "bg-[#0f766e] text-white" : "bg-slate-100 text-slate-600"}`}>
           {selected ? (isEnglish ? "Selected" : "Seçili") : `${period.requestedDays} ${isEnglish ? "days" : "gün"}`}
         </span>
       </Link>
 
-      {period.rows.length === 0 ? (
+      {period.totalRankedParticipants === 0 ? (
         <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">
           {getEmptyPeriodMessage(locale)}
         </p>
       ) : (
         <div className="mt-4 grid min-w-0 gap-4">
-          <SummaryList title={isEnglish ? "Top three" : "İlk üç"} rows={topRows} locale={locale} />
-          <SummaryList title={isEnglish ? "Last three" : "Son üç"} rows={bottomRows} locale={locale} />
+          <SummaryList
+            title={isEnglish ? "Top three" : "İlk üç"}
+            rows={period.topRows}
+            locale={locale}
+            headingId={`${cardId}-top`}
+            listKind="top"
+          />
+          <SummaryList
+            title={isEnglish ? "Last three" : "Son üç"}
+            rows={period.bottomRows}
+            locale={locale}
+            headingId={`${cardId}-bottom`}
+            listKind="bottom"
+          />
         </div>
       )}
     </article>
@@ -244,15 +280,19 @@ function SummaryList({
   title,
   rows,
   locale,
+  headingId,
+  listKind,
 }: {
   title: string;
-  rows: CompetitionPeriodResult["rows"];
+  rows: CompetitionPeriodResult["topRows"];
   locale: "tr" | "en";
+  headingId: string;
+  listKind: "top" | "bottom";
 }) {
   return (
     <div className="min-w-0">
-      <h3 className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{title}</h3>
-      <ol className="mt-2 grid min-w-0 gap-1.5">
+      <h3 id={headingId} className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{title}</h3>
+      <ol aria-labelledby={headingId} data-summary-list={listKind} className="mt-2 grid min-w-0 gap-1.5">
         {rows.map((row, index) => (
           <li key={`${row.rank}-${row.displayName}-${index}`} className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${row.isViewer ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : "bg-slate-50"}`}>
             <span className="whitespace-nowrap font-black tabular-nums text-slate-600">#{row.rank}</span>
@@ -337,11 +377,16 @@ function OverallStandings({ locale, period }: { locale: "tr" | "en"; period: Com
           {isEnglish ? "Verified participants" : "Doğrulanmış katılımcılar"}
         </p>
         <h2 id="overall-standings-title" className="mt-1 text-xl font-black text-[#152033]">
-          {isEnglish ? "Overall standings" : "Genel sıralama"} · {period.rows.length}
+          {isEnglish ? "Overall standings" : "Genel sıralama"} · {period.totalRankedParticipants}
         </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {isEnglish
+            ? "Only accounts with at least one completed virtual trade are included."
+            : "Yalnız en az bir tamamlanmış sanal işlem yapmış hesaplar dahildir."}
+        </p>
       </div>
 
-      {period.rows.length === 0 ? (
+      {period.totalRankedParticipants === 0 ? (
         <div className="p-5" role="status">
           <p className="font-black text-[#152033]">
             {getEmptyPeriodMessage(locale)}
@@ -402,10 +447,76 @@ function OverallStandings({ locale, period }: { locale: "tr" | "en"; period: Com
               </li>
             ))}
           </ol>
+          <LeaderboardPagination locale={locale} period={period} />
         </>
       )}
     </section>
   );
+}
+
+function LeaderboardPagination({ locale, period }: { locale: "tr" | "en"; period: CompetitionPeriodResult }) {
+  const isEnglish = locale === "en";
+  const pageNumbers = getPaginationPages(period.page, period.pageCount);
+  const previousPage = period.page - 1;
+  const nextPage = period.page + 1;
+
+  return (
+    <nav className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5" aria-label={isEnglish ? "Leaderboard pages" : "Liderlik tablosu sayfaları"}>
+      <p className="text-sm font-bold tabular-nums text-slate-700">
+        {period.firstRowIndex}–{period.lastRowIndex} / {period.totalRankedParticipants}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <PaginationLink locale={locale} period={period} page={1} label={isEnglish ? "First" : "İlk"} disabled={period.page === 1} />
+        <PaginationLink locale={locale} period={period} page={previousPage} label={isEnglish ? "Previous" : "Önceki"} disabled={previousPage < 1} />
+        {pageNumbers.map((page) => (
+          <PaginationLink
+            key={page}
+            locale={locale}
+            period={period}
+            page={page}
+            label={String(page)}
+            current={page === period.page}
+          />
+        ))}
+        <PaginationLink locale={locale} period={period} page={nextPage} label={isEnglish ? "Next" : "Sonraki"} disabled={nextPage > period.pageCount} />
+      </div>
+    </nav>
+  );
+}
+
+function PaginationLink({
+  locale,
+  period,
+  page,
+  label,
+  disabled = false,
+  current = false,
+}: {
+  locale: "tr" | "en";
+  period: CompetitionPeriodResult;
+  page: number;
+  label: string;
+  disabled?: boolean;
+  current?: boolean;
+}) {
+  const className = "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-black text-[#0f766e] outline-none hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2";
+
+  if (disabled || current) {
+    return <span aria-current={current ? "page" : undefined} aria-disabled={disabled || undefined} className={`${className} cursor-default ${current ? "border-[#0f766e] bg-emerald-50 text-[#152033]" : "opacity-50"}`}>{label}</span>;
+  }
+
+  return <Link href={getLeaderboardHref(locale, period.key, page)} className={className}>{label}</Link>;
+}
+
+function getPaginationPages(currentPage: number, pageCount: number) {
+  if (pageCount <= 7) return Array.from({ length: pageCount }, (_, index) => index + 1);
+
+  return [...new Set([1, currentPage - 1, currentPage, currentPage + 1, pageCount]
+    .filter((page) => page >= 1 && page <= pageCount))];
+}
+
+function getLeaderboardHref(locale: "tr" | "en", periodKey: PortfolioPeriodKey, page: number) {
+  return `/${locale}/liderlik-tablosu?donem=${periodKey}&sayfa=${page}`;
 }
 
 function formatPercent(value: number, locale: "tr" | "en") {
@@ -465,26 +576,18 @@ function formatPeriodRange(startsAt: string, valuationAsOf: string, locale: "tr"
 
 function getExcludedMessage(period: CompetitionPeriodResult, locale: "tr" | "en") {
   const historyCount = period.excludedCounts.partialOrMissing;
+  const stalePriceCount = period.excludedCounts.stalePrice;
   const unreliableCount = period.excludedCounts.unreliable;
 
   if (locale === "en") {
-    return `${historyCount} portfolio(s) lack complete period history; ${unreliableCount} portfolio(s) lack a verified current price. They do not affect the ranking.`;
+    return `${historyCount} portfolio(s) lack complete period history; ${stalePriceCount} portfolio(s) have a stale current price, ${unreliableCount} portfolio(s) lack a verified current price. Those values were not used in the ranking.`;
   }
 
-  return `${historyCount} portföyde tam dönem geçmişi, ${unreliableCount} portföyde doğrulanmış güncel fiyat yok. Bu portföyler sıralamayı etkilemez.`;
+  return `${historyCount} portföyde tam dönem geçmişi, ${stalePriceCount} portföyde güncel fiyat eski, ${unreliableCount} portföyde doğrulanmış güncel fiyat yok. Bu değerler sıralamada kullanılmadı.`;
 }
 
 function getEmptyPeriodMessage(locale: "tr" | "en") {
   return locale === "en"
     ? "No eligible participant has complete history for this period yet. This does not mean the period return is zero."
     : "Bu dönem için henüz tam geçmişi bulunan uygun katılımcı yok. Bu, dönem getirisinin yüzde sıfır olduğu anlamına gelmez.";
-}
-
-function getDelayedValuationMessage(count: number, locale: "tr" | "en") {
-  if (locale === "en") {
-    const portfolioLabel = count === 1 ? "portfolio was" : "portfolios were";
-    return `${count} ${portfolioLabel} calculated with a verified stored value from the last 72 hours due to a live provider outage; no unverified price was used. This may affect the ranking valuation time.`;
-  }
-
-  return `${count} portföy, canlı sağlayıcı kesintisi nedeniyle son 72 saat içindeki doğrulanmış saklı değerle hesaplandı; doğrulanmamış fiyat kullanılmadı. Bu, sıralamanın veri anını etkileyebilir.`;
 }
