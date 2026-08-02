@@ -46,6 +46,7 @@ import { getPortfolioEquityLeaderboard } from "@/lib/portfolio-equity-leaderboar
 const now = new Date("2026-08-02T12:00:00.000Z");
 
 type ParticipantOptions = {
+  name?: string;
   nickname?: string | null;
   displayNameMode?: "REAL_NAME" | "NICKNAME";
   cashMode?: "USD" | "EUR" | "CHF" | "TRY_REPO";
@@ -65,6 +66,7 @@ type ParticipantOptions = {
 function participant(id: string, options: ParticipantOptions = {}) {
   return {
     id,
+    name: options.name ?? "",
     nickname: options.nickname ?? null,
     displayNameMode: options.displayNameMode ?? "REAL_NAME",
     virtualAccount: {
@@ -169,10 +171,13 @@ describe("portfolio equity leaderboard", () => {
         trades: { some: {} },
       },
       select: expect.objectContaining({
+        name: true,
         positions: expect.any(Object),
         virtualAccount: expect.any(Object),
       }),
     }));
+    const userSelect = leaderboardMocks.userFindMany.mock.calls[0]?.[0]?.select;
+    expect(userSelect).not.toHaveProperty("email");
     expect(leaderboardMocks.getLiveItems).toHaveBeenCalledTimes(1);
     expect(leaderboardMocks.getLiveItems).toHaveBeenCalledWith(["AAPL"]);
     expect(leaderboardMocks.positionFindMany).not.toHaveBeenCalled();
@@ -181,17 +186,91 @@ describe("portfolio equity leaderboard", () => {
     expect(leaderboardMocks.virtualAccountUpdate).not.toHaveBeenCalled();
   });
 
-  it("only exposes a configured nickname, never a nickname hidden by REAL_NAME mode", async () => {
+  it("uses the selected real name or nickname without leaking a hidden nickname", async () => {
     leaderboardMocks.userFindMany.mockResolvedValue([
-      participant("real-name-mode", { nickname: "Do Not Show", displayNameMode: "REAL_NAME" }),
-      participant("nickname-mode", { nickname: "Market Friend", displayNameMode: "NICKNAME" }),
+      participant("real-name-mode", {
+        name: "  Real Person  ",
+        nickname: "Do Not Show",
+        displayNameMode: "REAL_NAME",
+        cashAmount: 1_100_000,
+      }),
+      participant("nickname-mode", {
+        name: "Private Real Name",
+        nickname: "Market Friend",
+        displayNameMode: "NICKNAME",
+      }),
     ]);
     leaderboardMocks.baselineFindMany.mockResolvedValue([]);
 
     const result = await getPortfolioEquityLeaderboard("real-name-mode", now);
 
-    expect(result.rows.map((row) => row.alias)).toEqual(["Market Friend", "Participant #72B3B7"]);
+    expect(result.rows.map((row) => row.alias)).toEqual(["Real Person", "Market Friend"]);
     expect(JSON.stringify(result)).not.toContain("Do Not Show");
+    expect(JSON.stringify(result)).not.toContain("Private Real Name");
+
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("real-name-mode", {
+        name: "  Real Person  ",
+        nickname: "Do Not Show",
+        displayNameMode: "REAL_NAME",
+        positions: [{ symbol: "MISSING", quantity: 1 }],
+      }),
+      participant("nickname-mode", {
+        name: "Private Real Name",
+        nickname: "Market Friend",
+        displayNameMode: "NICKNAME",
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([
+      {
+        userId: "real-name-mode",
+        periodKey: "equity-hour:2026072909",
+        portfolioValueUsd: 1_100_000,
+        capturedAt: new Date("2026-07-29T09:00:00.000Z"),
+      },
+      {
+        userId: "nickname-mode",
+        periodKey: "equity-hour:2026072909",
+        portfolioValueUsd: 1_000_000,
+        capturedAt: new Date("2026-07-29T09:00:00.000Z"),
+      },
+    ]);
+    leaderboardMocks.getLiveItems.mockResolvedValue([]);
+    leaderboardMocks.hasVerifiedPortfolioQuote.mockReturnValue(false);
+
+    const recordedResult = await getPortfolioEquityLeaderboard("real-name-mode", now);
+
+    expect(recordedResult.valuationMode).toBe("RECORDED");
+    expect(recordedResult.rows.map((row) => row.alias)).toEqual(result.rows.map((row) => row.alias));
+    expect(JSON.stringify(recordedResult)).not.toContain("Do Not Show");
+    expect(JSON.stringify(recordedResult)).not.toContain("Private Real Name");
+  });
+
+  it("never falls back to the real name when nickname mode has no usable nickname", async () => {
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("null-nickname", {
+        name: "Null Nickname Real Name",
+        nickname: null,
+        displayNameMode: "NICKNAME",
+        cashAmount: 1_100_000,
+      }),
+      participant("blank-nickname", {
+        name: "Blank Nickname Real Name",
+        nickname: "   ",
+        displayNameMode: "NICKNAME",
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([]);
+
+    const result = await getPortfolioEquityLeaderboard("null-nickname", now);
+    const serialized = JSON.stringify(result);
+
+    expect(result.rows.map((row) => row.alias)).toEqual([
+      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
+      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
+    ]);
+    expect(serialized).not.toContain("Null Nickname Real Name");
+    expect(serialized).not.toContain("Blank Nickname Real Name");
   });
 
   it("never mixes a reliable live row with a missing quote when no common cohort exists", async () => {

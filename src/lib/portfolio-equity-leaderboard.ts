@@ -114,18 +114,14 @@ function getPeriodReturn(
   return performance && !performance.isPartial ? performance.change : null;
 }
 
-function safeNickname(nickname: string | null) {
-  const trimmed = nickname?.trim();
-  return trimmed || null;
-}
-
 export function createPortfolioParticipantAlias(
   userId: string,
+  name: string,
   nickname: string | null,
   displayNameMode: DisplayNameMode,
 ) {
-  const safe = displayNameMode === "NICKNAME" ? safeNickname(nickname) : null;
-  if (safe) return safe;
+  const displayName = (displayNameMode === "NICKNAME" ? nickname : name)?.trim();
+  if (displayName) return displayName;
 
   const hashPrefix = createHash("sha256").update(userId).digest("hex").slice(0, 6).toUpperCase();
   return `Participant #${hashPrefix}`;
@@ -272,6 +268,7 @@ export async function getPortfolioEquityLeaderboard(
     },
     select: {
       id: true,
+      name: true,
       nickname: true,
       displayNameMode: true,
       virtualAccount: {
@@ -396,7 +393,7 @@ export async function getPortfolioEquityLeaderboard(
     );
     candidates.push({
       userId: user.id,
-      alias: createPortfolioParticipantAlias(user.id, user.nickname, user.displayNameMode),
+      alias: createPortfolioParticipantAlias(user.id, user.name, user.nickname, user.displayNameMode),
       totalValueMicroUsd,
       weeklyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, valuationDate, "WEEKLY"),
       monthlyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, valuationDate, "MONTHLY"),
