@@ -32,10 +32,6 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/auth", () => ({
-  getDisplayName: (user: { name: string }) => user.name,
-}));
-
 vi.mock("@/lib/live-market", () => ({
   getLiveMarketItemsForSymbols: publisherMocks.getMarketItems,
 }));
@@ -115,6 +111,7 @@ describe("release gate: immutable weekly competition publication", () => {
             expect.objectContaining({
               scope: "WEEKLY_GAIN",
               userId: "user-1",
+              displayName: "Eligible User",
               valueUsd: 50_000,
               returnPercent: 5,
               rank: 1,
@@ -122,6 +119,7 @@ describe("release gate: immutable weekly competition publication", () => {
             expect.objectContaining({
               scope: "TOTAL_GAIN",
               userId: "user-1",
+              displayName: "Eligible User",
               valueUsd: 50_000,
               returnPercent: 5,
               rank: 1,
@@ -145,5 +143,30 @@ describe("release gate: immutable weekly competition publication", () => {
       weeklyRows: 1,
       totalRows: 1,
     });
+  });
+
+  it("persists an empty sentinel when the selected label matches the stored email local-part", async () => {
+    publisherMocks.publicationFindUnique.mockResolvedValue(null);
+    publisherMocks.userFindMany.mockResolvedValue([{
+      id: "user-private",
+      name: "PRIVATE.MEMBER",
+      nickname: "Hidden Alternate",
+      displayNameMode: "REAL_NAME",
+      email: "private.member@example.test",
+      role: "USER",
+    }]);
+    publisherMocks.baselineFindMany.mockResolvedValue([
+      { userId: "user-private", portfolioValueUsd: 1_000_000 },
+    ]);
+
+    await publishWeeklyCompetition(new Date("2026-07-28T07:00:00.000Z"));
+
+    const createdRows = publisherMocks.publicationCreate.mock.calls[0]?.[0]?.data?.rows?.create;
+    expect(createdRows).toEqual([
+      expect.objectContaining({ userId: "user-private", scope: "WEEKLY_GAIN", displayName: "" }),
+      expect.objectContaining({ userId: "user-private", scope: "TOTAL_GAIN", displayName: "" }),
+    ]);
+    expect(JSON.stringify(createdRows)).not.toContain("private.member@example.test");
+    expect(JSON.stringify(createdRows)).not.toContain("Hidden Alternate");
   });
 });

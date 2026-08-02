@@ -1,11 +1,11 @@
 import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
-import { getDisplayName } from "@/lib/auth";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { initialCashUsd, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { appendAuditEvent } from "@/lib/audit-log";
+import { getSafePublicUserLabel } from "@/lib/public-user-visibility";
 
 const istOffsetMs = 3 * 60 * 60 * 1000;
 const dayMs = 24 * 60 * 60 * 1000;
@@ -91,7 +91,12 @@ export async function publishWeeklyCompetition(now = new Date()) {
     const valueUsd = portfolio.totalValueUsd - baseline;
     return [{
       userId: user.id,
-      displayName: getDisplayName(user),
+      displayName: getSafePublicUserLabel(
+        user.name,
+        user.nickname,
+        user.displayNameMode,
+        user.email,
+      ) ?? "",
       valueUsd,
       returnPercent: (valueUsd / baseline) * 100,
     }];
@@ -100,7 +105,12 @@ export async function publishWeeklyCompetition(now = new Date()) {
     const valueUsd = portfolio.totalValueUsd - initialCashUsd;
     return {
       userId: user.id,
-      displayName: getDisplayName(user),
+      displayName: getSafePublicUserLabel(
+        user.name,
+        user.nickname,
+        user.displayNameMode,
+        user.email,
+      ) ?? "",
       valueUsd,
       returnPercent: (valueUsd / initialCashUsd) * 100,
     };

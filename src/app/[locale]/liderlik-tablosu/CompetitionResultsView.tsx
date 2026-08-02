@@ -186,7 +186,7 @@ export function CompetitionResultsView({
                 </div>
               </dl>
               <p className="mt-1 break-words text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">
-                {isEnglish ? "You" : "Sen"} · {selectedPeriod.viewerRow.displayName}
+                {isEnglish ? "You" : "Sen"} · {safeAlias(selectedPeriod.viewerRow.displayName, locale)}
               </p>
               {selectedPeriod.viewerPage && selectedPeriod.viewerPage !== selectedPeriod.page ? (
                 <Link
@@ -427,8 +427,8 @@ function NullablePercent({ value, locale, label }: { value: number | null; local
     : <span aria-label={label}>—</span>;
 }
 
-function safeAlias(alias: string, locale: "tr" | "en") {
-  return alias.trim() || (locale === "en" ? "Participant" : "Katılımcı");
+function safeAlias(alias: string | null, locale: "tr" | "en") {
+  return alias?.trim() || (locale === "en" ? "Private participant" : "Gizli katılımcı");
 }
 
 function GlobalLeaderboardPagination({
@@ -583,10 +583,10 @@ function SummaryList({
       <h3 id={headingId} className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{title}</h3>
       <ol aria-labelledby={headingId} data-summary-list={listKind} className="mt-2 grid min-w-0 gap-1.5">
         {rows.map((row, index) => (
-          <li key={`${row.rank}-${row.displayName}-${index}`} className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${row.isViewer ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : "bg-slate-50"}`}>
+          <li key={`${row.rank}-${safeAlias(row.displayName, locale)}-${index}`} className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${row.isViewer ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : "bg-slate-50"}`}>
             <span className="whitespace-nowrap font-black tabular-nums text-slate-600">#{row.rank}</span>
             <span className="min-w-0 break-words font-bold text-[#152033]">
-              {row.displayName}{row.isViewer ? <span className="ml-1 text-[10px] font-black uppercase text-[#0f766e]">({locale === "en" ? "You" : "Sen"})</span> : null}
+              {safeAlias(row.displayName, locale)}{row.isViewer ? <span className="ml-1 text-[10px] font-black uppercase text-[#0f766e]">({locale === "en" ? "You" : "Sen"})</span> : null}
             </span>
             <span className="whitespace-nowrap text-xs font-black tabular-nums text-slate-700">{formatPercent(row.returnPercent, locale)}</span>
           </li>
@@ -762,10 +762,10 @@ function OverallStandings({ locale, period }: { locale: "tr" | "en"; period: Com
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {period.rows.map((row, index) => (
-                  <tr key={`${row.rank}-${row.displayName}-${index}`} className={row.isViewer ? "bg-emerald-50" : ""}>
+                  <tr key={`${row.rank}-${safeAlias(row.displayName, locale)}-${index}`} className={row.isViewer ? "bg-emerald-50" : ""}>
                     <td className="whitespace-nowrap px-5 py-4 font-black tabular-nums text-slate-600">#{row.rank}</td>
                     <th scope="row" className="min-w-0 break-words px-5 py-4 font-black text-[#152033]">
-                      {row.displayName}
+                      {safeAlias(row.displayName, locale)}
                       {row.isViewer ? <span className="ml-2 rounded-full bg-[#0f766e] px-2 py-1 text-[10px] font-black uppercase text-white">{isEnglish ? "You" : "Sen"}</span> : null}
                     </th>
                     <td className="whitespace-nowrap px-5 py-4 text-right font-black tabular-nums text-slate-700">{formatReturn(row.returnPercent, locale)}</td>
@@ -777,10 +777,10 @@ function OverallStandings({ locale, period }: { locale: "tr" | "en"; period: Com
 
           <ol className="divide-y divide-slate-100 lg:hidden" aria-label={isEnglish ? "Overall standings" : "Genel sıralama"}>
             {period.rows.map((row, index) => (
-              <li key={`${row.rank}-${row.displayName}-${index}`} className={`min-w-0 p-4 ${row.isViewer ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : ""}`}>
+              <li key={`${row.rank}-${safeAlias(row.displayName, locale)}-${index}`} className={`min-w-0 p-4 ${row.isViewer ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : ""}`}>
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <p className="min-w-0 break-words font-black text-[#152033]">
-                    {row.displayName}
+                    {safeAlias(row.displayName, locale)}
                     {row.isViewer ? <span className="ml-2 text-[10px] font-black uppercase text-[#0f766e]">({isEnglish ? "You" : "Sen"})</span> : null}
                   </p>
                   <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-sm font-black tabular-nums text-slate-700">#{row.rank}</span>

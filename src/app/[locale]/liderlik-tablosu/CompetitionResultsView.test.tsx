@@ -143,6 +143,69 @@ describe("CompetitionResultsView", () => {
     expect(html).toContain("2 portföy güvenilir değerleme olmadığı için dahil edilmedi");
   });
 
+  it("uses localized private-participant labels for nullable aliases on desktop and mobile", () => {
+    const privateBoard = {
+      ...globalBoard,
+      rows: [{ ...globalBoard.rows[0], alias: null }],
+    };
+    const turkishHtml = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="tr"
+        periods={periods}
+        selectedPeriodKey="WEEKLY"
+        leagues={[]}
+        globalBoard={privateBoard}
+      />,
+    );
+    const englishHtml = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="en"
+        periods={periods}
+        selectedPeriodKey="WEEKLY"
+        leagues={[]}
+        globalBoard={privateBoard}
+      />,
+    );
+
+    expect((turkishHtml.match(/Gizli katılımcı/g) ?? [])).toHaveLength(2);
+    expect((englishHtml.match(/Private participant/g) ?? [])).toHaveLength(2);
+    expect(turkishHtml).not.toContain("Participant #");
+    expect(englishHtml).not.toContain("Participant #");
+  });
+
+  it("uses localized private-participant labels for nullable period and viewer names in every layout", () => {
+    const privatePeriods = periods.map((period) => period.key === "WEEKLY"
+      ? {
+          ...period,
+          topRows: period.topRows.map((row, index) => index === 0 ? { ...row, displayName: null } : row),
+          bottomRows: period.bottomRows.map((row, index) => index === 0 ? { ...row, displayName: null } : row),
+          rows: period.rows.map((row, index) => index === 0 ? { ...row, displayName: null } : row),
+          viewerRow: { ...period.viewerRow!, displayName: null },
+        }
+      : period);
+    const turkishHtml = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="tr"
+        periods={privatePeriods}
+        selectedPeriodKey="WEEKLY"
+        leagues={[]}
+      />,
+    );
+    const englishHtml = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="en"
+        periods={privatePeriods}
+        selectedPeriodKey="WEEKLY"
+        leagues={[]}
+      />,
+    );
+
+    expect((turkishHtml.match(/Gizli katılımcı/g) ?? [])).toHaveLength(5);
+    expect((englishHtml.match(/Private participant/g) ?? [])).toHaveLength(5);
+    expect(turkishHtml).not.toContain("Katılımcı #");
+    expect(englishHtml).not.toContain("Participant #");
+  });
+
   it("labels recorded global standings honestly, exposes the valuation time, and links to the viewer page", () => {
     const html = renderToStaticMarkup(
       <CompetitionResultsView

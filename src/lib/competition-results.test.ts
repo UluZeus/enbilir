@@ -35,12 +35,13 @@ import {
 
 const now = new Date("2026-07-30T12:00:00.000Z");
 
-function user(id: string, name: string) {
+function user(id: string, name: string, email = `private-${id}@example.test`) {
   return {
     id,
     name,
     nickname: null,
     displayNameMode: "REAL_NAME" as const,
+    email,
   };
 }
 
@@ -109,7 +110,7 @@ describe("competition results", () => {
 
   it("uses competition ranking for equal returns and userId only as the deterministic tie-break", () => {
     const rows = rankCompetitionCandidates([
-      { userId: "z-user", displayName: "Zulu", returnPercent: 10, valueUsd: 110, changeUsd: 10 },
+      { userId: "z-user", displayName: null, returnPercent: 10, valueUsd: 110, changeUsd: 10 },
       { userId: "a-user", displayName: "Alpha", returnPercent: 10, valueUsd: 220, changeUsd: 20 },
       { userId: "m-user", displayName: "Middle", returnPercent: 5, valueUsd: 105, changeUsd: 5 },
     ]);
@@ -239,6 +240,36 @@ describe("competition results", () => {
         trades: { some: {} },
       },
     }));
+    expect(competitionMocks.userFindMany.mock.calls[0]?.[0]?.select).toMatchObject({ email: true });
+  });
+
+  it("returns nullable safe labels without changing ranks, values, ordering, or viewer placement", async () => {
+    competitionMocks.userFindMany.mockResolvedValue([
+      user("viewer", "viewer", "viewer@example.test"),
+      user("alpha", "Alpha", "alpha.private@example.test"),
+    ]);
+    competitionMocks.baselineFindMany.mockResolvedValue([
+      ...fullHistory("viewer", 100),
+      ...fullHistory("alpha", 100),
+      recordedEndpoint("viewer", 105, now),
+      recordedEndpoint("alpha", 120, now),
+    ]);
+
+    const result = await getCompetitionResults("viewer", "WEEKLY", now);
+    const weekly = result.periods.find((period) => period.key === "WEEKLY")!;
+
+    expect(weekly.rows).toEqual([
+      { displayName: "Alpha", rank: 1, returnPercent: 20, isViewer: false },
+      { displayName: null, rank: 2, returnPercent: 5, isViewer: true },
+    ]);
+    expect(weekly.viewerRow).toEqual({
+      displayName: null,
+      rank: 2,
+      returnPercent: 5,
+      valueUsd: 105,
+      changeUsd: 5,
+    });
+    expect(JSON.stringify(result)).not.toContain("viewer@example.test");
   });
 
   it("keeps a stored cohort rank available during a live-provider outage", async () => {

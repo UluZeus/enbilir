@@ -6,8 +6,10 @@ const mocks = vi.hoisted(() => ({
   userFindFirst: vi.fn(),
   userFindUnique: vi.fn(),
   userUpdate: vi.fn(),
+  userCreate: vi.fn(),
   oauthUpsert: vi.fn(),
   ensureVirtualAccount: vi.fn(),
+  sendGoogleWelcomeEmail: vi.fn(),
   canCreateGoogleAccount: vi.fn(),
   hasRequiredLegalConsents: vi.fn(),
 }));
@@ -37,7 +39,7 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: mocks.userFindFirst,
       findUnique: mocks.userFindUnique,
       update: mocks.userUpdate,
-      create: vi.fn(),
+      create: mocks.userCreate,
     },
     oAuthAccount: { upsert: mocks.oauthUpsert },
   },
@@ -49,7 +51,7 @@ vi.mock("@/lib/safe-navigation", () => ({
 vi.mock("@/lib/site-url", () => ({
   getRequestOrigin: () => "https://enbilir.test",
 }));
-vi.mock("@/lib/welcome-email", () => ({ sendGoogleWelcomeEmail: vi.fn() }));
+vi.mock("@/lib/welcome-email", () => ({ sendGoogleWelcomeEmail: mocks.sendGoogleWelcomeEmail }));
 
 import { GET } from "@/app/api/auth/google/callback/route";
 
@@ -68,14 +70,14 @@ function createCallbackRequest(code = "synthetic-code", intent: "login" | "regis
   return request;
 }
 
-function mockGoogleSuccess() {
+function mockGoogleSuccess(name: string | null = "Synthetic Member") {
   vi.stubGlobal("fetch", vi.fn()
     .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "synthetic-access-token" }), { status: 200 }))
     .mockResolvedValueOnce(new Response(JSON.stringify({
       sub: "google-account-1",
       email: "member@example.test",
       email_verified: true,
-      name: "Synthetic Member",
+      ...(name === null ? {} : { name }),
     }), { status: 200 })));
 }
 
@@ -87,6 +89,7 @@ describe("Google OAuth callback hardening", () => {
     vi.stubEnv("GOOGLE_CLIENT_SECRET", "synthetic-client-secret");
     mocks.canCreateGoogleAccount.mockReturnValue(false);
     mocks.hasRequiredLegalConsents.mockReturnValue(true);
+    mocks.sendGoogleWelcomeEmail.mockResolvedValue(undefined);
   });
 
   it("completes Google register intent for an inactive unverified email registration with a durable pending token", async () => {
@@ -231,6 +234,36 @@ describe("Google OAuth callback hardening", () => {
     expect(mocks.userUpdate).not.toHaveBeenCalled();
     expect(mocks.setSessionCookie).not.toHaveBeenCalled();
     expect(mocks.ensureVirtualAccount).not.toHaveBeenCalled();
+  });
+
+  it("uses a neutral non-PII name when Google omits the provider name", async () => {
+    mockGoogleSuccess(null);
+    mocks.canCreateGoogleAccount.mockReturnValue(true);
+    mocks.userFindFirst.mockResolvedValue(null);
+    mocks.userFindUnique.mockResolvedValue(null);
+    mocks.userCreate.mockResolvedValue({
+      id: "new-google-user",
+      name: "Google Kullanıcısı",
+      nickname: null,
+      displayNameMode: "REAL_NAME",
+      email: "member@example.test",
+      role: "USER",
+      isActive: true,
+      kvkkDisclosureAccepted: true,
+      termsAccepted: true,
+      noInvestmentAdviceAccepted: true,
+    });
+
+    const response = await GET(createCallbackRequest("synthetic-code", "register"));
+
+    expect(new URL(response.headers.get("location")!).pathname).toBe("/tr/panel");
+    expect(mocks.userCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        name: "Google Kullanıcısı",
+        email: "member@example.test",
+      }),
+    }));
+    expect(mocks.userCreate.mock.calls[0]?.[0]?.data?.name).not.toBe("member");
   });
 
   it("does not link or reactivate an inactive account found by email", async () => {

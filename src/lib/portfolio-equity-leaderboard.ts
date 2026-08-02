@@ -1,7 +1,6 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-import type { CashMode, DisplayNameMode, LeagueType } from "@/generated/prisma/enums";
+import type { CashMode, LeagueType } from "@/generated/prisma/enums";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import type { MarketItem } from "@/lib/market-data";
 import {
@@ -13,12 +12,15 @@ import { getCashModeUsdRate, hasVerifiedPortfolioQuote, initialCashUsd } from "@
 import { isYahooEquityMarket } from "@/lib/portfolio-corporate-actions";
 import { selectLatestCommonPortfolioEquityCohort } from "@/lib/portfolio-equity-cohort";
 import { prisma } from "@/lib/prisma";
-import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
+import {
+  getSafePublicUserLabel,
+  publicCompetitionUserWhere,
+} from "@/lib/public-user-visibility";
 
 export const portfolioEquityLeaderboardPageSize = 25;
 
 export type PortfolioEquityLeaderboardRow = {
-  alias: string;
+  alias: string | null;
   rank: number;
   totalValueUsd: number;
   totalReturnPercent: number | null;
@@ -55,7 +57,7 @@ export type PortfolioEquityLeaderboardResult = {
 
 type EquityCandidate = {
   userId: string;
-  alias: string;
+  alias: string | null;
   totalValueMicroUsd: number;
   weeklyReturnPercent: number | null;
   monthlyReturnPercent: number | null;
@@ -90,7 +92,6 @@ const cashFxSymbolByMode = {
 // Mirrors the maximum accepted Yahoo market-closed valuation age: the
 // leaderboard does not mutate positions to repair corporate-action state.
 const maximumCorporateActionVerificationAgeMs = 96 * 60 * 60 * 1_000;
-const clearEmailAddressPattern = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/u;
 
 function canonicalMicroUsd(valueUsd: number) {
   if (!Number.isFinite(valueUsd) || valueUsd < 0) return null;
@@ -113,19 +114,6 @@ function getPeriodReturn(
     .find((period) => period.key === key);
 
   return performance && !performance.isPartial ? performance.change : null;
-}
-
-export function createPortfolioParticipantAlias(
-  userId: string,
-  name: string,
-  nickname: string | null,
-  displayNameMode: DisplayNameMode,
-) {
-  const displayName = (displayNameMode === "NICKNAME" ? nickname : name)?.trim();
-  if (displayName && !clearEmailAddressPattern.test(displayName)) return displayName;
-
-  const hashPrefix = createHash("sha256").update(userId).digest("hex").slice(0, 6).toUpperCase();
-  return `Participant #${hashPrefix}`;
 }
 
 export function rankPortfolioEquityCandidates(candidates: EquityCandidate[]): RankedEquityCandidate[] {
@@ -272,6 +260,7 @@ export async function getPortfolioEquityLeaderboard(
       name: true,
       nickname: true,
       displayNameMode: true,
+      email: true,
       virtualAccount: {
         select: {
           cashMode: true,
@@ -394,7 +383,7 @@ export async function getPortfolioEquityLeaderboard(
     );
     candidates.push({
       userId: user.id,
-      alias: createPortfolioParticipantAlias(user.id, user.name, user.nickname, user.displayNameMode),
+      alias: getSafePublicUserLabel(user.name, user.nickname, user.displayNameMode, user.email),
       totalValueMicroUsd,
       weeklyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, valuationDate, "WEEKLY"),
       monthlyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, valuationDate, "MONTHLY"),

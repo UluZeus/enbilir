@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSafeLocale } from "@/i18n/config";
-import { getDisplayName } from "@/lib/auth";
 import { getBadgeDashboard } from "@/lib/badges";
 import { calculatePortfolioHealth } from "@/lib/portfolio-health";
 import { calculateCompetitionReturnPercent, formatMoney, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
+import { getSafePublicUserLabel, publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }): Promise<Metadata> {
@@ -18,11 +18,12 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function CommunityProfilePage({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
-  const user = await prisma.user.findUnique({
-    where: { id },
+  const user = await prisma.user.findFirst({
+    where: { id, ...publicCompetitionUserWhere },
     select: {
       id: true,
       name: true,
+      email: true,
       nickname: true,
       displayNameMode: true,
       createdAt: true,
@@ -43,7 +44,8 @@ export default async function CommunityProfilePage({ params }: { params: Promise
     prisma.virtualTrade.count({ where: { userId: user.id } }),
     prisma.virtualTrade.count({ where: { userId: user.id, reason: { not: null } } }),
   ]);
-  const displayName = getDisplayName(user);
+  const displayName = getSafePublicUserLabel(user.name, user.nickname, user.displayNameMode, user.email)
+    ?? (locale === "en" ? "Private participant" : "Gizli katılımcı");
   const earnedBadges = badges.filter((badge) => badge.earnedAt);
   const health = calculatePortfolioHealth({ snapshot, tradeCount, tradeNoteCount });
   const returnPercent = calculateCompetitionReturnPercent(snapshot.totalValueUsd);

@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import {
+  getSafePublicUserLabel,
+  publicCompetitionUserWhere,
+} from "@/lib/public-user-visibility";
 
 type PublishedWeekWindow = {
   start: Date;
@@ -77,11 +81,32 @@ export async function getWeeklyCompetitionSummary(locale: "tr" | "en", currentUs
 }
 
 async function getLatestStoredWeeklyCompetitionSummary(locale: "tr" | "en", currentUserId?: string) {
+  const privateParticipantLabel = locale === "tr" ? "Gizli katılımcı" : "Private participant";
   const publication = await prisma.weeklyCompetitionPublication.findFirst({
     orderBy: { publishedAt: "desc" },
     include: {
       rows: {
+        where: {
+          user: { is: publicCompetitionUserWhere },
+        },
         orderBy: [{ scope: "asc" }, { rank: "asc" }],
+        select: {
+          userId: true,
+          scope: true,
+          valueUsd: true,
+          returnPercent: true,
+          rank: true,
+          user: {
+            select: {
+              name: true,
+              nickname: true,
+              displayNameMode: true,
+              email: true,
+              isActive: true,
+              emailVerifiedAt: true,
+            },
+          },
+        },
       },
     },
   });
@@ -90,20 +115,33 @@ async function getLatestStoredWeeklyCompetitionSummary(locale: "tr" | "en", curr
     return null;
   }
 
-  const weeklyRows = publication.rows
+  const currentlyEligibleRows = publication.rows.filter(
+    (row) => row.user.isActive && row.user.emailVerifiedAt !== null,
+  );
+  const weeklyRows = currentlyEligibleRows
     .filter((row) => row.scope === "WEEKLY_GAIN")
     .map((row) => ({
       userId: row.userId,
-      displayName: row.displayName,
+      displayName: getSafePublicUserLabel(
+        row.user.name,
+        row.user.nickname,
+        row.user.displayNameMode,
+        row.user.email,
+      ) ?? privateParticipantLabel,
       valueUsd: row.valueUsd,
       returnPercent: row.returnPercent,
       rank: row.rank,
     }));
-  const totalRows = publication.rows
+  const totalRows = currentlyEligibleRows
     .filter((row) => row.scope === "TOTAL_GAIN")
     .map((row) => ({
       userId: row.userId,
-      displayName: row.displayName,
+      displayName: getSafePublicUserLabel(
+        row.user.name,
+        row.user.nickname,
+        row.user.displayNameMode,
+        row.user.email,
+      ) ?? privateParticipantLabel,
       valueUsd: row.valueUsd,
       returnPercent: row.returnPercent,
       rank: row.rank,

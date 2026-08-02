@@ -1,5 +1,4 @@
 import type { LeagueType } from "@/generated/prisma/enums";
-import { getDisplayName } from "@/lib/auth";
 import {
   buildPortfolioPerformancePeriods,
   normalizePortfolioHistory,
@@ -8,11 +7,14 @@ import {
 } from "@/lib/portfolio-history";
 import { selectLatestCommonPortfolioEquityCohort } from "@/lib/portfolio-equity-cohort";
 import { prisma } from "@/lib/prisma";
-import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
+import {
+  getSafePublicUserLabel,
+  publicCompetitionUserWhere,
+} from "@/lib/public-user-visibility";
 
 type CompetitionCandidate = {
   userId: string;
-  displayName: string;
+  displayName: string | null;
   returnPercent: number;
   valueUsd: number;
   changeUsd: number;
@@ -23,14 +25,14 @@ type RankedCompetitionCandidate = CompetitionCandidate & {
 };
 
 export type CompetitionResultRow = {
-  displayName: string;
+  displayName: string | null;
   rank: number;
   returnPercent: number;
   isViewer: boolean;
 };
 
 export type CompetitionViewerRow = {
-  displayName: string;
+  displayName: string | null;
   rank: number;
   returnPercent: number;
   valueUsd: number;
@@ -139,6 +141,7 @@ export async function getCompetitionResults(
       name: true,
       nickname: true,
       displayNameMode: true,
+      email: true,
     },
   });
   const userIds = users.map((user) => user.id);
@@ -260,7 +263,12 @@ export async function getCompetitionResults(
 
       candidatesByPeriod.get(performance.key)!.push({
         userId: valuation.user.id,
-        displayName: getDisplayName(valuation.user),
+        displayName: getSafePublicUserLabel(
+          valuation.user.name,
+          valuation.user.nickname,
+          valuation.user.displayNameMode,
+          valuation.user.email,
+        ),
         returnPercent: performance.change,
         valueUsd: performance.endValueUsd,
         changeUsd: performance.changeUsd,

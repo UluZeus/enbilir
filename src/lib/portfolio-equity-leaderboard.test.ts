@@ -48,6 +48,7 @@ const now = new Date("2026-08-02T12:00:00.000Z");
 type ParticipantOptions = {
   name?: string;
   nickname?: string | null;
+  email?: string;
   displayNameMode?: "REAL_NAME" | "NICKNAME";
   cashMode?: "USD" | "EUR" | "CHF" | "TRY_REPO";
   cashAmount?: number;
@@ -68,6 +69,7 @@ function participant(id: string, options: ParticipantOptions = {}) {
     id,
     name: options.name ?? "",
     nickname: options.nickname ?? null,
+    email: options.email ?? `${id}@example.test`,
     displayNameMode: options.displayNameMode ?? "REAL_NAME",
     virtualAccount: {
       cashMode: options.cashMode ?? "USD",
@@ -128,20 +130,20 @@ describe("portfolio equity leaderboard", () => {
     const result = await getPortfolioEquityLeaderboard("viewer", now);
 
     expect(result.rows.map((row) => ({ alias: row.alias, totalValueUsd: row.totalValueUsd, rank: row.rank }))).toEqual([
-      { alias: "Participant #8ED3F6", totalValueUsd: 1_200_000, rank: 1 },
-      { alias: "Participant #F44E64", totalValueUsd: 1_100_000, rank: 2 },
-      { alias: "Participant #D35CA5", totalValueUsd: 1_050_000, rank: 3 },
+      { alias: null, totalValueUsd: 1_200_000, rank: 1 },
+      { alias: null, totalValueUsd: 1_100_000, rank: 2 },
+      { alias: null, totalValueUsd: 1_050_000, rank: 3 },
     ]);
     expect(result.rows[1]).toMatchObject({ weeklyReturnPercent: 100, monthlyReturnPercent: 100 });
     expect(result.rows[0]).toMatchObject({ weeklyReturnPercent: 1.01010101, monthlyReturnPercent: 1.69491525 });
     expect(result.rows[0]?.totalReturnPercent).toBe(20);
   });
 
-  it("shares ranks for equal canonical micro-USD values and keeps deterministic alias order", async () => {
+  it("shares ranks for equal canonical micro-USD values and keeps deterministic user-id tiebreak order", async () => {
     leaderboardMocks.userFindMany.mockResolvedValue([
       participant("viewer"),
-      participant("z-user", { cashAmount: 1_100_000.0000004 }),
-      participant("a-user", { cashAmount: 1_100_000.0000004 }),
+      participant("z-user", { name: "Zed", cashAmount: 1_100_000.0000004 }),
+      participant("a-user", { name: "Alpha", cashAmount: 1_100_000.0000004 }),
     ]);
     leaderboardMocks.baselineFindMany.mockResolvedValue([
       ...verifiedHistory("viewer", 1_000_000),
@@ -152,9 +154,14 @@ describe("portfolio equity leaderboard", () => {
     const result = await getPortfolioEquityLeaderboard("viewer", now);
 
     expect(result.rows.map((row) => ({ alias: row.alias, rank: row.rank }))).toEqual([
-      { alias: "Participant #67F844", rank: 1 },
-      { alias: "Participant #E36939", rank: 1 },
-      { alias: "Participant #D35CA5", rank: 3 },
+      { alias: "Alpha", rank: 1 },
+      { alias: "Zed", rank: 1 },
+      { alias: null, rank: 3 },
+    ]);
+    expect(result.rows.map((row) => row.totalValueUsd)).toEqual([
+      1_100_000,
+      1_100_000,
+      1_000_000,
     ]);
     expect(result.viewerRank).toBe(3);
   });
@@ -177,7 +184,7 @@ describe("portfolio equity leaderboard", () => {
       }),
     }));
     const userSelect = leaderboardMocks.userFindMany.mock.calls[0]?.[0]?.select;
-    expect(userSelect).not.toHaveProperty("email");
+    expect(userSelect).toMatchObject({ email: true });
     expect(leaderboardMocks.getLiveItems).toHaveBeenCalledTimes(1);
     expect(leaderboardMocks.getLiveItems).toHaveBeenCalledWith(["AAPL"]);
     expect(leaderboardMocks.positionFindMany).not.toHaveBeenCalled();
@@ -241,9 +248,48 @@ describe("portfolio equity leaderboard", () => {
     const recordedResult = await getPortfolioEquityLeaderboard("real-name-mode", now);
 
     expect(recordedResult.valuationMode).toBe("RECORDED");
-    expect(recordedResult.rows.map((row) => row.alias)).toEqual(result.rows.map((row) => row.alias));
+    expect(recordedResult.rows).toEqual(result.rows);
     expect(JSON.stringify(recordedResult)).not.toContain("Do Not Show");
     expect(JSON.stringify(recordedResult)).not.toContain("Private Real Name");
+  });
+
+  it("keeps leaderboard output unchanged when only hidden alternate labels change", async () => {
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("real-name-mode", {
+        name: "Public Real Name",
+        nickname: "First Hidden Nick",
+        displayNameMode: "REAL_NAME",
+        cashAmount: 1_100_000,
+      }),
+      participant("nickname-mode", {
+        name: "First Hidden Name",
+        nickname: "Public Nick",
+        displayNameMode: "NICKNAME",
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([]);
+
+    const before = await getPortfolioEquityLeaderboard("real-name-mode", now);
+
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("real-name-mode", {
+        name: "Public Real Name",
+        nickname: "Second Hidden Nick",
+        displayNameMode: "REAL_NAME",
+        cashAmount: 1_100_000,
+      }),
+      participant("nickname-mode", {
+        name: "Second Hidden Name",
+        nickname: "Public Nick",
+        displayNameMode: "NICKNAME",
+      }),
+    ]);
+
+    const after = await getPortfolioEquityLeaderboard("real-name-mode", now);
+
+    expect(after).toEqual(before);
+    expect(JSON.stringify(after)).not.toContain("Second Hidden Nick");
+    expect(JSON.stringify(after)).not.toContain("Second Hidden Name");
   });
 
   it("never falls back to the real name when nickname mode has no usable nickname", async () => {
@@ -265,10 +311,10 @@ describe("portfolio equity leaderboard", () => {
     const result = await getPortfolioEquityLeaderboard("null-nickname", now);
     const serialized = JSON.stringify(result);
 
-    expect(result.rows.map((row) => row.alias)).toEqual([
-      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
-      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
-    ]);
+    expect(result.rows.map((row) => row.alias)).toEqual([null, null]);
+    expect(serialized).not.toContain("Participant #");
+    expect(serialized).not.toContain("null-nickname");
+    expect(serialized).not.toContain("blank-nickname");
     expect(serialized).not.toContain("Null Nickname Real Name");
     expect(serialized).not.toContain("Blank Nickname Real Name");
   });
@@ -291,13 +337,35 @@ describe("portfolio equity leaderboard", () => {
     const result = await getPortfolioEquityLeaderboard("email-real-name", now);
     const serialized = JSON.stringify(result);
 
-    expect(result.rows.map((row) => row.alias)).toEqual([
-      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
-      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
-    ]);
+    expect(result.rows.map((row) => row.alias)).toEqual([null, null]);
+    expect(serialized).not.toContain("Participant #");
+    expect(serialized).not.toContain("email-real-name");
+    expect(serialized).not.toContain("email-nickname");
     expect(serialized).not.toContain("legacy.real@example.test");
     expect(serialized).not.toContain("legacy.nick+board@example.test");
     expect(serialized).not.toContain("Private Real Name");
+  });
+
+  it("rejects a selected label matching the stored email local-part without serializing the email", async () => {
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("email-local-part", {
+        name: "  PRIVATE.MEMBER  ",
+        email: "private.member@example.test",
+        cashAmount: 1_100_000,
+      }),
+      participant("safe-label", {
+        name: "Public Member",
+        email: "public.member@example.test",
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([]);
+
+    const result = await getPortfolioEquityLeaderboard("email-local-part", now);
+    const serialized = JSON.stringify(result);
+
+    expect(result.rows.map((row) => row.alias)).toEqual([null, "Public Member"]);
+    expect(serialized).not.toContain("private.member@example.test");
+    expect(serialized).not.toContain("public.member@example.test");
   });
 
   it("never mixes a reliable live row with a missing quote when no common cohort exists", async () => {

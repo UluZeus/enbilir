@@ -198,7 +198,7 @@ async function getGoogleUser(request: NextRequest, code: string) {
   return {
     providerAccountId: userInfo.sub,
     email: userInfo.email.trim().toLowerCase(),
-    name: userInfo.name?.trim() || userInfo.email.split("@")[0] || "Google Kullanıcısı",
+    name: userInfo.name?.trim() || "Google Kullanıcısı",
   };
 }
 

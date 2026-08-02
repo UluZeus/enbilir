@@ -3,11 +3,12 @@ import type { Metadata } from "next";
 import { FormMessage } from "@/components/FormMessage";
 import { SiteMotion } from "@/components/SiteMotion";
 import { removeCommunityFriendAction, sendCommunityFriendRequestAction } from "@/lib/actions";
-import { getDisplayName, getSessionUser } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import { getFriendPairKey } from "@/lib/friends";
 import { getSafeLocale } from "@/i18n/config";
 import { getUiCopy } from "@/i18n/ui-copy";
 import { prisma } from "@/lib/prisma";
+import { getSafePublicUserLabel, publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 import { buildPageMetadata } from "@/lib/seo";
 import type { FriendRequestStatus, LeagueType } from "@/generated/prisma/enums";
 
@@ -71,9 +72,11 @@ export default async function CommunityPage({
   const sessionUser = await getSessionUser();
   const [users, friendships] = await Promise.all([
     prisma.user.findMany({
+      where: publicCompetitionUserWhere,
       select: {
         id: true,
         name: true,
+        email: true,
         nickname: true,
         displayNameMode: true,
         leagueMemberships: {
@@ -112,12 +115,12 @@ export default async function CommunityPage({
       const primaryMembership = user.leagueMemberships[0] ?? null;
       const leagueNames = user.leagueMemberships.map((membership) => membership.league.name);
       const category = getCategory(primaryMembership?.league.type);
-      const displayName = getDisplayName(user);
+      const displayName = getSafePublicUserLabel(user.name, user.nickname, user.displayNameMode, user.email)
+        ?? (locale === "en" ? "Private participant" : "Gizli katılımcı");
 
       return {
-        user,
+        user: { id: user.id },
         displayName,
-        realName: user.name,
         primaryLeagueName: primaryMembership?.league.name ?? copy.community.noLeague,
         primaryLeagueId: primaryMembership?.league.id ?? "",
         leagueNames,
@@ -130,7 +133,7 @@ export default async function CommunityPage({
         return true;
       }
 
-      return [row.displayName, row.realName, row.primaryLeagueName, row.category, ...row.leagueNames]
+      return [row.displayName, row.primaryLeagueName, row.category, ...row.leagueNames]
         .join(" ")
         .toLowerCase()
         .includes(search);
@@ -215,12 +218,8 @@ function CommunityRow({
   row: {
     user: {
       id: string;
-      name: string;
-      nickname: string | null;
-      displayNameMode: "REAL_NAME" | "NICKNAME";
     };
     displayName: string;
-    realName: string;
     primaryLeagueName: string;
     primaryLeagueId: string;
     leagueNames: string[];
@@ -241,10 +240,9 @@ function CommunityRow({
           <Link href={`/${locale}/topluluk/${row.user.id}`} className="truncate font-black text-[#152033] hover:text-[#0f766e]">
             {row.displayName}
           </Link>
-          <p className="mt-1 text-xs text-slate-500">
-            {row.displayName === row.realName ? copy.realNameSaved : row.realName}
-            {isSelf ? ` · ${getUiCopy(getSafeLocale(locale)).common.you}` : ""}
-          </p>
+          {isSelf ? (
+            <p className="mt-1 text-xs text-slate-500">{getUiCopy(getSafeLocale(locale)).common.you}</p>
+          ) : null}
         </div>
       </div>
       <div>
