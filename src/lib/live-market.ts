@@ -322,6 +322,33 @@ function isFreshQuote(quote: LiveQuote, now = Date.now()) {
   }) === "FRESH";
 }
 
+function isVerifiedYahooClosedUsdTryValuationQuote(quote: LiveQuote | undefined, now = Date.now()) {
+  if (
+    !quote ||
+    quote.provider !== "yahoo" ||
+    !["CLOSED", "MARKET_CLOSED"].includes(quote.marketState.toUpperCase()) ||
+    quote.marketStateSource !== "provider" ||
+    quote.providerSymbol?.toUpperCase() !== "USDTRY=X" ||
+    quote.instrumentType?.toUpperCase() !== "CURRENCY" ||
+    quote.exchange?.toUpperCase() !== "CCY" ||
+    quote.exchangeDataDelayedBy !== 0 ||
+    !Number.isFinite(quote.close) ||
+    quote.close <= 0
+  ) {
+    return false;
+  }
+
+  const sourceTime = Date.parse(quote.sourceAsOf);
+  const ageMs = now - sourceTime;
+
+  return (
+    Number.isFinite(sourceTime) &&
+    sourceTime > 0 &&
+    ageMs >= 0 &&
+    ageMs <= 96 * 60 * 60 * 1000
+  );
+}
+
 function normalizeUsdPrice(fallback: MarketItem, quote: LiveQuote, quoteMap: Map<string, LiveQuote>) {
   if (fallback.category !== "BIST") {
     return quote.close;
@@ -354,7 +381,7 @@ function normalizeUsdPrice(fallback: MarketItem, quote: LiveQuote, quoteMap: Map
   if (
     !usdTry ||
     usdTry.close <= 0 ||
-    (!isFreshQuote(usdTry) && !isVerifiedUnknownUsdTry)
+    (!isFreshQuote(usdTry) && !isVerifiedUnknownUsdTry && !isVerifiedYahooClosedUsdTryValuationQuote(usdTry))
   ) {
     return null;
   }

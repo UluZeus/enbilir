@@ -156,6 +156,31 @@ describe("competition results", () => {
     expect(JSON.stringify(result.leagues)).not.toContain("alpha");
   });
 
+  it("ranks a candidate whose portfolio is reliably valued from a verified market-closed quote", async () => {
+    competitionMocks.userFindMany.mockResolvedValue([
+      user("viewer", "Viewer"),
+      user("alpha", "Alpha"),
+    ]);
+    competitionMocks.baselineFindMany.mockResolvedValue([
+      ...fullHistory("viewer", 100),
+      ...fullHistory("alpha", 100),
+    ]);
+    competitionMocks.getPortfolioSnapshot.mockImplementation(async (userId: string) => ({
+      totalValueUsd: userId === "alpha" ? 120 : 105,
+      hasUnreliableValuation: false,
+      positions: [{ dataStatus: "close", valuationReliable: true }],
+    }));
+
+    const result = await getCompetitionResults("viewer", "WEEKLY", now);
+    const weekly = result.periods.find((period) => period.key === "WEEKLY");
+
+    expect(weekly?.rows).toEqual([
+      { displayName: "Alpha", rank: 1, returnPercent: 20, isViewer: false },
+      { displayName: "Viewer", rank: 2, returnPercent: 5, isViewer: true },
+    ]);
+    expect(weekly?.excludedCounts).toEqual({ partialOrMissing: 0, stalePrice: 0, unreliable: 0 });
+  });
+
   it("scopes candidates to active verified public users", async () => {
     await getCompetitionResults("viewer", "DAILY", now);
 

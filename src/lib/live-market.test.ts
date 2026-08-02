@@ -390,6 +390,126 @@ describe("server-owned executable quote cache", () => {
     });
   });
 
+  it("uses a bounded provider-backed closed USD/TRY quote to value a closed BIST position on Sunday without enabling execution", async () => {
+    const sundayNoon = new Date("2026-08-02T12:00:00.000Z");
+    const fridayClose = new Date(sundayNoon.getTime() - 42 * 60 * 60_000);
+    vi.setSystemTime(sundayNoon);
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+
+      if (!url.hostname.includes("finance.yahoo.com")) return [];
+
+      return {
+        spark: {
+          result: [
+            {
+              symbol: "THYAO.IS",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 320,
+                  regularMarketTime: Math.floor(fridayClose.getTime() / 1000),
+                  marketState: "CLOSED",
+                  instrumentType: "EQUITY",
+                  exchangeName: "IST",
+                  exchangeDataDelayedBy: 0,
+                }),
+              }],
+            },
+            {
+              symbol: "USDTRY=X",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 32,
+                  regularMarketTime: Math.floor(fridayClose.getTime() / 1000),
+                  marketState: "CLOSED",
+                  instrumentType: "CURRENCY",
+                  exchangeName: "CCY",
+                  exchangeDataDelayedBy: 0,
+                }),
+              }],
+            },
+          ],
+        },
+      };
+    });
+
+    const [thyao] = await getLiveMarketItemsForSymbols(["THYAO.IS"]);
+
+    expect(thyao).toMatchObject({
+      source: "yahoo",
+      dataStatus: "close",
+      priceNative: 320,
+      priceUsd: 10,
+      marketState: "CLOSED",
+      executionEligible: false,
+    });
+  });
+
+  it.each([
+    ["stale", new Date("2026-07-29T11:59:59.999Z"), 0, true],
+    ["delayed", new Date("2026-07-31T18:00:00.000Z"), 15, true],
+    ["missing", new Date("2026-07-31T18:00:00.000Z"), 0, false],
+  ])("keeps closed BIST valuation fail-closed when USD/TRY is %s", async (
+    _case,
+    usdTryAsOf,
+    usdTryDelay,
+    includeUsdTry,
+  ) => {
+    const sundayNoon = new Date("2026-08-02T12:00:00.000Z");
+    const fridayClose = new Date(sundayNoon.getTime() - 42 * 60 * 60_000);
+    vi.setSystemTime(sundayNoon);
+    liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
+      const url = new URL(urlValue);
+
+      if (!url.hostname.includes("finance.yahoo.com")) return [];
+
+      return {
+        spark: {
+          result: [
+            {
+              symbol: "THYAO.IS",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 320,
+                  regularMarketTime: Math.floor(fridayClose.getTime() / 1000),
+                  marketState: "CLOSED",
+                  instrumentType: "EQUITY",
+                  exchangeName: "IST",
+                  exchangeDataDelayedBy: 0,
+                }),
+              }],
+            },
+            ...(includeUsdTry ? [{
+              symbol: "USDTRY=X",
+              response: [{
+                meta: yahooMeta({
+                  currency: "TRY",
+                  regularMarketPrice: 32,
+                  regularMarketTime: Math.floor(usdTryAsOf.getTime() / 1000),
+                  marketState: "CLOSED",
+                  instrumentType: "CURRENCY",
+                  exchangeName: "CCY",
+                  exchangeDataDelayedBy: usdTryDelay,
+                }),
+              }],
+            }] : []),
+          ],
+        },
+      };
+    });
+
+    const [thyao] = await getLiveMarketItemsForSymbols(["THYAO.IS"]);
+
+    expect(thyao).toMatchObject({
+      source: "fallback",
+      marketState: "FX_CONVERSION_UNAVAILABLE",
+      executionEligible: false,
+    });
+  });
+
   it("keeps a REGULAR BIST quote fail-closed when delay evidence is missing", async () => {
     liveMarketMocks.fetchJson.mockImplementation(async (urlValue: string) => {
       const url = new URL(urlValue);

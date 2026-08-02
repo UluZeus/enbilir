@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import { getCashModeUsdRate, hasVerifiedPortfolioQuote } from "@/lib/portfolio";
 import type { MarketItem } from "@/lib/market-data";
 
 const now = new Date("2026-07-29T12:00:00.000Z").getTime();
+const sundayNoon = new Date("2026-08-02T12:00:00.000Z").getTime();
 
 function gateQuote(overrides: Partial<MarketItem> = {}): MarketItem {
   return {
@@ -47,6 +49,33 @@ function gateQuote(overrides: Partial<MarketItem> = {}): MarketItem {
   };
 }
 
+function yahooClosedQuote(overrides: Partial<MarketItem> = {}): MarketItem {
+  return {
+    symbol: "TEST.IS",
+    dataSymbol: "test.is",
+    name: "Test BIST",
+    market: "BIST",
+    category: "BIST",
+    dataStatus: "close",
+    source: "yahoo",
+    price: "10",
+    priceUsd: 10,
+    priceNative: 400,
+    changePercent: 0,
+    quoteCurrency: "TRY",
+    sourceAsOf: new Date("2026-07-31T18:00:00.000Z").toISOString(),
+    retrievedAt: new Date(sundayNoon - 1_000).toISOString(),
+    marketState: "CLOSED",
+    marketStateSource: "provider",
+    providerSymbol: "TEST.IS",
+    instrumentType: "EQUITY",
+    exchange: "IST",
+    exchangeDataDelayedBy: 0,
+    executionEligible: false,
+    ...overrides,
+  };
+}
+
 describe("portfolio Gate quote reliability", () => {
   it("accepts a Gate valuation only when centralized provenance validation passes", () => {
     expect(hasVerifiedPortfolioQuote(gateQuote(), now)).toBe(true);
@@ -59,6 +88,26 @@ describe("portfolio Gate quote reliability", () => {
     ["broken provenance", { providerSymbol: "XAG_USDT" }],
   ])("rejects a %s Gate valuation", (_case, overrides) => {
     expect(hasVerifiedPortfolioQuote(gateQuote(overrides), now)).toBe(false);
+  });
+});
+
+describe("portfolio Yahoo market-closed valuation policy", () => {
+  it("accepts a provider-backed Friday official close for Sunday valuation without enabling execution", () => {
+    const quote = yahooClosedQuote();
+
+    expect(hasVerifiedPortfolioQuote(quote, sundayNoon)).toBe(true);
+    expect(isExecutableMarketQuote(quote, { now: sundayNoon })).toBe(false);
+  });
+
+  it.each([
+    ["stale", { sourceAsOf: new Date(sundayNoon - 96 * 60 * 60_000 - 1).toISOString() }],
+    ["delayed", { dataStatus: "delayed" as const }],
+    ["fallback", { source: "fallback" as const }],
+    ["delayed exchange evidence", { exchangeDataDelayedBy: 15 }],
+    ["missing provider symbol", { providerSymbol: "" }],
+    ["invalid source price", { priceNative: 0 }],
+  ])("rejects a %s Yahoo market-closed valuation", (_case, overrides) => {
+    expect(hasVerifiedPortfolioQuote(yahooClosedQuote(overrides), sundayNoon)).toBe(false);
   });
 });
 

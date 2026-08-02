@@ -22,6 +22,8 @@ const cashModeMarketSymbols: Partial<Record<CashMode, string>> = {
   TRY_REPO: "USD/TRY",
 };
 
+const maximumYahooClosedPortfolioValuationAgeMs = 96 * 60 * 60 * 1000;
+
 export function formatMoney(value: number, currency = "USD") {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
@@ -62,6 +64,10 @@ export function getSafePortfolioPriceUsd(
 }
 
 export function hasVerifiedPortfolioQuote(marketItem: MarketItem | undefined, now = Date.now()) {
+  if (isVerifiedYahooClosedPortfolioValuation(marketItem, now)) {
+    return true;
+  }
+
   if (marketItem?.source === "gate") {
     return isExecutableMarketQuote(marketItem, { now });
   }
@@ -78,6 +84,43 @@ export function hasVerifiedPortfolioQuote(marketItem: MarketItem | undefined, no
   const sourceTime = Date.parse(marketItem.sourceAsOf);
   const maximumAgeMs = marketItem.source === "binance" ? 15 * 60_000 : 7 * 86_400_000;
   return Number.isFinite(sourceTime) && now - sourceTime >= -60_000 && now - sourceTime <= maximumAgeMs;
+}
+
+function isVerifiedYahooClosedPortfolioValuation(
+  marketItem: MarketItem | undefined,
+  now: number,
+) {
+  const priceNative = marketItem?.priceNative;
+
+  if (
+    !marketItem ||
+    marketItem.source !== "yahoo" ||
+    marketItem.dataStatus !== "close" ||
+    marketItem.marketStateSource !== "provider" ||
+    !["CLOSED", "MARKET_CLOSED"].includes(String(marketItem.marketState ?? "").toUpperCase()) ||
+    !marketItem.providerSymbol ||
+    !marketItem.instrumentType ||
+    !marketItem.exchange ||
+    !marketItem.sourceAsOf ||
+    typeof priceNative !== "number" ||
+    !Number.isFinite(priceNative) ||
+    priceNative <= 0 ||
+    !Number.isFinite(marketItem.priceUsd) ||
+    marketItem.priceUsd <= 0 ||
+    (Number.isFinite(marketItem.exchangeDataDelayedBy) && Number(marketItem.exchangeDataDelayedBy) > 0)
+  ) {
+    return false;
+  }
+
+  const sourceTime = Date.parse(marketItem.sourceAsOf);
+  const ageMs = now - sourceTime;
+
+  return (
+    Number.isFinite(sourceTime) &&
+    sourceTime > 0 &&
+    ageMs >= 0 &&
+    ageMs <= maximumYahooClosedPortfolioValuationAgeMs
+  );
 }
 
 function getPortfolioPriceStatus(marketItem: MarketItem | undefined) {
