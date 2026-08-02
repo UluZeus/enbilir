@@ -5,6 +5,7 @@ import { SiteMotion } from "@/components/SiteMotion";
 import { getSafeLocale } from "@/i18n/config";
 import { getSessionUser } from "@/lib/auth";
 import { getCompetitionResults } from "@/lib/competition-results";
+import { getPortfolioEquityLeaderboard } from "@/lib/portfolio-equity-leaderboard";
 import { buildPageMetadata } from "@/lib/seo";
 import {
   CompetitionResultsView,
@@ -27,7 +28,7 @@ export default async function CompetitionResultsPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ donem?: string | string[]; sayfa?: string | string[] }>;
+  searchParams: Promise<{ donem?: string | string[]; sayfa?: string | string[]; toplamSayfa?: string | string[] }>;
 }) {
   const [{ locale: rawLocale }, query] = await Promise.all([params, searchParams]);
   const locale = getSafeLocale(rawLocale);
@@ -39,7 +40,12 @@ export default async function CompetitionResultsPage({
 
   const selectedPeriodKey = resolveCompetitionPeriodKey(query.donem);
   const selectedPage = resolveCompetitionPage(query.sayfa);
-  const results = await getCompetitionResults(sessionUser.id, selectedPeriodKey, new Date(), selectedPage);
+  const selectedGlobalPage = resolveCompetitionPage(query.toplamSayfa);
+  const now = new Date();
+  const [results, globalBoard] = await Promise.all([
+    getCompetitionResults(sessionUser.id, selectedPeriodKey, now, selectedPage),
+    getPortfolioEquityLeaderboard(sessionUser.id, now, selectedGlobalPage),
+  ]);
   const isEnglish = locale === "en";
 
   return (
@@ -72,6 +78,7 @@ export default async function CompetitionResultsPage({
         periods={results.periods}
         selectedPeriodKey={selectedPeriodKey}
         leagues={results.leagues}
+        globalBoard={globalBoard}
       />
     </div>
   );

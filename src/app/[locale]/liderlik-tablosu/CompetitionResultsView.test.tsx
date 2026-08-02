@@ -13,6 +13,42 @@ import {
   resolveCompetitionPeriodKey,
 } from "./CompetitionResultsView";
 
+const globalBoard = {
+  valuationAsOf: "2026-07-31T09:00:00.000Z",
+  totalRankedParticipants: 53,
+  excludedUnreliableCount: 2,
+  page: 2,
+  pageSize: 25 as const,
+  pageCount: 3,
+  firstRowIndex: 26,
+  lastRowIndex: 50,
+  viewerRank: 52,
+  viewerTotalValueUsd: 123456.78,
+  viewerLeagues: [],
+  rows: [
+    {
+      alias: "Güvenli Takma Ad",
+      rank: 26,
+      totalValueUsd: 250000,
+      totalReturnPercent: 150,
+      monthlyReturnPercent: null,
+      weeklyReturnPercent: -1.25,
+      leagueNames: ["Çok Uzun İstanbul Öğrenme ve Dayanışma Ligi"],
+      isViewer: false,
+    },
+    {
+      alias: "Senin Görünen Adın",
+      rank: 52,
+      totalValueUsd: 123456.78,
+      totalReturnPercent: 23.45,
+      monthlyReturnPercent: 2.5,
+      weeklyReturnPercent: 0.75,
+      leagueNames: [],
+      isViewer: true,
+    },
+  ],
+};
+
 const rows = [
   { displayName: "Birinci Katılımcı", rank: 1, returnPercent: 12.5, isViewer: false },
   { displayName: "İkinci Katılımcı", rank: 2, returnPercent: 8.25, isViewer: false },
@@ -68,6 +104,29 @@ describe("CompetitionResultsView", () => {
     expect(resolveCompetitionPage("2e3")).toBe(1);
     expect(resolveCompetitionPage("0004")).toBe(4);
     expect(resolveCompetitionPage("25")).toBe(25);
+  });
+
+  it("renders global total portfolio standings with independent pagination and explicit unavailable returns", () => {
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView
+        locale="tr"
+        periods={periods}
+        selectedPeriodKey="WEEKLY"
+        leagues={[]}
+        globalBoard={globalBoard}
+      />,
+    );
+
+    expect(html).toContain("Toplam portföy sıralaması");
+    expect(html).toContain("Güvenli Takma Ad");
+    expect(html).toContain("Çok Uzun İstanbul Öğrenme ve Dayanışma Ligi");
+    expect(html).toContain("Toplam portföy ($USD)");
+    expect(html).toContain("Toplam getiri");
+    expect(html).toContain('aria-label="Aylık getiri kullanılamıyor"');
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=1&amp;toplamSayfa=1"');
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=WEEKLY&amp;sayfa=1&amp;toplamSayfa=3"');
+    expect(html).toContain("26–50 / 53");
+    expect(html).toContain("2 portföy güvenilir değerleme olmadığı için dahil edilmedi");
   });
 
   it("renders accessible period navigation, privacy-safe standings, and equivalent responsive structures", () => {

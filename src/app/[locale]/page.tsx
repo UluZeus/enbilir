@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { localizeMarketText } from "@/lib/market-data";
 import { getOnboardingProgress } from "@/lib/onboarding";
 import { getPortfolioPerformancePeriods, type PortfolioPerformancePeriod } from "@/lib/portfolio-history";
+import { getPortfolioEquityLeaderboard } from "@/lib/portfolio-equity-leaderboard";
 import { getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { buildPageMetadata } from "@/lib/seo";
@@ -29,9 +30,10 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   ]);
 
   if (user) {
-    const [progress, snapshot] = await Promise.all([
+    const [progress, snapshot, globalBoard] = await Promise.all([
       getOnboardingProgress(user.id),
       getPortfolioSnapshot(user.id),
+      getPortfolioEquityLeaderboard(user.id),
     ]);
     const performancePeriods = await getPortfolioPerformancePeriods(user.id, snapshot.totalValueUsd);
     const portfolioItems: MemberPortfolioDonutItem[] = [
@@ -65,6 +67,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           cashValueUsd: snapshot.cashValueUsd,
           items: portfolioItems,
           performancePeriods,
+          rankSummary: {
+            viewerRank: globalBoard.viewerRank,
+            totalRankedParticipants: globalBoard.totalRankedParticipants,
+            pageSize: globalBoard.pageSize,
+            viewerLeagues: globalBoard.viewerLeagues,
+          },
         }}
       />
     );
@@ -171,6 +179,12 @@ function MemberHome({
     cashValueUsd: number;
     items: MemberPortfolioDonutItem[];
     performancePeriods: PortfolioPerformancePeriod[];
+    rankSummary: {
+      viewerRank: number | null;
+      totalRankedParticipants: number;
+      pageSize: number;
+      viewerLeagues: Awaited<ReturnType<typeof getPortfolioEquityLeaderboard>>["viewerLeagues"];
+    };
   };
 }) {
   const tr = locale === "tr";
@@ -210,6 +224,7 @@ function MemberHome({
             cashValueUsd={portfolio.cashValueUsd}
             items={portfolio.items}
             performancePeriods={portfolio.performancePeriods}
+            rankSummary={portfolio.rankSummary}
           />
         </div>
       </div>

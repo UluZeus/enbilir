@@ -88,7 +88,7 @@ export async function AppShell({ children, locale }: AppShellProps) {
     ? `/${locale}/ai-piyasa-asistani/raporlar/${latestMacroReport.id}`
     : `/${locale}/ai-piyasa-asistani/raporlar`;
   const visiblePrimaryNav = primaryNav.filter((item) =>
-    sessionUser ? ["", "baslangic", "ogren", "topluluk"].includes(item.href) : ["", "ogren", "iletisim"].includes(item.href),
+    sessionUser ? ["", "baslangic", "ogren", "liderlik-tablosu", "topluluk"].includes(item.href) : ["", "ogren", "iletisim"].includes(item.href),
   );
   const primaryLinks = visiblePrimaryNav.map((item) => ({
     href: `/${locale}${item.href ? `/${item.href}` : ""}`,

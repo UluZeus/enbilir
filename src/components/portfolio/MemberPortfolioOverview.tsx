@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { getDonutColor, PortfolioDonut } from "@/components/PortfolioDonut";
 import type { PortfolioPerformancePeriod, PortfolioPeriodKey } from "@/lib/portfolio-history";
+import type { PortfolioEquityLeaderboardLeagueRank } from "@/lib/portfolio-equity-leaderboard";
 
 export type MemberPortfolioDonutItem = {
   label: string;
@@ -14,6 +16,12 @@ export type MemberPortfolioOverviewProps = {
   cashValueUsd: number;
   items: MemberPortfolioDonutItem[];
   performancePeriods: PortfolioPerformancePeriod[];
+  rankSummary: {
+    viewerRank: number | null;
+    totalRankedParticipants: number;
+    pageSize: number;
+    viewerLeagues: PortfolioEquityLeaderboardLeagueRank[];
+  };
 };
 
 type PeriodDefinition = {
@@ -104,12 +112,85 @@ function getVisibleItems(items: MemberPortfolioDonutItem[], otherLabel: string) 
   ];
 }
 
+function PortfolioRankSummary({
+  locale,
+  summary,
+  copy,
+}: {
+  locale: "tr" | "en";
+  summary: MemberPortfolioOverviewProps["rankSummary"];
+  copy: {
+    globalRank: string;
+    leagueRanks: string;
+    notRanked: string;
+    openLeaderboard: string;
+  };
+}) {
+  const viewerPage = typeof summary.viewerRank === "number"
+    && Number.isSafeInteger(summary.viewerRank)
+    && summary.viewerRank >= 1
+    && Number.isSafeInteger(summary.totalRankedParticipants)
+    && summary.totalRankedParticipants >= summary.viewerRank
+    && summary.pageSize > 0
+    ? Math.ceil(summary.viewerRank / summary.pageSize)
+    : null;
+  const hasGlobalRank = viewerPage !== null;
+  const globalHref = viewerPage
+    ? `/${locale}/liderlik-tablosu?toplamSayfa=${viewerPage}`
+    : `/${locale}/liderlik-tablosu`;
+
+  return (
+    <div className="mt-2 min-w-0 border-t border-slate-200 pt-2">
+      <p className="text-[0.6rem] font-bold uppercase tracking-[0.08em] text-slate-500">{copy.globalRank}</p>
+      <Link
+        href={globalHref}
+        className="mt-0.5 inline-flex min-h-8 min-w-0 items-center break-words text-xs font-black tabular-nums text-teal-800 outline-none hover:text-teal-950 focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+      >
+        {hasGlobalRank ? `#${summary.viewerRank} / ${summary.totalRankedParticipants}` : copy.notRanked}
+      </Link>
+      {summary.viewerLeagues.length > 0 ? (
+        <div className="mt-2 min-w-0">
+          <p className="text-[0.6rem] font-bold uppercase tracking-[0.08em] text-slate-500">{copy.leagueRanks}</p>
+          <ul className="mt-1 grid min-w-0 gap-1">
+            {summary.viewerLeagues.map((league) => {
+              const hasLeagueRank = typeof league.rank === "number"
+                && Number.isSafeInteger(league.rank)
+                && league.rank >= 1
+                && Number.isSafeInteger(league.totalRankedMembers)
+                && league.totalRankedMembers >= league.rank;
+
+              return (
+                <li key={`${league.type}-${league.name}`} className="min-w-0">
+                  <Link
+                    href={`/${locale}/liderlik-tablosu`}
+                    className="block min-w-0 rounded-md py-0.5 text-[0.68rem] font-bold leading-4 text-slate-700 outline-none hover:text-teal-800 focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+                  >
+                    <span className="block break-words">{league.name}</span>
+                    <span className="block tabular-nums text-teal-800">{hasLeagueRank ? `#${league.rank} / ${league.totalRankedMembers}` : copy.notRanked}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+      <Link
+        href={globalHref}
+        className="mt-2 inline-flex min-h-8 items-center text-[0.65rem] font-black text-teal-800 outline-none hover:text-teal-950 focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+      >
+        {copy.openLeaderboard} →
+      </Link>
+    </div>
+  );
+}
+
 export function MemberPortfolioOverview({
   locale,
   totalValueUsd,
   cashValueUsd,
   items,
   performancePeriods,
+  rankSummary,
 }: MemberPortfolioOverviewProps) {
   const tr = locale === "tr";
   const copy = tr
@@ -130,6 +211,10 @@ export function MemberPortfolioOverview({
         empty: "Dağılımı göstermek için henüz portföy verisi yok.",
         other: "Diğer varlıklar",
         itemCount: "varlık",
+        globalRank: "Genel portföy sıran",
+        leagueRanks: "Lig sıralamaların",
+        notRanked: "Henüz sıralamada değilsin",
+        openLeaderboard: "Liderlik tablosunu aç",
       }
     : {
         eyebrow: "Virtual portfolio",
@@ -148,6 +233,10 @@ export function MemberPortfolioOverview({
         empty: "Portfolio data is not available for an allocation view yet.",
         other: "Other assets",
         itemCount: "assets",
+        globalRank: "Your global portfolio rank",
+        leagueRanks: "Your league ranks",
+        notRanked: "You are not ranked yet",
+        openLeaderboard: "Open leaderboard",
       };
   const safeTotal = Number.isFinite(totalValueUsd) && totalValueUsd > 0 ? totalValueUsd : 0;
   const safeCash = Number.isFinite(cashValueUsd) ? cashValueUsd : 0;
@@ -183,6 +272,7 @@ export function MemberPortfolioOverview({
           <div className="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-2.5">
             <dt className="text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{copy.total}</dt>
             <dd className="mt-1 text-sm font-black tabular-nums text-slate-950 sm:text-base">{formatUsd(totalValueUsd, locale)}</dd>
+            <PortfolioRankSummary locale={locale} summary={rankSummary} copy={copy} />
           </div>
           <div className="rounded-2xl border border-teal-100 bg-teal-50/80 px-3 py-2.5">
             <dt className="text-[0.65rem] font-bold uppercase tracking-[0.1em] text-teal-700">{copy.cash}</dt>

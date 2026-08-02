@@ -1,8 +1,10 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type {
   CompetitionPeriodResult,
   ViewerLeagueCompetitionResult,
 } from "@/lib/competition-results";
+import type { PortfolioEquityLeaderboardResult } from "@/lib/portfolio-equity-leaderboard";
 import type { PortfolioPeriodKey } from "@/lib/portfolio-history";
 
 type CompetitionResultsViewProps = {
@@ -10,6 +12,7 @@ type CompetitionResultsViewProps = {
   periods: CompetitionPeriodResult[];
   selectedPeriodKey: PortfolioPeriodKey;
   leagues: ViewerLeagueCompetitionResult[];
+  globalBoard?: PortfolioEquityLeaderboardResult;
 };
 
 const periodLabels: Record<"tr" | "en", Record<PortfolioPeriodKey, string>> = {
@@ -59,6 +62,7 @@ export function CompetitionResultsView({
   periods,
   selectedPeriodKey,
   leagues,
+  globalBoard,
 }: CompetitionResultsViewProps) {
   const isEnglish = locale === "en";
   const selectedPeriod = periods.find((period) => period.key === selectedPeriodKey) ?? periods[0];
@@ -85,6 +89,15 @@ export function CompetitionResultsView({
 
   return (
     <div className="grid min-w-0 gap-6">
+      {globalBoard ? (
+        <GlobalPortfolioStandings
+          locale={locale}
+          board={globalBoard}
+          selectedPeriodKey={selectedPeriod.key}
+          selectedPeriodPage={selectedPeriod.page}
+        />
+      ) : null}
+
       <section aria-labelledby="period-summaries-title">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -232,6 +245,185 @@ export function CompetitionResultsView({
       <LeagueResults locale={locale} leagues={leagues} />
       <OverallStandings locale={locale} period={selectedPeriod} />
     </div>
+  );
+}
+
+function GlobalPortfolioStandings({
+  locale,
+  board,
+  selectedPeriodKey,
+  selectedPeriodPage,
+}: {
+  locale: "tr" | "en";
+  board: PortfolioEquityLeaderboardResult;
+  selectedPeriodKey: PortfolioPeriodKey;
+  selectedPeriodPage: number;
+}) {
+  const isEnglish = locale === "en";
+  const title = isEnglish ? "Global total portfolio standings" : "Toplam portföy sıralaması";
+
+  return (
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm" aria-labelledby="global-portfolio-standings-title">
+      <div className="border-b border-teal-100 bg-teal-50/70 px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
+              {isEnglish ? "All verified portfolios" : "Tüm doğrulanmış portföyler"}
+            </p>
+            <h2 id="global-portfolio-standings-title" className="mt-1 text-xl font-black text-[#152033] sm:text-2xl">
+              {title}
+            </h2>
+          </div>
+          <p className="text-sm font-bold tabular-nums text-slate-700">
+            {board.totalRankedParticipants} {isEnglish ? "participants" : "katılımcı"}
+          </p>
+        </div>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          {isEnglish
+            ? "Ordered by total portfolio value in USD, not by return."
+            : "Getiriye göre değil, USD toplam portföy değerine göre sıralanır."}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          {isEnglish ? "Valuation as of" : "Değerleme zamanı"}: {formatValuationTimestamp(board.valuationAsOf, locale)}
+        </p>
+        {board.excludedUnreliableCount > 0 ? (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950" role="status">
+            {isEnglish
+              ? `${board.excludedUnreliableCount} portfolio(s) were excluded because a reliable current valuation was unavailable.`
+              : `${board.excludedUnreliableCount} portföy güvenilir değerleme olmadığı için dahil edilmedi.`}
+          </p>
+        ) : null}
+      </div>
+
+      {board.totalRankedParticipants === 0 ? (
+        <div className="p-5" role="status">
+          <p className="font-black text-[#152033]">
+            {isEnglish ? "No portfolio is ranked globally yet." : "Henüz küresel portföy sıralaması oluşmadı."}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            {isEnglish
+              ? "Only portfolios with a reliable current valuation are listed."
+              : "Yalnız güvenilir güncel değerlemesi bulunan portföyler listelenir."}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="hidden lg:block">
+            <table className="w-full table-fixed border-collapse text-left">
+              <caption className="sr-only">{title}</caption>
+              <thead className="border-b border-slate-200 text-xs font-black uppercase tracking-[0.1em] text-slate-500">
+                <tr>
+                  <th scope="col" className="w-20 px-4 py-3">{isEnglish ? "Rank" : "Sıra"}</th>
+                  <th scope="col" className="w-[19%] px-4 py-3">{isEnglish ? "Participant" : "Katılımcı"}</th>
+                  <th scope="col" className="w-[18%] px-4 py-3">{isEnglish ? "Leagues" : "Ligler"}</th>
+                  <th scope="col" className="w-[16%] px-4 py-3 text-right">{isEnglish ? "Total portfolio ($USD)" : "Toplam portföy ($USD)"}</th>
+                  <th scope="col" className="w-[14%] px-4 py-3 text-right">{isEnglish ? "Total return" : "Toplam getiri"}</th>
+                  <th scope="col" className="w-[13%] px-4 py-3 text-right">{isEnglish ? "Monthly" : "Aylık"}</th>
+                  <th scope="col" className="w-[13%] px-4 py-3 text-right">{isEnglish ? "Weekly" : "Haftalık"}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {board.rows.map((row, index) => (
+                  <tr key={`${row.rank}-${row.alias}-${index}`} className={row.isViewer ? "bg-emerald-50" : ""}>
+                    <td className="px-4 py-4 font-black tabular-nums text-slate-600"><RankValue rank={row.rank} locale={locale} /></td>
+                    <th scope="row" className="min-w-0 break-words px-4 py-4 font-black text-[#152033]">
+                      {safeAlias(row.alias, locale)}
+                      {row.isViewer ? <span className="ml-2 rounded-full bg-[#0f766e] px-2 py-1 text-[10px] font-black uppercase text-white">{isEnglish ? "You" : "Sen"}</span> : null}
+                    </th>
+                    <td className="min-w-0 break-words px-4 py-4 text-sm font-semibold text-slate-600">{row.leagueNames.length > 0 ? row.leagueNames.join(", ") : "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-right font-black tabular-nums text-slate-800">{formatUsd(row.totalValueUsd, locale)}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-right font-black tabular-nums text-slate-700"><NullablePercent value={row.totalReturnPercent} locale={locale} label={isEnglish ? "Total return unavailable" : "Toplam getiri kullanılamıyor"} /></td>
+                    <td className="whitespace-nowrap px-4 py-4 text-right font-black tabular-nums text-slate-700"><NullablePercent value={row.monthlyReturnPercent} locale={locale} label={isEnglish ? "Monthly return unavailable" : "Aylık getiri kullanılamıyor"} /></td>
+                    <td className="whitespace-nowrap px-4 py-4 text-right font-black tabular-nums text-slate-700"><NullablePercent value={row.weeklyReturnPercent} locale={locale} label={isEnglish ? "Weekly return unavailable" : "Haftalık getiri kullanılamıyor"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <ol className="divide-y divide-slate-100 lg:hidden" aria-label={title}>
+            {board.rows.map((row, index) => (
+              <li key={`${row.rank}-${row.alias}-${index}`} className={`min-w-0 p-4 ${row.isViewer ? "bg-emerald-50 ring-1 ring-inset ring-emerald-200" : ""}`}>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <p className="min-w-0 break-words font-black text-[#152033]">
+                    {safeAlias(row.alias, locale)}
+                    {row.isViewer ? <span className="ml-2 text-[10px] font-black uppercase text-[#0f766e]">({isEnglish ? "You" : "Sen"})</span> : null}
+                  </p>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-sm font-black tabular-nums text-slate-700"><RankValue rank={row.rank} locale={locale} /></span>
+                </div>
+                <p className="mt-2 break-words text-xs font-semibold leading-5 text-slate-600">{row.leagueNames.length > 0 ? row.leagueNames.join(", ") : "—"}</p>
+                <dl className="mt-3 grid min-w-0 grid-cols-2 gap-x-4 gap-y-2">
+                  <Metric label={isEnglish ? "Total portfolio" : "Toplam portföy"}>{formatUsd(row.totalValueUsd, locale)}</Metric>
+                  <Metric label={isEnglish ? "Total return" : "Toplam getiri"}><NullablePercent value={row.totalReturnPercent} locale={locale} label={isEnglish ? "Total return unavailable" : "Toplam getiri kullanılamıyor"} /></Metric>
+                  <Metric label={isEnglish ? "Monthly" : "Aylık"}><NullablePercent value={row.monthlyReturnPercent} locale={locale} label={isEnglish ? "Monthly return unavailable" : "Aylık getiri kullanılamıyor"} /></Metric>
+                  <Metric label={isEnglish ? "Weekly" : "Haftalık"}><NullablePercent value={row.weeklyReturnPercent} locale={locale} label={isEnglish ? "Weekly return unavailable" : "Haftalık getiri kullanılamıyor"} /></Metric>
+                </dl>
+              </li>
+            ))}
+          </ol>
+          <GlobalLeaderboardPagination
+            locale={locale}
+            board={board}
+            selectedPeriodKey={selectedPeriodKey}
+            selectedPeriodPage={selectedPeriodPage}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
+function Metric({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="min-w-0"><dt className="text-xs font-bold text-slate-500">{label}</dt><dd className="mt-0.5 break-words text-sm font-black tabular-nums text-slate-800">{children}</dd></div>;
+}
+
+function RankValue({ rank, locale }: { rank: number | null | undefined; locale: "tr" | "en" }) {
+  return typeof rank === "number" && Number.isSafeInteger(rank) && rank >= 1
+    ? <>#{rank}</>
+    : <span aria-label={locale === "en" ? "Rank unavailable" : "Sıra kullanılamıyor"}>—</span>;
+}
+
+function NullablePercent({ value, locale, label }: { value: number | null; locale: "tr" | "en"; label: string }) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? <>{formatPercent(value, locale)}</>
+    : <span aria-label={label}>—</span>;
+}
+
+function safeAlias(alias: string, locale: "tr" | "en") {
+  return alias.trim() || (locale === "en" ? "Participant" : "Katılımcı");
+}
+
+function GlobalLeaderboardPagination({
+  locale,
+  board,
+  selectedPeriodKey,
+  selectedPeriodPage,
+}: {
+  locale: "tr" | "en";
+  board: PortfolioEquityLeaderboardResult;
+  selectedPeriodKey: PortfolioPeriodKey;
+  selectedPeriodPage: number;
+}) {
+  const isEnglish = locale === "en";
+  const pageNumbers = getPaginationPages(board.page, board.pageCount);
+  const previousPage = board.page - 1;
+  const nextPage = board.page + 1;
+  const linkClassName = "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-black text-[#0f766e] outline-none hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2";
+  const paginationLink = (page: number, label: string, disabled = false, current = false) => {
+    if (disabled || current) return <span aria-current={current ? "page" : undefined} aria-disabled={disabled || undefined} className={`${linkClassName} cursor-default ${current ? "border-[#0f766e] bg-emerald-50 text-[#152033]" : "opacity-50"}`}>{label}</span>;
+    return <Link href={getGlobalLeaderboardHref(locale, selectedPeriodKey, selectedPeriodPage, page)} className={linkClassName}>{label}</Link>;
+  };
+
+  return (
+    <nav className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5" aria-label={isEnglish ? "Global portfolio ranking pages" : "Toplam portföy sıralaması sayfaları"}>
+      <p className="text-sm font-bold tabular-nums text-slate-700">{board.firstRowIndex}–{board.lastRowIndex} / {board.totalRankedParticipants}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {paginationLink(1, isEnglish ? "First" : "İlk", board.page === 1)}
+        {paginationLink(previousPage, isEnglish ? "Previous" : "Önceki", previousPage < 1)}
+        {pageNumbers.map((page) => <span key={page}>{paginationLink(page, String(page), false, page === board.page)}</span>)}
+        {paginationLink(nextPage, isEnglish ? "Next" : "Sonraki", nextPage > board.pageCount)}
+      </div>
+    </nav>
   );
 }
 
@@ -573,6 +765,10 @@ function getLeaderboardHref(locale: "tr" | "en", periodKey: PortfolioPeriodKey, 
   return `/${locale}/liderlik-tablosu?donem=${periodKey}&sayfa=${page}`;
 }
 
+function getGlobalLeaderboardHref(locale: "tr" | "en", periodKey: PortfolioPeriodKey, periodPage: number, globalPage: number) {
+  return `/${locale}/liderlik-tablosu?donem=${periodKey}&sayfa=${periodPage}&toplamSayfa=${globalPage}`;
+}
+
 function formatPercent(value: number, locale: "tr" | "en") {
   const normalizedValue = value === 0 ? 0 : value;
   const absoluteValue = Math.abs(normalizedValue);
@@ -600,12 +796,25 @@ function formatReturn(value: number, locale: "tr" | "en") {
 }
 
 function formatUsd(value: number, locale: "tr" | "en") {
+  if (!Number.isFinite(value)) return "—";
+
   return new Intl.NumberFormat(locale === "en" ? "en-US" : "tr-TR", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatValuationTimestamp(value: string, locale: "tr" | "en") {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "tr-TR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Istanbul",
+  }).format(date);
 }
 
 function formatSignedUsd(value: number, locale: "tr" | "en") {
