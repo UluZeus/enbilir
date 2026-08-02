@@ -1,14 +1,15 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import type { LeagueType } from "@/generated/prisma/enums";
+import type { CashMode, DisplayNameMode, LeagueType } from "@/generated/prisma/enums";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
+import type { MarketItem } from "@/lib/market-data";
 import {
   buildPortfolioPerformancePeriods,
   calculatePercentChange,
   normalizePortfolioHistory,
 } from "@/lib/portfolio-history";
-import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
+import { getCashModeUsdRate, hasVerifiedPortfolioQuote, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 
@@ -59,6 +60,19 @@ type RankedEquityCandidate = EquityCandidate & {
   rank: number;
 };
 
+type ReadOnlyPortfolioPosition = {
+  symbol: string;
+  quantity: number;
+};
+
+type ReadOnlyVirtualAccount = {
+  cashMode: CashMode;
+  cashAmount: number;
+  dailyRepoRate: number;
+  repoLastAccruedAt: Date | null;
+  updatedAt: Date;
+};
+
 const cashFxSymbolByMode = {
   EUR: "EUR/USD",
   CHF: "USD/CHF",
@@ -93,8 +107,12 @@ function safeNickname(nickname: string | null) {
   return trimmed || null;
 }
 
-export function createPortfolioParticipantAlias(userId: string, nickname: string | null) {
-  const safe = safeNickname(nickname);
+export function createPortfolioParticipantAlias(
+  userId: string,
+  nickname: string | null,
+  displayNameMode: DisplayNameMode,
+) {
+  const safe = displayNameMode === "NICKNAME" ? safeNickname(nickname) : null;
   if (safe) return safe;
 
   const hashPrefix = createHash("sha256").update(userId).digest("hex").slice(0, 6).toUpperCase();
@@ -124,6 +142,92 @@ function normalizeRequestedPage(requestedPage: number) {
   return Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
 }
 
+function findMarketItem(marketItems: MarketItem[], symbol: string) {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  return marketItems.find((item) => item.symbol.trim().toUpperCase() === normalizedSymbol);
+}
+
+function calculateReadOnlyPositionsValueUsd(
+  positions: ReadOnlyPortfolioPosition[],
+  marketItems: MarketItem[],
+  now: Date,
+) {
+  let totalValueUsd = 0;
+  for (const position of positions) {
+    if (!Number.isFinite(position.quantity) || position.quantity < 0) return null;
+    if (position.quantity === 0) continue;
+
+    const quote = findMarketItem(marketItems, position.symbol);
+    if (
+      !hasVerifiedPortfolioQuote(quote, now.getTime())
+      || !quote
+      || !Number.isFinite(quote.priceUsd)
+      || quote.priceUsd <= 0
+    ) {
+      return null;
+    }
+
+    const valueUsd = position.quantity * quote.priceUsd;
+    if (!Number.isFinite(valueUsd)) return null;
+    totalValueUsd += valueUsd;
+  }
+
+  return Number.isFinite(totalValueUsd) ? totalValueUsd : null;
+}
+
+async function calculateReadOnlyCashValueUsd(
+  account: ReadOnlyVirtualAccount,
+  marketItems: MarketItem[],
+  now: Date,
+) {
+  if (!Number.isFinite(account.cashAmount) || account.cashAmount < 0) return null;
+
+  let cashAmount = account.cashAmount;
+  if (account.cashMode === "TRY_REPO") {
+    const lastAccruedAt = account.repoLastAccruedAt ?? account.updatedAt;
+    const lastAccruedAtMs = lastAccruedAt.getTime();
+    const elapsedDays = Math.floor((now.getTime() - lastAccruedAtMs) / 86_400_000);
+    if (!Number.isFinite(lastAccruedAtMs) || !Number.isFinite(account.dailyRepoRate)) return null;
+
+    if (elapsedDays > 0) {
+      const factor = Math.pow(1 + account.dailyRepoRate, elapsedDays);
+      if (!Number.isFinite(factor) || factor < 0) return null;
+      cashAmount *= factor;
+    }
+  }
+
+  if (!Number.isFinite(cashAmount) || cashAmount < 0) return null;
+  if (account.cashMode === "USD") return cashAmount;
+
+  const cashFxSymbol = cashFxSymbolByMode[account.cashMode];
+  const cashFxQuote = findMarketItem(marketItems, cashFxSymbol);
+  if (!hasVerifiedPortfolioQuote(cashFxQuote, now.getTime())) return null;
+
+  const rateToUsd = await getCashModeUsdRate(account.cashMode, marketItems);
+  if (rateToUsd === null || !Number.isFinite(rateToUsd) || rateToUsd <= 0) return null;
+
+  const cashValueUsd = cashAmount * rateToUsd;
+  return Number.isFinite(cashValueUsd) ? cashValueUsd : null;
+}
+
+async function calculateReadOnlyTotalValueUsd(
+  account: ReadOnlyVirtualAccount | null,
+  positions: ReadOnlyPortfolioPosition[],
+  marketItems: MarketItem[],
+  now: Date,
+) {
+  if (!account) return null;
+
+  const [cashValueUsd, positionsValueUsd] = await Promise.all([
+    calculateReadOnlyCashValueUsd(account, marketItems, now),
+    Promise.resolve(calculateReadOnlyPositionsValueUsd(positions, marketItems, now)),
+  ]);
+  if (cashValueUsd === null || positionsValueUsd === null) return null;
+
+  const totalValueUsd = cashValueUsd + positionsValueUsd;
+  return Number.isFinite(totalValueUsd) && totalValueUsd >= 0 ? totalValueUsd : null;
+}
+
 export async function getPortfolioEquityLeaderboard(
   viewerUserId: string,
   now = new Date(),
@@ -138,17 +242,22 @@ export async function getPortfolioEquityLeaderboard(
     select: {
       id: true,
       nickname: true,
-      virtualAccount: { select: { cashMode: true } },
+      displayNameMode: true,
+      virtualAccount: {
+        select: {
+          cashMode: true,
+          cashAmount: true,
+          dailyRepoRate: true,
+          repoLastAccruedAt: true,
+          updatedAt: true,
+        },
+      },
+      positions: { select: { symbol: true, quantity: true } },
     },
   });
   const userIds = users.map((user) => user.id);
 
-  const [heldSymbols, snapshots, weeklyBaselines, activeMemberships, viewerLeagueMemberships] = await Promise.all([
-    prisma.portfolioPosition.findMany({
-      where: { userId: { in: userIds } },
-      select: { symbol: true },
-      distinct: ["symbol"],
-    }),
+  const [snapshots, weeklyBaselines, activeMemberships, viewerLeagueMemberships] = await Promise.all([
     prisma.portfolioSnapshot.findMany({
       where: { userId: { in: userIds }, valuationStatus: "VERIFIED" },
       select: {
@@ -197,7 +306,7 @@ export async function getPortfolioEquityLeaderboard(
   }
 
   const requestedSymbols = Array.from(new Set([
-    ...heldSymbols.map((position) => position.symbol),
+    ...users.flatMap((user) => user.positions.map((position) => position.symbol)),
     ...users.flatMap((user) => {
       const mode = user.virtualAccount?.cashMode;
       return mode && mode !== "USD" ? [cashFxSymbolByMode[mode]] : [];
@@ -209,29 +318,29 @@ export async function getPortfolioEquityLeaderboard(
   const candidates: EquityCandidate[] = [];
   for (const user of users) {
     try {
-      const snapshot = await getPortfolioSnapshot(user.id, marketItems);
-      if (snapshot.hasUnreliableValuation) {
-        excludedUnreliableCount += 1;
-        continue;
-      }
-
-      const totalValueMicroUsd = canonicalMicroUsd(snapshot.totalValueUsd);
+      const totalValueUsd = await calculateReadOnlyTotalValueUsd(
+        user.virtualAccount,
+        user.positions,
+        marketItems,
+        now,
+      );
+      const totalValueMicroUsd = totalValueUsd === null ? null : canonicalMicroUsd(totalValueUsd);
       if (totalValueMicroUsd === null) {
         excludedUnreliableCount += 1;
         continue;
       }
 
-      const totalValueUsd = microUsdToUsd(totalValueMicroUsd);
+      const canonicalTotalValueUsd = microUsdToUsd(totalValueMicroUsd);
       const history = normalizePortfolioHistory(
         snapshotHistoryByUserId.get(user.id) ?? [],
         baselineHistoryByUserId.get(user.id) ?? [],
       );
       candidates.push({
         userId: user.id,
-        alias: createPortfolioParticipantAlias(user.id, user.nickname),
+        alias: createPortfolioParticipantAlias(user.id, user.nickname, user.displayNameMode),
         totalValueMicroUsd,
-        weeklyReturnPercent: getPeriodReturn(history, totalValueUsd, now, "WEEKLY"),
-        monthlyReturnPercent: getPeriodReturn(history, totalValueUsd, now, "MONTHLY"),
+        weeklyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, now, "WEEKLY"),
+        monthlyReturnPercent: getPeriodReturn(history, canonicalTotalValueUsd, now, "MONTHLY"),
       });
     } catch {
       // A current equity rank cannot use a stale or synthetic fallback valuation.
