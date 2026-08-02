@@ -90,6 +90,7 @@ const cashFxSymbolByMode = {
 // Mirrors the maximum accepted Yahoo market-closed valuation age: the
 // leaderboard does not mutate positions to repair corporate-action state.
 const maximumCorporateActionVerificationAgeMs = 96 * 60 * 60 * 1_000;
+const clearEmailAddressPattern = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/u;
 
 function canonicalMicroUsd(valueUsd: number) {
   if (!Number.isFinite(valueUsd) || valueUsd < 0) return null;
@@ -121,7 +122,7 @@ export function createPortfolioParticipantAlias(
   displayNameMode: DisplayNameMode,
 ) {
   const displayName = (displayNameMode === "NICKNAME" ? nickname : name)?.trim();
-  if (displayName) return displayName;
+  if (displayName && !clearEmailAddressPattern.test(displayName)) return displayName;
 
   const hashPrefix = createHash("sha256").update(userId).digest("hex").slice(0, 6).toUpperCase();
   return `Participant #${hashPrefix}`;

@@ -273,6 +273,33 @@ describe("portfolio equity leaderboard", () => {
     expect(serialized).not.toContain("Blank Nickname Real Name");
   });
 
+  it("never exposes an email-shaped selected label in either display mode", async () => {
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("email-real-name", {
+        name: "  legacy.real@example.test  ",
+        displayNameMode: "REAL_NAME",
+        cashAmount: 1_100_000,
+      }),
+      participant("email-nickname", {
+        name: "Private Real Name",
+        nickname: "legacy.nick+board@example.test",
+        displayNameMode: "NICKNAME",
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([]);
+
+    const result = await getPortfolioEquityLeaderboard("email-real-name", now);
+    const serialized = JSON.stringify(result);
+
+    expect(result.rows.map((row) => row.alias)).toEqual([
+      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
+      expect.stringMatching(/^Participant #[A-F0-9]{6}$/),
+    ]);
+    expect(serialized).not.toContain("legacy.real@example.test");
+    expect(serialized).not.toContain("legacy.nick+board@example.test");
+    expect(serialized).not.toContain("Private Real Name");
+  });
+
   it("never mixes a reliable live row with a missing quote when no common cohort exists", async () => {
     leaderboardMocks.userFindMany.mockResolvedValue([
       participant("reliable-eur", {
