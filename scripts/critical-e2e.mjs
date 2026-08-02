@@ -414,9 +414,11 @@ async function main() {
     const openButton = mobilePage.getByRole("button", { name: "Menüyü aç" });
     await openButton.click();
     await mobilePage.locator(".mobile-menu-close-button").click();
-    await mobilePage.waitForTimeout(50);
-    const returnedFocus = await mobilePage.evaluate(() => document.activeElement?.getAttribute("aria-label"));
-    if (returnedFocus !== "Menüyü aç") throw new Error("Mobile menu did not restore focus to its opener.");
+    await mobilePage.waitForFunction(
+      () => document.activeElement?.getAttribute("aria-label") === "Menüyü aç",
+      undefined,
+      { timeout: 1_500 },
+    );
     const overflow = await mobilePage.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       viewportWidth: window.innerWidth,

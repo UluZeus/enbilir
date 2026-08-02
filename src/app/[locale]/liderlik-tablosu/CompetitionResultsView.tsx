@@ -80,6 +80,8 @@ export function CompetitionResultsView({
   const totalExcluded = selectedPeriod.excludedCounts.partialOrMissing
     + selectedPeriod.excludedCounts.stalePrice
     + selectedPeriod.excludedCounts.unreliable;
+  const rankedPeriods = periods.filter((period) => period.totalRankedParticipants > 0);
+  const unavailablePeriods = periods.filter((period) => period.totalRankedParticipants === 0);
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -100,16 +102,25 @@ export function CompetitionResultsView({
           </p>
         </div>
 
-        <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {periods.map((period) => (
-            <PeriodSummaryCard
-              key={period.key}
-              locale={locale}
-              period={period}
-              selected={period.key === selectedPeriod.key}
-            />
-          ))}
-        </div>
+        {rankedPeriods.length > 0 ? (
+          <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {rankedPeriods.map((period) => (
+              <PeriodSummaryCard
+                key={period.key}
+                locale={locale}
+                period={period}
+                selected={period.key === selectedPeriod.key}
+              />
+            ))}
+          </div>
+        ) : null}
+        {unavailablePeriods.length > 0 ? (
+          <UnavailablePeriodSummaries
+            locale={locale}
+            periods={unavailablePeriods}
+            selectedPeriodKey={selectedPeriod.key}
+          />
+        ) : null}
       </section>
 
       <section className="premium-card min-w-0 p-5 sm:p-6" aria-labelledby="selected-period-title">
@@ -237,7 +248,7 @@ function PeriodSummaryCard({
   const cardId = `period-summary-${period.key.toLowerCase()}`;
 
   return (
-    <article aria-labelledby={cardId} className={`min-w-0 rounded-2xl border bg-white p-4 shadow-sm ${selected ? "border-[#0f766e] ring-2 ring-[#0f766e]/20" : "border-slate-200"}`}>
+    <article data-period-summary-card="available" aria-labelledby={cardId} className={`min-w-0 rounded-2xl border bg-white p-4 shadow-sm ${selected ? "border-[#0f766e] ring-2 ring-[#0f766e]/20" : "border-slate-200"}`}>
       <Link
         href={getLeaderboardHref(locale, period.key, 1)}
         aria-current={selected ? "page" : undefined}
@@ -250,29 +261,72 @@ function PeriodSummaryCard({
         </span>
       </Link>
 
-      {period.totalRankedParticipants === 0 ? (
-        <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+      <div className="mt-4 grid min-w-0 gap-4">
+        <SummaryList
+          title={isEnglish ? "Top three" : "İlk üç"}
+          rows={period.topRows}
+          locale={locale}
+          headingId={`${cardId}-top`}
+          listKind="top"
+        />
+        <SummaryList
+          title={isEnglish ? "Last three" : "Son üç"}
+          rows={period.bottomRows}
+          locale={locale}
+          headingId={`${cardId}-bottom`}
+          listKind="bottom"
+        />
+      </div>
+    </article>
+  );
+}
+
+function UnavailablePeriodSummaries({
+  locale,
+  periods,
+  selectedPeriodKey,
+}: {
+  locale: "tr" | "en";
+  periods: CompetitionPeriodResult[];
+  selectedPeriodKey: PortfolioPeriodKey;
+}) {
+  const isEnglish = locale === "en";
+  const headingId = "unavailable-period-summaries-title";
+  const messageId = "unavailable-period-summaries-message";
+
+  return (
+    <section data-unavailable-period-summaries="true" aria-labelledby={headingId} className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+        <h3 id={headingId} className="text-sm font-black text-[#152033]">
+          {isEnglish ? "Periods waiting for verified coverage" : "Doğrulanmış kapsam bekleyen dönemler"}
+        </h3>
+        <p id={messageId} className="text-sm leading-6 text-slate-600">
           {getEmptyPeriodMessage(locale)}
         </p>
-      ) : (
-        <div className="mt-4 grid min-w-0 gap-4">
-          <SummaryList
-            title={isEnglish ? "Top three" : "İlk üç"}
-            rows={period.topRows}
-            locale={locale}
-            headingId={`${cardId}-top`}
-            listKind="top"
-          />
-          <SummaryList
-            title={isEnglish ? "Last three" : "Son üç"}
-            rows={period.bottomRows}
-            locale={locale}
-            headingId={`${cardId}-bottom`}
-            listKind="bottom"
-          />
-        </div>
-      )}
-    </article>
+      </div>
+      <ul className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label={isEnglish ? "Unavailable result periods" : "Sonuç bekleyen dönemler"}>
+        {periods.map((period) => {
+          const selected = period.key === selectedPeriodKey;
+          const label = periodLabels[locale][period.key];
+
+          return (
+            <li key={period.key} className="min-w-0">
+              <Link
+                data-unavailable-period-link="true"
+                href={getLeaderboardHref(locale, period.key, 1)}
+                aria-current={selected ? "page" : undefined}
+                aria-describedby={messageId}
+                aria-label={isEnglish ? `Open ${label} results awaiting verified coverage` : `Doğrulanmış kapsam bekleyen ${label} sonuçlarını aç`}
+                className={`flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black outline-none hover:border-[#0f766e] hover:bg-white focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2 ${selected ? "border-[#0f766e] bg-white text-[#152033] ring-1 ring-[#0f766e]/20" : "border-slate-200 bg-white text-slate-700"}`}
+              >
+                <span className="min-w-0 break-words">{label}</span>
+                <span className="shrink-0 text-xs font-bold text-slate-500">{isEnglish ? "Waiting" : "Bekliyor"}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

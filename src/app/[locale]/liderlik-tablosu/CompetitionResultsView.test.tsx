@@ -176,6 +176,32 @@ describe("CompetitionResultsView", () => {
     expect(turkishHtml).toContain("Bu, dönem getirisinin yüzde sıfır olduğu anlamına gelmez.");
   });
 
+  it("keeps unavailable periods compact while preserving all six accessible result links", () => {
+    const unavailablePeriods = periods.map((period) => ({
+      ...period,
+      totalRankedParticipants: 0,
+      leaderReturnPercent: null,
+      topRows: [],
+      bottomRows: [],
+      rows: [],
+      viewerRow: null,
+      firstRowIndex: 0,
+      lastRowIndex: 0,
+      viewerPage: null,
+    }));
+    const html = renderToStaticMarkup(
+      <CompetitionResultsView locale="tr" periods={unavailablePeriods} selectedPeriodKey="YEARLY" leagues={[]} />,
+    );
+
+    expect(html).toContain('data-unavailable-period-summaries="true"');
+    expect((html.match(/data-period-summary-card="available"/g) ?? [])).toHaveLength(0);
+    expect((html.match(/data-unavailable-period-link="true"/g) ?? [])).toHaveLength(6);
+    expect((html.match(/Bu, dönem getirisinin yüzde sıfır olduğu anlamına gelmez\./g) ?? [])).toHaveLength(2);
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=DAILY&amp;sayfa=1"');
+    expect(html).toContain('href="/tr/liderlik-tablosu?donem=YEARLY&amp;sayfa=1"');
+  });
+
   it("renders page links, range, and a private viewer shortcut without loading all participants", () => {
     const manyRows = Array.from({ length: 53 }, (_, index) => ({
       displayName: `Katılımcı ${index + 1}`,
