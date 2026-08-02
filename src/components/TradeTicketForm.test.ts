@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getGateExecutionNote, getTradeExecutionStatus } from "@/components/TradeTicketForm";
+import { getGateExecutionNote, getTradeExecutionStatus, getTradeResultAnnouncementProps } from "@/components/TradeTicketForm";
 import type { MarketItem } from "@/lib/market-data";
 
 function marketItem(overrides: Partial<MarketItem> = {}): MarketItem {
@@ -85,5 +85,12 @@ describe("getGateExecutionNote", () => {
     expect(getGateExecutionNote("yahoo", "tr")).toBeNull();
     expect(getGateExecutionNote("binance", "en")).toBeNull();
     expect(getGateExecutionNote(undefined, "en")).toBeNull();
+  });
+});
+
+describe("getTradeResultAnnouncementProps", () => {
+  it("announces successful virtual trades politely and failures assertively", () => {
+    expect(getTradeResultAnnouncementProps(true)).toEqual({ role: "status", "aria-live": "polite" });
+    expect(getTradeResultAnnouncementProps(false)).toEqual({ role: "alert", "aria-live": "assertive" });
   });
 });

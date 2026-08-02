@@ -28,6 +28,8 @@
     "weekly:publish-results": "node scripts/run-weekly-competition-cron.mjs",
     "weekly:install-cron": "node scripts/install-weekly-competition-cron.mjs",
     "operations:backup": "node scripts/backup-sqlite.mjs",
+    "operations:backup-with-retention": "node scripts/backup-with-retention.mjs",
+    "operations:prune-backups": "node scripts/prune-backup-sets.mjs",
     "operations:rehearse-restore": "node scripts/rehearse-restore.mjs",
     "operations:cleanup-chat-uploads": "node scripts/cleanup-chat-uploads.mjs",
     "operations:install-cron": "node scripts/install-operations-cron.mjs",

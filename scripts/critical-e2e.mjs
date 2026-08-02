@@ -16,6 +16,24 @@ const databasePath = path.join(testRoot, "e2e.db");
 const databaseUrl = `file:${databasePath.replaceAll("\\", "/")}`;
 let server;
 
+const responsiveViewports = [
+  { name: "mobile-narrow", width: 360, height: 800 },
+  { name: "mobile", width: 390, height: 844 },
+  { name: "tablet-portrait", width: 768, height: 1024 },
+  { name: "tablet-landscape", width: 1024, height: 900 },
+  { name: "laptop", width: 1280, height: 960 },
+  { name: "desktop", width: 1440, height: 1000 },
+];
+
+const syntheticUser = {
+  id: "critical-e2e-user",
+  name: "Critical E2E User",
+  nickname: "CriticalE2E",
+  displayNameMode: "NICKNAME",
+  email: "critical-e2e@enbilir.invalid",
+  role: "USER",
+};
+
 function run(command, args, env = process.env) {
   const result = spawnSync(command, args, {
     cwd: process.cwd(),
@@ -57,6 +75,110 @@ async function launchBrowser(chromium) {
     }
   }
   throw new Error("No Playwright-compatible Chromium browser is available.");
+}
+
+async function seedSyntheticUser() {
+  const { default: Database } = await import("better-sqlite3");
+  const database = new Database(databasePath);
+  const now = new Date().toISOString();
+
+  try {
+    database.prepare(`
+      INSERT INTO "User" (
+        "id", "name", "nickname", "displayNameMode", "email", "isActive", "emailVerifiedAt",
+        "role", "membershipTier", "createdAt", "updatedAt"
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      syntheticUser.id,
+      syntheticUser.name,
+      syntheticUser.nickname,
+      syntheticUser.displayNameMode,
+      syntheticUser.email,
+      1,
+      now,
+      syntheticUser.role,
+      "STANDARD",
+      now,
+      now,
+    );
+
+    database.prepare(`
+      INSERT INTO "VirtualAccount" (
+        "id", "userId", "cashMode", "cashAmount", "baseCurrency", "dailyRepoRate", "createdAt", "updatedAt"
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "critical-e2e-account",
+      syntheticUser.id,
+      "USD",
+      1_000_000,
+      "USD",
+      0.00125,
+      now,
+      now,
+    );
+  } finally {
+    database.close();
+  }
+}
+
+async function addSyntheticSession(context, secret) {
+  const { SignJWT } = await import("jose");
+  const token = await new SignJWT(syntheticUser)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(new TextEncoder().encode(secret));
+
+  await context.addCookies([{
+    name: "enbilir_session",
+    value: token,
+    url: baseUrl,
+    httpOnly: true,
+    sameSite: "Lax",
+  }]);
+}
+
+async function assertNoHorizontalOverflow(page, label) {
+  const layout = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+
+  if (layout.scrollWidth > layout.viewportWidth + 1) {
+    throw new Error(`${label} overflows horizontally (${layout.scrollWidth} > ${layout.viewportWidth}).`);
+  }
+}
+
+async function assertResponsiveMemberLayouts(browser, secret) {
+  const routes = [
+    "/tr/islem-yap",
+    "/tr/liderlik-tablosu?donem=DAILY",
+    "/tr/vip",
+    "/tr/vip/ajanlar",
+  ];
+
+  for (const viewport of responsiveViewports) {
+    const context = await browser.newContext({ viewport });
+    await context.addInitScript(() => {
+      localStorage.setItem("enbilir-guided-help:v3:guest:tr", "1");
+    });
+    await addSyntheticSession(context, secret);
+
+    try {
+      for (const route of routes) {
+        const page = await context.newPage();
+        try {
+          await page.goto(`${baseUrl}${route}`, { waitUntil: "domcontentloaded" });
+          await page.waitForTimeout(150);
+          await assertNoHorizontalOverflow(page, `${viewport.name} ${route}`);
+        } finally {
+          await page.close();
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  }
 }
 
 async function stopServer() {
@@ -226,6 +348,7 @@ async function main() {
   closeSync(openSync(databasePath, "a"));
   const prismaCli = path.join(process.cwd(), "node_modules", "prisma", "build", "index.js");
   run(process.execPath, [prismaCli, "migrate", "deploy"], runtimeEnv);
+  await seedSyntheticUser();
   if (process.env.E2E_USE_EXISTING_BUILD !== "true" || !existsSync(path.join(process.cwd(), ".next", "BUILD_ID"))) {
     run(npmCommand, [...npmArgumentPrefix, "run", "build"], runtimeEnv);
   }
@@ -302,6 +425,8 @@ async function main() {
       throw new Error(`Mobile page overflows horizontally (${overflow.scrollWidth} > ${overflow.viewportWidth}).`);
     }
     await mobile.close();
+
+    await assertResponsiveMemberLayouts(browser, runtimeEnv.AUTH_SECRET);
 
     const reducedMotion = await browser.newContext({
       viewport: { width: 1440, height: 1000 },

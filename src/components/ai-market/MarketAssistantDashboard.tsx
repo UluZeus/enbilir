@@ -224,9 +224,10 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
           getAssetLabel={getAssetLabel}
         />
 
+        {state.status === "loading" ? <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{copy.loadingData}</p> : null}
         {state.status === "error" ? <ErrorPanel title={copy.loadErrorTitle} message={state.error ?? copy.analysisUnavailable} /> : null}
         {state.analysis?.dataStatus !== "live" && state.analysis ? (
-          <div className="rounded-md border border-amber-300/30 bg-amber-300/10 p-3 text-sm font-semibold text-amber-100">
+          <div role="status" aria-live="polite" aria-atomic="true" className="rounded-md border border-amber-300/30 bg-amber-300/10 p-3 text-sm font-semibold text-amber-100">
             {copy.providerIssue}
           </div>
         ) : null}
@@ -291,7 +292,7 @@ function LoadingPanel({ label }: { label: string }) {
 
 function ErrorPanel({ title, message }: { title: string; message: string }) {
   return (
-    <div className="rounded-md border border-red-400/30 bg-red-400/10 p-4">
+    <div role="alert" aria-atomic="true" className="rounded-md border border-red-400/30 bg-red-400/10 p-4">
       <p className="font-black text-red-200">{title}</p>
       <p className="mt-1 text-sm text-red-100">{message}</p>
     </div>

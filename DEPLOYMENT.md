@@ -648,8 +648,24 @@ npm run operations:backup -- --apply
 
 `operations:install-cron` bu islemi her gun 03.15'te kilit, redakte log ve kalp atisiyla
 calistirir. Backup setleri ayri bir hesap/depolama alanina kopyalanmali; yerel VPS tek kopya
-olmamalidir. Otomatik saklama silme politikasi eklenmemistir; silme ayri, gozden gecirilen
-bir politika olmalidir.
+olmamalidir. Yerel diskte tutulan set sayisi varsayilan olarak 3'tur; bu sayi
+`BACKUP_RETENTION_COUNT` ile (en az 2) ayarlanabilir. Saklama islemi ancak ana backup
+basarili olduktan sonra ayni kilitli calisma icinde calisir. Silmeden once harici kopyanin SHA-256, SQLite
+butunluk ve migration gecmisi dogrulanmalidir. Elle incelemek icin:
+
+```bash
+npm run operations:prune-backups
+```
+
+Uygulamak icin:
+
+```bash
+npm run operations:prune-backups -- --apply
+```
+
+Windows operasyon bilgisayarinda harici kopya almak icin `scripts/sync-offsite-backup.ps1`
+gunde bir kez calistirilmalidir. Betik en yeni tamamlanmis seti atomik olarak alir ve
+manifestteki SHA-256 ile dogrular; yerel kopya dogrulanmadan sunucu backup'i silinmez.
 
 Backup araci sahiplik ve mod degisikligi yaptigi icin production backup cron'u `root`
 crontab'i altinda calismali, restore-prova komutu da root tarafindan elle calistirilmalidir.

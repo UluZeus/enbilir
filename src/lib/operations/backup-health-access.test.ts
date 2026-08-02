@@ -216,20 +216,23 @@ describe("backup health metadata access", () => {
     }
   });
 
-  it.runIf(process.platform !== "win32")("rejects symbolic links before changing permissions", () => {
-    const fixture = createBackupFixture();
-    const linkedPath = path.join(fixture.setPath, "uploads", "linked.txt");
-    symlinkSync(path.join(fixture.setPath, "database.db"), linkedPath);
-    chmodSync(fixture.root, 0o700);
+  it.runIf(process.platform !== "win32")(
+    "rejects symbolic links before changing permissions (POSIX-only; Windows requires elevated symlink privileges)",
+    () => {
+      const fixture = createBackupFixture();
+      const linkedPath = path.join(fixture.setPath, "uploads", "linked.txt");
+      symlinkSync(path.join(fixture.setPath, "database.db"), linkedPath);
+      chmodSync(fixture.root, 0o700);
 
-    expect(() =>
-      buildBackupHealthAccessPlan({
-        backupRoot: fixture.root,
-        setName,
-        groupId: 987,
-      }),
-    ).toThrow(/symbolic link/i);
-  });
+      expect(() =>
+        buildBackupHealthAccessPlan({
+          backupRoot: fixture.root,
+          setName,
+          groupId: 987,
+        }),
+      ).toThrow(/symbolic link/i);
+    },
+  );
 
   it("validates the complete plan before applying root-only payload permissions", () => {
     const fixture = createBackupFixture();

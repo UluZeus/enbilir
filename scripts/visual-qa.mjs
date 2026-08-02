@@ -16,12 +16,19 @@ const routePaths = [
   "/ligler",
   "/islem-yap",
   "/panel",
+  "/liderlik-tablosu?donem=DAILY",
+  "/vip",
+  "/vip/ajanlar",
 ];
 const guestRoutes = ["tr", "en"].flatMap((locale) => guestRoutePaths.map((route) => `/${locale}${route}`));
 const routes = ["tr", "en"].flatMap((locale) => routePaths.map((route) => `/${locale}${route}`));
 const viewports = [
+  { name: "mobile-narrow", width: 360, height: 1200 },
   { name: "desktop", width: 1440, height: 1200 },
   { name: "mobile", width: 390, height: 1200 },
+  { name: "tablet-portrait", width: 768, height: 1200 },
+  { name: "tablet-landscape", width: 1024, height: 1200 },
+  { name: "laptop", width: 1280, height: 1200 },
 ];
 
 async function main() {
@@ -90,6 +97,7 @@ async function captureRoutes({ context, routes: routeList, viewport, namePrefix 
         { timeout: settleDelayMs },
       ).catch(() => undefined);
       await page.waitForTimeout(800);
+      await assertNoHorizontalOverflow(page, `${viewport.name} ${namePrefix}${route}`);
       await page.screenshot({
         path: path.join(outputDir, `${viewport.name}-${namePrefix}${safeName}.png`),
         fullPage: true,
@@ -104,6 +112,17 @@ async function captureRoutes({ context, routes: routeList, viewport, namePrefix 
   }
 
   return failures;
+}
+
+async function assertNoHorizontalOverflow(page, label) {
+  const layout = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+
+  if (layout.scrollWidth > layout.viewportWidth + 1) {
+    throw new Error(`${label} overflows horizontally (${layout.scrollWidth} > ${layout.viewportWidth}).`);
+  }
 }
 
 async function launchBrowser(chromium) {

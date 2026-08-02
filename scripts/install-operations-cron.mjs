@@ -9,7 +9,7 @@ const marker = "# enbilir-operations-cron";
 const appDir = PRODUCTION_APP_DIRECTORY;
 const envFile = PRODUCTION_ENV_FILE;
 const cronLines = [
-  `15 3 * * * set -a && . ${envFile} && set +a && cd ${appDir} && flock -n /tmp/enbilir-backup.lock node scripts/run-with-heartbeat.mjs --job backup --log-dir /var/log/enbilir -- node scripts/backup-sqlite.mjs --apply ${marker}`,
+  `15 3 * * * set -a && . ${envFile} && set +a && cd ${appDir} && flock -n /tmp/enbilir-backup.lock node scripts/run-with-heartbeat.mjs --job backup --log-dir /var/log/enbilir -- node scripts/backup-with-retention.mjs --apply ${marker}`,
   `45 3 * * * set -a && . ${envFile} && set +a && cd ${appDir} && flock -n /tmp/enbilir-chat-upload-cleanup.lock node scripts/run-with-heartbeat.mjs --job chat-upload-cleanup --log-dir /var/log/enbilir -- node scripts/cleanup-chat-uploads.mjs --apply ${marker}`,
 ];
 

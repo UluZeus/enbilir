@@ -58,6 +58,18 @@ type TableState = {
   updatedAt: string | null;
 };
 
+export function getScrollableTableA11yCopy(locale: Locale) {
+  return locale === "en"
+    ? {
+        label: "Favorite analysis table. Scroll horizontally to view all columns.",
+        hint: "Scroll horizontally to view all columns",
+      }
+    : {
+        label: "Favori analiz tablosu. Tüm sütunları görmek için yatay kaydırın.",
+        hint: "Tüm sütunları görmek için yatay kaydırın",
+      };
+}
+
 const signalLabelsTr: Record<SignalType, string> = {
   STRONG_BUY: "Güçlü Al",
   BUY: "Al",
@@ -363,8 +375,20 @@ function DesktopTable({
   selectedChartSymbol: string | null;
   onToggleChart: (symbol: string) => void;
 }) {
+  const a11yCopy = getScrollableTableA11yCopy(locale);
+
   return (
-    <div className="mt-4 hidden overflow-x-auto md:block">
+    <>
+      <p id="favorite-analysis-table-scroll-hint" className="mt-3 hidden text-right text-xs font-semibold text-slate-500 md:block lg:hidden">
+        ↔ {a11yCopy.hint}
+      </p>
+      <div
+        className="mt-4 hidden overflow-x-auto rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0f766e] md:block"
+        role="region"
+        tabIndex={0}
+        aria-label={a11yCopy.label}
+        aria-describedby="favorite-analysis-table-scroll-hint"
+      >
       <table className="w-full min-w-[920px] table-fixed border-separate border-spacing-0 text-left text-sm">
         <colgroup>
           <col className="w-[13%]" />
@@ -404,7 +428,8 @@ function DesktopTable({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 

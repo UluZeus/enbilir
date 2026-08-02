@@ -63,6 +63,12 @@ function SubmitButton({
   );
 }
 
+export function getTradeResultAnnouncementProps(ok: boolean) {
+  return ok
+    ? { role: "status" as const, "aria-live": "polite" as const }
+    : { role: "alert" as const, "aria-live": "assertive" as const };
+}
+
 export function getTradeExecutionStatus(item: MarketItem | null, locale: "tr" | "en") {
   if (item?.executionEligible === true) {
     return { eligible: true, label: locale === "en" ? "Active" : "Aktif" };
@@ -426,6 +432,8 @@ export function TradeTicketForm({
 
         {state.message ? (
           <div
+            {...getTradeResultAnnouncementProps(state.ok)}
+            aria-atomic="true"
             data-tone={state.ok ? "success" : "error"}
             className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold leading-6 ${
               state.ok
