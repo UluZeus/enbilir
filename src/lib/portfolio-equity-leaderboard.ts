@@ -63,6 +63,8 @@ type RankedEquityCandidate = EquityCandidate & {
 type ReadOnlyPortfolioPosition = {
   symbol: string;
   quantity: number;
+  appliedSplitFactor: number;
+  corporateActionsCheckedAt: Date | null;
 };
 
 type ReadOnlyVirtualAccount = {
@@ -78,6 +80,10 @@ const cashFxSymbolByMode = {
   CHF: "USD/CHF",
   TRY_REPO: "USD/TRY",
 } as const;
+
+// Mirrors the maximum accepted Yahoo market-closed valuation age: the
+// leaderboard does not mutate positions to repair corporate-action state.
+const maximumCorporateActionVerificationAgeMs = 96 * 60 * 60 * 1_000;
 
 function canonicalMicroUsd(valueUsd: number) {
   if (!Number.isFinite(valueUsd) || valueUsd < 0) return null;
@@ -156,6 +162,18 @@ function calculateReadOnlyPositionsValueUsd(
   for (const position of positions) {
     if (!Number.isFinite(position.quantity) || position.quantity < 0) return null;
     if (position.quantity === 0) continue;
+
+    const verifiedAt = position.corporateActionsCheckedAt?.getTime();
+    const corporateActionAgeMs = verifiedAt === undefined ? Number.NaN : now.getTime() - verifiedAt;
+    if (
+      !Number.isFinite(position.appliedSplitFactor)
+      || position.appliedSplitFactor <= 0
+      || !Number.isFinite(corporateActionAgeMs)
+      || corporateActionAgeMs < 0
+      || corporateActionAgeMs > maximumCorporateActionVerificationAgeMs
+    ) {
+      return null;
+    }
 
     const quote = findMarketItem(marketItems, position.symbol);
     if (
@@ -252,7 +270,14 @@ export async function getPortfolioEquityLeaderboard(
           updatedAt: true,
         },
       },
-      positions: { select: { symbol: true, quantity: true } },
+      positions: {
+        select: {
+          symbol: true,
+          quantity: true,
+          appliedSplitFactor: true,
+          corporateActionsCheckedAt: true,
+        },
+      },
     },
   });
   const userIds = users.map((user) => user.id);

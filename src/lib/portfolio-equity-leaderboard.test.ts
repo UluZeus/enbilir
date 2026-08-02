@@ -53,7 +53,12 @@ type ParticipantOptions = {
   dailyRepoRate?: number;
   repoLastAccruedAt?: Date | null;
   updatedAt?: Date;
-  positions?: Array<{ symbol: string; quantity: number }>;
+  positions?: Array<{
+    symbol: string;
+    quantity: number;
+    appliedSplitFactor?: number;
+    corporateActionsCheckedAt?: Date | null;
+  }>;
 };
 
 function participant(id: string, options: ParticipantOptions = {}) {
@@ -68,7 +73,13 @@ function participant(id: string, options: ParticipantOptions = {}) {
       repoLastAccruedAt: options.repoLastAccruedAt ?? null,
       updatedAt: options.updatedAt ?? new Date("2026-08-01T12:00:00.000Z"),
     },
-    positions: options.positions ?? [],
+    positions: (options.positions ?? []).map((position) => ({
+      ...position,
+      appliedSplitFactor: position.appliedSplitFactor ?? 1,
+      corporateActionsCheckedAt: position.corporateActionsCheckedAt === undefined
+        ? new Date("2026-08-01T12:00:00.000Z")
+        : position.corporateActionsCheckedAt,
+    })),
   };
 }
 
@@ -202,6 +213,40 @@ describe("portfolio equity leaderboard", () => {
     expect(result.excludedUnreliableCount).toBe(1);
     expect(leaderboardMocks.getLiveItems).toHaveBeenCalledWith(["AAPL", "EUR/USD", "MISSING"]);
     expect(leaderboardMocks.getCashModeUsdRate).toHaveBeenCalledWith("EUR", expect.any(Array));
+  });
+
+  it("fails closed for missing, stale, or forward corporate-action verification while keeping a freshly verified position ranked", async () => {
+    leaderboardMocks.userFindMany.mockResolvedValue([
+      participant("fresh", { positions: [{ symbol: "AAPL", quantity: 100 }] }),
+      participant("stale", {
+        positions: [{
+          symbol: "AAPL",
+          quantity: 100,
+          corporateActionsCheckedAt: new Date("2026-07-28T11:59:59.999Z"),
+        }],
+      }),
+      participant("missing", {
+        positions: [{ symbol: "AAPL", quantity: 100, corporateActionsCheckedAt: null }],
+      }),
+      participant("forward", {
+        positions: [{
+          symbol: "AAPL",
+          quantity: 100,
+          corporateActionsCheckedAt: new Date("2026-08-02T12:00:00.001Z"),
+        }],
+      }),
+    ]);
+    leaderboardMocks.baselineFindMany.mockResolvedValue([]);
+    leaderboardMocks.getLiveItems.mockResolvedValue([{ symbol: "AAPL", priceUsd: 1_000 }]);
+
+    const result = await getPortfolioEquityLeaderboard("fresh", now);
+
+    expect(result.rows).toEqual([expect.objectContaining({
+      alias: "Participant #D098AB",
+      totalValueUsd: 1_100_000,
+      rank: 1,
+    })]);
+    expect(result.excludedUnreliableCount).toBe(3);
   });
 
   it("keeps null period returns in the global equity ranking and excludes unreliable valuations", async () => {
