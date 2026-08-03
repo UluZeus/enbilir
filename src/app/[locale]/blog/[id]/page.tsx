@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { ContentArticleShell } from "@/components/content/ContentArticleShell";
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getManagedContentIdForLocale, getManagedContentLocalizedIds } from "@/i18n/localized-path";
@@ -96,6 +97,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function BlogPostPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const post = await getBlogPostOrHandle(locale, id);
 
   const published = post.publishedAt
@@ -139,6 +141,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ local
     >
       <script
         type="application/ld+json"
+        nonce={nonce}
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: stringifyJsonLd(articleStructuredData) }}
       />

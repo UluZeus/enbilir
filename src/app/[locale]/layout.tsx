@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { getSafeLocale, isLocale } from "@/i18n/config";
@@ -28,12 +29,14 @@ export default async function LocaleLayout({
   }
 
   const locale = getSafeLocale(rawLocale);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const structuredData = buildStructuredData(locale);
 
   return (
     <>
       <script
         type="application/ld+json"
+        nonce={nonce}
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }}
       />

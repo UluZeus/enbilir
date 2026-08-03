@@ -31,13 +31,9 @@ const legacyLocalizedRoutePrefixes = [
   "yatirim-tavsiyesi-degildir",
 ] as const;
 
-const scriptSrc =
-  process.env.NODE_ENV === "production"
-    ? "script-src 'self' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
-
 const nextConfig: NextConfig = {
   output: "standalone",
+  poweredByHeader: false,
   generateBuildId: async () => {
     const commitSha = (process.env.ENBILIR_BUILD_COMMIT || execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
@@ -87,11 +83,6 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
-          {
-            key: "Content-Security-Policy",
-            value:
-              `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; frame-src 'self' https://www.youtube.com https://player.vimeo.com; font-src 'self' data:; connect-src 'self' https://stooq.com wss: ws:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
-          },
         ],
       },
       {

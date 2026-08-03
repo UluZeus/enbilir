@@ -237,7 +237,7 @@ function getInitialState(questions: RiskQuestion[], locale: Locale): SavedRiskTe
   }
 }
 
-export function RiskAppetiteTestClient({ locale, isSignedIn }: { locale: Locale; isSignedIn: boolean }) {
+export function RiskAppetiteTestClient({ locale, isSignedIn, nonce }: { locale: Locale; isSignedIn: boolean; nonce: string }) {
   const copy = copyByLocale[locale];
   const questions = useMemo(() => getRiskQuestionsForLocale(locale), [locale]);
   const legalWarning = getRiskLegalWarningForLocale(locale);
@@ -419,6 +419,7 @@ export function RiskAppetiteTestClient({ locale, isSignedIn }: { locale: Locale;
         copy={copy}
         legalWarning={legalWarning}
         locale={locale}
+        nonce={nonce}
         recommendedSteps={recommendedSteps}
       />
     );
@@ -628,6 +629,7 @@ function ResultReport({
   copy,
   legalWarning,
   locale,
+  nonce,
   recommendedSteps,
 }: {
   averageScore: number;
@@ -643,13 +645,14 @@ function ResultReport({
   copy: RiskTestCopy;
   legalWarning: string;
   locale: Locale;
+  nonce: string;
   recommendedSteps: ReadonlyArray<{ title: string; href: string }>;
 }) {
   const scorePercent = ((averageScore - 1) / 4) * 100;
 
   return (
     <div className="grid gap-6">
-      <style>{`
+      <style nonce={nonce}>{`
         @media print {
           body { background: #ffffff !important; }
           .visual-shell > header, .visual-shell > footer, .risk-print-hide, .fixed { display: none !important; }

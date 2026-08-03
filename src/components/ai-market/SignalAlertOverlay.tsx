@@ -156,7 +156,7 @@ function translateAlertLabel(label: string, locale: Locale) {
   return labels[label] ?? label;
 }
 
-export function SignalAlertOverlay() {
+export function SignalAlertOverlay({ nonce }: { nonce: string }) {
   const locale = getClientLocale();
   const [activeAlerts, setActiveAlerts] = useState<MarketScanAlert[]>([]);
   const [lastScanInterval, setLastScanInterval] = useState(SCAN_INTERVALS[0]);
@@ -264,7 +264,7 @@ export function SignalAlertOverlay() {
 
   return (
     <section className="ai-market-signal-overlay border-b border-slate-800 bg-[#050914] text-slate-100">
-      <style>{`
+      <style nonce={nonce}>{`
         @keyframes ai-market-signal-ticker {
           from { transform: translateX(0); }
           to { transform: translateX(-50%); }

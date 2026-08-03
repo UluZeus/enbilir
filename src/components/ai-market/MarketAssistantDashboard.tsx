@@ -16,6 +16,7 @@ import type { MarketAnalysis, MarketExchange, WatchSymbol } from "@/lib/ai-marke
 
 type MarketAssistantDashboardProps = {
   locale: Locale | string;
+  nonce: string;
   symbols: WatchSymbol[];
 };
 
@@ -76,7 +77,7 @@ async function syncFavoritesToServer(favorites: string[]) {
   }
 }
 
-export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDashboardProps) {
+export function MarketAssistantDashboard({ locale, nonce, symbols }: MarketAssistantDashboardProps) {
   const safeLocale = getSafeLocale(locale);
   const copy = getUiCopy(safeLocale).ai;
   const analysisServiceUnavailable = copy.analysisServiceUnavailable;
@@ -206,7 +207,7 @@ export function MarketAssistantDashboard({ locale, symbols }: MarketAssistantDas
   return (
     <div className="rounded-md border border-slate-900 bg-[#050812] p-3 text-slate-100 shadow-2xl md:p-4">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
-        <MarketRadarPanel locale={safeLocale} />
+        <MarketRadarPanel locale={safeLocale} nonce={nonce} />
 
         <TerminalHeader
           locale={safeLocale}

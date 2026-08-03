@@ -497,47 +497,28 @@ DNS degisiklikleri genellikle birkac dakika ile 24 saat arasinda yayilir.
 
 Next.js uygulamasi lokal olarak `127.0.0.1:3006` uzerinde calismali, dis trafigi Nginx veya Apache HTTPS uzerinden almalidir.
 
-### Nginx ornek config
+### Nginx canonical config
 
-`/etc/nginx/sites-available/enbilir.com` dosyasini olusturun:
+Depodaki izlenebilir tek kaynak `deploy/nginx/enbilir.com.conf` dosyasidir. Bu dosya HTTP
+trafigini apex HTTPS adresine `308` ile yonlendirir, apex ve `www` HTTPS bloklarinda HSTS
+uygular, Next.js'i yalnizca `127.0.0.1:3006` uzerinden proxy'ler ve upstream
+`X-Powered-By` header'ini gizler. HSTS HTTP blokunda bulunmaz.
 
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name www.enbilir.com;
-
-    return 301 http://enbilir.com$request_uri;
-}
-
-server {
-    listen 80;
-    listen [::]:80;
-    server_name enbilir.com;
-
-    client_max_body_size 20m;
-
-    location / {
-        proxy_pass http://127.0.0.1:3006;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-Aktif edin:
+Let's Encrypt sertifikasi ve dosyada belirtilen Certbot TLS include dosyalari mevcut olduktan
+sonra canonical dosyayi kurun. Canli sunucuda degisiklik yapmak ayri, acik bir yayin onayi ve
+sunucu preflight kontrolu gerektirir:
 
 ```bash
+sudo install -m 0644 deploy/nginx/enbilir.com.conf /etc/nginx/sites-available/enbilir.com
 sudo ln -s /etc/nginx/sites-available/enbilir.com /etc/nginx/sites-enabled/enbilir.com
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+Her config degisikliginden sonra `sudo nginx -t` basarili olmadan reload yapmayin. Kurulumdan
+sonra hem `https://enbilir.com` hem `https://www.enbilir.com` yanitlarinda exact
+`Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` degerini ve
+`X-Powered-By` header'inin bulunmadigini dogrulayin.
 
 Varsayilan site gerekiyorsa kapatilabilir:
 

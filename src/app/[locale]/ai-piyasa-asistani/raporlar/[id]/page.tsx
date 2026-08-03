@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
@@ -391,6 +392,10 @@ function areaPath(points: TechnicalSeriesPoint[], upperKey: keyof TechnicalSerie
 export default async function AiMarketReportDetailPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
+  const nonce = (await headers()).get("x-nonce");
+  if (!nonce) {
+    throw new Error("Missing CSP nonce.");
+  }
   const user = await getSessionUser();
   const recipientName = user?.name?.trim() || user?.nickname?.trim() || "Enbilir kullanicisi";
   const report = await prisma.aiMarketReport.findFirst({
@@ -601,7 +606,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
   return (
     <main className="report-shell report-screen-shell min-h-screen px-3 py-5 text-[#152033] md:px-5">
-      <style>{`
+      <style nonce={nonce}>{`
         @page { size: A4; margin: 14mm 13mm; }
         .print-only { display: none; }
         @media print {

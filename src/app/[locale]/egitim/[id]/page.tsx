@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { ContentArticleShell } from "@/components/content/ContentArticleShell";
 import { getSafeLocale, type Locale } from "@/i18n/config";
 import { getManagedContentIdForLocale, getManagedContentLocalizedIds } from "@/i18n/localized-path";
@@ -98,6 +99,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function EducationDetailPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale: rawLocale, id } = await params;
   const locale = getSafeLocale(rawLocale);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const item = await getEducationItemOrHandle(locale, id);
 
   const articleParagraphs = paragraphs(item.body);
@@ -145,6 +147,7 @@ export default async function EducationDetailPage({ params }: { params: Promise<
     >
       <script
         type="application/ld+json"
+        nonce={nonce}
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }}
       />

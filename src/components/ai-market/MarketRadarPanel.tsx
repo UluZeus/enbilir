@@ -133,7 +133,7 @@ async function fetchIntervalAlerts(interval: string, signal: AbortSignal) {
   return Array.isArray(payload.alerts) ? payload.alerts : [];
 }
 
-export function MarketRadarPanel({ locale }: { locale: Locale }) {
+export function MarketRadarPanel({ locale, nonce }: { locale: Locale; nonce: string }) {
   const copy = getUiCopy(locale).ai;
   const [tickerGroups, setTickerGroups] = useState<RadarTickerGroups>(initialTickerGroups);
   const [loadState, setLoadState] = useState<RadarLoadState>("loading");
@@ -226,7 +226,7 @@ export function MarketRadarPanel({ locale }: { locale: Locale }) {
 
   return (
     <section className="ai-market-radar-panel min-w-0 max-w-full overflow-hidden rounded-md border border-slate-800 bg-[#0b111d] p-3 text-slate-100 shadow-xl md:p-4">
-      <style>{`
+      <style nonce={nonce}>{`
         @keyframes ai-market-radar-ticker {
           from { transform: translateX(0); }
           to { transform: translateX(-50%); }

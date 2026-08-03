@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { AiMarketChatPanel } from "@/components/ai-market/AiMarketChatPanel";
 import { AiScenarioLab } from "@/components/ai-market/AiScenarioLab";
 import { MarketAssistantDashboard } from "@/components/ai-market/MarketAssistantDashboard";
@@ -32,6 +33,10 @@ export default async function AiMarketAssistantPage({
   const { locale: rawLocale } = await params;
   const query = searchParams ? await searchParams : {};
   const locale = getSafeLocale(rawLocale);
+  const nonce = (await headers()).get("x-nonce");
+  if (!nonce) {
+    throw new Error("Missing CSP nonce.");
+  }
   const isEnglish = locale === "en";
   const activeTab = tabs.includes(query.tab as AiTab) ? query.tab as AiTab : "summary";
   const copy = getUiCopy(locale).ai;
@@ -98,7 +103,7 @@ export default async function AiMarketAssistantPage({
 
       {activeTab === "terminal" ? (
         <section className="min-w-0">
-          <MarketAssistantDashboard locale={locale} symbols={getLocalizedAiMarketSymbols(locale)} />
+          <MarketAssistantDashboard locale={locale} nonce={nonce} symbols={getLocalizedAiMarketSymbols(locale)} />
         </section>
       ) : null}
 

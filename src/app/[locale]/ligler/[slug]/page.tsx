@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { FormMessage } from "@/components/FormMessage";
@@ -82,6 +83,7 @@ export default async function LeagueDetailPage({
 }) {
   const [{ locale: rawLocale, slug }, query] = await Promise.all([params, searchParams]);
   const locale = getSafeLocale(rawLocale);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const copy = getUiCopy(locale).leagues;
   const user = await getSessionUser();
   const league = await getLeagueDetail(slug);
@@ -152,7 +154,7 @@ export default async function LeagueDetailPage({
 
   return (
     <div className="growth-page grid gap-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }} />
+      <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(structuredData) }} />
       <FormMessage message={query.error ?? query.message} tone={query.message ? "success" : "error"} />
       <section className="league-detail-hero rounded-[1.6rem] border border-[#d9a441]/30 bg-[#101827] p-6 text-white shadow-sm">
         <Link href={`/${locale}/ligler`} className="text-sm font-bold text-[#f5a623] hover:text-[#ffd36b]">

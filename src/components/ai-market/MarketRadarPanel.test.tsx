@@ -8,8 +8,9 @@ import {
 
 describe("MarketRadarPanel ticker motion", () => {
   it("renders an animated, mirrored ticker for the normal desktop default", () => {
-    const html = renderToStaticMarkup(<MarketRadarPanel locale="en" />);
+    const html = renderToStaticMarkup(<MarketRadarPanel locale="en" nonce="test-nonce" />);
 
+    expect(html).toContain('<style nonce="test-nonce">');
     expect(html).toContain("animation: ai-market-radar-ticker 64s linear infinite");
     expect(html).toContain("ai-market-radar-track--auto");
     expect(
