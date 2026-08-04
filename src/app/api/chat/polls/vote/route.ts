@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getChatRoomState, markChatPresence } from "@/lib/chat";
+import { getAccessibleChatRoom, getChatRoomState } from "@/lib/chat";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +44,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ authenticated: true, error: "Anket seçeneği bulunamadı." }, { status: 404 });
   }
 
+  const room = await getAccessibleChatRoom({ userId: user.id, roomCode: option.message.room.code });
+
+  if (!room) {
+    return NextResponse.json({ authenticated: true, error: "Anket seçeneği bulunamadı." }, { status: 404 });
+  }
+
   await prisma.chatPollVote.upsert({
     where: {
       messageId_userId: {
@@ -60,9 +66,7 @@ export async function POST(request: Request) {
       userId: user.id,
     },
   });
-  await markChatPresence({ roomId: option.message.roomId, userId: user.id });
-
-  const state = await getChatRoomState({ user, roomCode: option.message.room.code });
+  const state = await getChatRoomState({ user, roomCode: room.code });
 
   return NextResponse.json({ authenticated: true, ...state });
 }

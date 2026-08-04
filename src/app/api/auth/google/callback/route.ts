@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeLocale } from "@/i18n/config";
-import { setSessionCookie } from "@/lib/auth";
+import {
+  getGoogleOAuthStateCookieName,
+  getGoogleOAuthStateCookieOptions,
+  hashGoogleOAuthState,
+  matchesGoogleOAuthState,
+  setSessionCookie,
+  verifyGoogleOAuthStateToken,
+} from "@/lib/auth";
 import { getSelfServiceRegistrationDefaults } from "@/lib/auth-role-policy";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
 import {
@@ -16,7 +23,6 @@ import { sendGoogleWelcomeEmail } from "@/lib/welcome-email";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
-const GOOGLE_OAUTH_STATE_COOKIE = "enbilir_google_oauth_state";
 const GOOGLE_PROVIDER = "google";
 const GOOGLE_FETCH_TIMEOUT_MS = 8_000;
 
@@ -71,33 +77,20 @@ function getRedirect(request: NextRequest, localeValue: string | null, path: str
   return url;
 }
 
-function parseState(value: string | undefined): GoogleState | null {
-  if (!value) {
+async function parseState(value: string | undefined): Promise<GoogleState | null> {
+  const parsed = await verifyGoogleOAuthStateToken(value);
+
+  if (!parsed) {
     return null;
   }
 
-  try {
-    const parsed = JSON.parse(value) as Partial<GoogleState>;
+  const locale = getSafeLocale(parsed.locale);
 
-    if (typeof parsed.state !== "string" || typeof parsed.locale !== "string") {
-      return null;
-    }
-
-    const locale = getSafeLocale(parsed.locale);
-
-    return {
-      state: parsed.state,
-      locale,
-      returnTo: getSafeLocaleReturnPath(parsed.returnTo, locale),
-      intent: parsed.intent === "register" ? "register" : "login",
-      kvkkDisclosureAccepted: parsed.kvkkDisclosureAccepted === true,
-      termsAccepted: parsed.termsAccepted === true,
-      noInvestmentAdviceAccepted: parsed.noInvestmentAdviceAccepted === true,
-      electronicCommunicationConsent: parsed.electronicCommunicationConsent === true,
-    };
-  } catch {
-    return null;
-  }
+  return {
+    ...parsed,
+    locale,
+    returnTo: getSafeLocaleReturnPath(parsed.returnTo, locale),
+  };
 }
 
 function canCompletePendingEmailRegistration(
@@ -203,22 +196,39 @@ async function getGoogleUser(request: NextRequest, code: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const cookieState = parseState(request.cookies.get(GOOGLE_OAUTH_STATE_COOKIE)?.value);
+  const cookieState = await parseState(request.cookies.get(getGoogleOAuthStateCookieName())?.value);
   const returnedState = request.nextUrl.searchParams.get("state");
   const code = request.nextUrl.searchParams.get("code");
   const locale = cookieState?.locale ?? "tr";
   const errorResponse = (message: string) => {
     const response = NextResponse.redirect(getRedirect(request, locale, "giris", message));
-    response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
+    response.cookies.set(getGoogleOAuthStateCookieName(), "", getGoogleOAuthStateCookieOptions(0));
     return response;
   };
   const registrationErrorResponse = (message: string) => {
     const response = NextResponse.redirect(getRedirect(request, locale, "kayit", message));
-    response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
+    response.cookies.set(getGoogleOAuthStateCookieName(), "", getGoogleOAuthStateCookieOptions(0));
     return response;
   };
 
-  if (!cookieState || !returnedState || cookieState.state !== returnedState) {
+  if (!cookieState || !returnedState || !matchesGoogleOAuthState(cookieState.state, returnedState)) {
+    return errorResponse("Google giriş doğrulaması başarısız oldu.");
+  }
+
+  let consumedState: { count: number };
+
+  try {
+    consumedState = await prisma.oAuthState.deleteMany({
+      where: {
+        stateHash: hashGoogleOAuthState(returnedState),
+        expiresAt: { gt: new Date() },
+      },
+    });
+  } catch {
+    return errorResponse("Google giriş doğrulaması başarısız oldu.");
+  }
+
+  if (consumedState.count !== 1) {
     return errorResponse("Google giriş doğrulaması başarısız oldu.");
   }
 
@@ -479,7 +489,7 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.redirect(new URL(cookieState.returnTo || `/${locale}/panel`, getRequestOrigin(request)));
     await setSessionCookie(response, user);
-    response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
+    response.cookies.set(getGoogleOAuthStateCookieName(), "", getGoogleOAuthStateCookieOptions(0));
     return response;
   } catch (error) {
     if (error instanceof GoogleOAuthProviderError) {

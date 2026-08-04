@@ -2,6 +2,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { canAccessChatRoom } from "@/lib/chat";
 import {
   detectAllowedChatUpload,
   getChatUploadFormatForExtension,
@@ -37,6 +38,32 @@ export async function GET(
   ) {
     return NextResponse.json({ error: "Dosya bulunamadı." }, { status: 404 });
   }
+
+  if (upload.status === "LINKED") {
+    const attachmentUrl = `/api/chat/uploads/${encodeURIComponent(fileName)}`;
+    const message = await prisma.chatMessage.findFirst({
+      where: {
+        attachment: {
+          path: "$.url",
+          equals: attachmentUrl,
+        },
+      },
+      select: {
+        room: {
+          select: {
+            id: true,
+            type: true,
+            createdByUserId: true,
+          },
+        },
+      },
+    });
+
+    if (!message || !(await canAccessChatRoom({ room: message.room, userId: user.id }))) {
+      return NextResponse.json({ error: "Dosya bulunamadı." }, { status: 404 });
+    }
+  }
+
   let uploadPath: string;
 
   try {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getChatRoomState, normalizeRoomCode, resolveChatRoom, markChatPresence } from "@/lib/chat";
+import { getChatRoomState, normalizeRoomCode } from "@/lib/chat";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +20,11 @@ export async function POST(request: Request) {
   }
 
   const roomCode = normalizeRoomCode(body.roomCode);
-  const room = await resolveChatRoom(roomCode);
+  const state = await getChatRoomState({ user, roomCode });
 
-  if (!room) {
+  if (!state) {
     return NextResponse.json({ authenticated: true, error: "Sohbet odası bulunamadı." }, { status: 404 });
   }
-
-  await markChatPresence({ roomId: room.id, userId: user.id });
-  const state = await getChatRoomState({ user, roomCode: room.code });
 
   return NextResponse.json({ authenticated: true, ...state });
 }

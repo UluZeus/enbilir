@@ -116,6 +116,7 @@ model User {
   emailVerificationSentAt          DateTime?
   role                             Role                         @default(USER)
   membershipTier                   MembershipTier               @default(STANDARD)
+  sessionVersion                   Int                          @default(0)
   vipStartedAt                     DateTime?
   vipPaidUntil                     DateTime?
   vipLastReminderSentAt            DateTime?
@@ -174,6 +175,14 @@ model User {
   supportReminderEntries           SupportReminderEntry[]
   chatRoomMemberships              ChatRoomMembership[]
   chatUploads                      ChatUpload[]
+}
+
+model OAuthState {
+  stateHash String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 model OAuthAccount {

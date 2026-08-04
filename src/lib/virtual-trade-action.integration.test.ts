@@ -500,9 +500,37 @@ describe("release gate: virtual BUY/SELL accounting", () => {
       ok: true,
       message: "Bu işlem zaten uygulanmıştı; tekrar yazılmadı.",
     });
+    expect(tradeMocks.cookieGet).toHaveBeenCalledWith("enbilir_trade_user-1");
     expect(tradeMocks.positionFindUnique).not.toHaveBeenCalled();
     expect(tradeMocks.transaction).not.toHaveBeenCalled();
     expect(tradeMocks.tradeCreate).not.toHaveBeenCalled();
+  });
+
+  it("uses the host-prefixed trade idempotency cookie for production reads and writes", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    try {
+      const result = await tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }));
+
+      expect(result).toEqual({
+        ok: true,
+        message: "Alım işlemi başarıyla gerçekleşti.",
+      });
+      expect(tradeMocks.cookieGet).toHaveBeenCalledWith("__Host-enbilir_trade_user-1");
+      expect(tradeMocks.cookieSet).toHaveBeenCalledWith(
+        "__Host-enbilir_trade_user-1",
+        "release-gate-key-0001",
+        {
+          httpOnly: true,
+          sameSite: "strict",
+          secure: true,
+          path: "/",
+          maxAge: 60 * 10,
+        },
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("never accepts a submitted user id that differs from the authenticated user", async () => {

@@ -3,11 +3,15 @@ import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   setSessionCookie: vi.fn(),
+  verifyGoogleOAuthStateToken: vi.fn(),
+  hashGoogleOAuthState: vi.fn(),
+  matchesGoogleOAuthState: vi.fn(),
   userFindFirst: vi.fn(),
   userFindUnique: vi.fn(),
   userUpdate: vi.fn(),
   userCreate: vi.fn(),
   oauthUpsert: vi.fn(),
+  oauthStateDeleteMany: vi.fn(),
   ensureVirtualAccount: vi.fn(),
   sendGoogleWelcomeEmail: vi.fn(),
   canCreateGoogleAccount: vi.fn(),
@@ -17,7 +21,20 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/i18n/config", () => ({
   getSafeLocale: (value: string) => value === "en" ? "en" : "tr",
 }));
-vi.mock("@/lib/auth", () => ({ setSessionCookie: mocks.setSessionCookie }));
+vi.mock("@/lib/auth", () => ({
+  setSessionCookie: mocks.setSessionCookie,
+  getGoogleOAuthStateCookieName: () => "enbilir_google_oauth_state",
+  getGoogleOAuthStateCookieOptions: (maxAge = 600) => ({
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    path: "/",
+    maxAge,
+  }),
+  verifyGoogleOAuthStateToken: mocks.verifyGoogleOAuthStateToken,
+  hashGoogleOAuthState: mocks.hashGoogleOAuthState,
+  matchesGoogleOAuthState: mocks.matchesGoogleOAuthState,
+}));
 vi.mock("@/lib/auth-role-policy", () => ({
   getSelfServiceRegistrationDefaults: () => ({
     nickname: null,
@@ -42,6 +59,7 @@ vi.mock("@/lib/prisma", () => ({
       create: mocks.userCreate,
     },
     oAuthAccount: { upsert: mocks.oauthUpsert },
+    oAuthState: { deleteMany: mocks.oauthStateDeleteMany },
   },
 }));
 vi.mock("@/lib/portfolio", () => ({ ensureVirtualAccount: mocks.ensureVirtualAccount }));
@@ -90,6 +108,19 @@ describe("Google OAuth callback hardening", () => {
     mocks.canCreateGoogleAccount.mockReturnValue(false);
     mocks.hasRequiredLegalConsents.mockReturnValue(true);
     mocks.sendGoogleWelcomeEmail.mockResolvedValue(undefined);
+    mocks.verifyGoogleOAuthStateToken.mockResolvedValue({
+      state: "state-1",
+      locale: "tr",
+      returnTo: null,
+      intent: "login",
+      kvkkDisclosureAccepted: false,
+      termsAccepted: false,
+      noInvestmentAdviceAccepted: false,
+      electronicCommunicationConsent: false,
+    });
+    mocks.hashGoogleOAuthState.mockReturnValue("synthetic-state-hash");
+    mocks.matchesGoogleOAuthState.mockReturnValue(true);
+    mocks.oauthStateDeleteMany.mockResolvedValue({ count: 1 });
   });
 
   it("completes Google register intent for an inactive unverified email registration with a durable pending token", async () => {
@@ -339,5 +370,21 @@ describe("Google OAuth callback hardening", () => {
     expect(logged).not.toContain(providerDetail);
     expect(logged).not.toContain("private-authorization-code");
     errorSpy.mockRestore();
+  });
+
+  it("rejects a signed state that has already been consumed and clears it", async () => {
+    mocks.oauthStateDeleteMany.mockResolvedValue({ count: 0 });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const request = createCallbackRequest();
+
+    const response = await GET(request);
+
+    expect(mocks.verifyGoogleOAuthStateToken).toHaveBeenCalledOnce();
+    expect(mocks.oauthStateDeleteMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ stateHash: "synthetic-state-hash" }),
+    }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(response.headers.get("set-cookie")).toContain("enbilir_google_oauth_state=");
   });
 });

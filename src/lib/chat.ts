@@ -94,6 +94,41 @@ export async function resolveChatRoom(roomCode?: string) {
   return prisma.chatRoom.findUnique({ where: { code } });
 }
 
+type ChatRoomAccessTarget = {
+  id: string;
+  type: ChatRoomType;
+  createdByUserId: string | null;
+};
+
+export async function canAccessChatRoom({
+  room,
+  userId,
+}: {
+  room: ChatRoomAccessTarget;
+  userId: string;
+}) {
+  if (room.type !== "PRIVATE" || room.createdByUserId === userId) {
+    return true;
+  }
+
+  const membership = await prisma.chatRoomMembership.findUnique({
+    where: { roomId_userId: { roomId: room.id, userId } },
+    select: { id: true },
+  });
+
+  return Boolean(membership);
+}
+
+export async function getAccessibleChatRoom({ userId, roomCode }: { userId: string; roomCode?: string }) {
+  const room = await resolveChatRoom(roomCode);
+
+  if (!room || !(await canAccessChatRoom({ room, userId }))) {
+    return null;
+  }
+
+  return room;
+}
+
 export async function markChatPresence({ roomId, userId }: { roomId: string; userId: string }) {
   return prisma.chatPresence.upsert({
     where: {
@@ -150,18 +185,10 @@ export async function getVisibleChatRooms(userId: string) {
 }
 
 export async function getChatRoomState({ user, roomCode }: { user: SessionUser; roomCode?: string }) {
-  const room = await resolveChatRoom(roomCode);
+  const room = await getAccessibleChatRoom({ userId: user.id, roomCode });
 
   if (!room) {
     return null;
-  }
-
-  if (room.type === "PRIVATE") {
-    await prisma.chatRoomMembership.upsert({
-      where: { roomId_userId: { roomId: room.id, userId: user.id } },
-      create: { roomId: room.id, userId: user.id, role: room.createdByUserId === user.id ? "OWNER" : "MEMBER" },
-      update: {},
-    });
   }
 
   await markChatPresence({ roomId: room.id, userId: user.id });

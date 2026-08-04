@@ -7,7 +7,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import path from "path";
-import { canAccessAdmin, createSession, destroySession, getDisplayName, getSessionUser } from "@/lib/auth";
+import { canAccessAdmin, createSession, destroySession, getDisplayName, getSessionUser, revokeUserSessions } from "@/lib/auth";
 import { getSelfServiceRegistrationDefaults } from "@/lib/auth-role-policy";
 import { sendLatestMacroReportEmail } from "@/lib/ai-market/agent/morning-report-email";
 import { macroReportEventTypes } from "@/lib/ai-market/report-event-types";
@@ -51,6 +51,12 @@ const initialTradeActionState: TradeActionState = {
   ok: false,
   message: "",
 };
+
+function getTradeIdempotencyCookieName(userId: string) {
+  return process.env.NODE_ENV === "production"
+    ? `__Host-enbilir_trade_${userId}`
+    : `enbilir_trade_${userId}`;
+}
 
 type AdminUploadKind = "image" | "video";
 
@@ -534,6 +540,12 @@ export async function loginAction(formData: FormData) {
 
 export async function logoutAction(formData: FormData) {
   const locale = formData.get("locale");
+  const sessionUser = await getSessionUser();
+
+  if (sessionUser) {
+    await revokeUserSessions(sessionUser.id);
+  }
+
   await destroySession();
   redirect(getRedirect(locale, "giris"));
 }
@@ -665,7 +677,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   const reason = normalizeText(formData.get("reason")).slice(0, 700) || null;
   const idempotencyKey = String(formData.get("idempotencyKey") ?? "");
   const cookieStore = await cookies();
-  const nonceCookieName = `enbilir_trade_${userId}`;
+  const nonceCookieName = getTradeIdempotencyCookieName(userId);
   let marketItem = await getLiveMarketItem(symbol);
 
   if (!/^[a-zA-Z0-9_-]{16,128}$/.test(idempotencyKey)) {

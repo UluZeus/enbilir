@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import {
   getChatRoomState,
+  getAccessibleChatRoom,
   markChatPresence,
   normalizeChatAttachment,
   normalizeChatMessage,
   normalizeChatMessageType,
   normalizeRoomCode,
-  resolveChatRoom,
 } from "@/lib/chat";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
   }
 
   const roomCode = normalizeRoomCode(body.roomCode);
-  const room = await resolveChatRoom(roomCode);
+  const room = await getAccessibleChatRoom({ userId: user.id, roomCode });
 
   if (!room) {
     return NextResponse.json({ authenticated: true, error: "Sohbet odası bulunamadı." }, { status: 404 });

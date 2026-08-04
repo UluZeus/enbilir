@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getChatRoomState } from "@/lib/chat";
+import { getAccessibleChatRoom, getChatRoomState } from "@/lib/chat";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ authenticated: true, error: "Mesaj bulunamadı." }, { status: 404 });
   }
 
+  const room = await getAccessibleChatRoom({ userId: user.id, roomCode: message.room.code });
+
+  if (!room) {
+    return NextResponse.json({ authenticated: true, error: "Mesaj bulunamadı." }, { status: 404 });
+  }
+
   if (message.userId === user.id) {
     return NextResponse.json({ authenticated: true, error: "Kendi mesajını şikayet edemezsin." }, { status: 400 });
   }
@@ -74,7 +80,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const state = await getChatRoomState({ user, roomCode: message.room.code });
+  const state = await getChatRoomState({ user, roomCode: room.code });
 
   return NextResponse.json({ authenticated: true, ...state });
 }
