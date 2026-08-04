@@ -30,6 +30,7 @@ import { getEconomyHeadlines } from "@/lib/economy-news";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
+import { decimalToNumber, nullableDecimalToNumber } from "@/lib/decimal";
 import { FixedWindowRateLimiter, getRateLimitClientKey } from "@/lib/request-rate-limit";
 import { getVipAgentSummaries } from "@/lib/vip-agents/dashboard";
 import { recordSiteAnalyticsEvent, siteAnalyticsEvents } from "@/lib/analytics";
@@ -227,8 +228,8 @@ async function getLatestReport() {
             symbol: asset.symbol,
             displayName: asset.displayName,
             assetClass: asset.assetClass,
-            lastPrice: asset.lastPrice,
-            changePercent: asset.changePercent,
+            lastPrice: nullableDecimalToNumber(asset.lastPrice),
+            changePercent: nullableDecimalToNumber(asset.changePercent),
             signalType: asset.signalType,
             confidence: asset.confidence,
             riskScore: asset.riskScore,
@@ -294,6 +295,12 @@ async function getLatestVipResearch() {
         fallbackUsed: report.fallbackUsed,
         ideas: report.ideas.map((idea) => ({
           ...idea,
+          priceAtRecommendation: decimalToNumber(idea.priceAtRecommendation),
+          entryLow: decimalToNumber(idea.entryLow),
+          entryHigh: decimalToNumber(idea.entryHigh),
+          stopLoss: decimalToNumber(idea.stopLoss),
+          targetPrice: decimalToNumber(idea.targetPrice),
+          secondaryTargetPrice: nullableDecimalToNumber(idea.secondaryTargetPrice),
           catalysts: toStringArray(idea.catalysts),
         })),
       }

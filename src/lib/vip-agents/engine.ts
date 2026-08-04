@@ -28,6 +28,7 @@ import {
   VIP_AGENT_STRATEGIES,
   type VipAgentStrategy,
 } from "@/lib/vip-agents/config";
+import { decimal, decimalToNumber, nullableDecimalToNumber, roundDecimal } from "@/lib/decimal";
 
 type PriceResult = {
   price: number | null;
@@ -49,11 +50,11 @@ const expectedNonExecutableMarketStates = new Set([
 ]);
 
 function roundMoney(value: number) {
-  return Number(value.toFixed(2));
+  return decimalToNumber(roundDecimal(String(value), 2));
 }
 
 function roundQuantity(value: number) {
-  return Math.floor(value * 10_000) / 10_000;
+  return decimalToNumber(decimal(String(value)).times(10_000).floor().div(10_000));
 }
 
 export function getIstanbulDateKey(date = new Date()) {
@@ -180,16 +181,68 @@ async function runAgent(
   report: NonNullable<Awaited<ReturnType<typeof getReportForRun>>>,
 ) {
   const runKey = getIstanbulDateKey(now);
-  const agent = await prisma.vipTradingAgent.findUniqueOrThrow({
+  const leaseExpiresBefore = new Date(now.getTime() - 15 * 60 * 1000);
+  const storedAgent = await prisma.vipTradingAgent.findUniqueOrThrow({
     where: { id: strategy.id },
     include: { positions: true },
   });
+  const claimed = await prisma.vipTradingAgent.updateMany({
+    where: {
+      id: storedAgent.id,
+      updatedAt: storedAgent.updatedAt,
+      OR: [
+        { lastRunAt: null },
+        { lastRunAt: { lt: leaseExpiresBefore } },
+      ],
+    },
+    data: { lastRunAt: now },
+  });
+  if (claimed.count !== 1) {
+    const latest = await prisma.vipTradingAgentSnapshot.findUnique({
+      where: { agentId_periodKey: { agentId: storedAgent.id, periodKey: runKey } },
+    });
+    return {
+      agent: strategy.name,
+      reused: true,
+      trades: 0,
+      decisions: 0,
+      snapshotReliable: latest !== null,
+      totalBalanceUsd: latest ? decimalToNumber(latest.totalBalanceUsd) : null,
+      pnlUsd: latest ? decimalToNumber(latest.pnlUsd) : null,
+      returnPercent: latest ? decimalToNumber(latest.returnPercent) : null,
+    };
+  }
+  const agent = {
+    ...storedAgent,
+    startingBalanceUsd: decimalToNumber(storedAgent.startingBalanceUsd),
+    performanceBaseUsd: decimalToNumber(storedAgent.performanceBaseUsd),
+    reserveUsd: decimalToNumber(storedAgent.reserveUsd),
+    cashUsd: decimalToNumber(storedAgent.cashUsd),
+    positions: storedAgent.positions.map((position) => ({
+      ...position,
+      quantity: decimalToNumber(position.quantity),
+      averagePriceUsd: decimalToNumber(position.averagePriceUsd),
+      lastPriceUsd: decimalToNumber(position.lastPriceUsd),
+      stopLossUsd: decimalToNumber(position.stopLossUsd),
+      targetPriceUsd: decimalToNumber(position.targetPriceUsd),
+      secondaryTarget: nullableDecimalToNumber(position.secondaryTarget),
+      appliedSplitFactor: decimalToNumber(position.appliedSplitFactor),
+    })),
+  };
   const existingRunDecisions = await prisma.vipTradingAgentDecision.findMany({
     where: { agentId: agent.id, runKey },
     select: { symbol: true, action: true },
   });
 
-  const ideas = report?.ideas ?? [];
+  const ideas = report.ideas.map((idea) => ({
+    ...idea,
+    priceAtRecommendation: decimalToNumber(idea.priceAtRecommendation),
+    entryLow: decimalToNumber(idea.entryLow),
+    entryHigh: decimalToNumber(idea.entryHigh),
+    stopLoss: decimalToNumber(idea.stopLoss),
+    targetPrice: decimalToNumber(idea.targetPrice),
+    secondaryTargetPrice: nullableDecimalToNumber(idea.secondaryTargetPrice),
+  }));
   const corporateActionResults = await Promise.all(agent.positions.map(async (position) => {
     try {
       const quote = await fetchYahooCorporateActionQuote({
@@ -446,7 +499,17 @@ async function runAgent(
     decisionCount += 1;
   }
 
-  const storedPositions = await prisma.vipTradingAgentPosition.findMany({ where: { agentId: agent.id } });
+  const storedPositions = (await prisma.vipTradingAgentPosition.findMany({ where: { agentId: agent.id } }))
+    .map((position) => ({
+      ...position,
+      quantity: decimalToNumber(position.quantity),
+      averagePriceUsd: decimalToNumber(position.averagePriceUsd),
+      lastPriceUsd: decimalToNumber(position.lastPriceUsd),
+      stopLossUsd: decimalToNumber(position.stopLossUsd),
+      targetPriceUsd: decimalToNumber(position.targetPriceUsd),
+      secondaryTarget: nullableDecimalToNumber(position.secondaryTarget),
+      appliedSplitFactor: decimalToNumber(position.appliedSplitFactor),
+    }));
   const snapshotReliable =
     areVipAgentOpenPositionPricesReliable(storedPositions, priceMap) &&
     areVipAgentCorporateActionsReliable(storedPositions, failedCorporateActionPositionIds);

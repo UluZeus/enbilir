@@ -37,10 +37,12 @@ import { getRateLimitClientKey } from "@/lib/request-rate-limit";
 import { detectAllowedChatUpload } from "@/lib/chat-upload-policy";
 import { getPersistentAdminUploadDirectory } from "@/lib/media-storage";
 import { appendAuditEvent } from "@/lib/audit-log";
-import { calculateRealizedTradePnl, getVirtualExecutionCosts } from "@/lib/trade-accounting";
+import { calculateRealizedTradePnlDecimal, getVirtualExecutionCostsDecimal } from "@/lib/trade-accounting";
 import { syncPortfolioPositionCorporateAction } from "@/lib/portfolio-corporate-actions";
 import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import { updateElectronicCommunicationConsent } from "@/lib/communication-consent";
+import { decimal } from "@/lib/decimal";
+import { withSerializableTransaction } from "@/lib/serializable-transaction";
 
 export type TradeActionState = {
   ok: boolean;
@@ -673,7 +675,8 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   const userId = sessionUser.id;
   const symbol = String(formData.get("symbol") ?? "");
   const side = String(formData.get("side") ?? "") as TradeSide;
-  const amountUsd = Number(formData.get("amountUsd") ?? 0);
+  const amountUsdText = String(formData.get("amountUsd") ?? 0);
+  const amountUsd = Number(amountUsdText);
   const reason = normalizeText(formData.get("reason")).slice(0, 700) || null;
   const idempotencyKey = String(formData.get("idempotencyKey") ?? "");
   const cookieStore = await cookies();
@@ -695,6 +698,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   if (!userId || !marketItem || !["BUY", "SELL"].includes(side) || !Number.isFinite(amountUsd) || amountUsd <= 0) {
     return { ok: false, message: "Lütfen ürün, işlem yönü ve pozitif USD tutarı seç." };
   }
+  const amountUsdDecimal = decimal(amountUsdText);
 
   if (
     !isExecutableMarketQuote(marketItem)
@@ -745,9 +749,9 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: "Nakit para birimi için güncel döviz dönüşümü doğrulanamadı. İşlem uygulanmadı." };
   }
 
-  const cashValueUsd = cashToUsd(account.cashAmount, account.cashMode, cashRateToUsd);
+  const cashValueUsd = decimal(account.cashAmount).times(cashRateToUsd);
 
-  if (side === "BUY" && amountUsd > cashValueUsd) {
+  if (side === "BUY" && amountUsdDecimal.greaterThan(cashValueUsd)) {
     return { ok: false, message: "Bu alım için yeterli sanal nakdin yok." };
   }
 
@@ -780,11 +784,11 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   }
 
   if (side === "SELL") {
-    if (!existingPosition || existingPosition.quantity <= 0) {
+    if (!existingPosition || decimal(existingPosition.quantity).lessThanOrEqualTo(0)) {
       return { ok: false, message: "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor." };
     }
 
-    if (existingPosition.quantity + 0.000001 < quantity) {
+    if (decimal(existingPosition.quantity).plus("0.000001").lessThan(quantity)) {
       return { ok: false, message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla." };
     }
   }
@@ -792,35 +796,35 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
   let transactionError: string | null = null;
 
   try {
-    await prisma.$transaction(async (tx) => {
+    await withSerializableTransaction(async (tx) => {
       const latestAccount = await tx.virtualAccount.findUniqueOrThrow({ where: { userId } });
-      const latestCashUsd = cashToUsd(latestAccount.cashAmount, latestAccount.cashMode, cashRateToUsd);
+      const latestCashUsd = decimal(latestAccount.cashAmount).times(cashRateToUsd);
 
-      if (side === "BUY" && amountUsd > latestCashUsd) {
+      if (side === "BUY" && amountUsdDecimal.greaterThan(latestCashUsd)) {
         throw new Error("Bu alım için yeterli sanal nakdin yok.");
       }
 
       const currentPosition = await tx.portfolioPosition.findUnique({
         where: { userId_symbol: { userId, symbol } },
       });
-      const execution = getVirtualExecutionCosts({
+      const execution = getVirtualExecutionCostsDecimal({
         category: marketItem.category,
         side,
         quotePriceUsd: tradePriceUsd,
-        requestedAmountUsd: amountUsd,
+        requestedAmountUsd: amountUsdDecimal,
       });
       const currentTradePriceUsd = execution.executionPriceUsd;
       const currentQuantity = execution.quantity;
       const nextCashUsd = side === "BUY"
-        ? latestCashUsd - execution.cashDeltaUsd
-        : latestCashUsd + execution.cashDeltaUsd;
+        ? latestCashUsd.minus(execution.cashDeltaUsd)
+        : latestCashUsd.plus(execution.cashDeltaUsd);
 
       if (side === "SELL") {
-        if (!currentPosition || currentPosition.quantity <= 0) {
+        if (!currentPosition || decimal(currentPosition.quantity).lessThanOrEqualTo(0)) {
           throw new Error("Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor.");
         }
 
-        if (currentPosition.quantity + 0.000001 < currentQuantity) {
+        if (decimal(currentPosition.quantity).plus("0.000001").lessThan(currentQuantity)) {
           throw new Error("Satmak istediğiniz miktar portföyünüzdeki miktardan fazla.");
         }
       }
@@ -828,25 +832,25 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       await tx.virtualAccount.update({
         where: { userId },
         data: {
-          cashAmount: usdToCash(nextCashUsd, latestAccount.cashMode, cashRateToUsd),
+          cashAmount: nextCashUsd.div(cashRateToUsd),
         },
       });
 
       let positionCycleId = currentPosition?.positionCycleId ?? currentPosition?.id ?? randomUUID();
-      let costBasisUsd: number | null = null;
-      let realizedPnlUsd: number | null = null;
-      let realizedPnlPercent: number | null = null;
+      let costBasisUsd: Prisma.Decimal | null = null;
+      let realizedPnlUsd: Prisma.Decimal | null = null;
+      let realizedPnlPercent: Prisma.Decimal | null = null;
 
       if (side === "BUY") {
         if (currentPosition) {
-          const totalQuantity = currentPosition.quantity + currentQuantity;
-          const totalCost = currentPosition.quantity * currentPosition.averagePriceUsd + execution.cashDeltaUsd;
+          const totalQuantity = decimal(currentPosition.quantity).plus(currentQuantity);
+          const totalCost = decimal(currentPosition.quantity).times(currentPosition.averagePriceUsd).plus(execution.cashDeltaUsd);
 
           await tx.portfolioPosition.update({
             where: { userId_symbol: { userId, symbol } },
             data: {
               quantity: totalQuantity,
-              averagePriceUsd: totalCost / totalQuantity,
+              averagePriceUsd: totalCost.div(totalQuantity),
               positionCycleId,
               providerSymbol: marketItem.providerSymbol ?? marketItem.dataSymbol,
             },
@@ -862,13 +866,13 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
               name: marketItem.name,
               market: marketItem.market,
               quantity: currentQuantity,
-              averagePriceUsd: execution.cashDeltaUsd / currentQuantity,
+              averagePriceUsd: execution.cashDeltaUsd.div(currentQuantity),
             },
           });
         }
       } else if (currentPosition) {
-        const nextQuantity = currentPosition.quantity - currentQuantity;
-        const realized = calculateRealizedTradePnl({
+        const nextQuantity = decimal(currentPosition.quantity).minus(currentQuantity);
+        const realized = calculateRealizedTradePnlDecimal({
           quantity: currentQuantity,
           averagePriceUsd: currentPosition.averagePriceUsd,
           netProceedsUsd: execution.cashDeltaUsd,
@@ -877,7 +881,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
         realizedPnlUsd = realized.realizedPnlUsd;
         realizedPnlPercent = realized.realizedPnlPercent;
 
-        if (nextQuantity <= 0.000001) {
+        if (nextQuantity.lessThanOrEqualTo("0.000001")) {
           await tx.portfolioPosition.delete({ where: { userId_symbol: { userId, symbol } } });
         } else {
           await tx.portfolioPosition.update({
@@ -896,7 +900,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
           name: marketItem.name,
           market: marketItem.market,
           side,
-          quantity: currentQuantity,
+          quantity: currentQuantity.toString(),
           priceUsd: currentTradePriceUsd,
           totalUsd: execution.cashDeltaUsd,
           requestedAmountUsd: amountUsd,
@@ -925,7 +929,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
           valuationPriceType: marketItem.priceType ?? null,
           executionReferencePriceType: side === "BUY" ? "ASK" : "BID",
           priceUnit: marketItem.priceUnit ?? null,
-          quotePriceUsd: tradePriceUsd,
+          quotePriceUsd: decimal(tradePriceUsd).toString(),
           quoteCurrency: marketItem.quoteCurrency ?? "USD",
           sourceAsOf: marketItem.sourceAsOf,
           bidPriceUsd: marketItem.bidPriceUsd ?? null,
@@ -948,12 +952,12 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
           instrumentType: marketItem.instrumentType ?? null,
           exchange: marketItem.exchange ?? null,
           settleCurrency: marketItem.settleCurrency ?? null,
-          executionPriceUsd: currentTradePriceUsd,
-          requestedAmountUsd: amountUsd,
-          executionNotionalUsd: execution.executionNotionalUsd,
-          feeUsd: execution.feeUsd,
-          slippageUsd: execution.slippageUsd,
-          realizedPnlUsd,
+          executionPriceUsd: currentTradePriceUsd.toString(),
+          requestedAmountUsd: amountUsdDecimal.toString(),
+          executionNotionalUsd: execution.executionNotionalUsd.toString(),
+          feeUsd: execution.feeUsd.toString(),
+          slippageUsd: execution.slippageUsd.toString(),
+          realizedPnlUsd: realizedPnlUsd?.toString() ?? null,
         },
       });
     });

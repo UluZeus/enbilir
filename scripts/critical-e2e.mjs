@@ -1,8 +1,10 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+import { createDisposableMysqlDatabase } from "./lib/disposable-mysql.mjs";
 
 const npmCommand = process.platform === "win32" ? process.execPath : "npm";
 const npmArgumentPrefix =
@@ -12,9 +14,8 @@ const npmArgumentPrefix =
 const port = Number(process.env.E2E_PORT || 3219);
 const baseUrl = `http://127.0.0.1:${port}`;
 const testRoot = mkdtempSync(path.join(tmpdir(), "enbilir-critical-e2e-"));
-const databasePath = path.join(testRoot, "e2e.db");
-const databaseUrl = `file:${databasePath.replaceAll("\\", "/")}`;
 let server;
+let disposableDatabase;
 
 const responsiveViewports = [
   { name: "mobile-narrow", width: 360, height: 800 },
@@ -32,6 +33,7 @@ const syntheticUser = {
   displayNameMode: "NICKNAME",
   email: "critical-e2e@enbilir.invalid",
   role: "USER",
+  sessionVersion: 0,
 };
 
 function run(command, args, env = process.env) {
@@ -77,52 +79,28 @@ async function launchBrowser(chromium) {
   throw new Error("No Playwright-compatible Chromium browser is available.");
 }
 
-async function seedSyntheticUser() {
-  const { default: Database } = await import("better-sqlite3");
-  const database = new Database(databasePath);
-  const now = new Date().toISOString();
-
-  try {
-    database.prepare(`
-      INSERT INTO "User" (
-        "id", "name", "nickname", "displayNameMode", "email", "isActive", "emailVerifiedAt",
-        "role", "membershipTier", "createdAt", "updatedAt"
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      syntheticUser.id,
-      syntheticUser.name,
-      syntheticUser.nickname,
-      syntheticUser.displayNameMode,
-      syntheticUser.email,
-      1,
-      now,
-      syntheticUser.role,
-      "STANDARD",
-      now,
-      now,
-    );
-
-    database.prepare(`
-      INSERT INTO "VirtualAccount" (
-        "id", "userId", "cashMode", "cashAmount", "baseCurrency", "dailyRepoRate", "createdAt", "updatedAt"
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      "critical-e2e-account",
-      syntheticUser.id,
-      "USD",
-      1_000_000,
-      "USD",
-      0.00125,
-      now,
-      now,
-    );
-  } finally {
-    database.close();
-  }
+function seedSyntheticUser(runtimeEnv, prismaCli) {
+  const now = "2026-08-04 12:00:00.000";
+  const sql = `
+    INSERT INTO \`User\`
+      (id, name, nickname, displayNameMode, email, isActive, emailVerifiedAt, role, membershipTier, createdAt, updatedAt)
+    VALUES
+      ('critical-e2e-user', 'Critical E2E User', 'CriticalE2E', 'NICKNAME', 'critical-e2e@enbilir.invalid', 1,
+       '${now}', 'USER', 'STANDARD', '${now}', '${now}');
+    INSERT INTO \`VirtualAccount\`
+      (id, userId, cashMode, cashAmount, baseCurrency, dailyRepoRate, createdAt, updatedAt)
+    VALUES
+      ('critical-e2e-account', 'critical-e2e-user', 'USD', 1000000.00, 'USD', 0.00125000, '${now}', '${now}');
+  `;
+  const result = spawnSync(process.execPath, [prismaCli, "db", "execute", "--stdin"], {
+    cwd: process.cwd(), env: runtimeEnv, input: sql, encoding: "utf8", stdio: ["pipe", "inherit", "inherit"], shell: false,
+  });
+  if (result.status !== 0) throw new Error("Synthetic Prisma E2E seed failed.");
 }
 
 async function addSyntheticSession(context, secret) {
   const { SignJWT } = await import("jose");
+  const secureCookieUrl = baseUrl.replace(/^http:/, "https:");
   const token = await new SignJWT(syntheticUser)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -130,12 +108,17 @@ async function addSyntheticSession(context, secret) {
     .sign(new TextEncoder().encode(secret));
 
   await context.addCookies([{
-    name: "enbilir_session",
+    name: "__Host-enbilir_session",
     value: token,
-    url: baseUrl,
+    url: secureCookieUrl,
     httpOnly: true,
+    secure: true,
     sameSite: "Lax",
   }]);
+  const accepted = (await context.cookies(secureCookieUrl)).some((cookie) => (
+    cookie.name === "__Host-enbilir_session" && cookie.secure && cookie.path === "/"
+  ));
+  if (!accepted) throw new Error("Chromium refused the production __Host- session cookie on localhost.");
 }
 
 async function assertNoHorizontalOverflow(page, label) {
@@ -316,10 +299,13 @@ async function main() {
   for (const directory of [chatUploadDirectory, adminUploadDirectory, backupDirectory, operationsLogDirectory]) {
     mkdirSync(directory, { recursive: true });
   }
+  disposableDatabase = createDisposableMysqlDatabase({ purpose: "e2e" });
   const runtimeEnv = {
     ...process.env,
     ENBILIR_ENV: "staging",
-    DATABASE_URL: databaseUrl,
+    DATABASE_URL: disposableDatabase.databaseUrl,
+    MYSQL_DATABASE: disposableDatabase.database,
+    MYSQL_DEFAULTS_FILE: disposableDatabase.defaultsFile,
     NEXT_PUBLIC_SITE_URL: "https://staging.enbilir.invalid",
     AUTH_SECRET: randomBytes(32).toString("base64url"),
     MASTER_ADMIN_EMAIL: "admin@enbilir.invalid",
@@ -345,10 +331,9 @@ async function main() {
     OPERATIONS_LOG_DIR: operationsLogDirectory,
   };
 
-  closeSync(openSync(databasePath, "a"));
   const prismaCli = path.join(process.cwd(), "node_modules", "prisma", "build", "index.js");
   run(process.execPath, [prismaCli, "migrate", "deploy"], runtimeEnv);
-  await seedSyntheticUser();
+  seedSyntheticUser(runtimeEnv, prismaCli);
   if (process.env.E2E_USE_EXISTING_BUILD !== "true" || !existsSync(path.join(process.cwd(), ".next", "BUILD_ID"))) {
     run(npmCommand, [...npmArgumentPrefix, "run", "build"], runtimeEnv);
   }
@@ -479,5 +464,6 @@ await main()
   })
   .finally(async () => {
     await stopServer();
+    disposableDatabase?.drop();
     rmSync(testRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });

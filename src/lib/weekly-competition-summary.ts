@@ -3,6 +3,7 @@ import {
   getSafePublicUserLabel,
   publicCompetitionUserWhere,
 } from "@/lib/public-user-visibility";
+import { decimalToNumber } from "@/lib/decimal";
 
 type PublishedWeekWindow = {
   start: Date;
@@ -128,8 +129,8 @@ async function getLatestStoredWeeklyCompetitionSummary(locale: "tr" | "en", curr
         row.user.displayNameMode,
         row.user.email,
       ) ?? privateParticipantLabel,
-      valueUsd: row.valueUsd,
-      returnPercent: row.returnPercent,
+      valueUsd: decimalToNumber(row.valueUsd),
+      returnPercent: decimalToNumber(row.returnPercent),
       rank: row.rank,
     }));
   const totalRows = currentlyEligibleRows
@@ -142,8 +143,8 @@ async function getLatestStoredWeeklyCompetitionSummary(locale: "tr" | "en", curr
         row.user.displayNameMode,
         row.user.email,
       ) ?? privateParticipantLabel,
-      valueUsd: row.valueUsd,
-      returnPercent: row.returnPercent,
+      valueUsd: decimalToNumber(row.valueUsd),
+      returnPercent: decimalToNumber(row.returnPercent),
       rank: row.rank,
     }));
 

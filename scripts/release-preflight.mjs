@@ -1,11 +1,9 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 
-import Database from "better-sqlite3";
-
-import { getSqliteDatabasePath, loadLocalEnvironment } from "./lib/operations.mjs";
+import { createDisposableMysqlDatabase } from "./lib/disposable-mysql.mjs";
+import { createMysqlCli } from "./lib/mysql-cli.mjs";
+import { loadLocalEnvironment } from "./lib/operations.mjs";
 
 const npmCommand = process.platform === "win32" ? process.execPath : "npm";
 const npmArgumentPrefix =
@@ -56,28 +54,35 @@ run("lint", npmCommand, [...npmArgumentPrefix, "run", "lint"]);
 run("TypeScript", npxCommand, [...npxArgumentPrefix, "tsc", "--noEmit", "--incremental", "false"]);
 run("unit tests", npmCommand, [...npmArgumentPrefix, "run", "test"]);
 run("integration tests", npmCommand, [...npmArgumentPrefix, "run", "test:integration"]);
-run("legacy database migration upgrade test", npmCommand, [...npmArgumentPrefix, "run", "test:migration-upgrade"]);
+run("legacy SQLite source migration upgrade test", npmCommand, [...npmArgumentPrefix, "run", "test:migration-upgrade"]);
 
-const migrationDirectory = mkdtempSync(path.join(tmpdir(), "enbilir-migration-clone-"));
+const disposableDatabase = createDisposableMysqlDatabase({ purpose: "preflight" });
 try {
-  const clonePath = path.join(migrationDirectory, "migration-clone.db");
-  const source = new Database(getSqliteDatabasePath(), { readonly: true, fileMustExist: true });
-  await source.backup(clonePath);
-  source.close();
-  run("migration deploy against disposable database clone", npmCommand, [...npmArgumentPrefix, "run", "db:deploy"], {
-    env: { ...process.env, DATABASE_URL: `file:${clonePath}` },
+  const migrationEnvironment = {
+    ...process.env,
+    ENBILIR_ENV: "test",
+    DATABASE_URL: disposableDatabase.databaseUrl,
+    MYSQL_DATABASE: disposableDatabase.database,
+    MYSQL_DEFAULTS_FILE: disposableDatabase.defaultsFile,
+  };
+  run("migration deploy against empty disposable MySQL database", npmCommand, [...npmArgumentPrefix, "run", "db:deploy"], {
+    env: migrationEnvironment,
   });
-  const migrated = new Database(clonePath, { readonly: true, fileMustExist: true });
-  const integrity = migrated.pragma("integrity_check");
-  migrated.close();
-  if (
-    integrity.length !== 1 ||
-    String(integrity[0]?.integrity_check || integrity[0]?.["integrity_check"]).toLowerCase() !== "ok"
-  ) {
-    throw new Error("Disposable migration clone failed SQLite integrity_check.");
+  run("idempotent migration redeploy against disposable MySQL database", npmCommand, [...npmArgumentPrefix, "run", "db:deploy"], {
+    env: migrationEnvironment,
+  });
+  const mysql = createMysqlCli({ defaultsFile: disposableDatabase.defaultsFile, database: disposableDatabase.database });
+  const completed = Number(mysql.queryScalar(
+    "SELECT COUNT(*) AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL",
+  ));
+  const incomplete = Number(mysql.queryScalar(
+    "SELECT COUNT(*) AS count FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL",
+  ));
+  if (!Number.isSafeInteger(completed) || completed < 1 || incomplete !== 0) {
+    throw new Error("Disposable MySQL migration history validation failed.");
   }
 } finally {
-  rmSync(migrationDirectory, { recursive: true, force: true });
+  disposableDatabase.drop();
 }
 
 run("production build", npmCommand, [...npmArgumentPrefix, "run", "build"]);

@@ -5,6 +5,7 @@ import {
   type YahooCorporateActionQuote,
 } from "@/lib/ai-market/yahoo-corporate-actions";
 import { prisma } from "@/lib/prisma";
+import { decimalToNumber } from "@/lib/decimal";
 
 export async function evaluateDueVipIdeas(now = new Date()) {
   const pending = await prisma.vipResearchIdeaEvaluation.findMany({
@@ -55,7 +56,7 @@ export async function evaluateDueVipIdeas(now = new Date()) {
     const quote = quotes.get(key) ?? null;
     const splitEvents = quote?.splitEvents.filter((event) => event.effectiveAt > evaluation.idea.report.generatedAt) ?? [];
     const result = quote ? calculateYahooSplitAdjustedPriceReturn({
-      referencePrice: evaluation.idea.priceAtRecommendation,
+      referencePrice: decimalToNumber(evaluation.idea.priceAtRecommendation),
       currentPrice: quote.price,
       splitEvents,
     }) : null;

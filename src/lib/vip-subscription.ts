@@ -1,13 +1,13 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { membershipConfig } from "@/lib/membership";
-import { prisma } from "@/lib/prisma";
 import {
   canonicalizeVipPaymentReference,
   normalizeVipPaymentProvider,
   normalizeVipPaymentReference,
 } from "@/lib/vip-subscription-claim-policy";
 import { appendAuditEvent } from "@/lib/audit-log";
+import { withSerializableTransaction } from "@/lib/serializable-transaction";
 
 type ActivateVipInput = {
   email: string;
@@ -135,7 +135,7 @@ export async function activateVipSubscriptionInTransaction(
 }
 
 export async function activateVipSubscription(input: ActivateVipInput) {
-  return prisma.$transaction((transaction) => activateVipSubscriptionInTransaction(transaction, input));
+  return withSerializableTransaction((transaction) => activateVipSubscriptionInTransaction(transaction, input));
 }
 
 export async function revokeVipSubscription(input: RevokeVipInput) {
@@ -148,7 +148,7 @@ export async function revokeVipSubscription(input: RevokeVipInput) {
     throw new Error("Ödeme referansı zorunludur.");
   }
 
-  return prisma.$transaction(async (transaction) => {
+  return withSerializableTransaction(async (transaction) => {
     const payment = await transaction.vipSubscriptionPayment.findFirst({
       where: { OR: [{ providerReference }, { providerReference: normalizedReference }] },
       select: { id: true, userId: true, status: true },

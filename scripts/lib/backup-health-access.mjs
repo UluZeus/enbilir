@@ -121,7 +121,7 @@ function parseManifest(manifestPath, expectedSetName, lstatOperation) {
   if (
     !value
     || typeof value !== "object"
-    || value.version !== 1
+    || ![1, 2].includes(value.version)
     || value.setName !== expectedSetName
     || !Array.isArray(value.files)
     || value.files.length < 1

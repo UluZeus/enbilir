@@ -3,7 +3,6 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -23,30 +22,20 @@ function createBackupFixture() {
   temporaryRoots.push(root);
   const setName = "enbilir-20260728T120000Z";
   const setPath = path.join(root, setName);
-  const databasePath = path.join(setPath, "database.db");
+  const databasePath = path.join(setPath, "database.sql");
   mkdirSync(setPath);
-  const database = new Database(databasePath);
-  database.exec(`
-    CREATE TABLE _prisma_migrations (
-      migration_name TEXT NOT NULL,
-      finished_at TEXT,
-      rolled_back_at TEXT
-    );
-    INSERT INTO _prisma_migrations (migration_name, finished_at, rolled_back_at)
-    VALUES ('001_initial', '2026-07-28T11:00:00.000Z', NULL);
-  `);
-  database.close();
+  writeFileSync(databasePath, "-- synthetic mysqldump fixture\nCREATE TABLE `Synthetic` (`id` varchar(32));\n");
   const databaseSha256 = sha256(databasePath);
   writeFileSync(
     path.join(setPath, "manifest.json"),
     JSON.stringify({
-      version: 1,
+      version: 2,
       setName,
       createdAt: "2026-07-28T12:00:00.000Z",
-      database: { integrityCheck: "ok", completedMigrationCount: 1 },
+      database: { engine: "mysql", format: "mysqldump", completedMigrationCount: 1 },
       files: [
         {
-          path: "database.db",
+          path: "database.sql",
           sizeBytes: statSync(databasePath).size,
           sha256: databaseSha256,
         },
@@ -70,7 +59,7 @@ afterEach(() => {
 });
 
 describe("backup readiness validation", () => {
-  it("accepts a fully verified SQLite backup and a marker bound to that backup", async () => {
+  it("accepts a fully verified MySQL logical backup and a marker bound to that backup", async () => {
     const fixture = createBackupFixture();
 
     await expect(validateBackupSet(fixture.root, fixture.setName)).resolves.toMatchObject({

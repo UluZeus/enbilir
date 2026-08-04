@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { membershipConfig } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
+import { withSerializableTransaction } from "@/lib/serializable-transaction";
 import { activateVipSubscriptionInTransaction } from "@/lib/vip-subscription";
 import {
   canonicalizeVipPaymentReference,
@@ -36,7 +37,7 @@ export async function submitVipSubscriptionClaim(input: { userId: string; provid
   }
 
   try {
-    return await prisma.$transaction(async (transaction) => {
+    return await withSerializableTransaction(async (transaction) => {
       const existing = await transaction.vipSubscriptionClaim.findFirst({
         where: {
           provider: "PARAM",
@@ -128,7 +129,7 @@ export async function reviewVipSubscriptionClaim(input: {
   payerEmail?: string;
   adminNote?: string;
 }) {
-  return prisma.$transaction(async (transaction) => {
+  return withSerializableTransaction(async (transaction) => {
     const claim = await transaction.vipSubscriptionClaim.findUnique({
       where: { id: input.claimId },
       include: { user: { select: { email: true } } },
@@ -222,7 +223,7 @@ export async function activateVipSubscriptionClaimFromWebhook(input: {
     throw new Error("Hesaba bağlı ödeme bildirimi ve geçerli Param referansı zorunludur.");
   }
 
-  return prisma.$transaction(async (transaction) => {
+  return withSerializableTransaction(async (transaction) => {
     const claim = await transaction.vipSubscriptionClaim.findUnique({
       where: { id: input.claimId },
       include: { user: { select: { email: true } } },

@@ -2,15 +2,17 @@ import "server-only";
 
 import { fetchYahooCorporateActionQuote, getYahooCumulativeSplitFactor } from "@/lib/ai-market/yahoo-corporate-actions";
 import { prisma } from "@/lib/prisma";
+import type { DecimalValue } from "@/lib/decimal";
+import { decimal, decimalToNumber } from "@/lib/decimal";
 
 type PositionForCorporateAction = {
   id: string;
   symbol: string;
   providerSymbol: string | null;
   market: string;
-  quantity: number;
-  averagePriceUsd: number;
-  appliedSplitFactor: number;
+  quantity: DecimalValue;
+  averagePriceUsd: DecimalValue;
+  appliedSplitFactor: DecimalValue;
   corporateActionsCheckedAt: Date | null;
   createdAt: Date;
 };
@@ -26,20 +28,20 @@ export function calculatePortfolioSplitAdjustment(
   if (
     !Number.isFinite(cumulativeSplitFactor) ||
     cumulativeSplitFactor <= 0 ||
-    !Number.isFinite(position.appliedSplitFactor) ||
-    position.appliedSplitFactor <= 0
+    !decimal(position.appliedSplitFactor).isFinite() ||
+    decimal(position.appliedSplitFactor).lessThanOrEqualTo(0)
   ) {
     return null;
   }
 
-  const adjustmentFactor = cumulativeSplitFactor / position.appliedSplitFactor;
-  if (!Number.isFinite(adjustmentFactor) || adjustmentFactor <= 0) return null;
+  const adjustmentFactor = decimal(cumulativeSplitFactor).div(position.appliedSplitFactor);
+  if (!adjustmentFactor.isFinite() || adjustmentFactor.lessThanOrEqualTo(0)) return null;
 
   return {
-    adjustmentFactor,
+    adjustmentFactor: decimalToNumber(adjustmentFactor),
     appliedSplitFactor: cumulativeSplitFactor,
-    quantity: position.quantity * adjustmentFactor,
-    averagePriceUsd: position.averagePriceUsd / adjustmentFactor,
+    quantity: decimalToNumber(decimal(position.quantity).times(adjustmentFactor)),
+    averagePriceUsd: decimalToNumber(decimal(position.averagePriceUsd).div(adjustmentFactor)),
   };
 }
 
@@ -116,7 +118,7 @@ export async function syncPortfolioPositionCorporateAction(
       select: { appliedSplitFactor: true },
     });
     return {
-      reliable: latestPosition?.appliedSplitFactor === adjustment.appliedSplitFactor,
+      reliable: latestPosition !== null && decimal(latestPosition.appliedSplitFactor).equals(adjustment.appliedSplitFactor),
       checked: true,
       updated: false,
     };

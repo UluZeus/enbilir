@@ -25,6 +25,8 @@ import { getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site-url";
 import { getOnboardingProgress } from "@/lib/onboarding";
+import type { DecimalValue } from "@/lib/decimal";
+import { decimalToNumber } from "@/lib/decimal";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
@@ -1014,12 +1016,12 @@ function PortfolioSummaryMetric({
   );
 }
 
-function formatDashboardMoney(value: number, locale: "tr" | "en") {
+function formatDashboardMoney(value: DecimalValue, locale: "tr" | "en") {
   return new Intl.NumberFormat(locale === "tr" ? "tr-TR" : "en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(decimalToNumber(value));
 }
 
 function PanelSoftMetric({ label, value }: { label: string; value: string }) {

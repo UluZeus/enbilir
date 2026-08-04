@@ -16,6 +16,8 @@ export type RuntimeConfigIssue = {
 const requiredProductionValues = [
   "NEXT_PUBLIC_SITE_URL",
   "DATABASE_URL",
+  "MYSQL_DEFAULTS_FILE",
+  "MYSQL_DATABASE",
   "AUTH_SECRET",
   "MASTER_ADMIN_EMAIL",
   "RATE_LIMIT_HASH_SECRET",
@@ -168,14 +170,24 @@ export function getRuntimeConfigIssues(
 
   const databaseUrl = env.DATABASE_URL?.trim();
   if (databaseUrl) {
-    if (!databaseUrl.startsWith("file:")) {
-      addIssue(issues, { key: "DATABASE_URL", code: "invalid" });
-    } else {
-      const databasePath = databaseUrl.slice("file:".length);
-      if (!path.isAbsolute(databasePath) || /(^|[/\\])dev\.db$/i.test(databasePath) || isWithin(appDirectory, databasePath)) {
-        addIssue(issues, { key: "DATABASE_URL", code: "unsafe-path" });
+    try {
+      const parsed = new URL(databaseUrl);
+      const databaseName = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+      if (parsed.protocol !== "mysql:" || !parsed.hostname || !databaseName || /^(?:dev|test)(?:_|$)/i.test(databaseName)) {
+        addIssue(issues, { key: "DATABASE_URL", code: "invalid" });
       }
+    } catch {
+      addIssue(issues, { key: "DATABASE_URL", code: "invalid" });
     }
+  }
+
+  const mysqlDatabase = env.MYSQL_DATABASE?.trim();
+  if (mysqlDatabase && (!/^[A-Za-z0-9_]+$/.test(mysqlDatabase) || /^(?:dev|test)(?:_|$)/i.test(mysqlDatabase))) {
+    addIssue(issues, { key: "MYSQL_DATABASE", code: "invalid" });
+  }
+  const mysqlDefaultsFile = env.MYSQL_DEFAULTS_FILE?.trim();
+  if (mysqlDefaultsFile && (!path.isAbsolute(mysqlDefaultsFile) || isWithin(appDirectory, mysqlDefaultsFile))) {
+    addIssue(issues, { key: "MYSQL_DEFAULTS_FILE", code: "unsafe-path" });
   }
 
   const masterAdminEmail = env.MASTER_ADMIN_EMAIL?.trim();

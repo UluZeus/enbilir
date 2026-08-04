@@ -3,8 +3,6 @@ import { createReadStream } from "node:fs";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
-import Database from "better-sqlite3";
-
 type BackupManifestFile = {
   path: string;
   sizeBytes: number;
@@ -16,7 +14,8 @@ type BackupManifest = {
   setName: string;
   createdAt: string;
   database: {
-    integrityCheck: string;
+    engine: string;
+    format: string;
     completedMigrationCount: number;
   };
   files: BackupManifestFile[];
@@ -55,11 +54,12 @@ function parseManifest(value: unknown, expectedSetName: string): BackupManifest 
   if (!value || typeof value !== "object") throw new Error("Backup manifest is invalid.");
   const manifest = value as Partial<BackupManifest>;
   if (
-    manifest.version !== 1 ||
+    manifest.version !== 2 ||
     manifest.setName !== expectedSetName ||
     typeof manifest.createdAt !== "string" ||
     !Number.isFinite(Date.parse(manifest.createdAt)) ||
-    manifest.database?.integrityCheck !== "ok" ||
+    manifest.database?.engine !== "mysql" ||
+    manifest.database?.format !== "mysqldump" ||
     !Number.isSafeInteger(manifest.database.completedMigrationCount) ||
     manifest.database.completedMigrationCount < 1 ||
     !Array.isArray(manifest.files) ||
@@ -116,8 +116,8 @@ async function inspectBackupSetMetadata(backupRoot: string, setName: string) {
     }
   }
 
-  const databaseEntry = manifest.files.find((file) => file.path === "database.db");
-  if (!databaseEntry) throw new Error("Backup manifest does not contain database.db.");
+  const databaseEntry = manifest.files.find((file) => file.path === "database.sql");
+  if (!databaseEntry) throw new Error("Backup manifest does not contain database.sql.");
   return { setPath, manifest, databaseEntry };
 }
 
@@ -128,25 +128,6 @@ export async function validateBackupSet(backupRoot: string, setName: string) {
     if ((await sha256File(filePath)) !== file.sha256) {
       throw new Error("Backup file checksum does not match its manifest.");
     }
-  }
-
-  const databasePath = path.join(setPath, "database.db");
-  const database = new Database(databasePath, { readonly: true, fileMustExist: true });
-  try {
-    const integrityRows = database.pragma("integrity_check") as Array<Record<string, unknown>>;
-    const integrityOk =
-      integrityRows.length === 1 &&
-      String(integrityRows[0]?.integrity_check || integrityRows[0]?.["integrity_check"]).toLowerCase() === "ok";
-    const migrationCount = (
-      database
-        .prepare("SELECT COUNT(*) AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL")
-        .get() as { count?: number } | undefined
-    )?.count;
-    if (!integrityOk || migrationCount !== manifest.database.completedMigrationCount) {
-      throw new Error("Backup database integrity or migration history does not match its manifest.");
-    }
-  } finally {
-    database.close();
   }
 
   return {

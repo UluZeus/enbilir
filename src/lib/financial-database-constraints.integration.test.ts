@@ -1,85 +1,62 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
-import Database from "better-sqlite3";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const testDirectory = mkdtempSync(path.join(tmpdir(), "enbilir-financial-constraints-"));
-const databasePath = path.join(testDirectory, "release-gate.db");
-let database: Database.Database;
+import { canUseDisposableMysql, createDisposableMysqlDatabase } from "../../scripts/lib/disposable-mysql.mjs";
+import { MysqlCliDatabase } from "../../scripts/lib/mysql-cli.mjs";
 
-beforeAll(() => {
-  database = new Database(databasePath);
-  database.pragma("foreign_keys = ON");
-  const migrationsRoot = path.join(process.cwd(), "prisma", "migrations");
-  for (const directory of readdirSync(migrationsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()) {
-    database.exec(readFileSync(path.join(migrationsRoot, directory, "migration.sql"), "utf8"));
-  }
-  const timestamp = "2026-07-28T12:00:00.000Z";
-  database.prepare(`
-    INSERT INTO "User" ("id", "name", "email", "isActive", "emailVerifiedAt", "createdAt", "updatedAt")
-    VALUES (?, ?, ?, 1, ?, ?, ?)
-  `).run("user-release-gate", "Release Gate", "release-gate@example.test", timestamp, timestamp, timestamp);
-});
+const describeMysql = canUseDisposableMysql() ? describe : describe.skip;
+let disposable: ReturnType<typeof createDisposableMysqlDatabase>;
+let database: MysqlCliDatabase;
 
-afterAll(() => {
-  database?.close();
-  rmSync(testDirectory, { recursive: true, force: true });
-});
+function deploySchema() {
+  const prismaCli = path.join(process.cwd(), "node_modules", "prisma", "build", "index.js");
+  const result = spawnSync(process.execPath, [prismaCli, "migrate", "deploy"], {
+    cwd: process.cwd(),
+    env: { ...process.env, ENBILIR_ENV: "test", DATABASE_URL: disposable.databaseUrl },
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+  if (result.status !== 0) throw new Error("Disposable MySQL migration failed; provider output was withheld.");
+}
 
-describe("release gate: disposable financial database constraints", () => {
+describeMysql("release gate: disposable MySQL financial constraints", () => {
+  beforeAll(() => {
+    disposable = createDisposableMysqlDatabase({ purpose: "test" });
+    deploySchema();
+    database = new MysqlCliDatabase({ defaultsFile: disposable.defaultsFile, database: disposable.database });
+    const timestamp = new Date("2026-07-28T12:00:00.000Z");
+    database.prepare(`
+      INSERT INTO \`User\` (id, name, email, isActive, emailVerifiedAt, createdAt, updatedAt)
+      VALUES (?, ?, ?, 1, ?, ?, ?)
+    `).run("user-release-gate", "Release Gate", "release-gate@enbilir.invalid", timestamp, timestamp, timestamp);
+  }, 120_000);
+
+  afterAll(() => disposable?.drop());
+
   it("enforces durable per-user trade idempotency", () => {
     const insert = database.prepare(`
-      INSERT INTO "VirtualTrade" (
-        "id", "userId", "idempotencyKey", "symbol", "name", "market", "side",
-        "quantity", "priceUsd", "totalUsd", "requestedAmountUsd",
-        "executionNotionalUsd", "feeUsd", "slippageUsd", "priceSource", "createdAt"
-      ) VALUES (
-        @id, @userId, @idempotencyKey, 'AAPL', 'Apple', 'NASDAQ', 'BUY',
-        1, 100, 100, 100, 99.99, 0.01, 0.02, 'yahoo', @createdAt
-      )
+      INSERT INTO \`VirtualTrade\` (
+        id, userId, idempotencyKey, symbol, name, market, side, quantity, priceUsd, totalUsd,
+        requestedAmountUsd, executionNotionalUsd, feeUsd, slippageUsd, priceSource, createdAt
+      ) VALUES (?, ?, ?, 'AAPL', 'Apple', 'NASDAQ', 'BUY', 1, 100, 100, 100, 99.99, 0.01, 0.02, 'synthetic', ?)
     `);
-    const row = {
-      id: "trade-release-1",
-      userId: "user-release-gate",
-      idempotencyKey: "release-key-1",
-      createdAt: "2026-07-28T12:00:00.000Z",
-    };
-
-    expect(insert.run(row).changes).toBe(1);
-    expect(() => insert.run({ ...row, id: "trade-release-2" })).toThrow(/UNIQUE constraint failed/);
-    expect(database.prepare(`
-      SELECT COUNT(*) AS count
-      FROM "VirtualTrade"
-      WHERE "userId" = ? AND "idempotencyKey" = ?
-    `).get(row.userId, row.idempotencyKey)).toEqual({ count: 1 });
+    const timestamp = new Date("2026-07-28T12:00:00.000Z");
+    expect(insert.run("trade-release-1", "user-release-gate", "release-key-1", timestamp).changes).toBe(1);
+    expect(() => insert.run("trade-release-2", "user-release-gate", "release-key-1", timestamp)).toThrow();
+    const row = database.prepare("SELECT COUNT(*) AS count FROM `VirtualTrade` WHERE userId = ? AND idempotencyKey = ?")
+      .get("user-release-gate", "release-key-1");
+    expect(Number(row.count)).toBe(1);
   });
 
   it("enforces one atomic daily quota counter per user and Istanbul day", () => {
     const insert = database.prepare(`
-      INSERT INTO "AiDailyQueryUsage" ("id", "userId", "dayKey", "queryCount", "createdAt", "updatedAt")
+      INSERT INTO \`AiDailyQueryUsage\` (id, userId, dayKey, queryCount, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    const timestamp = "2026-07-28T12:00:00.000Z";
-
-    expect(insert.run(
-      "usage-release-1",
-      "user-release-gate",
-      "2026-07-28",
-      5,
-      timestamp,
-      timestamp,
-    ).changes).toBe(1);
-    expect(() => insert.run(
-      "usage-release-2",
-      "user-release-gate",
-      "2026-07-28",
-      1,
-      timestamp,
-      timestamp,
-    )).toThrow(/UNIQUE constraint failed/);
+    const timestamp = new Date("2026-07-28T12:00:00.000Z");
+    expect(insert.run("usage-release-1", "user-release-gate", "2026-07-28", 5, timestamp, timestamp).changes).toBe(1);
+    expect(() => insert.run("usage-release-2", "user-release-gate", "2026-07-28", 1, timestamp, timestamp)).toThrow();
   });
 });

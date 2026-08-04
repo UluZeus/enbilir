@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
 }
 
 enum Role {
@@ -103,43 +103,43 @@ enum MembershipTier {
 }
 
 model User {
-  id                               String                       @id @default(cuid())
-  name                             String
-  nickname                         String?
+  id                               String                       @id @default(cuid()) @db.VarChar(191)
+  name                             String                       @db.VarChar(191)
+  nickname                         String?                      @db.VarChar(191)
   displayNameMode                  DisplayNameMode              @default(REAL_NAME)
-  email                            String                       @unique
-  passwordHash                     String?
+  email                            String                       @unique @db.VarChar(254)
+  passwordHash                     String?                      @db.VarChar(128)
   isActive                         Boolean                      @default(false)
-  emailVerifiedAt                  DateTime?
-  emailVerificationTokenHash       String?
-  emailVerificationExpiresAt       DateTime?
-  emailVerificationSentAt          DateTime?
+  emailVerifiedAt                  DateTime?                    @db.DateTime(3)
+  emailVerificationTokenHash       String?                      @db.VarChar(128)
+  emailVerificationExpiresAt       DateTime?                    @db.DateTime(3)
+  emailVerificationSentAt          DateTime?                    @db.DateTime(3)
   role                             Role                         @default(USER)
   membershipTier                   MembershipTier               @default(STANDARD)
   sessionVersion                   Int                          @default(0)
-  vipStartedAt                     DateTime?
-  vipPaidUntil                     DateTime?
-  vipLastReminderSentAt            DateTime?
+  vipStartedAt                     DateTime?                    @db.DateTime(3)
+  vipPaidUntil                     DateTime?                    @db.DateTime(3)
+  vipLastReminderSentAt            DateTime?                    @db.DateTime(3)
   score                            Int                          @default(0)
   kvkkDisclosureAccepted           Boolean                      @default(false)
-  kvkkDisclosureAcceptedAt         DateTime?
+  kvkkDisclosureAcceptedAt         DateTime?                    @db.DateTime(3)
   termsAccepted                    Boolean                      @default(false)
-  termsAcceptedAt                  DateTime?
+  termsAcceptedAt                  DateTime?                    @db.DateTime(3)
   noInvestmentAdviceAccepted       Boolean                      @default(false)
-  noInvestmentAdviceAcceptedAt     DateTime?
+  noInvestmentAdviceAcceptedAt     DateTime?                    @db.DateTime(3)
   electronicCommunicationConsent   Boolean                      @default(false)
-  electronicCommunicationConsentAt DateTime?
-  onboardingGuideCompletedAt       DateTime?
-  riskAppetiteCompletedAt          DateTime?
+  electronicCommunicationConsentAt DateTime?                    @db.DateTime(3)
+  onboardingGuideCompletedAt       DateTime?                    @db.DateTime(3)
+  riskAppetiteCompletedAt          DateTime?                    @db.DateTime(3)
   riskAppetiteScore                Float?
-  riskAppetiteProfile              String?
-  aiAssistantOnboardingCompletedAt DateTime?
-  aiChatOnboardingCompletedAt      DateTime?
-  leaderboardOnboardingCompletedAt DateTime?
-  onboardingCompletedAt            DateTime?
-  supportIntroShownAt              DateTime?
-  createdAt                        DateTime                     @default(now())
-  updatedAt                        DateTime                     @updatedAt
+  riskAppetiteProfile              String?                      @db.VarChar(191)
+  aiAssistantOnboardingCompletedAt DateTime?                    @db.DateTime(3)
+  aiChatOnboardingCompletedAt      DateTime?                    @db.DateTime(3)
+  leaderboardOnboardingCompletedAt DateTime?                    @db.DateTime(3)
+  onboardingCompletedAt            DateTime?                    @db.DateTime(3)
+  supportIntroShownAt              DateTime?                    @db.DateTime(3)
+  createdAt                        DateTime                     @default(now()) @db.DateTime(3)
+  updatedAt                        DateTime                     @updatedAt @db.DateTime(3)
   virtualAccount                   VirtualAccount?
   positions                        PortfolioPosition[]
   trades                           VirtualTrade[]
@@ -178,20 +178,20 @@ model User {
 }
 
 model OAuthState {
-  stateHash String   @id
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  stateHash String   @id @db.VarChar(128)
+  expiresAt DateTime @db.DateTime(3)
+  createdAt DateTime @default(now()) @db.DateTime(3)
 
   @@index([expiresAt])
 }
 
 model OAuthAccount {
-  id                String   @id @default(cuid())
-  provider          String
-  providerAccountId String
-  userId            String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                String   @id @default(cuid()) @db.VarChar(191)
+  provider          String   @db.VarChar(191)
+  providerAccountId String   @db.VarChar(191)
+  userId            String   @db.VarChar(191)
+  createdAt         DateTime @default(now()) @db.DateTime(3)
+  updatedAt         DateTime @updatedAt @db.DateTime(3)
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
@@ -199,139 +199,139 @@ model OAuthAccount {
 }
 
 model BlogPost {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  titleTr   String
-  titleEn   String
-  excerptTr String
-  excerptEn String
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  slug      String   @unique @db.VarChar(191)
+  titleTr   String   @db.VarChar(191)
+  titleEn   String   @db.VarChar(191)
+  excerptTr String   @db.Text
+  excerptEn String   @db.Text
   published Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
 }
 
 model AdPlacement {
-  id             String    @id @default(cuid())
-  slot           String
-  title          String
-  body           String
-  imageUrl       String?
-  videoUrl       String?
-  linkUrl        String?
-  linkLabel      String?
+  id             String    @id @default(cuid()) @db.VarChar(191)
+  slot           String    @db.VarChar(191)
+  title          String    @db.VarChar(191)
+  body           String    @db.LongText
+  imageUrl       String?   @db.Text
+  videoUrl       String?   @db.Text
+  linkUrl        String?   @db.Text
+  linkLabel      String?   @db.VarChar(191)
   isActive       Boolean   @default(true)
   displaySeconds Int       @default(8)
   priority       Int       @default(0)
-  startsAt       DateTime?
-  endsAt         DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  startsAt       DateTime? @db.DateTime(3)
+  endsAt         DateTime? @db.DateTime(3)
+  createdAt      DateTime  @default(now()) @db.DateTime(3)
+  updatedAt      DateTime  @updatedAt @db.DateTime(3)
 
   @@index([slot, isActive, priority])
 }
 
 model ManagedContentPage {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  title     String
-  body      String
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  code      String   @unique @db.VarChar(191)
+  title     String   @db.VarChar(191)
+  body      String   @db.LongText
   isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
 }
 
 model ManagedContentItem {
-  id          String             @id @default(cuid())
+  id          String             @id @default(cuid()) @db.VarChar(191)
   type        ManagedContentType
-  locale      String             @default("tr")
-  title       String
-  excerpt     String?
-  body        String
-  imageUrl    String?
-  videoUrl    String?
-  linkUrl     String?
-  linkLabel   String?
+  locale      String             @default("tr") @db.VarChar(191)
+  title       String             @db.VarChar(191)
+  excerpt     String?            @db.Text
+  body        String             @db.LongText
+  imageUrl    String?            @db.Text
+  videoUrl    String?            @db.Text
+  linkUrl     String?            @db.Text
+  linkLabel   String?            @db.VarChar(191)
   sortOrder   Int                @default(0)
   isFeatured  Boolean            @default(false)
   isActive    Boolean            @default(true)
-  publishedAt DateTime?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  publishedAt DateTime?          @db.DateTime(3)
+  createdAt   DateTime           @default(now()) @db.DateTime(3)
+  updatedAt   DateTime           @updatedAt @db.DateTime(3)
 
   @@index([type, locale, isActive, sortOrder])
   @@index([isFeatured, isActive])
 }
 
 model SiteVisualSetting {
-  id          String                @id @default(cuid())
-  key         String                @unique
-  title       String
-  value       String
+  id          String                @id @default(cuid()) @db.VarChar(191)
+  key         String                @unique @db.VarChar(191)
+  title       String                @db.VarChar(191)
+  value       String                @db.LongText
   type        SiteVisualSettingType
-  description String?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  description String?               @db.Text
+  createdAt   DateTime              @default(now()) @db.DateTime(3)
+  updatedAt   DateTime              @updatedAt @db.DateTime(3)
 
   @@index([type])
 }
 
 model VirtualAccount {
-  id                String    @id @default(cuid())
-  userId            String    @unique
+  id                String    @id @default(cuid()) @db.VarChar(191)
+  userId            String    @unique @db.VarChar(191)
   cashMode          CashMode  @default(USD)
-  cashAmount        Float     @default(1000000)
-  baseCurrency      String    @default("USD")
-  dailyRepoRate     Float     @default(0.00125)
-  repoLastAccruedAt DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  cashAmount        Decimal   @default(1000000) @db.Decimal(30, 8)
+  baseCurrency      String    @default("USD") @db.VarChar(191)
+  dailyRepoRate     Decimal   @default(0.00125) @db.Decimal(36, 12)
+  repoLastAccruedAt DateTime? @db.DateTime(3)
+  createdAt         DateTime  @default(now()) @db.DateTime(3)
+  updatedAt         DateTime  @updatedAt @db.DateTime(3)
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PortfolioPosition {
-  id                        String    @id @default(cuid())
-  userId                    String
-  positionCycleId           String?
-  symbol                    String
-  providerSymbol            String?
-  name                      String
-  market                    String
-  quantity                  Float
-  averagePriceUsd           Float
-  appliedSplitFactor        Float     @default(1)
-  corporateActionsCheckedAt DateTime?
-  delistedAt                DateTime?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
+  id                        String    @id @default(cuid()) @db.VarChar(191)
+  userId                    String    @db.VarChar(191)
+  positionCycleId           String?   @db.VarChar(191)
+  symbol                    String    @db.VarChar(191)
+  providerSymbol            String?   @db.VarChar(191)
+  name                      String    @db.VarChar(191)
+  market                    String    @db.VarChar(191)
+  quantity                  Decimal   @db.Decimal(36, 12)
+  averagePriceUsd           Decimal   @db.Decimal(30, 8)
+  appliedSplitFactor        Decimal   @default(1) @db.Decimal(36, 12)
+  corporateActionsCheckedAt DateTime? @db.DateTime(3)
+  delistedAt                DateTime? @db.DateTime(3)
+  createdAt                 DateTime  @default(now()) @db.DateTime(3)
+  updatedAt                 DateTime  @updatedAt @db.DateTime(3)
   user                      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, symbol])
 }
 
 model VirtualTrade {
-  id                   String    @id @default(cuid())
-  userId               String
-  idempotencyKey       String?
-  positionCycleId      String?
-  symbol               String
-  name                 String
-  market               String
+  id                   String    @id @default(cuid()) @db.VarChar(191)
+  userId               String    @db.VarChar(191)
+  idempotencyKey       String?   @db.VarChar(191)
+  positionCycleId      String?   @db.VarChar(191)
+  symbol               String    @db.VarChar(191)
+  name                 String    @db.VarChar(191)
+  market               String    @db.VarChar(191)
   side                 TradeSide
-  quantity             Float
-  priceUsd             Float
-  totalUsd             Float
-  requestedAmountUsd   Float     @default(0)
-  executionNotionalUsd Float     @default(0)
-  feeUsd               Float     @default(0)
-  slippageUsd          Float     @default(0)
-  costBasisUsd         Float?
-  realizedPnlUsd       Float?
-  realizedPnlPercent   Float?
-  quoteCurrency        String    @default("USD")
-  priceSource          String    @default("UNKNOWN")
-  priceAsOf            DateTime?
-  reason               String?
-  createdAt            DateTime  @default(now())
+  quantity             Decimal   @db.Decimal(36, 12)
+  priceUsd             Decimal   @db.Decimal(30, 8)
+  totalUsd             Decimal   @db.Decimal(30, 8)
+  requestedAmountUsd   Decimal   @default(0) @db.Decimal(30, 8)
+  executionNotionalUsd Decimal   @default(0) @db.Decimal(30, 8)
+  feeUsd               Decimal   @default(0) @db.Decimal(30, 8)
+  slippageUsd          Decimal   @default(0) @db.Decimal(30, 8)
+  costBasisUsd         Decimal?  @db.Decimal(30, 8)
+  realizedPnlUsd       Decimal?  @db.Decimal(30, 8)
+  realizedPnlPercent   Decimal?  @db.Decimal(24, 12)
+  quoteCurrency        String    @default("USD") @db.VarChar(191)
+  priceSource          String    @default("UNKNOWN") @db.VarChar(191)
+  priceAsOf            DateTime? @db.DateTime(3)
+  reason               String?   @db.Text
+  createdAt            DateTime  @default(now()) @db.DateTime(3)
   user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, idempotencyKey])
@@ -339,13 +339,13 @@ model VirtualTrade {
 }
 
 model FriendRequest {
-  id         String              @id @default(cuid())
-  pairKey    String              @unique
-  senderId   String
-  receiverId String
+  id         String              @id @default(cuid()) @db.VarChar(191)
+  pairKey    String              @unique @db.VarChar(191)
+  senderId   String              @db.VarChar(191)
+  receiverId String              @db.VarChar(191)
   status     FriendRequestStatus @default(PENDING)
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
+  createdAt  DateTime            @default(now()) @db.DateTime(3)
+  updatedAt  DateTime            @updatedAt @db.DateTime(3)
   sender     User                @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
   receiver   User                @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
 
@@ -354,16 +354,16 @@ model FriendRequest {
 }
 
 model League {
-  id              String             @id @default(cuid())
-  name            String
-  slug            String             @unique
-  description     String?
+  id              String             @id @default(cuid()) @db.VarChar(191)
+  name            String             @db.VarChar(191)
+  slug            String             @unique @db.VarChar(191)
+  description     String?            @db.Text
   type            LeagueType
-  inviteCode      String             @unique
-  createdByUserId String
+  inviteCode      String             @unique @db.VarChar(191)
+  createdByUserId String             @db.VarChar(191)
   isActive        Boolean            @default(true)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt       DateTime           @default(now()) @db.DateTime(3)
+  updatedAt       DateTime           @updatedAt @db.DateTime(3)
   createdBy       User               @relation("CreatedLeagues", fields: [createdByUserId], references: [id], onDelete: Cascade)
   memberships     LeagueMembership[]
 
@@ -372,11 +372,11 @@ model League {
 }
 
 model LeagueMembership {
-  id       String     @id @default(cuid())
-  leagueId String
-  userId   String
+  id       String     @id @default(cuid()) @db.VarChar(191)
+  leagueId String     @db.VarChar(191)
+  userId   String     @db.VarChar(191)
   role     LeagueRole @default(MEMBER)
-  joinedAt DateTime   @default(now())
+  joinedAt DateTime   @default(now()) @db.DateTime(3)
   league   League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -385,25 +385,25 @@ model LeagueMembership {
 }
 
 model Badge {
-  id            String      @id @default(cuid())
-  code          String      @unique
-  nameTr        String
-  nameEn        String
-  descriptionTr String
-  descriptionEn String
-  icon          String
-  category      String
+  id            String      @id @default(cuid()) @db.VarChar(191)
+  code          String      @unique @db.VarChar(191)
+  nameTr        String      @db.VarChar(191)
+  nameEn        String      @db.VarChar(191)
+  descriptionTr String      @db.Text
+  descriptionEn String      @db.Text
+  icon          String      @db.VarChar(191)
+  category      String      @db.VarChar(191)
   isActive      Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime    @default(now()) @db.DateTime(3)
+  updatedAt     DateTime    @updatedAt @db.DateTime(3)
   users         UserBadge[]
 }
 
 model UserBadge {
-  id       String   @id @default(cuid())
-  userId   String
-  badgeId  String
-  earnedAt DateTime @default(now())
+  id       String   @id @default(cuid()) @db.VarChar(191)
+  userId   String   @db.VarChar(191)
+  badgeId  String   @db.VarChar(191)
+  earnedAt DateTime @default(now()) @db.DateTime(3)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
 
@@ -412,25 +412,25 @@ model UserBadge {
 }
 
 model AchievementEvent {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String
-  metadata  String?
-  createdAt DateTime @default(now())
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @db.VarChar(191)
+  type      String   @db.VarChar(191)
+  metadata  String?  @db.Text
+  createdAt DateTime @default(now()) @db.DateTime(3)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, type])
 }
 
 model CompetitionPeriod {
-  id        String                @id @default(cuid())
+  id        String                @id @default(cuid()) @db.VarChar(191)
   type      CompetitionPeriodType
-  name      String
-  startsAt  DateTime
-  endsAt    DateTime
+  name      String                @db.VarChar(191)
+  startsAt  DateTime              @db.DateTime(3)
+  endsAt    DateTime              @db.DateTime(3)
   isActive  Boolean               @default(true)
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
+  createdAt DateTime              @default(now()) @db.DateTime(3)
+  updatedAt DateTime              @updatedAt @db.DateTime(3)
   snapshots PortfolioSnapshot[]
 
   @@index([type, isActive])
@@ -438,17 +438,17 @@ model CompetitionPeriod {
 }
 
 model PortfolioSnapshot {
-  id                String            @id @default(cuid())
-  userId            String
-  periodId          String
-  startingValueUsd  Float             @default(1000000)
-  portfolioValueUsd Float
-  cashUsd           Float
-  positionsValueUsd Float
-  returnPercent     Float
-  valuationStatus   String            @default("VERIFIED")
+  id                String            @id @default(cuid()) @db.VarChar(191)
+  userId            String            @db.VarChar(191)
+  periodId          String            @db.VarChar(191)
+  startingValueUsd  Decimal           @default(1000000) @db.Decimal(30, 8)
+  portfolioValueUsd Decimal           @db.Decimal(30, 8)
+  cashUsd           Decimal           @db.Decimal(30, 8)
+  positionsValueUsd Decimal           @db.Decimal(30, 8)
+  returnPercent     Decimal           @db.Decimal(24, 12)
+  valuationStatus   String            @default("VERIFIED") @db.VarChar(191)
   rank              Int?
-  capturedAt        DateTime          @default(now())
+  capturedAt        DateTime          @default(now()) @db.DateTime(3)
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   period            CompetitionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
 
@@ -458,11 +458,11 @@ model PortfolioSnapshot {
 }
 
 model WeeklyPortfolioBaseline {
-  id                String   @id @default(cuid())
-  periodKey         String
-  userId            String
-  portfolioValueUsd Float
-  capturedAt        DateTime @default(now())
+  id                String   @id @default(cuid()) @db.VarChar(191)
+  periodKey         String   @db.VarChar(191)
+  userId            String   @db.VarChar(191)
+  portfolioValueUsd Decimal  @db.Decimal(30, 8)
+  capturedAt        DateTime @default(now()) @db.DateTime(3)
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([periodKey, userId])
@@ -471,14 +471,14 @@ model WeeklyPortfolioBaseline {
 }
 
 model WeeklyCompetitionPublication {
-  id          String                       @id @default(cuid())
-  periodKey   String                       @unique
-  startsAt    DateTime
-  endsAt      DateTime
-  publishedAt DateTime
-  note        String?
-  createdAt   DateTime                     @default(now())
-  updatedAt   DateTime                     @updatedAt
+  id          String                       @id @default(cuid()) @db.VarChar(191)
+  periodKey   String                       @unique @db.VarChar(191)
+  startsAt    DateTime                     @db.DateTime(3)
+  endsAt      DateTime                     @db.DateTime(3)
+  publishedAt DateTime                     @db.DateTime(3)
+  note        String?                      @db.Text
+  createdAt   DateTime                     @default(now()) @db.DateTime(3)
+  updatedAt   DateTime                     @updatedAt @db.DateTime(3)
   rows        WeeklyCompetitionResultRow[]
 
   @@index([publishedAt])
@@ -486,15 +486,15 @@ model WeeklyCompetitionPublication {
 }
 
 model WeeklyCompetitionResultRow {
-  id            String                       @id @default(cuid())
-  publicationId String
+  id            String                       @id @default(cuid()) @db.VarChar(191)
+  publicationId String                       @db.VarChar(191)
   scope         WeeklyCompetitionScope
-  userId        String
-  displayName   String
-  valueUsd      Float
-  returnPercent Float
+  userId        String                       @db.VarChar(191)
+  displayName   String                       @db.VarChar(191)
+  valueUsd      Decimal                      @db.Decimal(30, 8)
+  returnPercent Decimal                      @db.Decimal(24, 12)
   rank          Int
-  createdAt     DateTime                     @default(now())
+  createdAt     DateTime                     @default(now()) @db.DateTime(3)
   publication   WeeklyCompetitionPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
   user          User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -505,21 +505,21 @@ model WeeklyCompetitionResultRow {
 }
 
 model AiSignalLog {
-  id                 String               @id @default(cuid())
-  createdAt          DateTime             @default(now())
-  symbol             String
-  displayName        String?
-  exchange           String?
-  interval           String
-  signalType         String
-  recommendationText String?
+  id                 String               @id @default(cuid()) @db.VarChar(191)
+  createdAt          DateTime             @default(now()) @db.DateTime(3)
+  symbol             String               @db.VarChar(191)
+  displayName        String?              @db.VarChar(191)
+  exchange           String?              @db.VarChar(191)
+  interval           String               @db.VarChar(191)
+  signalType         String               @db.VarChar(191)
+  recommendationText String?              @db.Text
   confidence         Float?
   riskScore          Float?
   opportunityScore   Float?
-  priceAtSignal      Float?
-  currency           String?
-  source             String?
-  reason             String?
+  priceAtSignal      Decimal?             @db.Decimal(30, 8)
+  currency           String?              @db.VarChar(191)
+  source             String?              @db.VarChar(191)
+  reason             String?              @db.Text
   indicatorsSnapshot Json?
   rawPayload         Json?
   evaluations        AiSignalEvaluation[]
@@ -530,17 +530,17 @@ model AiSignalLog {
 }
 
 model AiSignalEvaluation {
-  id                 String      @id @default(cuid())
-  signalLogId        String
+  id                 String      @id @default(cuid()) @db.VarChar(191)
+  signalLogId        String      @db.VarChar(191)
   signalLog          AiSignalLog @relation(fields: [signalLogId], references: [id], onDelete: Cascade)
-  horizon            String
-  evaluatedAt        DateTime    @default(now())
-  priceAtEvaluation  Float?
-  priceChangePercent Float?
+  horizon            String      @db.VarChar(191)
+  evaluatedAt        DateTime    @default(now()) @db.DateTime(3)
+  priceAtEvaluation  Decimal?    @db.Decimal(30, 8)
+  priceChangePercent Decimal?    @db.Decimal(24, 12)
   directionCorrect   Boolean?
   score              Float?
-  resultLabel        String?
-  status             String?
+  resultLabel        String?     @db.VarChar(191)
+  status             String?     @db.VarChar(191)
 
   @@unique([signalLogId, horizon])
   @@index([horizon, evaluatedAt])
@@ -548,13 +548,13 @@ model AiSignalEvaluation {
 }
 
 model AiMarketFavorite {
-  id          String   @id @default(cuid())
-  userId      String
-  symbol      String
-  displayName String?
-  assetClass  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(cuid()) @db.VarChar(191)
+  userId      String   @db.VarChar(191)
+  symbol      String   @db.VarChar(191)
+  displayName String?  @db.VarChar(191)
+  assetClass  String?  @db.VarChar(191)
+  createdAt   DateTime @default(now()) @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @db.DateTime(3)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, symbol])
@@ -562,25 +562,25 @@ model AiMarketFavorite {
 }
 
 model AiMarketReport {
-  id               String                   @id @default(cuid())
-  userId           String?
-  periodKey        String
-  scope            String                   @default("GLOBAL")
-  status           String                   @default("COMPLETED")
-  model            String?
-  generatedAt      DateTime                 @default(now())
-  macroSummary     String
-  marketRegime     String?
-  riskAppetite     String?
+  id               String                   @id @default(cuid()) @db.VarChar(191)
+  userId           String?                  @db.VarChar(191)
+  periodKey        String                   @db.VarChar(191)
+  scope            String                   @default("GLOBAL") @db.VarChar(191)
+  status           String                   @default("COMPLETED") @db.VarChar(191)
+  model            String?                  @db.VarChar(191)
+  generatedAt      DateTime                 @default(now()) @db.DateTime(3)
+  macroSummary     String                   @db.LongText
+  marketRegime     String?                  @db.VarChar(191)
+  riskAppetite     String?                  @db.VarChar(191)
   keyTakeaways     Json
   requiredCoverage Json
-  newsSummary      String?
+  newsSummary      String?                  @db.LongText
   dataSnapshot     Json?
   rawAiPayload     Json?
   fallbackUsed     Boolean                  @default(false)
-  disclaimer       String
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  disclaimer       String                   @db.Text
+  createdAt        DateTime                 @default(now()) @db.DateTime(3)
+  updatedAt        DateTime                 @updatedAt @db.DateTime(3)
   user             User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
   assets           AiMarketReportAsset[]
   newsItems        AiMarketReportNewsItem[]
@@ -592,12 +592,12 @@ model AiMarketReport {
 }
 
 model AiMarketReportEvent {
-  id        String         @id @default(cuid())
-  reportId  String
-  userId    String?
-  eventType String
+  id        String         @id @default(cuid()) @db.VarChar(191)
+  reportId  String         @db.VarChar(191)
+  userId    String?        @db.VarChar(191)
+  eventType String         @db.VarChar(191)
   metadata  Json?
-  createdAt DateTime       @default(now())
+  createdAt DateTime       @default(now()) @db.DateTime(3)
   report    AiMarketReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
 
@@ -607,25 +607,25 @@ model AiMarketReportEvent {
 }
 
 model AiMarketReportAsset {
-  id                  String         @id @default(cuid())
-  reportId            String
-  symbol              String
-  displayName         String
-  assetClass          String
-  category            String?
-  lastPrice           Float?
-  changePercent       Float?
-  signalType          String?
+  id                  String         @id @default(cuid()) @db.VarChar(191)
+  reportId            String         @db.VarChar(191)
+  symbol              String         @db.VarChar(191)
+  displayName         String         @db.VarChar(191)
+  assetClass          String         @db.VarChar(191)
+  category            String?        @db.VarChar(191)
+  lastPrice           Decimal?       @db.Decimal(30, 8)
+  changePercent       Decimal?       @db.Decimal(24, 12)
+  signalType          String?        @db.VarChar(191)
   confidence          Float?
   riskScore           Float?
   opportunityScore    Float?
-  technicalCommentary String
-  macroCommentary     String?
-  newsCommentary      String?
+  technicalCommentary String         @db.LongText
+  macroCommentary     String?        @db.LongText
+  newsCommentary      String?        @db.LongText
   watchLevels         Json?
   scenarios           Json?
   sourcePayload       Json?
-  createdAt           DateTime       @default(now())
+  createdAt           DateTime       @default(now()) @db.DateTime(3)
   report              AiMarketReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@unique([reportId, symbol])
@@ -633,15 +633,15 @@ model AiMarketReportAsset {
 }
 
 model AiMarketReportNewsItem {
-  id          String         @id @default(cuid())
-  reportId    String
-  title       String
-  link        String
-  source      String
-  publishedAt DateTime?
-  category    String?
+  id          String         @id @default(cuid()) @db.VarChar(191)
+  reportId    String         @db.VarChar(191)
+  title       String         @db.VarChar(191)
+  link        String         @db.Text
+  source      String         @db.VarChar(191)
+  publishedAt DateTime?      @db.DateTime(3)
+  category    String?        @db.VarChar(191)
   relevance   Float?
-  createdAt   DateTime       @default(now())
+  createdAt   DateTime       @default(now()) @db.DateTime(3)
   report      AiMarketReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId, relevance])
@@ -649,15 +649,15 @@ model AiMarketReportNewsItem {
 }
 
 model SubscriptionEmailLog {
-  id        String   @id @default(cuid())
-  userId    String
-  email     String
-  emailType String
-  periodKey String
-  subject   String
-  sentAt    DateTime @default(now())
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @db.VarChar(191)
+  email     String   @db.VarChar(254)
+  emailType String   @db.VarChar(191)
+  periodKey String   @db.VarChar(191)
+  subject   String   @db.Text
+  sentAt    DateTime @default(now()) @db.DateTime(3)
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.DateTime(3)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, emailType, periodKey])
@@ -666,17 +666,17 @@ model SubscriptionEmailLog {
 }
 
 model SupportReminderPeriod {
-  id                String                 @id @default(cuid())
-  userId            String
-  periodKey         String
+  id                String                 @id @default(cuid()) @db.VarChar(191)
+  userId            String                 @db.VarChar(191)
+  periodKey         String                 @db.VarChar(191)
   onsitePromptCount Int                    @default(0)
-  suppressedAt      DateTime?
-  emailAttemptedAt  DateTime?
-  emailSentAt       DateTime?
-  emailStatus       String?
-  emailError        String?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  suppressedAt      DateTime?              @db.DateTime(3)
+  emailAttemptedAt  DateTime?              @db.DateTime(3)
+  emailSentAt       DateTime?              @db.DateTime(3)
+  emailStatus       String?                @db.VarChar(191)
+  emailError        String?                @db.Text
+  createdAt         DateTime               @default(now()) @db.DateTime(3)
+  updatedAt         DateTime               @updatedAt @db.DateTime(3)
   user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   entries           SupportReminderEntry[]
 
@@ -685,11 +685,11 @@ model SupportReminderPeriod {
 }
 
 model SupportReminderEntry {
-  id             String                @id @default(cuid())
-  userId         String
-  periodId       String
-  entryTokenHash String
-  createdAt      DateTime              @default(now())
+  id             String                @id @default(cuid()) @db.VarChar(191)
+  userId         String                @db.VarChar(191)
+  periodId       String                @db.VarChar(191)
+  entryTokenHash String                @db.VarChar(128)
+  createdAt      DateTime              @default(now()) @db.DateTime(3)
   user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   period         SupportReminderPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
 
@@ -698,20 +698,20 @@ model SupportReminderEntry {
 }
 
 model VipResearchReport {
-  id                 String                @id @default(cuid())
-  periodKey          String                @unique
-  status             String                @default("COMPLETED")
-  model              String?
-  generatedAt        DateTime              @default(now())
-  marketContext      String
-  executiveSummary   String
-  methodologyVersion String                @default("vip-asymmetric-v1")
+  id                 String                @id @default(cuid()) @db.VarChar(191)
+  periodKey          String                @unique @db.VarChar(191)
+  status             String                @default("COMPLETED") @db.VarChar(191)
+  model              String?               @db.VarChar(191)
+  generatedAt        DateTime              @default(now()) @db.DateTime(3)
+  marketContext      String                @db.LongText
+  executiveSummary   String                @db.LongText
+  methodologyVersion String                @default("vip-asymmetric-v1") @db.VarChar(191)
   sourceSnapshot     Json?
   rawAiPayload       Json?
   fallbackUsed       Boolean               @default(false)
-  disclaimer         String
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  disclaimer         String                @db.Text
+  createdAt          DateTime              @default(now()) @db.DateTime(3)
+  updatedAt          DateTime              @updatedAt @db.DateTime(3)
   ideas              VipResearchIdea[]
   emailLogs          VipResearchEmailLog[]
 
@@ -720,38 +720,38 @@ model VipResearchReport {
 }
 
 model VipResearchIdea {
-  id                      String                      @id @default(cuid())
-  reportId                String
-  symbol                  String
-  providerSymbol          String
-  displayName             String
-  assetClass              String                      @default("EQUITY")
-  currency                String                      @default("USD")
+  id                      String                      @id @default(cuid()) @db.VarChar(191)
+  reportId                String                      @db.VarChar(191)
+  symbol                  String                      @db.VarChar(191)
+  providerSymbol          String                      @db.VarChar(191)
+  displayName             String                      @db.VarChar(191)
+  assetClass              String                      @default("EQUITY") @db.VarChar(191)
+  currency                String                      @default("USD") @db.VarChar(191)
   rank                    Int
-  stance                  String
-  thesisSummary           String
-  negativeCase            String
-  macroThesis             String
-  fundamentalThesis       String
-  technicalThesis         String
+  stance                  String                      @db.VarChar(191)
+  thesisSummary           String                      @db.LongText
+  negativeCase            String                      @db.LongText
+  macroThesis             String                      @db.LongText
+  fundamentalThesis       String                      @db.LongText
+  technicalThesis         String                      @db.LongText
   catalysts               Json
-  exitPlan                String
-  institutionalPerception String
-  shortInterestCommentary String
+  exitPlan                String                      @db.LongText
+  institutionalPerception String                      @db.LongText
+  shortInterestCommentary String                      @db.LongText
   confidenceScore         Int
   riskScore               Int
-  priceAtRecommendation   Float
-  entryLow                Float
-  entryHigh               Float
-  stopLoss                Float
-  targetPrice             Float
-  secondaryTargetPrice    Float?
+  priceAtRecommendation   Decimal                     @db.Decimal(30, 8)
+  entryLow                Decimal                     @db.Decimal(30, 8)
+  entryHigh               Decimal                     @db.Decimal(30, 8)
+  stopLoss                Decimal                     @db.Decimal(30, 8)
+  targetPrice             Decimal                     @db.Decimal(30, 8)
+  secondaryTargetPrice    Decimal?                    @db.Decimal(30, 8)
   fundamentalSnapshot     Json
   technicalSnapshot       Json
   institutionalSnapshot   Json?
   shortInterestSnapshot   Json?
   sources                 Json
-  createdAt               DateTime                    @default(now())
+  createdAt               DateTime                    @default(now()) @db.DateTime(3)
   report                  VipResearchReport           @relation(fields: [reportId], references: [id], onDelete: Cascade)
   evaluations             VipResearchIdeaEvaluation[]
 
@@ -762,16 +762,16 @@ model VipResearchIdea {
 }
 
 model VipResearchIdeaEvaluation {
-  id                String          @id @default(cuid())
-  ideaId            String
-  horizon           String
-  dueAt             DateTime
-  status            String          @default("PENDING")
-  evaluatedAt       DateTime?
-  priceAtEvaluation Float?
-  returnPercent     Float?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                String          @id @default(cuid()) @db.VarChar(191)
+  ideaId            String          @db.VarChar(191)
+  horizon           String          @db.VarChar(191)
+  dueAt             DateTime        @db.DateTime(3)
+  status            String          @default("PENDING") @db.VarChar(191)
+  evaluatedAt       DateTime?       @db.DateTime(3)
+  priceAtEvaluation Decimal?        @db.Decimal(30, 8)
+  returnPercent     Decimal?        @db.Decimal(24, 12)
+  createdAt         DateTime        @default(now()) @db.DateTime(3)
+  updatedAt         DateTime        @updatedAt @db.DateTime(3)
   idea              VipResearchIdea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
 
   @@unique([ideaId, horizon])
@@ -780,14 +780,14 @@ model VipResearchIdeaEvaluation {
 }
 
 model VipResearchEmailLog {
-  id        String            @id @default(cuid())
-  reportId  String
-  userId    String
-  email     String
-  status    String            @default("SENT")
-  error     String?
-  sentAt    DateTime          @default(now())
-  createdAt DateTime          @default(now())
+  id        String            @id @default(cuid()) @db.VarChar(191)
+  reportId  String            @db.VarChar(191)
+  userId    String            @db.VarChar(191)
+  email     String            @db.VarChar(254)
+  status    String            @default("SENT") @db.VarChar(191)
+  error     String?           @db.Text
+  sentAt    DateTime          @default(now()) @db.DateTime(3)
+  createdAt DateTime          @default(now()) @db.DateTime(3)
   report    VipResearchReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -797,20 +797,20 @@ model VipResearchEmailLog {
 }
 
 model VipSubscriptionPayment {
-  id                String    @id @default(cuid())
-  userId            String
-  provider          String    @default("PARAM")
-  providerReference String    @unique
-  amountTry         Float
-  currency          String    @default("TRY")
-  status            String    @default("PAID")
-  paidAt            DateTime
-  paidUntil         DateTime
-  refundedAt        DateTime?
-  revokedAt         DateTime?
+  id                String    @id @default(cuid()) @db.VarChar(191)
+  userId            String    @db.VarChar(191)
+  provider          String    @default("PARAM") @db.VarChar(191)
+  providerReference String    @unique @db.VarChar(191)
+  amountTry         Decimal   @db.Decimal(30, 8)
+  currency          String    @default("TRY") @db.VarChar(191)
+  status            String    @default("PAID") @db.VarChar(191)
+  paidAt            DateTime  @db.DateTime(3)
+  paidUntil         DateTime  @db.DateTime(3)
+  refundedAt        DateTime? @db.DateTime(3)
+  revokedAt         DateTime? @db.DateTime(3)
   rawPayload        Json?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime  @default(now()) @db.DateTime(3)
+  updatedAt         DateTime  @updatedAt @db.DateTime(3)
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, paidAt])
@@ -819,23 +819,23 @@ model VipSubscriptionPayment {
 }
 
 model VipSubscriptionClaim {
-  id                String    @id @default(cuid())
-  userId            String
-  provider          String    @default("PARAM")
-  providerReference String
-  activeReferenceKey String?   @unique
-  amountTry         Float     @default(100)
-  verifiedPayerEmail String?
-  verifiedCurrency   String?
-  verifiedAmountTry  Float?
-  status            String    @default("PENDING")
-  userNote          String?
-  adminNote         String?
-  reviewedBy        String?
-  reviewedAt        DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid()) @db.VarChar(191)
+  userId             String    @db.VarChar(191)
+  provider           String    @default("PARAM") @db.VarChar(191)
+  providerReference  String    @db.VarChar(191)
+  activeReferenceKey String?   @unique @db.VarChar(191)
+  amountTry          Decimal   @default(100) @db.Decimal(30, 8)
+  verifiedPayerEmail String?   @db.VarChar(254)
+  verifiedCurrency   String?   @db.VarChar(191)
+  verifiedAmountTry  Decimal?  @db.Decimal(30, 8)
+  status             String    @default("PENDING") @db.VarChar(191)
+  userNote           String?   @db.Text
+  adminNote          String?   @db.Text
+  reviewedBy         String?   @db.VarChar(191)
+  reviewedAt         DateTime? @db.DateTime(3)
+  createdAt          DateTime  @default(now()) @db.DateTime(3)
+  updatedAt          DateTime  @updatedAt @db.DateTime(3)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([provider, providerReference, userId])
   @@index([status, createdAt])
@@ -843,19 +843,19 @@ model VipSubscriptionClaim {
 }
 
 model VipTradingAgent {
-  id                 String                    @id
-  slug               String                    @unique
-  name               String
-  riskProfile        String
-  description        String
-  startingBalanceUsd Float                     @default(1100000)
-  performanceBaseUsd Float                     @default(1000000)
-  reserveUsd         Float                     @default(100000)
-  cashUsd            Float                     @default(1100000)
+  id                 String                    @id @db.VarChar(191)
+  slug               String                    @unique @db.VarChar(191)
+  name               String                    @db.VarChar(191)
+  riskProfile        String                    @db.VarChar(191)
+  description        String                    @db.Text
+  startingBalanceUsd Decimal                   @default(1100000) @db.Decimal(30, 8)
+  performanceBaseUsd Decimal                   @default(1000000) @db.Decimal(30, 8)
+  reserveUsd         Decimal                   @default(100000) @db.Decimal(30, 8)
+  cashUsd            Decimal                   @default(1100000) @db.Decimal(30, 8)
   isActive           Boolean                   @default(true)
-  lastRunAt          DateTime?
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
+  lastRunAt          DateTime?                 @db.DateTime(3)
+  createdAt          DateTime                  @default(now()) @db.DateTime(3)
+  updatedAt          DateTime                  @updatedAt @db.DateTime(3)
   positions          VipTradingAgentPosition[]
   trades             VipTradingAgentTrade[]
   decisions          VipTradingAgentDecision[]
@@ -865,23 +865,23 @@ model VipTradingAgent {
 }
 
 model VipTradingAgentPosition {
-  id                        String          @id @default(cuid())
-  agentId                   String
-  positionCycleId           String
-  appliedSplitFactor        Float           @default(1)
-  corporateActionsCheckedAt DateTime?
-  symbol                    String
-  providerSymbol            String
-  displayName               String
-  quantity                  Float
-  averagePriceUsd           Float
-  lastPriceUsd              Float
-  stopLossUsd               Float
-  targetPriceUsd            Float
-  secondaryTarget           Float?
-  sourceIdeaId              String?
-  openedAt                  DateTime        @default(now())
-  updatedAt                 DateTime        @updatedAt
+  id                        String          @id @default(cuid()) @db.VarChar(191)
+  agentId                   String          @db.VarChar(191)
+  positionCycleId           String          @db.VarChar(191)
+  appliedSplitFactor        Decimal         @default(1) @db.Decimal(36, 12)
+  corporateActionsCheckedAt DateTime?       @db.DateTime(3)
+  symbol                    String          @db.VarChar(191)
+  providerSymbol            String          @db.VarChar(191)
+  displayName               String          @db.VarChar(191)
+  quantity                  Decimal         @db.Decimal(36, 12)
+  averagePriceUsd           Decimal         @db.Decimal(30, 8)
+  lastPriceUsd              Decimal         @db.Decimal(30, 8)
+  stopLossUsd               Decimal         @db.Decimal(30, 8)
+  targetPriceUsd            Decimal         @db.Decimal(30, 8)
+  secondaryTarget           Decimal?        @db.Decimal(30, 8)
+  sourceIdeaId              String?         @db.VarChar(191)
+  openedAt                  DateTime        @default(now()) @db.DateTime(3)
+  updatedAt                 DateTime        @updatedAt @db.DateTime(3)
   agent                     VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@unique([agentId, symbol])
@@ -890,23 +890,23 @@ model VipTradingAgentPosition {
 }
 
 model VipTradingAgentTrade {
-  id                 String          @id @default(cuid())
-  agentId            String
-  positionCycleId    String
-  symbol             String
-  displayName        String
-  side               String
-  quantity           Float
-  priceUsd           Float
-  grossUsd           Float
-  costBasisUsd       Float?
-  realizedPnlUsd     Float?
-  realizedPnlPercent Float?
-  cashAfterUsd       Float
-  portfolioAfterUsd  Float
-  reason             String
-  sourceIdeaId       String?
-  executedAt         DateTime        @default(now())
+  id                 String          @id @default(cuid()) @db.VarChar(191)
+  agentId            String          @db.VarChar(191)
+  positionCycleId    String          @db.VarChar(191)
+  symbol             String          @db.VarChar(191)
+  displayName        String          @db.VarChar(191)
+  side               String          @db.VarChar(191)
+  quantity           Decimal         @db.Decimal(36, 12)
+  priceUsd           Decimal         @db.Decimal(30, 8)
+  grossUsd           Decimal         @db.Decimal(30, 8)
+  costBasisUsd       Decimal?        @db.Decimal(30, 8)
+  realizedPnlUsd     Decimal?        @db.Decimal(30, 8)
+  realizedPnlPercent Decimal?        @db.Decimal(24, 12)
+  cashAfterUsd       Decimal         @db.Decimal(30, 8)
+  portfolioAfterUsd  Decimal         @db.Decimal(30, 8)
+  reason             String          @db.Text
+  sourceIdeaId       String?         @db.VarChar(191)
+  executedAt         DateTime        @default(now()) @db.DateTime(3)
   agent              VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@unique([agentId, positionCycleId, side])
@@ -916,15 +916,15 @@ model VipTradingAgentTrade {
 }
 
 model VipTradingAgentDecision {
-  id           String          @id @default(cuid())
-  agentId      String
-  runKey       String
-  symbol       String
-  action       String
-  priceUsd     Float?
-  reason       String
-  sourceIdeaId String?
-  createdAt    DateTime        @default(now())
+  id           String          @id @default(cuid()) @db.VarChar(191)
+  agentId      String          @db.VarChar(191)
+  runKey       String          @db.VarChar(191)
+  symbol       String          @db.VarChar(191)
+  action       String          @db.VarChar(191)
+  priceUsd     Decimal?        @db.Decimal(30, 8)
+  reason       String          @db.Text
+  sourceIdeaId String?         @db.VarChar(191)
+  createdAt    DateTime        @default(now()) @db.DateTime(3)
   agent        VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@unique([agentId, runKey, symbol])
@@ -933,17 +933,17 @@ model VipTradingAgentDecision {
 }
 
 model VipTradingAgentSnapshot {
-  id                   String          @id @default(cuid())
-  agentId              String
-  periodKey            String
-  cashUsd              Float
-  reserveUsd           Float
-  positionsValueUsd    Float
-  totalBalanceUsd      Float
-  performanceEquityUsd Float
-  pnlUsd               Float
-  returnPercent        Float
-  capturedAt           DateTime        @default(now())
+  id                   String          @id @default(cuid()) @db.VarChar(191)
+  agentId              String          @db.VarChar(191)
+  periodKey            String          @db.VarChar(191)
+  cashUsd              Decimal         @db.Decimal(30, 8)
+  reserveUsd           Decimal         @db.Decimal(30, 8)
+  positionsValueUsd    Decimal         @db.Decimal(30, 8)
+  totalBalanceUsd      Decimal         @db.Decimal(30, 8)
+  performanceEquityUsd Decimal         @db.Decimal(30, 8)
+  pnlUsd               Decimal         @db.Decimal(30, 8)
+  returnPercent        Decimal         @db.Decimal(24, 12)
+  capturedAt           DateTime        @default(now()) @db.DateTime(3)
   agent                VipTradingAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@unique([agentId, periodKey])
@@ -952,16 +952,16 @@ model VipTradingAgentSnapshot {
 }
 
 model SiteAnalyticsEvent {
-  id         String   @id @default(cuid())
-  eventType  String
-  userId     String?
-  sessionKey String?
-  locale     String?
-  path       String?
-  referrer   String?
-  userAgent  String?
+  id         String   @id @default(cuid()) @db.VarChar(191)
+  eventType  String   @db.VarChar(191)
+  userId     String?  @db.VarChar(191)
+  sessionKey String?  @db.VarChar(191)
+  locale     String?  @db.VarChar(191)
+  path       String?  @db.Text
+  referrer   String?  @db.Text
+  userAgent  String?  @db.Text
   metadata   Json?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @db.DateTime(3)
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([eventType, createdAt])
@@ -970,12 +970,12 @@ model SiteAnalyticsEvent {
 }
 
 model AiDailyQueryUsage {
-  id         String   @id @default(cuid())
-  userId     String
-  dayKey     String
+  id         String   @id @default(cuid()) @db.VarChar(191)
+  userId     String   @db.VarChar(191)
+  dayKey     String   @db.VarChar(191)
   queryCount Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now()) @db.DateTime(3)
+  updatedAt  DateTime @updatedAt @db.DateTime(3)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, dayKey])
@@ -983,14 +983,14 @@ model AiDailyQueryUsage {
 }
 
 model AiQueryReservation {
-  id         String    @id @default(cuid())
-  userId     String
-  tokenHash  String    @unique
-  dayKey     String
-  purpose    String
-  expiresAt  DateTime
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id         String    @id @default(cuid()) @db.VarChar(191)
+  userId     String    @db.VarChar(191)
+  tokenHash  String    @unique @db.VarChar(128)
+  dayKey     String    @db.VarChar(191)
+  purpose    String    @db.VarChar(191)
+  expiresAt  DateTime  @db.DateTime(3)
+  consumedAt DateTime? @db.DateTime(3)
+  createdAt  DateTime  @default(now()) @db.DateTime(3)
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, dayKey, purpose])
@@ -998,52 +998,60 @@ model AiQueryReservation {
 }
 
 model SecurityRateLimit {
-  keyHash      String    @id
-  scope        String
-  windowStart  DateTime
+  keyHash      String    @id @db.VarChar(128)
+  scope        String    @db.VarChar(191)
+  windowStart  DateTime  @db.DateTime(3)
   count        Int       @default(0)
-  blockedUntil DateTime?
-  updatedAt    DateTime  @updatedAt
+  blockedUntil DateTime? @db.DateTime(3)
+  updatedAt    DateTime  @updatedAt @db.DateTime(3)
 
   @@index([scope, windowStart])
   @@index([blockedUntil])
 }
 
 model AuditEvent {
-  id           String   @id @default(cuid())
-  category     String
-  entityType   String
-  entityId     String
-  action       String
-  actorUserId  String?
+  id           String   @id @default(cuid()) @db.VarChar(191)
+  category     String   @db.VarChar(191)
+  entityType   String   @db.VarChar(191)
+  entityId     String   @db.VarChar(191)
+  action       String   @db.VarChar(191)
+  actorUserId  String?  @db.VarChar(191)
   payload      Json?
-  previousHash String?
-  eventHash    String   @unique
-  createdAt    DateTime @default(now())
+  previousHash String?  @db.VarChar(128)
+  eventHash    String   @unique @db.VarChar(128)
+  createdAt    DateTime @default(now()) @db.DateTime(3)
 
   @@index([category, createdAt])
   @@index([entityType, entityId, createdAt])
   @@index([actorUserId, createdAt])
 }
 
+model AuditChainHead {
+  id            String    @id @default("global") @db.VarChar(191)
+  lastEventHash String?   @db.VarChar(128)
+  lastCreatedAt DateTime? @db.DateTime(3)
+  version       Int       @default(0)
+  updatedAt     DateTime  @updatedAt @db.DateTime(3)
+}
+
 model OperationalJobHeartbeat {
-  jobKey          String    @id
-  lastStartedAt   DateTime?
-  lastSucceededAt DateTime?
-  lastFailedAt    DateTime?
-  lastError       String?
+  jobKey          String    @id @db.VarChar(191)
+  lastStartedAt   DateTime? @db.DateTime(3)
+  lastSucceededAt DateTime? @db.DateTime(3)
+  lastFailedAt    DateTime? @db.DateTime(3)
+  lastError       String?   @db.Text
   metadata        Json?
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime  @updatedAt @db.DateTime(3)
 }
 
 model ChatRoom {
-  id              String               @id @default(cuid())
-  code            String               @unique
-  name            String
+  id              String               @id @default(cuid()) @db.VarChar(191)
+  code            String               @unique @db.VarChar(191)
+  name            String               @db.VarChar(191)
   type            ChatRoomType
-  createdByUserId String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdByUserId String?              @db.VarChar(191)
+  createdAt       DateTime             @default(now()) @db.DateTime(3)
+  updatedAt       DateTime             @updatedAt @db.DateTime(3)
   createdBy       User?                @relation("CreatedChatRooms", fields: [createdByUserId], references: [id], onDelete: SetNull)
   messages        ChatMessage[]
   presences       ChatPresence[]
@@ -1054,11 +1062,11 @@ model ChatRoom {
 }
 
 model ChatRoomMembership {
-  id       String   @id @default(cuid())
-  roomId   String
-  userId   String
-  role     String   @default("MEMBER")
-  joinedAt DateTime @default(now())
+  id       String   @id @default(cuid()) @db.VarChar(191)
+  roomId   String   @db.VarChar(191)
+  userId   String   @db.VarChar(191)
+  role     String   @default("MEMBER") @db.VarChar(191)
+  joinedAt DateTime @default(now()) @db.DateTime(3)
   room     ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1067,15 +1075,15 @@ model ChatRoomMembership {
 }
 
 model ChatUpload {
-  id         String    @id @default(cuid())
-  userId     String
-  storedName String    @unique
-  mimeType   String
+  id         String    @id @default(cuid()) @db.VarChar(191)
+  userId     String    @db.VarChar(191)
+  storedName String    @unique @db.VarChar(191)
+  mimeType   String    @db.VarChar(191)
   sizeBytes  Int
-  status     String    @default("STAGED")
-  expiresAt  DateTime
-  linkedAt   DateTime?
-  createdAt  DateTime  @default(now())
+  status     String    @default("STAGED") @db.VarChar(191)
+  expiresAt  DateTime  @db.DateTime(3)
+  linkedAt   DateTime? @db.DateTime(3)
+  createdAt  DateTime  @default(now()) @db.DateTime(3)
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, expiresAt])
@@ -1083,17 +1091,17 @@ model ChatUpload {
 }
 
 model ChatMessage {
-  id             String              @id @default(cuid())
-  roomId         String
-  userId         String
+  id             String              @id @default(cuid()) @db.VarChar(191)
+  roomId         String              @db.VarChar(191)
+  userId         String              @db.VarChar(191)
   type           ChatMessageType     @default(TEXT)
-  body           String
+  body           String              @db.LongText
   attachment     Json?
-  hiddenAt       DateTime?
-  hiddenReason   String?
-  hiddenByUserId String?
+  hiddenAt       DateTime?           @db.DateTime(3)
+  hiddenReason   String?             @db.Text
+  hiddenByUserId String?             @db.VarChar(191)
   reportCount    Int                 @default(0)
-  createdAt      DateTime            @default(now())
+  createdAt      DateTime            @default(now()) @db.DateTime(3)
   room           ChatRoom            @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   hiddenBy       User?               @relation("HiddenChatMessages", fields: [hiddenByUserId], references: [id], onDelete: SetNull)
@@ -1108,10 +1116,10 @@ model ChatMessage {
 }
 
 model ChatPresence {
-  id         String   @id @default(cuid())
-  roomId     String
-  userId     String
-  lastSeenAt DateTime @default(now())
+  id         String   @id @default(cuid()) @db.VarChar(191)
+  roomId     String   @db.VarChar(191)
+  userId     String   @db.VarChar(191)
+  lastSeenAt DateTime @default(now()) @db.DateTime(3)
   room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1121,9 +1129,9 @@ model ChatPresence {
 }
 
 model ChatPollOption {
-  id        String         @id @default(cuid())
-  messageId String
-  label     String
+  id        String         @id @default(cuid()) @db.VarChar(191)
+  messageId String         @db.VarChar(191)
+  label     String         @db.VarChar(191)
   sortOrder Int            @default(0)
   message   ChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
   votes     ChatPollVote[]
@@ -1132,11 +1140,11 @@ model ChatPollOption {
 }
 
 model ChatPollVote {
-  id        String         @id @default(cuid())
-  messageId String
-  optionId  String
-  userId    String
-  createdAt DateTime       @default(now())
+  id        String         @id @default(cuid()) @db.VarChar(191)
+  messageId String         @db.VarChar(191)
+  optionId  String         @db.VarChar(191)
+  userId    String         @db.VarChar(191)
+  createdAt DateTime       @default(now()) @db.DateTime(3)
   message   ChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
   option    ChatPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1147,13 +1155,13 @@ model ChatPollVote {
 }
 
 model ChatMessageReport {
-  id         String      @id @default(cuid())
-  messageId  String
-  reporterId String
-  reason     String
-  status     String      @default("OPEN")
-  createdAt  DateTime    @default(now())
-  resolvedAt DateTime?
+  id         String      @id @default(cuid()) @db.VarChar(191)
+  messageId  String      @db.VarChar(191)
+  reporterId String      @db.VarChar(191)
+  reason     String      @db.Text
+  status     String      @default("OPEN") @db.VarChar(191)
+  createdAt  DateTime    @default(now()) @db.DateTime(3)
+  resolvedAt DateTime?   @db.DateTime(3)
   message    ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   reporter   User        @relation("ChatMessageReportsByReporter", fields: [reporterId], references: [id], onDelete: Cascade)
 
@@ -1163,10 +1171,10 @@ model ChatMessageReport {
 }
 
 model ChatUserBlock {
-  id            String   @id @default(cuid())
-  blockerUserId String
-  blockedUserId String
-  createdAt     DateTime @default(now())
+  id            String   @id @default(cuid()) @db.VarChar(191)
+  blockerUserId String   @db.VarChar(191)
+  blockedUserId String   @db.VarChar(191)
+  createdAt     DateTime @default(now()) @db.DateTime(3)
   blocker       User     @relation("ChatUserBlocksByBlocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
   blocked       User     @relation("ChatUserBlocksByBlocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
 

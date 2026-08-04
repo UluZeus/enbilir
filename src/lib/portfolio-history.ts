@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decimalToNumber } from "@/lib/decimal";
 import type { CompetitionPeriodType } from "@/generated/prisma/enums";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getPortfolioSnapshot } from "@/lib/portfolio";
@@ -409,7 +410,16 @@ export async function getPortfolioPerformancePeriods(userId: string, totalValueU
       orderBy: { capturedAt: "asc" },
     }),
   ]);
-  const history = normalizePortfolioHistory(snapshots, weeklyBaselines);
+  const history = normalizePortfolioHistory(
+    snapshots.map((snapshot) => ({
+      ...snapshot,
+      portfolioValueUsd: decimalToNumber(snapshot.portfolioValueUsd),
+    })),
+    weeklyBaselines.map((baseline) => ({
+      ...baseline,
+      portfolioValueUsd: decimalToNumber(baseline.portfolioValueUsd),
+    })),
+  );
 
   return buildPortfolioPerformancePeriods(history, totalValueUsd);
 }

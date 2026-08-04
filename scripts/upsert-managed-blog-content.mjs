@@ -1,38 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
-import Database from "better-sqlite3";
-
-function readEnvFile() {
-  const envPath = path.resolve(".env");
-  if (!fs.existsSync(envPath)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    fs.readFileSync(envPath, "utf8")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#") && line.includes("="))
-      .map((line) => {
-        const index = line.indexOf("=");
-        const key = line.slice(0, index).trim();
-        const value = line.slice(index + 1).trim().replace(/^["']|["']$/g, "");
-        return [key, value];
-      }),
-  );
-}
-
-function getDatabasePath() {
-  const env = { ...readEnvFile(), ...process.env };
-  const databaseUrl = env.DATABASE_URL ?? "file:./dev.db";
-
-  if (!databaseUrl.startsWith("file:")) {
-    throw new Error(`Only SQLite file DATABASE_URL values are supported by this script. Received: ${databaseUrl}`);
-  }
-
-  const filePath = databaseUrl.replace(/^file:/, "");
-  return path.isAbsolute(filePath) ? filePath : path.resolve(filePath);
-}
+import { MysqlCliDatabase } from "./lib/mysql-cli.mjs";
+import { loadLocalEnvironment } from "./lib/operations.mjs";
 
 const posts = [
   {
@@ -331,9 +298,9 @@ Enbilir'de ileride bu alışkanlığı daha görünür hale getirecek özellikle
   },
 ];
 
-const dbPath = getDatabasePath();
-const db = new Database(dbPath);
-const now = new Date().toISOString();
+loadLocalEnvironment();
+const db = new MysqlCliDatabase();
+const now = new Date();
 
 const stmt = db.prepare(`
   INSERT INTO ManagedContentItem (
@@ -343,17 +310,11 @@ const stmt = db.prepare(`
     @id, 'BLOG', 'tr', @title, @excerpt, @body, NULL, NULL, NULL, NULL,
     @sortOrder, 1, 1, @publishedAt, @createdAt, @updatedAt
   )
-  ON CONFLICT(id) DO UPDATE SET
-    type = excluded.type,
-    locale = excluded.locale,
-    title = excluded.title,
-    excerpt = excluded.excerpt,
-    body = excluded.body,
-    sortOrder = excluded.sortOrder,
-    isFeatured = excluded.isFeatured,
-    isActive = excluded.isActive,
-    publishedAt = excluded.publishedAt,
-    updatedAt = excluded.updatedAt
+  ON DUPLICATE KEY UPDATE
+    type = VALUES(type), locale = VALUES(locale), title = VALUES(title),
+    excerpt = VALUES(excerpt), body = VALUES(body), sortOrder = VALUES(sortOrder),
+    isFeatured = VALUES(isFeatured), isActive = VALUES(isActive),
+    publishedAt = VALUES(publishedAt), updatedAt = VALUES(updatedAt)
 `);
 
 db.transaction(() => {
@@ -362,4 +323,4 @@ db.transaction(() => {
   }
 })();
 
-console.log(`Upserted ${posts.length} managed blog posts into ${dbPath}`);
+console.log(`Upserted ${posts.length} managed blog posts.`);

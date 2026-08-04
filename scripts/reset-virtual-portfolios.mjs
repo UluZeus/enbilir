@@ -1,130 +1,49 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
-import path from "node:path";
 import crypto from "node:crypto";
-import process from "node:process";
-import Database from "better-sqlite3";
+
+import { MysqlCliDatabase } from "./lib/mysql-cli.mjs";
+import { loadLocalEnvironment } from "./lib/operations.mjs";
 
 const initialCashUsd = 1_000_000;
-const args = new Set(process.argv.slice(2));
-const apply = args.has("--apply");
-const confirmProduction = args.has("--confirm-production");
+const apply = process.argv.includes("--apply");
+const confirmProduction = process.argv.includes("--confirm-production");
 
-function resolveDatabasePath() {
-  const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
-
-  if (!databaseUrl.startsWith("file:")) {
-    throw new Error(`Only SQLite file: DATABASE_URL values are supported. Received: ${databaseUrl}`);
-  }
-
-  const rawPath = databaseUrl.slice("file:".length);
-  return path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
+loadLocalEnvironment();
+const productionLike = process.env.ENBILIR_ENV === "production" || (!process.env.ENBILIR_ENV && process.env.NODE_ENV === "production");
+if (apply && productionLike && (
+  !confirmProduction || process.env.CONFIRM_VIRTUAL_PORTFOLIO_RESET !== "RESET_ALL_VIRTUAL_PORTFOLIOS"
+)) {
+  throw new Error("Production reset refused without the release guard, --confirm-production, and exact reset confirmation.");
 }
 
-function formatNumber(value) {
-  return Number.isFinite(value) ? value.toFixed(2) : "NaN";
-}
-
-const databasePath = resolveDatabasePath();
-
-if (!existsSync(databasePath)) {
-  throw new Error(`Database file not found: ${databasePath}`);
-}
-
+const database = new MysqlCliDatabase();
+const users = database.prepare("SELECT id FROM `User` ORDER BY id").all();
+const counts = {
+  users: users.length,
+  positions: Number(database.prepare("SELECT COUNT(*) AS count FROM `PortfolioPosition`").get().count),
+  trades: Number(database.prepare("SELECT COUNT(*) AS count FROM `VirtualTrade`").get().count),
+  snapshots: Number(database.prepare("SELECT COUNT(*) AS count FROM `PortfolioSnapshot`").get().count),
+};
 if (!apply) {
-  console.log(`[DRY-RUN] Virtual portfolios would be reset in: ${databasePath}`);
-  console.log("No data was changed. Add --apply after taking and verifying a database backup.");
+  console.log(JSON.stringify({ mode: "DRY_RUN", ...counts, cashPerUserUsd: initialCashUsd }));
   process.exit(0);
 }
 
-if (
-  (process.env.NODE_ENV === "production" || /production\.db$/i.test(databasePath)) &&
-  (!confirmProduction || process.env.CONFIRM_VIRTUAL_PORTFOLIO_RESET !== "RESET_ALL_VIRTUAL_PORTFOLIOS")
-) {
-  throw new Error(
-    "Production reset refused. Require --confirm-production and CONFIRM_VIRTUAL_PORTFOLIO_RESET=RESET_ALL_VIRTUAL_PORTFOLIOS.",
-  );
-}
-
-const db = new Database(databasePath);
-const users = db.prepare(`
-  SELECT id, email
-  FROM User
-  ORDER BY email ASC
-`).all();
-
-const clearPositions = db.prepare(`DELETE FROM PortfolioPosition`);
-const clearTrades = db.prepare(`DELETE FROM VirtualTrade`);
-const clearSnapshots = db.prepare(`DELETE FROM PortfolioSnapshot`);
-const upsertAccount = db.prepare(`
-  INSERT INTO VirtualAccount (
-    id,
-    userId,
-    cashMode,
-    cashAmount,
-    baseCurrency,
-    dailyRepoRate,
-    repoLastAccruedAt,
-    createdAt,
-    updatedAt
-  )
-  VALUES (
-    @id,
-    @userId,
-    @cashMode,
-    @cashAmount,
-    @baseCurrency,
-    @dailyRepoRate,
-    @repoLastAccruedAt,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-  )
-  ON CONFLICT(userId) DO UPDATE SET
-    cashMode = excluded.cashMode,
-    cashAmount = excluded.cashAmount,
-    baseCurrency = excluded.baseCurrency,
-    dailyRepoRate = excluded.dailyRepoRate,
-    repoLastAccruedAt = excluded.repoLastAccruedAt,
-    updatedAt = CURRENT_TIMESTAMP
+const clearPositions = database.prepare("DELETE FROM `PortfolioPosition`");
+const clearTrades = database.prepare("DELETE FROM `VirtualTrade`");
+const clearSnapshots = database.prepare("DELETE FROM `PortfolioSnapshot`");
+const upsertAccount = database.prepare(`
+  INSERT INTO \`VirtualAccount\`
+    (id, userId, cashMode, cashAmount, baseCurrency, dailyRepoRate, repoLastAccruedAt, createdAt, updatedAt)
+  VALUES (?, ?, 'USD', ?, 'USD', 0.00125000, NULL, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
+  ON DUPLICATE KEY UPDATE cashMode = VALUES(cashMode), cashAmount = VALUES(cashAmount),
+    baseCurrency = VALUES(baseCurrency), dailyRepoRate = VALUES(dailyRepoRate),
+    repoLastAccruedAt = NULL, updatedAt = UTC_TIMESTAMP(3)
 `);
-
-const reset = db.transaction(() => {
-  const deletedPositions = clearPositions.run().changes;
-  const deletedTrades = clearTrades.run().changes;
-  const deletedSnapshots = clearSnapshots.run().changes;
-
-  for (const user of users) {
-    upsertAccount.run({
-      id: crypto.randomUUID(),
-      userId: user.id,
-      cashMode: "USD",
-      cashAmount: initialCashUsd,
-      baseCurrency: "USD",
-      dailyRepoRate: 0.00125,
-      repoLastAccruedAt: null,
-    });
-  }
-
-  return {
-    users: users.length,
-    deletedPositions,
-    deletedTrades,
-    deletedSnapshots,
-  };
-});
-
-try {
-  const result = reset();
-  console.log("Virtual portfolio reset completed.");
-  console.table([
-    {
-      users: result.users,
-      deletedPositions: formatNumber(result.deletedPositions),
-      deletedTrades: formatNumber(result.deletedTrades),
-      deletedSnapshots: formatNumber(result.deletedSnapshots),
-      cashPerUserUsd: formatNumber(initialCashUsd),
-    },
-  ]);
-} finally {
-  db.close();
-}
+database.transaction(() => {
+  clearSnapshots.run();
+  clearPositions.run();
+  clearTrades.run();
+  for (const user of users) upsertAccount.run(crypto.randomUUID(), user.id, initialCashUsd);
+})();
+console.log(JSON.stringify({ mode: "APPLIED", ...counts, cashPerUserUsd: initialCashUsd }));

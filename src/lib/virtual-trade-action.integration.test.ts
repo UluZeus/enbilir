@@ -98,6 +98,7 @@ import { tradeAction } from "@/lib/actions";
 import { Prisma } from "@/generated/prisma/client";
 import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import type { MarketItem } from "@/lib/market-data";
+import { decimalToNumber } from "@/lib/decimal";
 
 const transactionClient = {
   virtualAccount: {
@@ -199,23 +200,46 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     });
     expect(tradeMocks.accountUpdate).toHaveBeenCalledWith({
       where: { userId: "user-1" },
-      data: { cashAmount: 500 },
+      data: { cashAmount: expect.any(Prisma.Decimal) },
     });
     expect(tradeMocks.positionCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: "user-1",
         symbol: "AAPL",
-        quantity: expect.any(Number),
-        averagePriceUsd: expect.any(Number),
+        quantity: expect.any(Prisma.Decimal),
+        averagePriceUsd: expect.any(Prisma.Decimal),
       }),
     });
     const tradeData = tradeMocks.tradeCreate.mock.calls[0][0].data;
     expect(tradeData.side).toBe("BUY");
-    expect(tradeData.totalUsd).toBe(500);
-    expect(tradeData.executionNotionalUsd + tradeData.feeUsd).toBeCloseTo(500, 8);
-    expect(tradeData.priceUsd).toBeGreaterThan(100);
+    expect(decimalToNumber(tradeData.totalUsd)).toBe(500);
+    expect(decimalToNumber(tradeData.executionNotionalUsd.plus(tradeData.feeUsd))).toBeCloseTo(500, 8);
+    expect(decimalToNumber(tradeData.priceUsd)).toBeGreaterThan(100);
     expect(tradeData.priceSource).toBe("yahoo");
     expect(Date.now() - tradeData.priceAsOf.getTime()).toBeLessThan(5_000);
+  });
+
+  it("retries a serializable virtual-account mutation after a write conflict", async () => {
+    tradeMocks.transaction
+      .mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+        "synthetic write conflict",
+        { code: "P2034", clientVersion: "test" },
+      ))
+      .mockImplementationOnce(
+        (callback: (transaction: typeof transactionClient) => unknown) => callback(transactionClient),
+      );
+
+    await expect(tradeAction(undefined, tradeForm({ side: "BUY", amountUsd: 500 }))).resolves.toEqual({
+      ok: true,
+      message: "Alım işlemi başarıyla gerçekleşti.",
+    });
+
+    expect(tradeMocks.transaction).toHaveBeenCalledTimes(2);
+    expect(tradeMocks.transaction).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: "Serializable" }),
+    );
   });
 
   it("blocks insufficient BUY cash before opening a database transaction", async () => {
@@ -319,7 +343,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
 
     expect(result.ok).toBe(true);
     const tradeData = tradeMocks.tradeCreate.mock.calls.at(-1)?.[0].data;
-    expect(tradeData.priceUsd).toBe(
+    expect(decimalToNumber(tradeData.priceUsd)).toBe(
       side === "BUY" ? 100.12002 : 99.88002,
     );
     if (side === "BUY") {
@@ -335,7 +359,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
           valuationPriceType: "MARK",
           executionReferencePriceType: side === "BUY" ? "ASK" : "BID",
           priceUnit: "TROY_OUNCE",
-          quotePriceUsd: referencePrice,
+          quotePriceUsd: String(referencePrice),
           bidPriceUsd: 99.9,
           askPriceUsd: 100.1,
           markPriceUsd: 100,
@@ -476,15 +500,15 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     });
     expect(tradeMocks.positionUpdate).toHaveBeenCalledWith({
       where: { userId_symbol: { userId: "user-1", symbol: "AAPL" } },
-      data: { quantity: 3 },
+      data: { quantity: expect.any(Prisma.Decimal) },
     });
     const tradeData = tradeMocks.tradeCreate.mock.calls[0][0].data;
     expect(tradeData.side).toBe("SELL");
-    expect(tradeData.quantity).toBe(2);
-    expect(tradeData.costBasisUsd).toBe(180);
-    expect(tradeData.realizedPnlUsd).toBeGreaterThan(19);
-    expect(tradeData.realizedPnlPercent).toBeGreaterThan(10);
-    expect(tradeMocks.accountUpdate.mock.calls[0][0].data.cashAmount).toBeGreaterThan(1_199);
+    expect(decimalToNumber(tradeData.quantity)).toBe(2);
+    expect(decimalToNumber(tradeData.costBasisUsd)).toBe(180);
+    expect(decimalToNumber(tradeData.realizedPnlUsd)).toBeGreaterThan(19);
+    expect(decimalToNumber(tradeData.realizedPnlPercent)).toBeGreaterThan(10);
+    expect(decimalToNumber(tradeMocks.accountUpdate.mock.calls[0][0].data.cashAmount)).toBeGreaterThan(1_199);
   });
 
   it("treats a repeated request nonce as already applied and creates no second trade", async () => {
@@ -594,7 +618,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
 
     expect(result.ok).toBe(true);
     expect(tradeMocks.getLiveMarketItem).toHaveBeenNthCalledWith(2, "AAPL", { refresh: true });
-    expect(tradeMocks.tradeCreate.mock.calls[0][0].data.quantity).toBeCloseTo(
+    expect(decimalToNumber(tradeMocks.tradeCreate.mock.calls[0][0].data.quantity)).toBeCloseTo(
       500 / 125.0375,
       6,
     );
@@ -672,7 +696,7 @@ describe("release gate: virtual BUY/SELL accounting", () => {
 
     expect(result.ok).toBe(true);
     expect(tradeMocks.getLiveMarketItem).toHaveBeenCalledTimes(2);
-    expect(tradeMocks.tradeCreate.mock.calls[0][0].data.quantity).toBe(4);
+    expect(decimalToNumber(tradeMocks.tradeCreate.mock.calls[0][0].data.quantity)).toBe(4);
   });
 
   it("returns success when cookie persistence and path revalidation fail after commit", async () => {

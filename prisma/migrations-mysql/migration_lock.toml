@@ -1,0 +1,3 @@
+# This file is managed by Prisma Migrate. Keep the legacy SQLite lock/history in
+# prisma/migrations unchanged; that directory is source data for ETL/replay only.
+provider = "mysql"

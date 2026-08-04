@@ -18,7 +18,7 @@ const transactionClient = {
   weeklyPortfolioBaseline: { upsert: publisherMocks.baselineUpsert },
   weeklyCompetitionPublication: {
     create: publisherMocks.publicationCreate,
-    findUniqueOrThrow: publisherMocks.publicationFindUniqueOrThrow,
+    findUnique: publisherMocks.publicationFindUnique,
   },
 };
 
@@ -46,6 +46,8 @@ vi.mock("@/lib/audit-log", () => ({
 }));
 
 import { publishWeeklyCompetition } from "@/lib/weekly-competition-publisher";
+import { Prisma } from "@/generated/prisma/client";
+import { decimalToNumber } from "@/lib/decimal";
 
 describe("release gate: immutable weekly competition publication", () => {
   beforeEach(() => {
@@ -112,16 +114,16 @@ describe("release gate: immutable weekly competition publication", () => {
               scope: "WEEKLY_GAIN",
               userId: "user-1",
               displayName: "Eligible User",
-              valueUsd: 50_000,
-              returnPercent: 5,
+              valueUsd: expect.any(Prisma.Decimal),
+              returnPercent: expect.any(Prisma.Decimal),
               rank: 1,
             }),
             expect.objectContaining({
               scope: "TOTAL_GAIN",
               userId: "user-1",
               displayName: "Eligible User",
-              valueUsd: 50_000,
-              returnPercent: 5,
+              valueUsd: expect.any(Prisma.Decimal),
+              returnPercent: expect.any(Prisma.Decimal),
               rank: 1,
             }),
           ],
@@ -129,6 +131,14 @@ describe("release gate: immutable weekly competition publication", () => {
       }),
       select: { id: true },
     });
+    const createdRows = publisherMocks.publicationCreate.mock.calls[0][0].data.rows.create;
+    expect(createdRows.map((row: { valueUsd: Prisma.Decimal; returnPercent: Prisma.Decimal }) => ({
+      valueUsd: decimalToNumber(row.valueUsd),
+      returnPercent: decimalToNumber(row.returnPercent),
+    }))).toEqual([
+      { valueUsd: 50_000, returnPercent: 5 },
+      { valueUsd: 50_000, returnPercent: 5 },
+    ]);
     expect(publisherMocks.appendAudit).toHaveBeenCalledWith(
       transactionClient,
       expect.objectContaining({

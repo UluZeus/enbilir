@@ -4,6 +4,7 @@ import { getAcceptedFriendIds } from "@/lib/friends";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { getPortfolioSnapshot, initialCashUsd } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
+import { decimalToNumber } from "@/lib/decimal";
 import type { CompetitionPeriodType } from "@/generated/prisma/enums";
 
 export const competitionPeriodTypes: CompetitionPeriodType[] = [
@@ -115,10 +116,10 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
           return [{
             userId: snapshot.userId,
             displayName: getDisplayName(user),
-            portfolioValueUsd: snapshot.portfolioValueUsd,
-            cashUsd: snapshot.cashUsd,
-            positionsValueUsd: snapshot.positionsValueUsd,
-            returnPercent: snapshot.returnPercent,
+            portfolioValueUsd: decimalToNumber(snapshot.portfolioValueUsd),
+            cashUsd: decimalToNumber(snapshot.cashUsd),
+            positionsValueUsd: decimalToNumber(snapshot.positionsValueUsd),
+            returnPercent: decimalToNumber(snapshot.returnPercent),
             rank: 0,
             source: "snapshot" as const,
           }];
@@ -141,7 +142,10 @@ export async function getPeriodLeaderboard(type: CompetitionPeriodType, mode: Pe
       select: { userId: true, startingValueUsd: true },
     })
     : [];
-  const baselineByUserId = new Map(periodBaselines.map((snapshot) => [snapshot.userId, snapshot.startingValueUsd]));
+  const baselineByUserId = new Map(periodBaselines.map((snapshot) => [
+    snapshot.userId,
+    decimalToNumber(snapshot.startingValueUsd),
+  ]));
   const liveRows = await Promise.all(
     users.map(async (user) => {
       const snapshot = await getPortfolioSnapshot(user.id, liveMarketItems);
