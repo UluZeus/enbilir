@@ -171,6 +171,7 @@ describe("release gate: account-bound VIP claim activation", () => {
 
     await expect(reviewVipSubscriptionClaim({
       claimId: "claim-1",
+      reviewerUserId: "admin-1",
       reviewerEmail: "admin@example.test",
       decision: "APPROVE",
       amountTry: 100,
@@ -179,6 +180,36 @@ describe("release gate: account-bound VIP claim activation", () => {
     })).rejects.toThrow("eşleşmelidir");
 
     expect(claimMocks.activate).not.toHaveBeenCalled();
+  });
+
+  it("passes the immutable admin user id as the activation audit actor", async () => {
+    claimMocks.claimFindUnique.mockResolvedValue({
+      id: "claim-1",
+      userId: "user-1",
+      provider: "PARAM",
+      providerReference: "PARAM-EXPECTED",
+      amountTry: 100,
+      status: "PENDING",
+      user: { email: "member@example.test" },
+    });
+
+    await reviewVipSubscriptionClaim({
+      claimId: "claim-1",
+      reviewerUserId: "admin-1",
+      reviewerEmail: "admin@example.test",
+      decision: "APPROVE",
+      amountTry: 100,
+      currency: "TRY",
+      payerEmail: "member@example.test",
+    });
+
+    expect(claimMocks.activate).toHaveBeenCalledWith(transactionClient, expect.objectContaining({
+      actorUserId: "admin-1",
+      actorPrincipal: "ADMIN_USER",
+    }));
+    expect(claimMocks.appendAudit).toHaveBeenCalledWith(transactionClient, expect.objectContaining({
+      actorUserId: "admin-1",
+    }));
   });
 
   it("rejects a webhook payer email that does not match the bound account", async () => {
@@ -200,5 +231,45 @@ describe("release gate: account-bound VIP claim activation", () => {
       payerEmail: "other@example.test",
     })).rejects.toThrow("eşleşmelidir");
     expect(claimMocks.activate).not.toHaveBeenCalled();
+  });
+
+  it("returns the verified existing payment after a concurrent duplicate activation collision", async () => {
+    claimMocks.claimFindUnique
+      .mockResolvedValueOnce({
+        id: "claim-1",
+        userId: "user-1",
+        provider: "PARAM",
+        providerReference: "PARAM-EXPECTED",
+        amountTry: 100,
+        status: "PENDING",
+        user: { email: "member@example.test" },
+      })
+      .mockResolvedValueOnce({
+        id: "claim-1",
+        userId: "user-1",
+        provider: "PARAM",
+        providerReference: "PARAM-EXPECTED",
+        status: "APPROVED",
+        user: { email: "member@example.test" },
+      });
+    claimMocks.activate.mockRejectedValueOnce({ code: "P2002" });
+    claimMocks.paymentFindFirst.mockResolvedValue({
+      id: "payment-existing",
+      userId: "user-1",
+      status: "PAID",
+      paidUntil: new Date("2026-08-28T12:00:00.000Z"),
+    });
+
+    await expect(activateVipSubscriptionClaimFromWebhook({
+      claimId: "claim-1",
+      providerReference: "PARAM-EXPECTED",
+      amountTry: 100,
+      currency: "TRY",
+      payerEmail: "member@example.test",
+    })).resolves.toMatchObject({
+      reused: true,
+      paymentId: "payment-existing",
+      userId: "user-1",
+    });
   });
 });

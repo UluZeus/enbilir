@@ -150,7 +150,7 @@ try {
   // Only Git-tracked public/runtime resources enter a release; local uploads and secrets never do.
   copyTrackedRuntimeFiles(trackedFiles, "public", partialPath);
   copyTrackedRuntimeFiles(trackedFiles, "scripts", partialPath);
-  copyTrackedRuntimeFiles(trackedFiles, "prisma/migrations", partialPath);
+  copyTrackedRuntimeFiles(trackedFiles, "prisma/migrations-mysql", partialPath);
 
   const payloadFiles = collectPayloadFiles(partialPath).sort((left, right) => left.path.localeCompare(right.path));
   const serverEntry = payloadFiles.find((file) => file.path === "server.js");

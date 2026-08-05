@@ -1,11 +1,13 @@
 import "server-only";
 
-import { Prisma } from "@/generated/prisma/client";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { initialCashUsd, getPortfolioSnapshot } from "@/lib/portfolio";
 import { prisma } from "@/lib/prisma";
 import { appendAuditEvent } from "@/lib/audit-log";
 import { getSafePublicUserLabel } from "@/lib/public-user-visibility";
+import type { DecimalValue } from "@/lib/decimal";
+import { decimal } from "@/lib/decimal";
+import { withSerializableTransaction } from "@/lib/serializable-transaction";
 
 const istOffsetMs = 3 * 60 * 60 * 1000;
 const dayMs = 24 * 60 * 60 * 1000;
@@ -32,9 +34,12 @@ function periodKeyForEnd(end: Date) {
   return `${endIst.getUTCFullYear()}-${pad(endIst.getUTCMonth() + 1)}-${pad(endIst.getUTCDate())}`;
 }
 
-function rank<T extends { returnPercent: number; valueUsd: number }>(rows: T[]) {
+function rank<T extends { returnPercent: DecimalValue; valueUsd: DecimalValue }>(rows: T[]) {
   return [...rows]
-    .sort((left, right) => right.returnPercent - left.returnPercent || right.valueUsd - left.valueUsd)
+    .sort((left, right) => (
+      decimal(right.returnPercent).comparedTo(left.returnPercent) ||
+      decimal(right.valueUsd).comparedTo(left.valueUsd)
+    ))
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
@@ -84,11 +89,11 @@ export async function publishWeeklyCompetition(now = new Date()) {
   const weeklyRows = rank(reliableSnapshots.flatMap(({ user, portfolio }) => {
     const baseline = baselineByUserId.get(user.id);
 
-    if (!baseline || baseline <= 0) {
+    if (!baseline || decimal(baseline).lessThanOrEqualTo(0)) {
       return [];
     }
 
-    const valueUsd = portfolio.totalValueUsd - baseline;
+    const valueUsd = decimal(portfolio.totalValueUsd).minus(baseline);
     return [{
       userId: user.id,
       displayName: getSafePublicUserLabel(
@@ -98,11 +103,11 @@ export async function publishWeeklyCompetition(now = new Date()) {
         user.email,
       ) ?? "",
       valueUsd,
-      returnPercent: (valueUsd / baseline) * 100,
+      returnPercent: valueUsd.div(baseline).times(100),
     }];
   }));
   const totalRows = rank(reliableSnapshots.map(({ user, portfolio }) => {
-    const valueUsd = portfolio.totalValueUsd - initialCashUsd;
+    const valueUsd = decimal(portfolio.totalValueUsd).minus(initialCashUsd);
     return {
       userId: user.id,
       displayName: getSafePublicUserLabel(
@@ -112,11 +117,11 @@ export async function publishWeeklyCompetition(now = new Date()) {
         user.email,
       ) ?? "",
       valueUsd,
-      returnPercent: (valueUsd / initialCashUsd) * 100,
+      returnPercent: valueUsd.div(initialCashUsd).times(100),
     };
   }));
 
-  const result = await prisma.$transaction(async (transaction) => {
+  const result = await withSerializableTransaction(async (transaction) => {
     for (const { user, portfolio } of reliableSnapshots) {
       await transaction.weeklyPortfolioBaseline.upsert({
         where: { periodKey_userId: { periodKey: currentBaselineKey, userId: user.id } },
@@ -130,12 +135,15 @@ export async function publishWeeklyCompetition(now = new Date()) {
       });
     }
 
-    if (existingPublication) {
-      return { reused: true, publicationId: existingPublication.id };
+    const concurrentPublication = existingPublication ?? await transaction.weeklyCompetitionPublication.findUnique({
+      where: { periodKey: publicationPeriodKey },
+      select: { id: true },
+    });
+    if (concurrentPublication) {
+      return { reused: true, publicationId: concurrentPublication.id };
     }
 
-    try {
-      const publication = await transaction.weeklyCompetitionPublication.create({
+    const publication = await transaction.weeklyCompetitionPublication.create({
         data: {
           periodKey: publicationPeriodKey,
           startsAt: start,
@@ -166,17 +174,7 @@ export async function publishWeeklyCompetition(now = new Date()) {
         createdAt: now,
       });
 
-      return { reused: false, publicationId: publication.id };
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        const publication = await transaction.weeklyCompetitionPublication.findUniqueOrThrow({
-          where: { periodKey: publicationPeriodKey },
-          select: { id: true },
-        });
-        return { reused: true, publicationId: publication.id };
-      }
-      throw error;
-    }
+    return { reused: false, publicationId: publication.id };
   });
 
   return {

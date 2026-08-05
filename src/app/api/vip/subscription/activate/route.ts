@@ -5,6 +5,8 @@ import { activateVipSubscriptionClaimFromWebhook } from "@/lib/vip-subscription-
 
 export const dynamic = "force-dynamic";
 
+const vipPaymentEvents = new Set(["PAID", "REFUNDED", "CHARGEBACK", "REVOKED"]);
+
 function isWebhookAuthorized(request: Request) {
   const expected = process.env.VIP_SUBSCRIPTION_WEBHOOK_SECRET;
   const received = request.headers.get("x-vip-webhook-secret") ?? "";
@@ -72,7 +74,7 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json() as {
-      event?: "PAID" | "REFUNDED" | "CHARGEBACK" | "REVOKED";
+      event?: unknown;
       claimId?: string;
       provider?: string;
       providerReference?: string;
@@ -80,7 +82,11 @@ export async function POST(request: Request) {
       currency?: string;
       payerEmail?: string;
     };
-    const event = payload.event ?? "PAID";
+    if (typeof payload.event !== "string" || !vipPaymentEvents.has(payload.event)) {
+      return NextResponse.json({ error: "Geçerli bir VIP ödeme olayı zorunludur." }, { status: 400 });
+    }
+
+    const event = payload.event as "PAID" | "REFUNDED" | "CHARGEBACK" | "REVOKED";
     const result = event === "PAID"
       ? await activateVipSubscriptionClaimFromWebhook({
         claimId: payload.claimId ?? "",
@@ -94,6 +100,7 @@ export async function POST(request: Request) {
         provider: payload.provider ?? "PARAM",
         providerReference: payload.providerReference ?? "",
         reason: event,
+        actorPrincipal: "VIP_PAYMENT_WEBHOOK",
       });
 
     return NextResponse.json({ ok: true, ...result });

@@ -4,13 +4,15 @@ const mocks = vi.hoisted(() => ({
   analytics: vi.fn(),
   consumeVoiceReservation: vi.fn(),
   economyHeadlines: vi.fn(),
+  finalizeAiQueryLease: vi.fn(),
   getLiveMarketItems: vi.fn(),
   getAiQueryQuota: vi.fn(),
   getSessionUser: vi.fn(),
   getVipAgentSummaries: vi.fn(),
   membershipSnapshot: vi.fn(),
   rateLimited: vi.fn(),
-  reserveAiQuery: vi.fn(),
+  releaseAiQueryLease: vi.fn(),
+  reserveAiQueryLease: vi.fn(),
   userFindUnique: vi.fn(),
   aiMarketReportFindFirst: vi.fn(),
   vipResearchReportFindFirst: vi.fn(),
@@ -26,7 +28,9 @@ vi.mock("@/lib/ai-query-quota", async (importOriginal) => {
   return {
     ...actual,
     getAiQueryQuota: mocks.getAiQueryQuota,
-    reserveAiQuery: mocks.reserveAiQuery,
+    finalizeAiQueryLease: mocks.finalizeAiQueryLease,
+    releaseAiQueryLease: mocks.releaseAiQueryLease,
+    reserveAiQueryLease: mocks.reserveAiQueryLease,
   };
 });
 
@@ -74,6 +78,7 @@ vi.mock("@/lib/vip-agents/dashboard", () => ({
 }));
 
 import { POST } from "@/app/api/ai-market/chat/route";
+import { DailyAiQueryLimitReachedError } from "@/lib/ai-query-quota";
 
 const quota = {
   limit: 10,
@@ -114,7 +119,9 @@ describe("AI market chat route resilience", () => {
     mocks.vipResearchReportFindFirst.mockResolvedValue(null);
     mocks.getVipAgentSummaries.mockResolvedValue([]);
     mocks.economyHeadlines.mockResolvedValue([]);
-    mocks.reserveAiQuery.mockResolvedValue(quota);
+    mocks.reserveAiQueryLease.mockResolvedValue({ quota, leaseToken: "synthetic-lease" });
+    mocks.releaseAiQueryLease.mockResolvedValue(true);
+    mocks.finalizeAiQueryLease.mockResolvedValue(true);
     mocks.analytics.mockResolvedValue(undefined);
   });
 
@@ -123,14 +130,22 @@ describe("AI market chat route resilience", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not consume text quota when context generation fails", async () => {
+  it("reserves before context generation and releases when no answer can be produced", async () => {
     mocks.getLiveMarketItems.mockRejectedValue(new Error("synthetic context failure"));
 
     const response = await POST(makeRequest("BTC nasıl?"));
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ error: expect.any(String) });
-    expect(mocks.reserveAiQuery).not.toHaveBeenCalled();
+    expect(mocks.reserveAiQueryLease).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseAiQueryLease).toHaveBeenCalledWith({
+      userId: "synthetic-user",
+      leaseToken: "synthetic-lease",
+      reservedAt: expect.any(Date),
+    });
+    expect(mocks.reserveAiQueryLease.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.getLiveMarketItems.mock.invocationCallOrder[0],
+    );
   });
 
   it("rejects an already exhausted text quota before market or OpenAI work", async () => {
@@ -139,7 +154,7 @@ describe("AI market chat route resilience", () => {
       used: quota.limit,
       remaining: 0,
     };
-    mocks.getAiQueryQuota.mockResolvedValue(exhaustedQuota);
+    mocks.reserveAiQueryLease.mockRejectedValue(new DailyAiQueryLimitReachedError(exhaustedQuota));
     process.env.OPENAI_API_KEY = "synthetic-key";
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -155,7 +170,8 @@ describe("AI market chat route resilience", () => {
     });
     expect(mocks.getLiveMarketItems).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(mocks.reserveAiQuery).not.toHaveBeenCalled();
+    expect(mocks.reserveAiQueryLease).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseAiQueryLease).not.toHaveBeenCalled();
   });
 
   it("returns the prepared JSON answer even when analytics recording fails", async () => {
@@ -170,7 +186,11 @@ describe("AI market chat route resilience", () => {
       mode: "local",
       quota,
     });
-    expect(mocks.reserveAiQuery).toHaveBeenCalledTimes(1);
+    expect(mocks.reserveAiQueryLease).toHaveBeenCalledTimes(1);
+    expect(mocks.finalizeAiQueryLease).toHaveBeenCalledWith({
+      userId: "synthetic-user",
+      leaseToken: "synthetic-lease",
+    });
   });
 
   it("uses economy headlines for VIP site help without requiring citations", async () => {
@@ -207,5 +227,47 @@ describe("AI market chat route resilience", () => {
     expect(requestBody).not.toHaveProperty("tools");
     expect(requestBody.input[0].content[0].text).toContain("Synthetic economy headline");
     expect(mocks.economyHeadlines).toHaveBeenCalledWith(8, "tr");
+  });
+
+  it("enforces asset-bound numeric evidence for Standard model answers", async () => {
+    process.env.OPENAI_API_KEY = "synthetic-key";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      output_text: "AAPL fiyat 210 USD.",
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    const response = await POST(makeRequest("AAPL fiyatı nedir?"));
+    const payload = await response.json();
+
+    expect(payload.mode).toBe("openai");
+    expect(payload.answer).toContain("İZLE / KANIT YETERSİZ");
+    expect(payload.answer).not.toContain("210 USD");
+  });
+
+  it("keeps an exact Standard price only when the server has a fresh matching provider record", async () => {
+    process.env.OPENAI_API_KEY = "synthetic-key";
+    const sourceAsOf = new Date().toISOString();
+    mocks.getLiveMarketItems.mockResolvedValue([{
+      symbol: "AAPL",
+      dataSymbol: "AAPL",
+      name: "Apple",
+      market: "NASDAQ",
+      category: "NASDAQ",
+      dataStatus: "live",
+      source: "yahoo",
+      price: "210 USD",
+      priceUsd: 210,
+      changePercent: 1.2,
+      sourceAsOf,
+    }]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      output_text: "AAPL fiyat 210 USD.",
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    const response = await POST(makeRequest("AAPL fiyatı nedir?"));
+    const payload = await response.json();
+
+    expect(payload.mode).toBe("openai");
+    expect(payload.answer).toContain("AAPL fiyat 210 USD");
+    expect(payload.answer).not.toContain("KANIT YETERSİZ");
   });
 });

@@ -35,16 +35,26 @@ export async function appendAuditEvent(
   input: AuditInput,
 ) {
   const requestedAt = input.createdAt ?? new Date();
-  const previous = await transaction.auditEvent.findFirst({
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { eventHash: true, createdAt: true },
+  const head = await transaction.auditChainHead.upsert({
+    where: { id: "global" },
+    create: { id: "global", version: 1 },
+    update: { version: { increment: 1 } },
+    select: { lastEventHash: true, lastCreatedAt: true },
   });
-  const createdAt = previous && requestedAt <= previous.createdAt
-    ? new Date(previous.createdAt.getTime() + 1)
+  const legacyPrevious = head.lastEventHash === null
+    ? await transaction.auditEvent.findFirst({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { eventHash: true, createdAt: true },
+    })
+    : null;
+  const previousHash = head.lastEventHash ?? legacyPrevious?.eventHash ?? null;
+  const previousCreatedAt = head.lastCreatedAt ?? legacyPrevious?.createdAt ?? null;
+  const createdAt = previousCreatedAt && requestedAt <= previousCreatedAt
+    ? new Date(previousCreatedAt.getTime() + 1)
     : requestedAt;
   const payload = input.payload ? canonicalize(input.payload) as Prisma.InputJsonValue : undefined;
   const eventHash = createHash("sha256").update(JSON.stringify(canonicalize({
-    previousHash: previous?.eventHash ?? null,
+    previousHash,
     category: input.category,
     entityType: input.entityType,
     entityId: input.entityId,
@@ -54,7 +64,7 @@ export async function appendAuditEvent(
     createdAt: createdAt.toISOString(),
   }))).digest("hex");
 
-  return transaction.auditEvent.create({
+  const event = await transaction.auditEvent.create({
     data: {
       category: input.category,
       entityType: input.entityType,
@@ -62,17 +72,28 @@ export async function appendAuditEvent(
       action: input.action,
       actorUserId: input.actorUserId ?? null,
       payload,
-      previousHash: previous?.eventHash ?? null,
+      previousHash,
       eventHash,
       createdAt,
     },
   });
+  await transaction.auditChainHead.update({
+    where: { id: "global" },
+    data: {
+      lastEventHash: eventHash,
+      lastCreatedAt: createdAt,
+    },
+  });
+  return event;
 }
 
 export async function verifyAuditChain() {
-  const events = await prisma.auditEvent.findMany({
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-  });
+  const [events, head] = await Promise.all([
+    prisma.auditEvent.findMany({
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
+    prisma.auditChainHead.findUnique({ where: { id: "global" } }),
+  ]);
   let previousHash: string | null = null;
 
   for (const event of events) {
@@ -91,6 +112,14 @@ export async function verifyAuditChain() {
       return { valid: false, eventId: event.id, checked: events.indexOf(event) + 1 };
     }
     previousHash = event.eventHash;
+  }
+
+  const lastEvent = events.at(-1) ?? null;
+  if (head && (
+    head.lastEventHash !== (lastEvent?.eventHash ?? null) ||
+    head.lastCreatedAt?.getTime() !== lastEvent?.createdAt.getTime()
+  )) {
+    return { valid: false, eventId: lastEvent?.id ?? null, checked: events.length };
   }
 
   return { valid: true, eventId: null, checked: events.length };

@@ -7,6 +7,7 @@ import { canAccessAdmin, getSessionUser } from "@/lib/auth";
 import { getMembershipSnapshot } from "@/lib/membership";
 import { getParamVipPaymentUrl } from "@/lib/param-vip-payment";
 import { prisma } from "@/lib/prisma";
+import { serializeVipResearchReport } from "@/lib/vip-research/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -41,5 +42,5 @@ export default async function VipReportDetail({ params }: { params: Promise<{ lo
     notFound();
   }
 
-  return <VipResearchReportView report={report} locale={locale} showArchiveLink />;
+  return <VipResearchReportView report={serializeVipResearchReport(report)} locale={locale} showArchiveLink />;
 }

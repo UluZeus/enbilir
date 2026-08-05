@@ -1,144 +1,44 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
-import path from "node:path";
-import process from "node:process";
-import Database from "better-sqlite3";
+import { MysqlCliDatabase } from "./lib/mysql-cli.mjs";
+import { loadLocalEnvironment } from "./lib/operations.mjs";
 
 console.warn(
-  "WARNING: This read-only legacy inspection uses fixed FX assumptions and must not be treated as authoritative valuation or release evidence.",
+  "WARNING: This read-only aggregate inspection uses persisted cost basis and is not authoritative live valuation or release evidence.",
 );
 
-function resolveDatabasePath() {
-  const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
-
-  if (!databaseUrl.startsWith("file:")) {
-    throw new Error(`Only SQLite file: DATABASE_URL values are supported. Received: ${databaseUrl}`);
-  }
-
-  const rawPath = databaseUrl.slice("file:".length);
-
-  return path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
-}
-
-function cashToUsd(amount, mode) {
-  const rates = {
-    USD: 1,
-    EUR: 1.08,
-    CHF: 1.1,
-    TRY_REPO: 1 / 32.4,
-  };
-
-  return amount * (rates[mode] ?? 1);
-}
-
-function formatNumber(value) {
-  return Number.isFinite(value) ? value.toFixed(2) : "NaN";
-}
-
-const databasePath = resolveDatabasePath();
-
-if (!existsSync(databasePath)) {
-  throw new Error(`Database file not found: ${databasePath}`);
-}
-
-const db = new Database(databasePath, { readonly: true, fileMustExist: true });
-
-const users = db.prepare(`
-  SELECT id, email, name, role
-  FROM User
-  ORDER BY email ASC
+loadLocalEnvironment();
+const database = new MysqlCliDatabase();
+const totals = database.prepare(`
+  SELECT
+    (SELECT COUNT(*) FROM \`User\`) AS users,
+    (SELECT COUNT(*) FROM \`VirtualAccount\`) AS accounts,
+    (SELECT COUNT(*) FROM \`PortfolioPosition\`) AS positions,
+    (SELECT COUNT(*) FROM \`VirtualTrade\`) AS trades,
+    (SELECT COUNT(*) FROM \`PortfolioSnapshot\`) AS snapshots,
+    (SELECT COUNT(*) FROM \`User\` u
+      WHERE EXISTS (SELECT 1 FROM \`VirtualTrade\` t WHERE t.userId = u.id)
+        AND NOT EXISTS (SELECT 1 FROM \`PortfolioPosition\` p WHERE p.userId = u.id)) AS tradedWithoutOpenPosition
+`).get();
+const cashByMode = database.prepare(`
+  SELECT cashMode, COUNT(*) AS accounts, CAST(SUM(cashAmount) AS CHAR) AS aggregateCash
+  FROM \`VirtualAccount\` GROUP BY cashMode ORDER BY cashMode
 `).all();
-const accountStmt = db.prepare(`
-  SELECT cashAmount, cashMode
-  FROM VirtualAccount
-  WHERE userId = ?
-`);
-const positionsStmt = db.prepare(`
-  SELECT symbol, name, market, quantity, averagePriceUsd
-  FROM PortfolioPosition
-  WHERE userId = ?
-  ORDER BY symbol ASC
-`);
-const tradesCountStmt = db.prepare(`
-  SELECT COUNT(*) AS count
-  FROM VirtualTrade
-  WHERE userId = ?
-`);
+const positionAggregate = database.prepare(`
+  SELECT COUNT(DISTINCT userId) AS usersWithPositions,
+         CAST(SUM(quantity * averagePriceUsd) AS CHAR) AS aggregateCostBasisValueUsd
+  FROM \`PortfolioPosition\`
+`).get();
 
-console.log("Mode: READ-ONLY");
-console.log(`Database: ${databasePath}`);
-console.log(`Users: ${users.length}`);
-
-const summaryRows = [];
-
-for (const user of users) {
-  const account = accountStmt.get(user.id) ?? null;
-  const positions = positionsStmt.all(user.id);
-  const tradeCount = tradesCountStmt.get(user.id).count;
-  const cashAmount = account?.cashAmount ?? null;
-  const cashMode = account?.cashMode ?? "NO_ACCOUNT";
-  const cashUsd = account ? cashToUsd(account.cashAmount, account.cashMode) : 0;
-  const positionRows = positions.map((position) => ({
-    symbol: position.symbol,
-    name: position.name,
-    market: position.market,
-    quantity: position.quantity,
-    averagePriceUsd: position.averagePriceUsd,
-    computedValueAtAveragePrice: position.quantity * position.averagePriceUsd,
-  }));
-  const positionsValueAtAveragePrice = positionRows.reduce(
-    (sum, position) => sum + position.computedValueAtAveragePrice,
-    0,
-  );
-  const totalAtAveragePrice = cashUsd + positionsValueAtAveragePrice;
-
-  summaryRows.push({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    cashAmount: cashAmount === null ? "NO_ACCOUNT" : formatNumber(cashAmount),
-    cashMode,
-    cashUsd: formatNumber(cashUsd),
-    positionsCount: positions.length,
-    tradesCount: tradeCount,
-    positionsValueAtAveragePrice: formatNumber(positionsValueAtAveragePrice),
-    totalAtAveragePrice: formatNumber(totalAtAveragePrice),
-  });
-
-  console.log(`\nUser: ${user.email}`);
-  console.table([summaryRows.at(-1)]);
-
-  if (positionRows.length > 0) {
-    console.table(positionRows.map((position) => ({
-      ...position,
-      quantity: formatNumber(position.quantity),
-      averagePriceUsd: formatNumber(position.averagePriceUsd),
-      computedValueAtAveragePrice: formatNumber(position.computedValueAtAveragePrice),
-    })));
-  } else {
-    console.log("No PortfolioPosition rows.");
-  }
-}
-
-console.log("\nSummary");
-console.table(summaryRows);
-
-const usersWithTradesNoPositions = summaryRows.filter((row) => row.tradesCount > 0 && row.positionsCount === 0);
-const usersWithPositionsDefaultCash = summaryRows.filter(
-  (row) => row.positionsCount > 0 && row.cashMode === "USD" && row.cashAmount === formatNumber(1_000_000),
-);
-
-console.log("\nSignals");
-console.table([
-  {
-    signal: "trades > 0 and positions = 0",
-    count: usersWithTradesNoPositions.length,
-    emails: usersWithTradesNoPositions.map((row) => row.email).join(", ") || "-",
+console.log(JSON.stringify({
+  mode: "READ_ONLY_AGGREGATE",
+  totals: Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, Number(value)])),
+  cashByMode: cashByMode.map((row) => ({
+    cashMode: row.cashMode,
+    accounts: Number(row.accounts),
+    aggregateCash: row.aggregateCash,
+  })),
+  positionAggregate: {
+    usersWithPositions: Number(positionAggregate.usersWithPositions),
+    aggregateCostBasisValueUsd: positionAggregate.aggregateCostBasisValueUsd,
   },
-  {
-    signal: "positions > 0 and USD cash still 1,000,000",
-    count: usersWithPositionsDefaultCash.length,
-    emails: usersWithPositionsDefaultCash.map((row) => row.email).join(", ") || "-",
-  },
-]);
+}));

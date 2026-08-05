@@ -2,14 +2,12 @@ import { spawn } from "node:child_process";
 import { appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, openSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 
-import Database from "better-sqlite3";
-
 import {
-  getSqliteDatabasePath,
   loadLocalEnvironment,
   redactOperationalText,
   requireExternalAbsoluteDirectory,
 } from "./lib/operations.mjs";
+import { MysqlCliDatabase } from "./lib/mysql-cli.mjs";
 import { parseRunWithHeartbeatArguments } from "./lib/run-with-heartbeat-arguments.mjs";
 
 function rotateLog(logPath, maxBytes, copies = 5) {
@@ -22,7 +20,7 @@ function rotateLog(logPath, maxBytes, copies = 5) {
 }
 
 function updateHeartbeat(database, jobKey, state, errorMessage = null) {
-  const now = new Date().toISOString();
+  const now = new Date();
   const columns =
     state === "started"
       ? { lastStartedAt: now, lastSucceededAt: null, lastFailedAt: null, lastError: null }
@@ -34,12 +32,12 @@ function updateHeartbeat(database, jobKey, state, errorMessage = null) {
       `INSERT INTO OperationalJobHeartbeat
         (jobKey, lastStartedAt, lastSucceededAt, lastFailedAt, lastError, metadata, updatedAt)
        VALUES (@jobKey, @lastStartedAt, @lastSucceededAt, @lastFailedAt, @lastError, '{}', @updatedAt)
-       ON CONFLICT(jobKey) DO UPDATE SET
-         lastStartedAt = COALESCE(excluded.lastStartedAt, OperationalJobHeartbeat.lastStartedAt),
-         lastSucceededAt = COALESCE(excluded.lastSucceededAt, OperationalJobHeartbeat.lastSucceededAt),
-         lastFailedAt = COALESCE(excluded.lastFailedAt, OperationalJobHeartbeat.lastFailedAt),
-         lastError = excluded.lastError,
-         updatedAt = excluded.updatedAt`,
+       ON DUPLICATE KEY UPDATE
+         lastStartedAt = COALESCE(VALUES(lastStartedAt), lastStartedAt),
+         lastSucceededAt = COALESCE(VALUES(lastSucceededAt), lastSucceededAt),
+         lastFailedAt = COALESCE(VALUES(lastFailedAt), lastFailedAt),
+         lastError = VALUES(lastError),
+         updatedAt = VALUES(updatedAt)`,
     )
     .run({ jobKey, ...columns, updatedAt: now });
 }
@@ -57,8 +55,7 @@ rotateLog(logPath, options.maxBytes);
 closeSync(openSync(logPath, "a", 0o640));
 if (process.platform !== "win32") chmodSync(logPath, 0o640);
 
-const database = new Database(getSqliteDatabasePath());
-database.pragma("foreign_keys = ON");
+const database = new MysqlCliDatabase();
 updateHeartbeat(database, options.jobKey, "started");
 
 const writeLine = (stream, value) => {

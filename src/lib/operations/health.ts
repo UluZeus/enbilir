@@ -1,7 +1,7 @@
 import "server-only";
 
-import { constants as fsConstants, statfsSync } from "node:fs";
-import { access, readdir } from "node:fs/promises";
+import { statfsSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 
 import { prisma } from "@/lib/prisma";
@@ -34,18 +34,12 @@ const defaultHeartbeatRequirements = {
   "chat-upload-cleanup": 1_560,
 } as const;
 
-function getSqlitePath(databaseUrl = process.env.DATABASE_URL) {
-  if (!databaseUrl?.startsWith("file:")) {
-    throw new Error("A SQLite file database is required.");
-  }
-  const databasePath = databaseUrl.slice("file:".length);
-  return path.isAbsolute(databasePath)
-    ? databasePath
-    : path.resolve(/* turbopackIgnore: true */ process.cwd(), databasePath);
-}
-
 async function getExpectedMigrations() {
-  const migrationRoot = path.join(/* turbopackIgnore: true */ process.cwd(), "prisma", "migrations");
+  const migrationRoot = path.join(
+    /* turbopackIgnore: true */ process.cwd(),
+    "prisma",
+    "migrations-mysql",
+  );
   const entries = await readdir(migrationRoot, { withFileTypes: true });
   return entries
     .filter((entry) => entry.isDirectory())
@@ -88,12 +82,17 @@ export async function getOperationalReadiness(now = new Date()): Promise<Operati
 
   let databaseAvailable = false;
   try {
-    const databasePath = getSqlitePath();
-    await Promise.all([
-      access(databasePath, fsConstants.R_OK | fsConstants.W_OK),
-      access(path.dirname(databasePath), fsConstants.W_OK),
-      prisma.$queryRaw`SELECT 1`,
-    ]);
+    await prisma.$queryRaw`SELECT 1`;
+    await prisma.$transaction(async (transaction) => {
+      await transaction.$executeRawUnsafe(
+        "CREATE TEMPORARY TABLE _enbilir_readiness_probe (value INT NOT NULL) ENGINE=MEMORY",
+      );
+      try {
+        await transaction.$executeRawUnsafe("INSERT INTO _enbilir_readiness_probe (value) VALUES (1)");
+      } finally {
+        await transaction.$executeRawUnsafe("DROP TEMPORARY TABLE IF EXISTS _enbilir_readiness_probe");
+      }
+    });
     databaseAvailable = true;
     checks.push({ name: "database-read-write", status: "pass" });
   } catch {
@@ -126,8 +125,8 @@ export async function getOperationalReadiness(now = new Date()): Promise<Operati
   }
 
   try {
-    const databaseDirectory = path.dirname(getSqlitePath());
-    const disk = statfsSync(databaseDirectory);
+    const diskPath = process.env.BACKUP_DIR || process.env.OPERATIONS_LOG_DIR || process.cwd();
+    const disk = statfsSync(diskPath);
     const freeBytes = Number(disk.bavail) * Number(disk.bsize);
     const minimumFreeBytes = Number(process.env.MIN_FREE_DISK_BYTES || 1_073_741_824);
     checks.push({

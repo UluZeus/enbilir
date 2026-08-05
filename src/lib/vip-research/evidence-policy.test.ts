@@ -51,14 +51,16 @@ describe("VIP research evidence policy", () => {
       {
         title: "Apple investor relations",
         url: "https://www.apple.com/newsroom/",
+        publishedAt: "2026-08-01T09:00:00.000Z",
         evidenceText: "Apple yeni ürün lansmanını Q4 2026 dönemi için açıkladı.",
       },
       { title: "Microsoft investor relations", url: "https://www.microsoft.com/investor" },
       { title: "Apple local source", url: "http://apple.example.com/news" },
-    ], apple, ["Apple yeni ürün lansmanı Q4 2026 döneminde planlanıyor."])).toEqual([
+    ], apple, ["Apple yeni ürün lansmanı Q4 2026 döneminde planlanıyor."], new Date("2026-08-04T00:00:00.000Z"))).toEqual([
       {
         title: "Apple investor relations",
         url: "https://www.apple.com/newsroom/",
+        publishedAt: "2026-08-01T09:00:00.000Z",
         evidenceText: "Apple yeni ürün lansmanını Q4 2026 dönemi için açıkladı.",
       },
     ]);
@@ -73,12 +75,36 @@ describe("VIP research evidence policy", () => {
     ], apple, catalysts)).toEqual([]);
   });
 
+  it("rejects model prose, stale sources, and weak token overlap as catalyst evidence", () => {
+    const apple = { symbol: "AAPL", providerSymbol: "AAPL", displayName: "Apple Inc" };
+    const catalyst = ["Apple yeni ürün lansmanı Q4 2026 döneminde planlanıyor."];
+
+    expect(getVerifiedCandidateSources([{
+      title: "Apple investor relations",
+      url: "https://www.apple.com/newsroom/",
+      publishedAt: "2026-08-01T09:00:00.000Z",
+    }], apple, catalyst, new Date("2026-08-04T00:00:00.000Z"))).toEqual([]);
+    expect(getVerifiedCandidateSources([{
+      title: "Apple investor relations",
+      url: "https://www.apple.com/newsroom/",
+      publishedAt: "2024-01-01T09:00:00.000Z",
+      evidenceText: "Apple yeni ürün lansmanını Q4 2026 dönemi için açıkladı.",
+    }], apple, catalyst, new Date("2026-08-04T00:00:00.000Z"))).toEqual([]);
+    expect(getVerifiedCandidateSources([{
+      title: "Apple investor relations",
+      url: "https://www.apple.com/newsroom/",
+      publishedAt: "2026-08-01T09:00:00.000Z",
+      evidenceText: "Apple geri alım programını Q4 2026 döneminde değerlendirecek.",
+    }], apple, catalyst, new Date("2026-08-04T00:00:00.000Z"))).toEqual([]);
+  });
+
   it("downgrades an unsupported buy and rejects a buy with a risk veto", () => {
     const supported = {
       stance: "AL" as const,
       riskVeto: false,
       catalysts: ["Yeni ürün lansmanı Q4 2026 döneminde planlanıyor."],
-      sources: [{ title: "IR", url: "https://investor.example.com/news" }],
+      sources: [{ title: "IR", url: "https://investor.example.com/news", publishedAt: "2026-08-01T00:00:00.000Z", evidenceText: "Yeni ürün lansmanı Q4 2026 döneminde planlanıyor." }],
+      now: new Date("2026-08-04T00:00:00.000Z"),
     };
 
     expect(applyVipBuyEvidenceGate(supported)).toBe("AL");

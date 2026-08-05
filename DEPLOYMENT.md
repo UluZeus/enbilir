@@ -13,7 +13,7 @@ Komut ornekleri Ubuntu/Debian tabanli Linux sunucular icindir. Farkli bir dagiti
 - TypeScript
 - Tailwind CSS 4
 - Prisma 7.9.1
-- SQLite, `@prisma/adapter-better-sqlite3` ile
+- MySQL 8 (`utf8mb4_0900_ai_ci`), `@prisma/adapter-mariadb` ile
 - Node.js uzerinde calisan production Next.js server
 
 ### Node.js versiyon onerisi
@@ -66,7 +66,7 @@ sudo npm install -g npm@latest
 Temel sistem paketleri:
 
 ```bash
-sudo apt install -y git build-essential nginx sqlite3
+sudo apt install -y git build-essential nginx mysql-client
 ```
 
 PM2 daha sonra global npm paketi olarak kurulacaktir.
@@ -127,15 +127,17 @@ Onerilen production klasor yapisi:
   releases/<git-sha>/  # Dogrulanmis release kopyasi; root-owned ve degismez
   runtimes/<git-sha>/  # Non-root calisma kopyasi; kod salt-okunur
   current -> runtimes/<git-sha>  # Aktif runtime baglantisi
-  data/                # Kalici SQLite veritabani dosyasi
-  backups/             # Gunluk veritabani yedekleri
+  backups/             # MySQL dump ve upload iceren gunluk backup setleri
   uploads/             # Kalici chat ve admin yuklemeleri
+  legacy-source/       # Yalniz gecis sirasinda, salt-okunur SQLite ETL kaynagi
 ```
 
 Artifact ve release SHA dizinleri yerinde degistirilmez. Runtime, dogrulanmis release'in ayri
 bir kopyasidir; yalniz `.next/cache` yazilabilir. `current` sembolik baglantisi yalnizca
 hazirlanmis ve non-root smoke testi gecmis bir `runtimes/<git-sha>` dizinine atomik olarak
-cevrilir. `data`, `backups` ve `uploads` runtime disinda kalicidir.
+cevrilir. `backups` ve `uploads` runtime disinda kalicidir. `legacy-source` normal runtime
+depolamasi degildir; yalniz SQLite'dan MySQL'e tek seferlik kontrollu gecis sirasinda
+bulunur ve cutover/reconciliation sonrasinda uygulama tarafindan kullanilmaz.
 
 ## 4. Environment degiskenleri
 
@@ -155,7 +157,9 @@ Ornek production ortam dosyasi:
 ```env
 ENBILIR_ENV="production"
 NEXT_PUBLIC_SITE_URL="https://enbilir.com"
-DATABASE_URL="file:/srv/enbilir/data/production.db"
+DATABASE_URL="mysql://enbilir_app:URL-ENCODED-PASSWORD@127.0.0.1:3306/enbilir_production"
+MYSQL_DATABASE="enbilir_production"
+MYSQL_DEFAULTS_FILE="/etc/enbilir/mysql-backup.cnf"
 AUTH_SECRET="change-this-to-a-random-64-character-production-secret"
 MASTER_ADMIN_EMAIL="hakan@ultraakil.com"
 GOOGLE_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent.com"
@@ -188,7 +192,14 @@ VIP_SUBSCRIPTION_WEBHOOK_SECRET="guvenli-rastgele-vip-webhook-secret"
 Degisken aciklamalari:
 
 - `NEXT_PUBLIC_SITE_URL`: Sitenin public adresidir. Production icin `https://enbilir.com` kullanilmalidir.
-- `DATABASE_URL`: SQLite dosyasinin konumudur. Production icin proje klasoru disinda kalici bir konum onerilir.
+- `DATABASE_URL`: Uygulamanin MySQL 8 baglantisidir. Runtime'da yalniz `enbilir_app`
+  kullanicisini kullanin; parola URL-encode edilmelidir. Bu dosya `0600` oldugu icin URL'yi
+  komut satirina, loga veya process argumanina yazmayin.
+- `MYSQL_DATABASE`: CLI backup/ETL araclarinin hedef database adidir. `DATABASE_URL` yolundaki
+  database ile birebir ayni, yalniz harf/rakam/alt cizgi iceren bir ad olmalidir.
+- `MYSQL_DEFAULTS_FILE`: Backup CLI'sinin `[client]` kimlik bilgilerini okudugu, release
+  disindaki absolute `0600` option-file yoludur. Dosya icinde database secmeyin; hedef
+  `MYSQL_DATABASE` ile belirlenir.
 - `AUTH_SECRET`: Oturum ve token imzalama islemleri icin kullanilir. En az 32 karakterlik, tahmin edilemez bir deger olmalidir.
 - `MASTER_ADMIN_EMAIL`: Master admin kabul edilecek e-posta adresidir. Gercek admin e-postasi ile degistirilmelidir.
 - `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET`: Google ile giris icin gerekli OAuth kimlik bilgileri.
@@ -200,7 +211,7 @@ Degisken aciklamalari:
 - Her cron route'u kendine ait, en az 32 karakterlik farkli bir secret kullanir. Secret'lar birbiriyle paylasilmaz.
 - `AI_AGENT_CRON_ORIGIN`: Sunucu icindeki cron isteklerinin ulastigi lokal Enbilir adresidir; mevcut production PM2 portu icin `http://127.0.0.1:3006` kullanilir.
 - `CHAT_UPLOAD_DIR` ve `ADMIN_UPLOAD_DIR`: Release disinda kalan kalici medya dizinleridir.
-- `BACKUP_DIR`: Dogrulanan SQLite ve upload backup setlerinin release disindaki dizinidir.
+- `BACKUP_DIR`: Dogrulanan MySQL `mysqldump` ve upload backup setlerinin release disindaki dizinidir.
 - `BACKUP_HEALTH_GID`: Readiness surecinin yalnizca backup metadata'sini okuyabilmesi icin
   `enbilir-app` servis grubunun pozitif sayisal GID degeridir. Grup adi veya tahmini bir sayi
   yazmayin. Sunucuda `getent group enbilir-app` ve `id -g enbilir-app` ciktilarinin ayni GID'yi
@@ -224,45 +235,138 @@ Ortam dosyasi Git'e commit edilmemeli ve Linux'ta `chmod 600` ile korunmalidir. 
 Uygulama veya cron baslatmadan once root yonetim shell'inde
 `set -a; . /etc/enbilir/enbilir.env; set +a` ile yukleyin.
 
-Development, test, staging ve production ayni database dosyasini, upload/backup/log dizinini,
+Development, test, staging ve production ayni MySQL database/kullanicilarini, upload/backup/log dizinini,
 OAuth istemcisini, SMTP gondericisini, payment endpoint'ini veya cron secret'ini paylasmamalidir.
 `ENBILIR_ENV` hedefi acikca belirtir. Production server eksik, placeholder, kisa, tekrar kullanilmis
 secret; relative/dev database; release icindeki kalici storage veya HTTP public URL ile baslamaz.
 Staging de ayri domain, ayri test odeme hesabi ve ayri alici allowlist'i kullanmalidir.
 
-## 5. Veritabani kurulumu
+## 5. MySQL 8 veritabani kurulumu
 
-### SQLite dosya konumu
+### Database ve ayrik kullanicilar
 
-Production veritabani icin onerilen konum:
+MySQL 8 sunucusunu uygulama hostundan erisilebilir, firewall ile sinirli ve TLS/loopback
+politikasina uygun kurun. Database `utf8mb4` ve `utf8mb4_0900_ai_ci` ile olusturulmalidir.
+Asagidaki SQL'i `sudo mysql` gibi kimlik bilgisini process argumanina koymayan bir DBA
+oturumunda calistirin; ornek parolalari gercek, birbirinden farkli rastgele degerlerle
+interaktif olarak degistirin:
 
-```text
-/srv/enbilir/data/production.db
+```sql
+CREATE DATABASE `enbilir_production`
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+
+CREATE USER 'enbilir_app'@'127.0.0.1' IDENTIFIED BY 'REPLACE_APP_PASSWORD';
+CREATE USER 'enbilir_migrate'@'127.0.0.1' IDENTIFIED BY 'REPLACE_MIGRATE_PASSWORD';
+CREATE USER 'enbilir_backup'@'127.0.0.1' IDENTIFIED BY 'REPLACE_BACKUP_PASSWORD';
+
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE TEMPORARY TABLES
+  ON `enbilir_production`.* TO 'enbilir_app'@'127.0.0.1';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES,
+      CREATE VIEW, SHOW VIEW, TRIGGER
+  ON `enbilir_production`.* TO 'enbilir_migrate'@'127.0.0.1';
+GRANT CREATE, DROP, SELECT, INSERT, UPDATE, DELETE, ALTER, INDEX, REFERENCES,
+      CREATE VIEW, SHOW VIEW, TRIGGER
+  ON `\_enbilir\_restore\_%`.* TO 'enbilir_migrate'@'127.0.0.1';
+GRANT SELECT, SHOW VIEW, TRIGGER, EVENT
+  ON `enbilir_production`.* TO 'enbilir_backup'@'127.0.0.1';
+GRANT SHOW_ROUTINE ON *.* TO 'enbilir_backup'@'127.0.0.1';
 ```
 
-`.env` icinde bunun karsiligi:
+`enbilir_app` schema degistiremez. `enbilir_migrate` yalniz hedef schema ve restore-prova
+prefix'i icin DDL yapabilir. `enbilir_backup` veri degistiremez. Uzak MySQL kullaniliyorsa
+host kisitini gercek uygulama/operasyon kaynak IP'sine daraltin; `%` kullanmayin. Kurulumdan
+sonra `SHOW GRANTS FOR ...` ile beklenmeyen global veya yonetim yetkisi bulunmadigini kontrol
+edin. User/database olusturma bir kez yapilan DBA isidir; release scriptine eklenmez.
 
-```env
-DATABASE_URL="file:/srv/enbilir/data/production.db"
-```
+### Credential-safe CLI option dosyalari
 
-### Kalici klasor olusturma
+Backup ve migration kimlik bilgilerini release agacina veya shell history'ye yazmayin.
+Root tarafindan iki ayri MySQL option file olusturun:
 
 ```bash
-sudo install -d -o enbilir-app -g enbilir-app -m 0750 /srv/enbilir/data
-sudo install -d -o enbilir-app -g enbilir-app -m 0750 /srv/enbilir/uploads
+sudo install -d -o root -g root -m 0750 /etc/enbilir
+sudoedit /etc/enbilir/mysql-backup.cnf
+sudoedit /etc/enbilir/mysql-migrate.cnf
+sudo chown root:root /etc/enbilir/mysql-backup.cnf /etc/enbilir/mysql-migrate.cnf
+sudo chmod 0600 /etc/enbilir/mysql-backup.cnf /etc/enbilir/mysql-migrate.cnf
 ```
 
-SQLite dosyasi migration calistiginda yoksa olusturulur. Mevcut database dosyasi
-`enbilir-app:enbilir-app 0600` olmalidir; WAL/SHM dosyalari varsa ayni sahiplikle `0600`
-oldugunu dogrulayin.
+Dosya bicimi (her dosyada kendi kullanicisi ve farkli parolasi):
 
-### Migration calistirma
+```ini
+[client]
+host=127.0.0.1
+port=3306
+protocol=tcp
+user=enbilir_backup
+password=REPLACE_WITH_SECRET
+```
 
-Migration'i bu asamada calistirmayin. Once hedef artifact/release/runtime ile onceki fallback
-runtime'i hazirlayip non-root smoke testlerini tamamlayin, production clone migration
-provasini gecirin ve release guard PASS alin. Gercek `db:deploy`, asagidaki atomik cutover
-akisi icinde trafik gecisinden hemen once temiz build calisma agacindan calistirilir.
+Migration dosyasinda `user=enbilir_migrate` kullanin. `MYSQL_DEFAULTS_FILE` varsayilan olarak
+backup dosyasini gosterir; restore provasi ve ETL komutlari migration dosyasini yalniz o child
+process icin override eder. `mysql -p...`, `mysqldump -p...`, URL'yi `echo` etme veya parolayi
+environment'a ayri bir degisken olarak koyma kullanilmaz. CLI araclari option file'in absolute,
+regular ve grup/diger kullanicilara kapali (`0600`) olmasini zorunlu tutar.
+
+Migration baglantisi icin ayri `/etc/enbilir/enbilir-migrate.env` dosyasini root-owned `0600`
+olusturun. Yalniz asagidaki uc anahtari icerir; `DATABASE_URL` parolasi URL-encode edilir:
+
+```env
+DATABASE_URL="mysql://enbilir_migrate:URL-ENCODED-PASSWORD@127.0.0.1:3306/enbilir_production"
+MYSQL_DATABASE="enbilir_production"
+MYSQL_DEFAULTS_FILE="/etc/enbilir/mysql-migrate.cnf"
+```
+
+### Aktif migration history
+
+Production MySQL icin tek aktif Prisma gecmisi `prisma/migrations-mysql/` dizinidir;
+`prisma.config.ts` yalniz bu dizini deploy eder. `prisma/migrations/` ve
+`prisma/schema.sqlite.prisma` legacy SQLite kaynak gecmisidir ve MySQL'e uygulanmaz.
+Migration'i bu asamada calistirmayin. Once hedef ve fallback runtime smoke testlerini,
+guncel MySQL backup/restore provasini, disposable MySQL clone migration provasini ve release
+guard'i tamamlayin. Gercek `npm run db:deploy` trafik gecisinden hemen once temiz exact-SHA
+build agacinda, migration kimligiyle calistirilir.
+
+### Legacy SQLite kaynagindan tek seferlik ETL
+
+Bu alt bolum normal MySQL runtime kurulumu degildir. Yalniz mevcut SQLite production verisini
+ilk kez MySQL'e tasimak icindir. Uygulama MySQL cutover sonrasinda SQLite dosyasini acmaz.
+
+1. Once anonimlestirilmis/disposable kopya ve disposable MySQL database ile tam prova yapin.
+2. Production cutover penceresinde eski uygulamayi bakim moduna alin ve tum yazmalari durdurun.
+3. SQLite dosyasini, varsa WAL ile tutarli uygulama backup mekanizmasindan alin; kaynak kopyayi
+   `/srv/enbilir/legacy-source/production.db` altinda root-owned `0600` ve salt-okunur tutun.
+4. Bos MySQL hedefinde `prisma/migrations-mysql` baseline'ini deploy edin.
+5. ETL'yi once `--apply` olmadan calistirin. Bu asama source integrity, hedef metadata,
+   uzunluk/enum/tarih ve iliski kurallarini denetler; hedef sayim eslesmesi beklenmez.
+6. Release guard PASS ve acik production yetkisi sonrasinda `--apply --confirm-production`
+   ile yukleyin. Cikti yalniz tablo bazinda aggregate row-count/checksum bilgisi icermelidir.
+7. Her tablo icin `matched: true`, source/target count ve checksum esitligi olmadan cutover
+   yapmayin. Kisisel satirlari veya payload'lari loga almayin.
+
+```bash
+sudo -i
+cd /srv/enbilir/build/enbilir
+set -a; . /etc/enbilir/enbilir.env; . /etc/enbilir/enbilir-migrate.env; set +a
+npm run db:deploy
+npm run db:sqlite-to-mysql -- --source /srv/enbilir/legacy-source/production.db
+npm run db:sqlite-to-mysql -- --source /srv/enbilir/legacy-source/production.db \
+  --apply --confirm-production
+```
+
+ETL source'u query-only acar, `_prisma_migrations` tablosunu veri tasima kapsamindan cikarir,
+MySQL'e ozel `AuditChainHead` kaydini dogrulanmis `AuditEvent` zincirinin sonundan turetir,
+foreign-key load sirasi kullanir ve aggregate reconciliation basarisizsa hata verir. Freeze
+sonrasinda source degisirse onceki sonucu kullanmayin; yeniden tutarli kaynak alin ve provayi
+tekrarlayin. MySQL cutover, rollback siniri ve ilk MySQL backup'i asagidaki bolumlerdeki sabit
+siranin parcasidir.
+
+### Kalici uygulama dizinleri
+
+```bash
+sudo install -d -o enbilir-app -g enbilir-app -m 0750 /srv/enbilir/uploads
+sudo install -d -o root -g root -m 0700 /srv/enbilir/backups
+```
 
 ### VIP sabah raporu cron'u
 
@@ -292,7 +396,8 @@ flock -n /tmp/enbilir-ai-agent.lock npm run agent:run -- --force
 
 Yalnizca ajanlari idempotent olarak elle calistirmak gerekirse `AI_AGENT_CRON_SECRET` ile korunan `POST /api/vip-agents/run` endpoint'i kullanilabilir.
 
-Bu komut `prisma/migrations` altindaki migration dosyalarini `DATABASE_URL` ile belirtilen SQLite veritabanina uygular.
+Cronlar runtime `DATABASE_URL` uzerinden MySQL'e baglanir. Migration komutu cron kurulumunun
+parcasi degildir; yalniz kontrollu release akisi `prisma/migrations-mysql` gecmisini uygular.
 
 ## 6. Build ve calistirma
 
@@ -404,25 +509,30 @@ restart yeterli degildir; process'i silip asagidaki `--uid/--gid` komutuyla yeni
 Yayin sirasi sabittir:
 
 1. Hedef ve fallback artifact/release strict verification.
-2. Hedef ve fallback runtime non-root smoke.
-3. Guncel backup ve restore provasi.
-4. Production database'in disposable klonunda `db:deploy`, integrity ve migration kontrolu.
-5. Release guard PASS ve acik Production yayin yetkisi.
-6. Gercek `db:deploy`, hedef runtime gecisi ve non-root PM2 baslangici.
+2. Hedef ve fallback runtime non-root smoke; hedefi disposable MySQL clone ile dogrulama.
+3. Guncel MySQL backup ve izole restore provasi.
+4. Production MySQL'in disposable klonunda `db:deploy`, migration ve readiness kontrolu.
+5. Legacy ilk geciste ayrica SQLite kaynak freeze, ETL provasi ve rollback karar noktasi.
+6. Release guard PASS ve acik Production yayin yetkisi.
+7. Gercek `db:deploy`; ilk geciste ETL/reconciliation; hedef runtime gecisi ve non-root PM2.
+8. Liveness/readiness PASS, ilk MySQL backup ve restore provasi; sonra bakim modunu kapatma.
 
-Gercek migration temiz exact-SHA build agacinda calistirilir. Ardindan database sahipligini
-yeniden dogrulayin:
+Gercek migration temiz exact-SHA build agacinda ve yalniz migration kullanicisi ile
+calistirilir. `DATABASE_URL` veya parola komut argumaninda bulunmaz:
 
 ```bash
 sudo -i
 TARGET_SHA="<exact-git-sha>"
 cd /srv/enbilir/build/enbilir
 test "$(git rev-parse HEAD)" = "$TARGET_SHA"
-set -a; . /etc/enbilir/enbilir.env; set +a
+set -a; . /etc/enbilir/enbilir.env; . /etc/enbilir/enbilir-migrate.env; set +a
 npm run db:deploy
-chown enbilir-app:enbilir-app /srv/enbilir/data/production.db
-chmod 0600 /srv/enbilir/data/production.db
 ```
+
+Migration tamamlaninca ayni shell'i runtime baslatmak icin kullanmayin. Runtime process'i
+yalniz `/etc/enbilir/enbilir.env` icindeki `enbilir_app` URL'siyle yeni bir environment'ta
+baslatilir. MySQL schema sahipligi dosya `chown/chmod` komutlariyla yonetilmez; `SHOW GRANTS`
+ve migration history ile dogrulanir.
 
 Cutover'da `current` yalniz hedef runtime'a atomik cevrilir. Nginx konfigurasyonu ve upstream
 portu degismez:
@@ -608,16 +718,19 @@ Cloudflare veya baska bir TLS terminasyon servisi kullaniliyorsa:
 
 ## 11. Yedekleme stratejisi
 
-SQLite dosyasini isletim sistemi seviyesinde dogrudan kopyalamayin. Projedeki backup araci
-SQLite online backup API'sini kullanir, kopyada `integrity_check` calistirir, migration
-gecmisini dogrular, chat/admin upload dizinlerini ayni backup setine alir ve her dosya icin
-SHA-256 kaydeder. Tamamlanmamis set atomik ad degisikliginden once `.partial-*` olarak kalir
-ve hata halinde temizlenir.
+Production backup'i `mysqldump` ile tutarli MySQL snapshot'i alir. Arac
+`MYSQL_DEFAULTS_FILE` kimlik bilgisini kullanir; parola process argumanina eklenmez.
+Tamamlanan manifest v2 setinde `database.sql`, tamamlanmis Prisma migration sayisi,
+opsiyonel chat/admin upload payload'lari ve her dosyanin SHA-256 degeri bulunur.
+Tamamlanmamis set atomik ad degisikliginden once `.partial-*` olarak kalir ve hata halinde
+temizlenir. MySQL veri dizinini veya volume'unu dosya seviyesinde kopyalamak bu backup'in
+yerine gecmez.
 
 Once dry-run:
 
 ```bash
 cd /srv/enbilir/current
+set -a; . /etc/enbilir/enbilir.env; set +a
 npm run operations:backup
 ```
 
@@ -631,8 +744,8 @@ npm run operations:backup -- --apply
 calistirir. Backup setleri ayri bir hesap/depolama alanina kopyalanmali; yerel VPS tek kopya
 olmamalidir. Yerel diskte tutulan set sayisi varsayilan olarak 3'tur; bu sayi
 `BACKUP_RETENTION_COUNT` ile (en az 2) ayarlanabilir. Saklama islemi ancak ana backup
-basarili olduktan sonra ayni kilitli calisma icinde calisir. Silmeden once harici kopyanin SHA-256, SQLite
-butunluk ve migration gecmisi dogrulanmalidir. Elle incelemek icin:
+basarili olduktan sonra ayni kilitli calisma icinde calisir. Silmeden once harici kopyanin
+SHA-256, manifest v2, `database.sql` ve migration sayisi dogrulanmalidir. Elle incelemek icin:
 
 ```bash
 npm run operations:prune-backups
@@ -648,33 +761,38 @@ Windows operasyon bilgisayarinda harici kopya almak icin `scripts/sync-offsite-b
 gunde bir kez calistirilmalidir. Betik en yeni tamamlanmis seti atomik olarak alir ve
 manifestteki SHA-256 ile dogrular; yerel kopya dogrulanmadan sunucu backup'i silinmez.
 
-Backup araci sahiplik ve mod degisikligi yaptigi icin production backup cron'u `root`
+Backup araci sahiplik ve mod degisikligi yaptigi ve `mysql-backup.cnf` root-only oldugu icin
+production backup cron'u `root`
 crontab'i altinda calismali, restore-prova komutu da root tarafindan elle calistirilmalidir.
 Kurulumdan sonra `sudo crontab -l` ile yalniz zamanlanan `operations:backup` komutunun root
 tarafindan calistirildigini dogrulayin; `operations:install-cron` restore provasi zamanlamaz.
 Uygulama process'i root olarak calistirilmaz; `enbilir-app` kullanicisinin ek grubu
 bulunmamali ve primary GID degeri `BACKUP_HEALTH_GID` ile ayni olmalidir.
 
-Restore provasi canli veritabaninin uzerine yazmaz. Secilen set gecici bir dizine kopyalanir;
-tum checksumlar, SQLite butunlugu ve migration gecmisi dogrulanir:
+Restore provasi canli database'in uzerine yazmaz. Manifest v2 ve tum checksumlar dogrulanir,
+`database.sql` rastgele adli izole `_enbilir_restore_*` database'ine yuklenir, tamamlanmis
+migration sayisi manifest ile karsilastirilir ve prova database'i sonunda silinir. Bu islem
+backup kullanicisi ile degil, restore prefix'iyle sinirli migration kullanicisi ile calisir:
 
 ```bash
-npm run operations:rehearse-restore -- --set enbilir-YYYYMMDDTHHMMSSZ --record
+MYSQL_DEFAULTS_FILE=/etc/enbilir/mysql-migrate.cnf \
+  npm run operations:rehearse-restore -- --set enbilir-YYYYMMDDTHHMMSSZ --record
 ```
 
 `--record`, readiness kontrolunun kullandigi son basarili prova isaretini backup dizinine
 yazar. Production yayini icin backup en fazla 26 saat, restore provasi en fazla 31 gun eski
 olmalidir.
 
-Bu izin modelini ilk kez devreye alirken mevcut en yeni backup setini de backfill edin.
-`/srv/enbilir/backups` altindan exact `enbilir-YYYYMMDDTHHMMSSZ` adli en yeni tamamlanmis
-seti belirleyin ve yukaridaki `operations:rehearse-restore -- --set ... --record` komutunu
-root olarak calistirin. Komut checksum/SQLite kontrolleri, set izinleri ve yeni marker
-hazirligi tamamlanmadan onceki iyi marker'i degistirmez. Son durumda:
+Bu izin modelini ilk kez devreye alirken MySQL backup araci ile yeni manifest v2 seti uretin.
+Eski SQLite/v1 setini MySQL backup'i gibi yeniden adlandirmayin. `/srv/enbilir/backups`
+altindan exact `enbilir-YYYYMMDDTHHMMSSZ` adli en yeni tamamlanmis v2 seti belirleyin ve
+yukaridaki restore-prova komutunu root olarak calistirin. Komut checksum, izole MySQL restore,
+migration kontrolleri ve yeni marker hazirligi tamamlanmadan onceki iyi marker'i degistirmez.
+Son durumda:
 
 - backup root, secili set ve manifestteki dosyalarin gerekli ust dizinleri `root:enbilir-app 0750`;
 - yalniz `manifest.json` ve `last-restore-rehearsal.json` `root:enbilir-app 0640`;
-- database ve upload payload dosyalari `root:root 0600`
+- `database.sql` ve upload payload dosyalari `root:root 0600`
 
 olmalidir. Payload dosyalarini servis grubuna okunur yapmayin.
 
@@ -702,16 +820,24 @@ curl --fail --silent http://127.0.0.1:3006/api/health/ready > /dev/null
 ```
 
 Rollback sonrasinda PID `Uid/Gid/Groups/CapEff`, exact `current` runtime hedefi ve immutable
-fallback artifact/release dogrulamasi tekrar kontrol edilir. Migration geriye uyumluysa
-veritabani geri alinmaz. Geriye uyumsuz veya veri donusumu yapan migration'da:
+fallback artifact/release dogrulamasi tekrar kontrol edilir. Fallback runtime MySQL schema'si
+ile uyumluysa database geri alinmaz. Geriye uyumsuz veya veri donusumu yapan migration'da:
 
 1. Trafigi bakim moduna alin ve yazmalari durdurun.
-2. Basarisiz release sonrasindaki veriyi ayri bir dosyada koruyun.
-3. Yalnizca checksum ve restore provasi basarili deploy-oncesi backup setini yeni bir dosyaya acin.
-4. `DATABASE_URL` hedefini atomik ve izinleri korunmus sekilde degistirin.
+2. Basarisiz release sonrasindaki MySQL verisini ayri, erisimi sinirli bir backup setinde koruyun.
+3. Yalnizca checksum ve restore provasi basarili deploy-oncesi `database.sql` dosyasini yeni,
+   bos ve izole bir MySQL database'ine geri yukleyip migration/reconciliation kontrollerini yapin.
+4. App kullanicisinin yetkisini yeni database ile sinirlayin ve korumali ortam dosyasindaki
+   `DATABASE_URL`/`MYSQL_DATABASE` hedefini birlikte degistirin.
 5. Readiness PASS olmadan trafigi acmayin.
 
-Migration dosyalarini silmek veya SQLite schema'sini elle geriye cevirmek rollback degildir.
+Migration dosyalarini silmek veya MySQL schema'sini elle geriye cevirmek rollback degildir.
+
+Ilk SQLite-to-MySQL cutover'inda ek bir karar siniri vardir: MySQL runtime'a trafik verilmeden
+once rollback, degismemis SQLite kaynak ve onceki immutable runtime'a donmektir. MySQL'e yeni
+production yazilari basladiktan sonra SQLite'a otomatik geri donmeyin; iki kaynak ayrisir.
+Bakim modunda MySQL backup'ini koruyun ve veri kaybi etkisini degerlendiren ayri onayli bir
+forward-fix veya restore plani uygulayin.
 
 Backup metadata izin degisikligi uygulama runtime rollback'inden bagimsizdir ve normal SHA
 rollback'inde korunur. Pre-permission bir SHA'ya donulurse root backup cron'unun eski scriptle
@@ -725,7 +851,8 @@ readiness kontrolu PASS olduktan sonra acilmalidir.
 ### Health ve readiness
 
 - `GET /api/health/live`: Sadece process'in istek cevaplayabildigini bildirir; database'e dokunmaz.
-- `GET /api/health/ready`: Production ayarlari, SQLite okuma/yazma, migration seviyesi, bos disk,
+- `GET /api/health/ready`: Production ayarlari, MySQL okuma/yazma (temporary table probe),
+  `migrations-mysql` seviyesi, bos disk,
   backup/prova tazeligi ve zorunlu cron kalp atislarini kontrol eder. Ic hata, path veya secret
   dondurmez. Herhangi bir zorunlu kontrol basarisizsa HTTP 503 verir.
 
@@ -825,39 +952,53 @@ pm2 restart enbilir --update-env
 
 ### Prisma migration hatasi
 
-Sebep: `DATABASE_URL` yanlis, SQLite klasoru yazilabilir degil veya migration dosyalari eksik olabilir.
+Sebep: Migration `DATABASE_URL` degeri yanlis, MySQL 8 erisilemiyor, `enbilir_migrate`
+yetkileri eksik veya `prisma/migrations-mysql` history'si hedefle uyusmuyor olabilir.
 
 Kontrol:
 
 ```bash
 sudo -i
 cd /srv/enbilir/build/enbilir
-set -a; . /etc/enbilir/enbilir.env; set +a
-test -n "$DATABASE_URL" && echo "DATABASE_URL tanimli"
-ls -la /srv/enbilir/data
-npm run db:deploy
+set -a; . /etc/enbilir/enbilir.env; . /etc/enbilir/enbilir-migrate.env; set +a
+case "$DATABASE_URL" in mysql://*) echo "MySQL migration URL semasi uygun";; *) echo "URL semasi hatali";; esac
+test "$MYSQL_DATABASE" = "enbilir_production" && echo "MYSQL_DATABASE uygun"
+test -f "$MYSQL_DEFAULTS_FILE" && test ! -L "$MYSQL_DEFAULTS_FILE"
+test "$(stat -c '%a' "$MYSQL_DEFAULTS_FILE")" = "600"
+npx prisma migrate status
 ```
 
-Production ortam dosyasindaki `DATABASE_URL` degeri:
+Production runtime ortam dosyasindaki URL app kullanicisini, migration ortam dosyasindaki URL
+migration kullanicisini kullanmalidir:
 
 ```env
-DATABASE_URL="file:/srv/enbilir/data/production.db"
+DATABASE_URL="mysql://enbilir_app:URL-ENCODED-PASSWORD@127.0.0.1:3306/enbilir_production"
 ```
 
-### SQLite permission hatasi
+`npx prisma migrate status` basarisizsa hata detayini secret redaksiyonuyla inceleyin.
+`npm run db:deploy` komutunu troubleshooting denemesi olarak tekrar tekrar calistirmayin;
+yalniz release akisinda ve exact-SHA icin calistirin.
 
-Sebep: Uygulamayi calistiran kullanicinin `/srv/enbilir/data` klasorune yazma izni yoktur.
+### MySQL access denied / connection hatasi
 
-Cozum:
+Sebep: App/migration/backup kullanicisi karismis, host eslesmesi yanlis, parola URL-encode
+edilmemis, option file izinleri guvensiz veya MySQL/firewall erisimi kapali olabilir.
+
+Kimlik bilgilerini yazdirmadan kontrol edin:
 
 ```bash
-sudo chown -R enbilir-app:enbilir-app /srv/enbilir/data
-sudo find /srv/enbilir/data -type d -exec chmod 0750 {} +
-sudo find /srv/enbilir/data -type f -exec chmod 0600 {} +
+sudo -i
+set -a; . /etc/enbilir/enbilir.env; set +a
+test -n "$DATABASE_URL" && echo "DATABASE_URL tanimli"
+test -n "$MYSQL_DATABASE" && echo "MYSQL_DATABASE tanimli"
+test -f "$MYSQL_DEFAULTS_FILE" && test ! -L "$MYSQL_DEFAULTS_FILE"
+stat -c '%a %U:%G %n' "$MYSQL_DEFAULTS_FILE"
+curl --fail --silent http://127.0.0.1:3006/api/health/ready > /dev/null
 ```
 
-PM2 child process'i farkli bir kullanici ile calisiyorsa bu bir izin ayari degil release
-ihlali olarak ele alinmali; process non-root `enbilir-app` kimligiyle yeniden olusturulmalidir.
+Option file `root:root 0600` olmali. Uygulama runtime'i migration/backup kullanicisini
+kullanmamali. MySQL kullanici yetkilerini DBA oturumunda `SHOW GRANTS` ile dogrulayin; sorunu
+genis global yetki vererek gecici olarak maskelemeyin.
 
 ### `npm run build` basarisiz
 
@@ -865,8 +1006,7 @@ Kontrol edilecekler:
 
 ```bash
 node -v
-npm install
-npm run db:deploy
+npm ci
 npm run build
 ```
 

@@ -7,6 +7,7 @@ import {
   openSync,
   readdirSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import path from "node:path";
 
@@ -39,8 +40,15 @@ function runPrisma(args) {
 
 try {
   mkdirSync(testMigrations, { recursive: true });
-  cpSync(path.join(root, "prisma", "schema.prisma"), path.join(testPrisma, "schema.prisma"));
-  cpSync(path.join(root, "prisma.config.ts"), testConfig);
+  cpSync(path.join(root, "prisma", "schema.sqlite.prisma"), path.join(testPrisma, "schema.prisma"));
+  writeFileSync(testConfig, `
+    import { defineConfig } from "prisma/config";
+    export default defineConfig({
+      schema: ${JSON.stringify(path.join(testPrisma, "schema.prisma"))},
+      migrations: { path: ${JSON.stringify(testMigrations)} },
+      datasource: { url: process.env["DATABASE_URL"] },
+    });
+  `, "utf8");
   cpSync(
     path.join(root, "prisma", "migrations", "migration_lock.toml"),
     path.join(testMigrations, "migration_lock.toml"),

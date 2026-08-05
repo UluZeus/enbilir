@@ -23,6 +23,14 @@ export type InstitutionalEvidenceEnforcementResult = {
   unsupportedClaims: string[];
 };
 
+export type InstitutionalDeterministicEvidence = {
+  asset: string;
+  metric: "entry" | "stop" | "target" | "price" | "confidence" | "risk" | "score" | "fair-value";
+  value: string | number;
+  asOf: string;
+  source: string;
+};
+
 type OpenAiAnnotation = {
   type?: unknown;
   title?: unknown;
@@ -190,28 +198,47 @@ function getMetricSignatures(text: string) {
     `${normalizeMetric(match[1])}:${normalizeValue(match[2])}`);
 }
 
-function isRangeCited(range: TextRange, citations: InstitutionalChatCitation[]) {
-  return citations.some((citation) => citation.startIndex < range.end && citation.endIndex > range.start);
+const MAX_DETERMINISTIC_EVIDENCE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const TRUSTED_DETERMINISTIC_SOURCE = /^(?:binance|yahoo|gate|enbilir-deterministic:[a-z0-9_-]+)$/i;
+
+function rangeContainsAsset(range: TextRange, asset: string) {
+  const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "iu").test(range.text);
 }
 
-function isRangeDeterministicallySupported(range: TextRange, deterministicContextText: string) {
+function isFreshDeterministicEvidence(record: InstitutionalDeterministicEvidence, now: Date) {
+  const asOf = new Date(record.asOf).getTime();
+  const age = now.getTime() - asOf;
+  return Number.isFinite(asOf)
+    && age >= -5 * 60 * 1000
+    && age <= MAX_DETERMINISTIC_EVIDENCE_AGE_MS
+    && TRUSTED_DETERMINISTIC_SOURCE.test(record.source);
+}
+
+function isRangeDeterministicallySupported(
+  range: TextRange,
+  evidence: InstitutionalDeterministicEvidence[],
+  now: Date,
+) {
   const signatures = getMetricSignatures(range.text);
   if (signatures.length === 0) return false;
 
-  const contextSignatures = new Set(getMetricSignatures(deterministicContextText));
-  return signatures.every((signature) => contextSignatures.has(signature));
+  return signatures.every((signature) => evidence.some((record) =>
+    isFreshDeterministicEvidence(record, now)
+    && rangeContainsAsset(range, record.asset)
+    && `${record.metric}:${normalizeValue(String(record.value))}` === signature));
 }
 
-export function enforceVipInvestmentEvidence(
+export function enforceInstitutionalInvestmentEvidence(
   result: InstitutionalChatResult,
   locale: MarketChatLocale,
-  deterministicContextText: string,
+  deterministicEvidence: InstitutionalDeterministicEvidence[],
+  now = new Date(),
 ): InstitutionalEvidenceEnforcementResult {
   const unsupportedClaims = getClaimRanges(result.answer)
     .filter((range) => criticalMetricPattern.test(range.text) && numericValuePattern.test(range.text))
     .filter((range) =>
-      !isRangeCited(range, result.citations) &&
-      !isRangeDeterministicallySupported(range, deterministicContextText))
+      !isRangeDeterministicallySupported(range, deterministicEvidence, now))
     .map((range) => range.text);
 
   if (unsupportedClaims.length === 0) {

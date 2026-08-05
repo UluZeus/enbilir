@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import process from "node:process";
-import Database from "better-sqlite3";
+import { MysqlCliDatabase } from "./lib/mysql-cli.mjs";
+import { loadLocalEnvironment } from "./lib/operations.mjs";
 
 const args = new Set(process.argv.slice(2));
 const apply = args.has("--apply");
-const confirmProduction = args.has("--confirm-production");
 
 const defaultLeagues = [
   {
@@ -35,53 +33,12 @@ const defaultLeagues = [
   },
 ];
 
-function loadDotenvDatabaseUrl() {
-  const envPath = path.resolve(process.cwd(), ".env");
-
-  if (!existsSync(envPath)) {
-    return null;
-  }
-
-  const source = readFileSync(envPath, "utf8");
-  const match = source.match(/^DATABASE_URL=(.*)$/m);
-
-  if (!match) {
-    return null;
-  }
-
-  return match[1].trim().replace(/^["']|["']$/g, "");
-}
-
-function resolveDatabasePath() {
-  const databaseUrl = process.env.DATABASE_URL ?? loadDotenvDatabaseUrl() ?? "file:./dev.db";
-
-  if (!databaseUrl.startsWith("file:")) {
-    throw new Error(`Only SQLite file: DATABASE_URL values are supported. Received: ${databaseUrl}`);
-  }
-
-  const rawPath = databaseUrl.slice("file:".length);
-  return path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-const databasePath = resolveDatabasePath();
-
-if (!existsSync(databasePath)) {
-  throw new Error(`Database file not found: ${databasePath}`);
-}
-
-if (apply && databasePath.includes("production.db") && !confirmProduction) {
-  throw new Error("Refusing to update production.db without --confirm-production.");
-}
-
-const db = new Database(databasePath);
+loadLocalEnvironment();
+const db = new MysqlCliDatabase();
 
 const owner = db.prepare(`
   SELECT id
-  FROM "User"
+  FROM \`User\`
   ORDER BY
     CASE role
       WHEN 'MASTER_ADMIN' THEN 0
@@ -97,10 +54,10 @@ if (!owner) {
   process.exit(0);
 }
 
-const users = db.prepare(`SELECT id FROM "User"`).all();
-const existingRotaryen = db.prepare(`SELECT id FROM "League" WHERE slug = 'rotaryen'`).get();
+const users = db.prepare("SELECT id FROM `User`").all();
+const existingRotaryen = db.prepare("SELECT id FROM `League` WHERE slug = 'rotaryen'").get();
 const rotaryenLeagueId = existingRotaryen?.id ?? "default_league_rotaryen";
-const inviteConflictStmt = db.prepare(`SELECT slug FROM "League" WHERE inviteCode = ? AND slug <> ?`);
+const inviteConflictStmt = db.prepare("SELECT slug FROM `League` WHERE inviteCode = ? AND slug <> ?");
 
 for (const league of defaultLeagues) {
   const conflict = inviteConflictStmt.get(league.inviteCode, league.slug);
@@ -110,8 +67,6 @@ for (const league of defaultLeagues) {
   }
 }
 
-console.log(`Database: ${databasePath}`);
-console.log(`Owner user: ${owner.id}`);
 console.log(`Users to ensure in ROTARYEN: ${users.length}`);
 
 if (!apply) {
@@ -120,23 +75,23 @@ if (!apply) {
 }
 
 const upsertLeague = db.prepare(`
-  INSERT INTO "League" (id, name, slug, description, type, inviteCode, createdByUserId, isActive, createdAt, updatedAt)
+  INSERT INTO \`League\` (id, name, slug, description, type, inviteCode, createdByUserId, isActive, createdAt, updatedAt)
   VALUES (@id, @name, @slug, @description, @type, @inviteCode, @createdByUserId, 1, @createdAt, @updatedAt)
-  ON CONFLICT(slug) DO UPDATE SET
-    name = excluded.name,
-    description = excluded.description,
-    type = excluded.type,
+  ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    description = VALUES(description),
+    type = VALUES(type),
     isActive = 1,
-    updatedAt = excluded.updatedAt
+    updatedAt = VALUES(updatedAt)
 `);
 
 const insertMembership = db.prepare(`
-  INSERT OR IGNORE INTO "LeagueMembership" (id, leagueId, userId, role, joinedAt)
+  INSERT IGNORE INTO \`LeagueMembership\` (id, leagueId, userId, role, joinedAt)
   VALUES (@id, @leagueId, @userId, 'MEMBER', @joinedAt)
 `);
 
 const write = db.transaction(() => {
-  const stamp = nowIso();
+  const stamp = new Date();
 
   for (const league of defaultLeagues) {
     upsertLeague.run({

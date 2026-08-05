@@ -4,6 +4,7 @@ import { MACRO_REPORT_CHART_SELECTION } from "@/lib/ai-market/report-chart-selec
 import { sendEmail } from "@/lib/email";
 import { getLiveMarketItems } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
+import { decimalToNumber, nullableDecimalToNumber } from "@/lib/decimal";
 import { getSiteUrl } from "@/lib/site-url";
 import { buildVipEmailChartSet } from "@/lib/vip-research/email-charts";
 import {
@@ -129,10 +130,10 @@ async function loadVipResearchEmailData(reportId: string) {
     thesisSummary: idea.thesisSummary,
     confidenceScore: idea.confidenceScore,
     riskScore: idea.riskScore,
-    entryLow: idea.entryLow,
-    entryHigh: idea.entryHigh,
-    stopLoss: idea.stopLoss,
-    targetPrice: idea.targetPrice,
+    entryLow: decimalToNumber(idea.entryLow),
+    entryHigh: decimalToNumber(idea.entryHigh),
+    stopLoss: decimalToNumber(idea.stopLoss),
+    targetPrice: decimalToNumber(idea.targetPrice),
   }));
   const currentIdeaIds = new Set(ideas.map((idea) => idea.id));
   const historicalIdeaIds = Array.from(new Set(agentRecords.flatMap((agent) =>
@@ -162,7 +163,13 @@ async function loadVipResearchEmailData(reportId: string) {
     : [];
   const agentIdeas: VipDigestIdea[] = [
     ...ideas,
-    ...historicalAgentIdeaRecords,
+    ...historicalAgentIdeaRecords.map((idea) => ({
+      ...idea,
+      entryLow: decimalToNumber(idea.entryLow),
+      entryHigh: decimalToNumber(idea.entryHigh),
+      stopLoss: decimalToNumber(idea.stopLoss),
+      targetPrice: decimalToNumber(idea.targetPrice),
+    })),
   ];
   const universePulse = buildVipUniversePulse(
     marketItems.map((item) => ({
@@ -176,9 +183,28 @@ async function loadVipResearchEmailData(reportId: string) {
     })),
     extractVipTechnicalCandidates(report.sourceSnapshot),
   );
-  const agentDigest = buildVipAgentDigest(agentRecords, agentIdeas);
+  const agentDigest = buildVipAgentDigest(agentRecords.map((agent) => ({
+    ...agent,
+    decisions: agent.decisions.map((decision) => ({
+      ...decision,
+      priceUsd: nullableDecimalToNumber(decision.priceUsd),
+    })),
+    positions: agent.positions.map((position) => ({
+      ...position,
+      stopLossUsd: decimalToNumber(position.stopLossUsd),
+      targetPriceUsd: decimalToNumber(position.targetPriceUsd),
+    })),
+    snapshots: agent.snapshots.map((snapshot) => ({
+      ...snapshot,
+      pnlUsd: decimalToNumber(snapshot.pnlUsd),
+      returnPercent: decimalToNumber(snapshot.returnPercent),
+    })),
+  })), agentIdeas);
   const chartSet = macroRecord
-    ? await buildVipEmailChartSet(macroRecord.id, macroRecord.generatedAt, macroRecord.assets)
+    ? await buildVipEmailChartSet(macroRecord.id, macroRecord.generatedAt, macroRecord.assets.map((asset) => ({
+      ...asset,
+      lastPrice: nullableDecimalToNumber(asset.lastPrice),
+    })))
     : {
         charts: [],
         attachments: [],

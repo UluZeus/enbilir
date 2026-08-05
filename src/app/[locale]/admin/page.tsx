@@ -765,7 +765,7 @@ export default async function AdminPage({
                 </label>
                 <label className="grid gap-1 text-xs font-black text-slate-600">
                   {locale === "tr" ? "Doğrulanan tutar" : "Verified amount"}
-                  <input name="amountTry" type="number" min="100" step="0.01" defaultValue={claim.amountTry} required className="rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950" />
+                  <input name="amountTry" type="number" min="100" step="0.01" defaultValue={claim.amountTry.toString()} required className="rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950" />
                 </label>
                 <label className="grid gap-1 text-xs font-black text-slate-600">
                   {locale === "tr" ? "Admin notu" : "Admin note"}

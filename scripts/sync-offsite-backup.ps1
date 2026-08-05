@@ -11,15 +11,15 @@ function Get-VerifiedBackupManifest {
   param([Parameter(Mandatory)][string]$BackupPath)
 
   $manifestPath = Join-Path $BackupPath "manifest.json"
-  $databasePath = Join-Path $BackupPath "database.db"
+  $databasePath = Join-Path $BackupPath "database.sql"
   if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or -not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
     throw "Backup set is incomplete."
   }
 
   $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-  $database = $manifest.files | Where-Object { $_.path -eq "database.db" } | Select-Object -First 1
+  $database = $manifest.files | Where-Object { $_.path -eq "database.sql" } | Select-Object -First 1
   if ($null -eq $database -or -not $database.sha256 -or -not $database.sizeBytes) {
-    throw "Backup manifest does not contain database.db integrity metadata."
+    throw "Backup manifest does not contain database.sql integrity metadata."
   }
   if ((Get-Item -LiteralPath $databasePath).Length -ne [int64]$database.sizeBytes) {
     throw "Backup database size does not match the manifest."
@@ -54,7 +54,7 @@ New-Item -ItemType Directory -Path $partialPath -ErrorAction Stop | Out-Null
 try {
   & scp "${Server}:/srv/enbilir/backups/$remoteSet/manifest.json" (Join-Path $partialPath "manifest.json")
   if ($LASTEXITCODE -ne 0) { throw "Remote backup manifest transfer failed." }
-  & scp "${Server}:/srv/enbilir/backups/$remoteSet/database.db" (Join-Path $partialPath "database.db")
+  & scp "${Server}:/srv/enbilir/backups/$remoteSet/database.sql" (Join-Path $partialPath "database.sql")
   if ($LASTEXITCODE -ne 0) { throw "Remote backup database transfer failed." }
 
   $manifest = Get-VerifiedBackupManifest -BackupPath $partialPath

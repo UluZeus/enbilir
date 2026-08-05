@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
-const backupResult = spawnSync(process.execPath, [path.join(scriptRoot, "backup-sqlite.mjs"), ...process.argv.slice(2)], {
+const backupResult = spawnSync(process.execPath, [path.join(scriptRoot, "backup-mysql.mjs"), ...process.argv.slice(2)], {
   cwd: process.cwd(),
   env: process.env,
   stdio: "inherit",

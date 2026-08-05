@@ -1,4 +1,4 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@/generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
@@ -6,21 +6,37 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260729143000_single_vip_support_reminders";
+const prismaSchemaVersion = "20260804000000_mysql_baseline";
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
 
-  if (!databaseUrl && process.env.NODE_ENV === "production") {
-    throw new Error("DATABASE_URL must be configured explicitly in production.");
+  if (!databaseUrl && process.env.NODE_ENV === "test") {
+    // Unit tests mock Prisma delegates. This local-only pool config prevents imports
+    // from requiring credentials while still making accidental queries fail closed.
+    return {
+      host: "127.0.0.1",
+      port: 3306,
+      user: "enbilir_test",
+      database: "enbilir_test",
+      connectionLimit: 1,
+      connectTimeout: 1_000,
+      acquireTimeout: 1_000,
+    };
   }
 
-  return databaseUrl ?? "file:./dev.db";
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL must be configured for the MySQL runtime.");
+  }
+
+  if (!databaseUrl.startsWith("mysql://") && !databaseUrl.startsWith("mariadb://")) {
+    throw new Error("DATABASE_URL must use the mysql:// or mariadb:// protocol.");
+  }
+
+  return databaseUrl;
 }
 
-const adapter = new PrismaBetterSqlite3({
-  url: getDatabaseUrl(),
-});
+const adapter = new PrismaMariaDb(getDatabaseUrl());
 
 function hasCurrentDelegates(client: PrismaClient | undefined) {
   const candidate = client as unknown as {
@@ -72,6 +88,7 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
     aiDailyQueryUsage?: unknown;
     aiQueryReservation?: unknown;
     auditEvent?: unknown;
+    auditChainHead?: unknown;
     operationalJobHeartbeat?: unknown;
     chatUpload?: unknown;
     supportReminderPeriod?: unknown;
@@ -128,6 +145,7 @@ function hasCurrentDelegates(client: PrismaClient | undefined) {
       candidate?.aiDailyQueryUsage &&
       candidate?.aiQueryReservation &&
       candidate?.auditEvent &&
+      candidate?.auditChainHead &&
       candidate?.operationalJobHeartbeat &&
       candidate?.chatUpload &&
       candidate?.supportReminderPeriod &&

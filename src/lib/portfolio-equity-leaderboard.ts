@@ -16,6 +16,7 @@ import {
   getSafePublicUserLabel,
   publicCompetitionUserWhere,
 } from "@/lib/public-user-visibility";
+import { decimalToNumber } from "@/lib/decimal";
 
 export const portfolioEquityLeaderboardPageSize = 25;
 
@@ -249,7 +250,7 @@ export async function getPortfolioEquityLeaderboard(
   now = new Date(),
   requestedPage = 1,
 ): Promise<PortfolioEquityLeaderboardResult> {
-  const users = await prisma.user.findMany({
+  const storedUsers = await prisma.user.findMany({
     where: {
       ...publicCompetitionUserWhere,
       virtualAccount: { isNot: null },
@@ -281,6 +282,19 @@ export async function getPortfolioEquityLeaderboard(
       },
     },
   });
+  const users = storedUsers.map((user) => ({
+    ...user,
+    virtualAccount: user.virtualAccount ? {
+      ...user.virtualAccount,
+      cashAmount: decimalToNumber(user.virtualAccount.cashAmount),
+      dailyRepoRate: decimalToNumber(user.virtualAccount.dailyRepoRate),
+    } : null,
+    positions: user.positions.map((position) => ({
+      ...position,
+      quantity: decimalToNumber(position.quantity),
+      appliedSplitFactor: decimalToNumber(position.appliedSplitFactor),
+    })),
+  }));
   const userIds = users.map((user) => user.id);
 
   const [snapshots, weeklyBaselines, activeMemberships, viewerLeagueMemberships] = await Promise.all([
@@ -318,15 +332,23 @@ export async function getPortfolioEquityLeaderboard(
       },
     }),
   ]);
+  const normalizedSnapshots = snapshots.map((snapshot) => ({
+    ...snapshot,
+    portfolioValueUsd: decimalToNumber(snapshot.portfolioValueUsd),
+  }));
+  const normalizedWeeklyBaselines = weeklyBaselines.map((baseline) => ({
+    ...baseline,
+    portfolioValueUsd: decimalToNumber(baseline.portfolioValueUsd),
+  }));
 
-  const snapshotHistoryByUserId = new Map<string, typeof snapshots>();
-  const baselineHistoryByUserId = new Map<string, typeof weeklyBaselines>();
-  for (const snapshot of snapshots) {
+  const snapshotHistoryByUserId = new Map<string, typeof normalizedSnapshots>();
+  const baselineHistoryByUserId = new Map<string, typeof normalizedWeeklyBaselines>();
+  for (const snapshot of normalizedSnapshots) {
     const records = snapshotHistoryByUserId.get(snapshot.userId) ?? [];
     records.push(snapshot);
     snapshotHistoryByUserId.set(snapshot.userId, records);
   }
-  for (const baseline of weeklyBaselines) {
+  for (const baseline of normalizedWeeklyBaselines) {
     const records = baselineHistoryByUserId.get(baseline.userId) ?? [];
     records.push(baseline);
     baselineHistoryByUserId.set(baseline.userId, records);
@@ -360,7 +382,7 @@ export async function getPortfolioEquityLeaderboard(
   const hasCompleteLiveBoard = liveValueByUserId.size === users.length;
   const recordedCohort = hasCompleteLiveBoard
     ? null
-    : selectLatestCommonPortfolioEquityCohort(userIds, weeklyBaselines, now);
+    : selectLatestCommonPortfolioEquityCohort(userIds, normalizedWeeklyBaselines, now);
   const valuationMode = hasCompleteLiveBoard ? "LIVE" as const : "RECORDED" as const;
   const valuationDate = hasCompleteLiveBoard ? now : recordedCohort?.capturedAt ?? null;
   const candidates: EquityCandidate[] = [];

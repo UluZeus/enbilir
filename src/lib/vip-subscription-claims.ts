@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { membershipConfig } from "@/lib/membership";
 import { prisma } from "@/lib/prisma";
+import { withSerializableTransaction } from "@/lib/serializable-transaction";
 import { activateVipSubscriptionInTransaction } from "@/lib/vip-subscription";
 import {
   canonicalizeVipPaymentReference,
@@ -36,7 +37,7 @@ export async function submitVipSubscriptionClaim(input: { userId: string; provid
   }
 
   try {
-    return await prisma.$transaction(async (transaction) => {
+    return await withSerializableTransaction(async (transaction) => {
       const existing = await transaction.vipSubscriptionClaim.findFirst({
         where: {
           provider: "PARAM",
@@ -121,6 +122,7 @@ export async function submitVipSubscriptionClaim(input: { userId: string; provid
 
 export async function reviewVipSubscriptionClaim(input: {
   claimId: string;
+  reviewerUserId: string;
   reviewerEmail: string;
   decision: "APPROVE" | "REJECT";
   amountTry?: number;
@@ -128,7 +130,7 @@ export async function reviewVipSubscriptionClaim(input: {
   payerEmail?: string;
   adminNote?: string;
 }) {
-  return prisma.$transaction(async (transaction) => {
+  return withSerializableTransaction(async (transaction) => {
     const claim = await transaction.vipSubscriptionClaim.findUnique({
       where: { id: input.claimId },
       include: { user: { select: { email: true } } },
@@ -156,6 +158,7 @@ export async function reviewVipSubscriptionClaim(input: {
         entityType: "VipSubscriptionClaim",
         entityId: claim.id,
         action: "CLAIM_REJECTED",
+        actorUserId: input.reviewerUserId,
         payload: { reviewerEmail: input.reviewerEmail },
         createdAt: reviewedAt,
       });
@@ -179,6 +182,8 @@ export async function reviewVipSubscriptionClaim(input: {
       providerReference: claim.providerReference,
       amountTry,
       currency,
+      actorUserId: input.reviewerUserId,
+      actorPrincipal: "ADMIN_USER",
       rawPayload: { source: "ADMIN_VERIFIED_CLAIM", claimId: claim.id, reviewedBy: input.reviewerEmail },
     });
 
@@ -200,6 +205,7 @@ export async function reviewVipSubscriptionClaim(input: {
       entityType: "VipSubscriptionClaim",
       entityId: claim.id,
       action: "CLAIM_APPROVED",
+      actorUserId: input.reviewerUserId,
       payload: { reviewerEmail: input.reviewerEmail, amountTry },
       createdAt: reviewedAt,
     });
@@ -222,70 +228,112 @@ export async function activateVipSubscriptionClaimFromWebhook(input: {
     throw new Error("Hesaba bağlı ödeme bildirimi ve geçerli Param referansı zorunludur.");
   }
 
-  return prisma.$transaction(async (transaction) => {
-    const claim = await transaction.vipSubscriptionClaim.findUnique({
-      where: { id: input.claimId },
-      include: { user: { select: { email: true } } },
-    });
+  try {
+    return await withSerializableTransaction(async (transaction) => {
+      const claim = await transaction.vipSubscriptionClaim.findUnique({
+        where: { id: input.claimId },
+        include: { user: { select: { email: true } } },
+      });
 
-    if (!claim || claim.provider !== "PARAM" || claim.providerReference !== providerReference) {
-      throw new Error("Ödeme bildirimi bu hesap ve Param referansıyla eşleşmiyor.");
+      if (!claim || claim.provider !== "PARAM" || claim.providerReference !== providerReference) {
+        throw new Error("Ödeme bildirimi bu hesap ve Param referansıyla eşleşmiyor.");
+      }
+
+      if (claim.status === "APPROVED") {
+        const payment = await transaction.vipSubscriptionPayment.findFirst({
+          where: {
+            userId: claim.userId,
+            status: "PAID",
+            OR: [
+              { providerReference: canonicalizeVipPaymentReference(providerReference) },
+              { providerReference },
+            ],
+          },
+          select: { id: true, userId: true, paidUntil: true, status: true },
+        });
+        if (!payment || payment.userId !== claim.userId || payment.status !== "PAID") {
+          throw new Error("Onay kaydına bağlı etkin ödeme bulunamadı.");
+        }
+        return { reused: true, paymentId: payment.id, userId: claim.userId, paidUntil: payment.paidUntil };
+      }
+
+      if (claim.status !== "PENDING") {
+        throw new Error("Bu ödeme bildirimi artık etkinleştirilemez.");
+      }
+
+      const amountTry = Number(input.amountTry);
+      const currency = input.currency.trim().toUpperCase();
+      const payerEmail = input.payerEmail.trim().toLowerCase();
+
+      if (currency !== "TRY" || amountTry !== membershipConfig.vipMonthlyAmountTry) {
+        throw new Error("Doğrulanan ödeme tam 100 TL ve TRY olmalıdır.");
+      }
+      if (!payerEmail || payerEmail !== claim.user.email.trim().toLowerCase()) {
+        throw new Error("Param kaydındaki ödeyen e-postası bağlı Enbilir hesabıyla eşleşmelidir.");
+      }
+
+      const paidAt = new Date();
+      const activation = await activateVipSubscriptionInTransaction(transaction, {
+        email: claim.user.email,
+        provider: claim.provider,
+        providerReference,
+        amountTry,
+        currency,
+        paidAt,
+        actorPrincipal: "VIP_PAYMENT_WEBHOOK",
+        rawPayload: input.rawPayload,
+      });
+
+      await transaction.vipSubscriptionClaim.update({
+        where: { id: claim.id },
+        data: {
+          status: "APPROVED",
+          amountTry,
+          verifiedPayerEmail: payerEmail,
+          verifiedCurrency: currency,
+          verifiedAmountTry: amountTry,
+          reviewedBy: "SYSTEM_VERIFIED_PAYMENT",
+          reviewedAt: paidAt,
+        },
+      });
+
+      return activation;
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error;
     }
 
-    if (claim.status === "APPROVED") {
+    return withSerializableTransaction(async (transaction) => {
+      const claim = await transaction.vipSubscriptionClaim.findUnique({
+        where: { id: input.claimId },
+        include: { user: { select: { email: true } } },
+      });
+      if (
+        !claim
+        || claim.status !== "APPROVED"
+        || claim.provider !== "PARAM"
+        || claim.providerReference !== providerReference
+      ) {
+        throw new Error("Eşzamanlı ödeme aktivasyonu doğrulanamadı.");
+      }
+
       const payment = await transaction.vipSubscriptionPayment.findFirst({
         where: {
           userId: claim.userId,
+          status: "PAID",
           OR: [
             { providerReference: canonicalizeVipPaymentReference(providerReference) },
             { providerReference },
           ],
         },
-        select: { id: true, paidUntil: true },
+        select: { id: true, userId: true, paidUntil: true, status: true },
       });
-      if (!payment) throw new Error("Onay kaydına bağlı ödeme bulunamadı.");
+      if (!payment || payment.userId !== claim.userId || payment.status !== "PAID") {
+        throw new Error("Eşzamanlı ödeme aktivasyonuna bağlı etkin ödeme bulunamadı.");
+      }
+
       return { reused: true, paymentId: payment.id, userId: claim.userId, paidUntil: payment.paidUntil };
-    }
-
-    if (claim.status !== "PENDING") {
-      throw new Error("Bu ödeme bildirimi artık etkinleştirilemez.");
-    }
-
-    const amountTry = Number(input.amountTry);
-    const currency = input.currency.trim().toUpperCase();
-    const payerEmail = input.payerEmail.trim().toLowerCase();
-
-    if (currency !== "TRY" || amountTry !== membershipConfig.vipMonthlyAmountTry) {
-      throw new Error("Doğrulanan ödeme tam 100 TL ve TRY olmalıdır.");
-    }
-    if (!payerEmail || payerEmail !== claim.user.email.trim().toLowerCase()) {
-      throw new Error("Param kaydındaki ödeyen e-postası bağlı Enbilir hesabıyla eşleşmelidir.");
-    }
-
-    const paidAt = new Date();
-    const activation = await activateVipSubscriptionInTransaction(transaction, {
-      email: claim.user.email,
-      provider: claim.provider,
-      providerReference,
-      amountTry,
-      currency,
-      paidAt,
-      rawPayload: input.rawPayload,
     });
-
-    await transaction.vipSubscriptionClaim.update({
-      where: { id: claim.id },
-      data: {
-        status: "APPROVED",
-        amountTry,
-        verifiedPayerEmail: payerEmail,
-        verifiedCurrency: currency,
-        verifiedAmountTry: amountTry,
-        reviewedBy: "SYSTEM_VERIFIED_PAYMENT",
-        reviewedAt: paidAt,
-      },
-    });
-
-    return activation;
-  });
+  }
 }

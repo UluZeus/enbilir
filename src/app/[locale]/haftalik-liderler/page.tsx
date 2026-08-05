@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/portfolio";
 import { publicCompetitionUserWhere } from "@/lib/public-user-visibility";
 import { buildPageMetadata } from "@/lib/seo";
+import { decimalToNumber } from "@/lib/decimal";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
@@ -82,11 +83,21 @@ export default async function WeeklyLeadersPage({ params }: { params: Promise<{ 
           const weeklyRows = publication.rows
             .filter((row) => row.scope === "WEEKLY_GAIN")
             .slice(0, 3)
-            .map((row, index) => ({ ...row, rank: index + 1 }));
+            .map((row, index) => ({
+              ...row,
+              valueUsd: decimalToNumber(row.valueUsd),
+              returnPercent: decimalToNumber(row.returnPercent),
+              rank: index + 1,
+            }));
           const totalRows = publication.rows
             .filter((row) => row.scope === "TOTAL_GAIN")
             .slice(0, 3)
-            .map((row, index) => ({ ...row, rank: index + 1 }));
+            .map((row, index) => ({
+              ...row,
+              valueUsd: decimalToNumber(row.valueUsd),
+              returnPercent: decimalToNumber(row.returnPercent),
+              rank: index + 1,
+            }));
 
           return (
             <article key={publication.id} className="premium-card p-6">

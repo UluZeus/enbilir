@@ -1,14 +1,12 @@
 import { existsSync, lstatSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
-import Database from "better-sqlite3";
-
 import {
-  getSqliteDatabasePath,
   isSafeChildPath,
   loadLocalEnvironment,
   requireExternalAbsoluteDirectory,
 } from "./lib/operations.mjs";
+import { MysqlCliDatabase } from "./lib/mysql-cli.mjs";
 
 loadLocalEnvironment();
 const apply = process.argv.includes("--apply");
@@ -16,8 +14,7 @@ const uploadRoot = requireExternalAbsoluteDirectory(
   process.env.CHAT_UPLOAD_DIR || path.join(process.cwd(), ".data", "uploads", "chat"),
   "CHAT_UPLOAD_DIR",
 );
-const database = new Database(getSqliteDatabasePath());
-database.pragma("foreign_keys = ON");
+const database = new MysqlCliDatabase();
 
 const expired = database
   .prepare(
@@ -27,7 +24,7 @@ const expired = database
      ORDER BY expiresAt ASC
      LIMIT 1000`,
   )
-  .all(new Date().toISOString());
+  .all(new Date());
 
 if (!apply) {
   console.log(`[chat-upload-cleanup] Dry-run: ${expired.length} expired staged upload record(s) would be removed.`);
@@ -59,7 +56,7 @@ for (const upload of expired) {
     }
     unlinkSync(filePath);
   }
-  removed += removeRecord.run(upload.id, new Date().toISOString()).changes;
+  removed += removeRecord.run(upload.id, new Date()).changes;
 }
 database.close();
 console.log(`[chat-upload-cleanup] Removed ${removed} expired staged upload(s); refused ${refused} unsafe entry/entries.`);

@@ -37,24 +37,6 @@ export function loadLocalEnvironment(envPath = path.join(process.cwd(), ".env"))
   }
 }
 
-export function getSqliteDatabasePath(databaseUrl = process.env.DATABASE_URL) {
-  if (!databaseUrl?.startsWith("file:")) {
-    throw new Error("DATABASE_URL must use a SQLite file: URL.");
-  }
-  const configuredPath = databaseUrl.slice("file:".length);
-  const databasePath = path.isAbsolute(configuredPath)
-    ? path.normalize(configuredPath)
-    : path.resolve(process.cwd(), configuredPath);
-
-  if (process.env.NODE_ENV === "production" && !path.isAbsolute(configuredPath)) {
-    throw new Error("Production DATABASE_URL must use an absolute path.");
-  }
-  if (process.env.NODE_ENV === "production" && /(^|[/\\])dev\.db$/i.test(databasePath)) {
-    throw new Error("Production operations refuse a development database.");
-  }
-  return databasePath;
-}
-
 export function requireExternalAbsoluteDirectory(value, key) {
   if (!value || !path.isAbsolute(value)) {
     throw new Error(`${key} must be an absolute directory.`);

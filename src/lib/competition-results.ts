@@ -11,6 +11,7 @@ import {
   getSafePublicUserLabel,
   publicCompetitionUserWhere,
 } from "@/lib/public-user-visibility";
+import { decimalToNumber } from "@/lib/decimal";
 
 type CompetitionCandidate = {
   userId: string;
@@ -191,22 +192,30 @@ export async function getCompetitionResults(
       orderBy: { joinedAt: "desc" },
     }),
   ]);
-  const snapshotsByUser = new Map<string, typeof snapshots>();
-  const baselinesByUser = new Map<string, typeof weeklyBaselines>();
+  const normalizedSnapshots = snapshots.map((snapshot) => ({
+    ...snapshot,
+    portfolioValueUsd: decimalToNumber(snapshot.portfolioValueUsd),
+  }));
+  const normalizedWeeklyBaselines = weeklyBaselines.map((baseline) => ({
+    ...baseline,
+    portfolioValueUsd: decimalToNumber(baseline.portfolioValueUsd),
+  }));
+  const snapshotsByUser = new Map<string, typeof normalizedSnapshots>();
+  const baselinesByUser = new Map<string, typeof normalizedWeeklyBaselines>();
 
-  for (const snapshot of snapshots) {
+  for (const snapshot of normalizedSnapshots) {
     const values = snapshotsByUser.get(snapshot.userId) ?? [];
     values.push(snapshot);
     snapshotsByUser.set(snapshot.userId, values);
   }
 
-  for (const baseline of weeklyBaselines) {
+  for (const baseline of normalizedWeeklyBaselines) {
     const values = baselinesByUser.get(baseline.userId) ?? [];
     values.push(baseline);
     baselinesByUser.set(baseline.userId, values);
   }
 
-  const commonCohort = selectLatestCommonPortfolioEquityCohort(userIds, weeklyBaselines, now);
+  const commonCohort = selectLatestCommonPortfolioEquityCohort(userIds, normalizedWeeklyBaselines, now);
   const recordedValuations = users.map((user) => {
     const history = normalizePortfolioHistory(
       (snapshotsByUser.get(user.id) ?? []).map(({ portfolioValueUsd, capturedAt, period }) => ({

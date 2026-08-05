@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
-import { prisma } from "@/lib/prisma";
+import { withSerializableTransaction } from "@/lib/serializable-transaction";
 
 type DurableRateLimitInput = {
   scope: string;
@@ -30,7 +30,7 @@ function getKeyHash(scope: string, identity: string) {
 export async function consumeDurableRateLimit(input: DurableRateLimitInput, now = new Date()) {
   const keyHash = getKeyHash(input.scope, input.identity);
 
-  return prisma.$transaction(async (transaction) => {
+  return withSerializableTransaction(async (transaction) => {
     const current = await transaction.securityRateLimit.findUnique({ where: { keyHash } });
 
     if (current?.blockedUntil && current.blockedUntil > now) {

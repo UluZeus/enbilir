@@ -4,6 +4,9 @@ import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import { getLiveMarketItemsForSymbols } from "@/lib/live-market";
 import { prisma } from "@/lib/prisma";
 import { syncPortfolioCorporateActions } from "@/lib/portfolio-corporate-actions";
+import type { DecimalValue } from "@/lib/decimal";
+import { decimal, decimalToNumber } from "@/lib/decimal";
+import { withSerializableTransaction } from "@/lib/serializable-transaction";
 
 export const initialCashUsd = 1_000_000;
 export const bonusTradingPowerUsd = 100_000;
@@ -24,24 +27,24 @@ const cashModeMarketSymbols: Partial<Record<CashMode, string>> = {
 
 const maximumYahooClosedPortfolioValuationAgeMs = 96 * 60 * 60 * 1000;
 
-export function formatMoney(value: number, currency = "USD") {
+export function formatMoney(value: DecimalValue, currency = "USD") {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
     currency,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(decimalToNumber(value));
 }
 
 export function getCashCurrency(mode: CashMode) {
   return mode === "TRY_REPO" ? "TRY" : mode;
 }
 
-export function cashToUsd(amount: number, mode: CashMode, rateToUsd = exchangeRatesToUsd[mode]) {
-  return amount * rateToUsd;
+export function cashToUsd(amount: DecimalValue, mode: CashMode, rateToUsd = exchangeRatesToUsd[mode]) {
+  return decimalToNumber(decimal(amount).times(rateToUsd));
 }
 
-export function usdToCash(amount: number, mode: CashMode, rateToUsd = exchangeRatesToUsd[mode]) {
-  return amount / rateToUsd;
+export function usdToCash(amount: DecimalValue, mode: CashMode, rateToUsd = exchangeRatesToUsd[mode]) {
+  return decimalToNumber(decimal(amount).div(rateToUsd));
 }
 
 export function calculateCompetitionProfitLossUsd(totalValueUsd: number) {
@@ -53,14 +56,14 @@ export function calculateCompetitionReturnPercent(totalValueUsd: number) {
 }
 
 export function getSafePortfolioPriceUsd(
-  position: { averagePriceUsd: number; symbol: string },
+  position: { averagePriceUsd: DecimalValue; symbol: string },
   marketItem: { priceUsd: number; source: string } | undefined,
 ) {
   if (marketItem && Number.isFinite(marketItem.priceUsd) && marketItem.priceUsd > 0) {
     return marketItem.priceUsd;
   }
 
-  return position.averagePriceUsd;
+  return decimalToNumber(position.averagePriceUsd);
 }
 
 export function hasVerifiedPortfolioQuote(marketItem: MarketItem | undefined, now = Date.now()) {
@@ -173,108 +176,119 @@ export async function getCashModeUsdRate(
 type TradeForCompetitionCost = {
   symbol: string;
   side: "BUY" | "SELL";
-  quantity: number;
-  totalUsd: number;
+  quantity: DecimalValue;
+  totalUsd: DecimalValue;
 };
 
-type CompetitionCostLot = {
-  quantity: number;
-  competitionCostUsd: number;
+type CompetitionCostPosition = {
+  quantity: ReturnType<typeof decimal>;
+  accountingCostUsd: ReturnType<typeof decimal>;
+  competitionCostUsd: ReturnType<typeof decimal>;
 };
 
-function calculateCompetitionPositionCosts(trades: TradeForCompetitionCost[]) {
-  const lotsBySymbol = new Map<string, CompetitionCostLot[]>();
-  let grossBuySpendingUsd = 0;
+export function calculateCompetitionPositionCosts(trades: TradeForCompetitionCost[]) {
+  const costsBySymbol = new Map<string, CompetitionCostPosition>();
+  let openPositionCostUsd = decimal(0);
 
   for (const trade of trades) {
     const symbol = trade.symbol.trim().toUpperCase();
 
     if (trade.side === "BUY") {
-      const spendingBefore = grossBuySpendingUsd;
-      const spendingAfter = grossBuySpendingUsd + trade.totalUsd;
-      const bonusBefore = Math.max(0, spendingBefore - initialCashUsd);
-      const bonusAfter = Math.max(0, spendingAfter - initialCashUsd);
-      const bonusFundedUsd = Math.max(0, bonusAfter - bonusBefore);
-      const competitionCostUsd = Math.max(0, trade.totalUsd - bonusFundedUsd);
-      const lots = lotsBySymbol.get(symbol) ?? [];
+      const spendingBefore = openPositionCostUsd;
+      const tradeTotalUsd = decimal(trade.totalUsd);
+      const spendingAfter = openPositionCostUsd.plus(tradeTotalUsd);
+      const bonusBefore = decimalMax(decimal(0), spendingBefore.minus(initialCashUsd));
+      const bonusAfter = decimalMax(decimal(0), spendingAfter.minus(initialCashUsd));
+      const bonusFundedUsd = decimalMax(decimal(0), bonusAfter.minus(bonusBefore));
+      const competitionCostUsd = decimalMax(decimal(0), tradeTotalUsd.minus(bonusFundedUsd));
+      const current = costsBySymbol.get(symbol) ?? {
+        quantity: decimal(0),
+        accountingCostUsd: decimal(0),
+        competitionCostUsd: decimal(0),
+      };
 
-      lots.push({ quantity: trade.quantity, competitionCostUsd });
-      lotsBySymbol.set(symbol, lots);
-      grossBuySpendingUsd = spendingAfter;
+      costsBySymbol.set(symbol, {
+        quantity: current.quantity.plus(trade.quantity),
+        accountingCostUsd: current.accountingCostUsd.plus(tradeTotalUsd),
+        competitionCostUsd: current.competitionCostUsd.plus(competitionCostUsd),
+      });
+      openPositionCostUsd = spendingAfter;
       continue;
     }
 
     if (trade.side === "SELL") {
-      const lots = lotsBySymbol.get(symbol) ?? [];
-      let quantityToRemove = trade.quantity;
+      const current = costsBySymbol.get(symbol);
+      if (!current || current.quantity.lessThanOrEqualTo(0)) continue;
+      const removedQuantity = decimalMin(decimal(trade.quantity), current.quantity);
+      const remainingRatio = current.quantity.minus(removedQuantity).div(current.quantity);
+      const nextAccountingCostUsd = current.accountingCostUsd.times(remainingRatio);
+      const removedAccountingCostUsd = current.accountingCostUsd.minus(nextAccountingCostUsd);
 
-      while (quantityToRemove > 0 && lots.length > 0) {
-        const lot = lots[0];
-        const removedQuantity = Math.min(quantityToRemove, lot.quantity);
-        const removedRatio = lot.quantity > 0 ? removedQuantity / lot.quantity : 0;
-
-        lot.quantity -= removedQuantity;
-        lot.competitionCostUsd -= lot.competitionCostUsd * removedRatio;
-        quantityToRemove -= removedQuantity;
-
-        if (lot.quantity <= 0.000001) {
-          lots.shift();
-        }
-      }
-
-      lotsBySymbol.set(symbol, lots);
+      costsBySymbol.set(symbol, {
+        quantity: current.quantity.minus(removedQuantity),
+        accountingCostUsd: nextAccountingCostUsd,
+        competitionCostUsd: current.competitionCostUsd.times(remainingRatio),
+      });
+      openPositionCostUsd = decimalMax(decimal(0), openPositionCostUsd.minus(removedAccountingCostUsd));
     }
   }
 
   return new Map(
-    Array.from(lotsBySymbol.entries()).map(([symbol, lots]) => [
+    Array.from(costsBySymbol.entries()).map(([symbol, position]) => [
       symbol,
-      lots.reduce((sum, lot) => sum + Math.max(0, lot.competitionCostUsd), 0),
+      decimalMax(decimal(0), position.competitionCostUsd),
     ]),
   );
 }
 
+function decimalMin(left: ReturnType<typeof decimal>, right: ReturnType<typeof decimal>) {
+  return left.lessThanOrEqualTo(right) ? left : right;
+}
+
+function decimalMax(left: ReturnType<typeof decimal>, right: ReturnType<typeof decimal>) {
+  return left.greaterThanOrEqualTo(right) ? left : right;
+}
+
 export async function ensureVirtualAccount(userId: string) {
-  const account = await prisma.virtualAccount.findUnique({ where: { userId } });
-
-  if (account) {
-    return account;
-  }
-
-  return prisma.virtualAccount.create({
-    data: {
+  return prisma.virtualAccount.upsert({
+    where: { userId },
+    create: {
       userId,
       cashAmount: initialCashUsd,
       cashMode: "USD",
       baseCurrency: "USD",
     },
+    update: {},
   });
 }
 
 export async function accrueRepoIfNeeded(userId: string) {
-  const account = await ensureVirtualAccount(userId);
+  await ensureVirtualAccount(userId);
+  return withSerializableTransaction(async (transaction) => {
+    const account = await transaction.virtualAccount.findUniqueOrThrow({ where: { userId } });
 
-  if (account.cashMode !== "TRY_REPO") {
-    return account;
-  }
+    if (account.cashMode !== "TRY_REPO") {
+      return account;
+    }
 
-  const now = new Date();
-  const last = account.repoLastAccruedAt ?? account.updatedAt;
-  const days = Math.floor((now.getTime() - last.getTime()) / 86_400_000);
+    const now = new Date();
+    const last = account.repoLastAccruedAt ?? account.updatedAt;
+    const days = Math.floor((now.getTime() - last.getTime()) / 86_400_000);
 
-  if (days <= 0) {
-    return account;
-  }
+    if (days <= 0) {
+      return account;
+    }
 
-  const cashAmount = account.cashAmount * Math.pow(1 + account.dailyRepoRate, days);
-  const accruedThrough = new Date(last.getTime() + days * 86_400_000);
+    const cashAmount = decimal(account.cashAmount).times(decimal(1).plus(account.dailyRepoRate).pow(days));
+    const accruedThrough = new Date(last.getTime() + days * 86_400_000);
 
-  return prisma.virtualAccount.update({
-    where: { userId },
-    data: {
-      cashAmount,
-      repoLastAccruedAt: accruedThrough,
-    },
+    return transaction.virtualAccount.update({
+      where: { userId },
+      data: {
+        cashAmount,
+        repoLastAccruedAt: accruedThrough,
+      },
+    });
   });
 }
 
@@ -294,7 +308,7 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
 
     return {
       ...storedAccount,
-      cashAmount: storedAccount.cashAmount * Math.pow(1 + storedAccount.dailyRepoRate, days),
+      cashAmount: decimal(storedAccount.cashAmount).times(decimal(1).plus(storedAccount.dailyRepoRate).pow(days)),
       repoLastAccruedAt: new Date(last.getTime() + days * 86_400_000),
     };
   })();
@@ -348,21 +362,25 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
     const marketItem = findMarketItemForPosition(liveMarketItems, position.symbol);
     const currentPriceUsd = getSafePortfolioPriceUsd(position, marketItem);
     const priceStatus = getPortfolioPriceStatus(marketItem);
-    const accountingCostUsd = position.quantity * position.averagePriceUsd;
-    const competitionCostUsd = competitionCostsBySymbol.get(position.symbol.trim().toUpperCase()) ?? accountingCostUsd;
-    const valueUsd = position.quantity * currentPriceUsd;
-    const profitLossUsd = valueUsd - competitionCostUsd;
+    const quantity = decimal(position.quantity);
+    const accountingCostUsdDecimal = quantity.times(position.averagePriceUsd);
+    const competitionCostUsdDecimal = competitionCostsBySymbol.get(position.symbol.trim().toUpperCase()) ?? accountingCostUsdDecimal;
+    const valueUsdDecimal = quantity.times(currentPriceUsd);
+    const profitLossUsdDecimal = valueUsdDecimal.minus(competitionCostUsdDecimal);
 
     return {
       ...position,
+      quantity: decimalToNumber(position.quantity),
+      averagePriceUsd: decimalToNumber(position.averagePriceUsd),
+      appliedSplitFactor: decimalToNumber(position.appliedSplitFactor),
       currentPriceUsd,
       priceSource: priceStatus.priceSource,
       dataStatus: priceStatus.dataStatus,
       valuationReliable: priceStatus.valuationReliable && !unreliableCorporateActionPositionIds.has(position.id),
-      accountingCostUsd,
-      competitionCostUsd,
-      valueUsd,
-      profitLossUsd,
+      accountingCostUsd: decimalToNumber(accountingCostUsdDecimal),
+      competitionCostUsd: decimalToNumber(competitionCostUsdDecimal),
+      valueUsd: decimalToNumber(valueUsdDecimal),
+      profitLossUsd: decimalToNumber(profitLossUsdDecimal),
     };
   });
 
@@ -383,9 +401,25 @@ export async function getCurrentPortfolio(userId: string, marketItems?: MarketIt
   const effectiveTradingPowerUsd = initialCashUsd + appliedBonusTradingPowerUsd;
 
   return {
-    account,
+    account: {
+      ...account,
+      cashAmount: decimalToNumber(account.cashAmount),
+      dailyRepoRate: decimalToNumber(account.dailyRepoRate),
+    },
     positions: enrichedPositions,
-    trades,
+    trades: trades.map((trade) => ({
+      ...trade,
+      quantity: decimalToNumber(trade.quantity),
+      priceUsd: decimalToNumber(trade.priceUsd),
+      totalUsd: decimalToNumber(trade.totalUsd),
+      requestedAmountUsd: decimalToNumber(trade.requestedAmountUsd),
+      executionNotionalUsd: decimalToNumber(trade.executionNotionalUsd),
+      feeUsd: decimalToNumber(trade.feeUsd),
+      slippageUsd: decimalToNumber(trade.slippageUsd),
+      costBasisUsd: trade.costBasisUsd === null ? null : decimalToNumber(trade.costBasisUsd),
+      realizedPnlUsd: trade.realizedPnlUsd === null ? null : decimalToNumber(trade.realizedPnlUsd),
+      realizedPnlPercent: trade.realizedPnlPercent === null ? null : decimalToNumber(trade.realizedPnlPercent),
+    })),
     cashCurrency: getCashCurrency(account.cashMode),
     cashValueUsd,
     positionsValueUsd,

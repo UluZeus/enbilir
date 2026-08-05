@@ -15,6 +15,7 @@ import { getAiMarketReportAccessFilter } from "@/lib/report-visibility";
 import { buildPageMetadata } from "@/lib/seo";
 import type { TechnicalSeries, TechnicalSeriesPoint } from "@/lib/ai-market/indicators";
 import { selectMacroReportChartAssets } from "@/lib/ai-market/report-chart-selection";
+import { nullableDecimalToNumber } from "@/lib/decimal";
 
 export const dynamic = "force-dynamic";
 
@@ -433,16 +434,21 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
 
   const takeaways = toStringArray(report.keyTakeaways);
   const requiredCoverage = toStringArray(report.requiredCoverage);
-  const chartAssets = selectMacroReportChartAssets(report.assets)
+  const numericAssets = report.assets.map((asset) => ({
+    ...asset,
+    lastPrice: nullableDecimalToNumber(asset.lastPrice),
+    changePercent: nullableDecimalToNumber(asset.changePercent),
+  }));
+  const chartAssets = selectMacroReportChartAssets(numericAssets)
     .filter((asset) => readSourcePayload(asset.sourcePayload).technicalSeries?.points.length);
   const isEnglish = locale === "en";
-  const localizedAssets = report.assets.map((asset) => ({
+  const localizedAssets = numericAssets.map((asset) => ({
     ...asset,
     displayName: localizeMarketLabel(asset.displayName, locale),
     assetClass: localizeMarketLabel(asset.assetClass, locale),
     category: asset.category ? localizeMarketLabel(asset.category, locale) : asset.category,
   }));
-  const dashboardStats = getReportDashboardStats(report.assets);
+  const dashboardStats = getReportDashboardStats(numericAssets);
   const isWeeklyReport = report.scope === "WEEKLY";
 
   if (isEnglish) {
@@ -757,7 +763,7 @@ export default async function AiMarketReportDetailPage({ params }: { params: Pro
             <h2 className="print-title mt-1 text-2xl font-black">Favoriler ve makro sepet</h2>
           </div>
           <div className="mt-4 grid gap-3">
-            {report.assets.map((asset) => (
+            {numericAssets.map((asset) => (
               <div key={asset.id} className="report-asset-card print-card avoid-break rounded-[1.15rem] border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
