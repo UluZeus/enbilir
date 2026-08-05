@@ -480,6 +480,76 @@ describe("release gate: virtual BUY/SELL accounting", () => {
     expect(tradeMocks.accountUpdate).not.toHaveBeenCalled();
   });
 
+  it("rejects a SELL that exceeds the exact 12-decimal holding by one unit", async () => {
+    const position = {
+      id: "position-1",
+      userId: "user-1",
+      symbol: "AAPL",
+      quantity: new Prisma.Decimal("1.000000000000"),
+      averagePriceUsd: 90,
+      positionCycleId: "cycle-1",
+    };
+    tradeMocks.positionFindUnique.mockResolvedValue(position);
+    tradeMocks.txPositionFindUnique.mockResolvedValue(position);
+
+    const result = await tradeAction(undefined, tradeForm({
+      side: "SELL",
+      amountUsd: 100.0000000001,
+    }));
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla.",
+    });
+    expect(tradeMocks.accountUpdate).not.toHaveBeenCalled();
+    expect(tradeMocks.positionDelete).not.toHaveBeenCalled();
+    expect(tradeMocks.tradeCreate).not.toHaveBeenCalled();
+  });
+
+  it("preserves and credits an exactly owned sub-micro remainder instead of deleting it as dust", async () => {
+    const position = {
+      id: "position-1",
+      userId: "user-1",
+      symbol: "AAPL",
+      quantity: new Prisma.Decimal("1.000000500000"),
+      averagePriceUsd: 90,
+      positionCycleId: "cycle-1",
+    };
+    tradeMocks.positionFindUnique.mockResolvedValue(position);
+    tradeMocks.txPositionFindUnique.mockResolvedValue(position);
+
+    const result = await tradeAction(undefined, tradeForm({ side: "SELL", amountUsd: 100 }));
+
+    expect(result.ok).toBe(true);
+    expect(tradeMocks.positionDelete).not.toHaveBeenCalled();
+    const remainingQuantity = tradeMocks.positionUpdate.mock.calls[0][0].data.quantity as Prisma.Decimal;
+    expect(remainingQuantity.toFixed(12)).toBe("0.000000500000");
+  });
+
+  it("clamps only a whole-dollar UI-rounded full sale and recomputes proceeds from exact ownership", async () => {
+    const position = {
+      id: "position-1",
+      userId: "user-1",
+      symbol: "AAPL",
+      quantity: new Prisma.Decimal("0.999999999999"),
+      averagePriceUsd: 90,
+      positionCycleId: "cycle-1",
+    };
+    tradeMocks.positionFindUnique.mockResolvedValue(position);
+    tradeMocks.txPositionFindUnique.mockResolvedValue(position);
+
+    const result = await tradeAction(undefined, tradeForm({ side: "SELL", amountUsd: 100 }));
+
+    expect(result.ok).toBe(true);
+    expect(tradeMocks.positionDelete).toHaveBeenCalledTimes(1);
+    const tradeData = tradeMocks.tradeCreate.mock.calls[0][0].data;
+    expect(tradeData.quantity).toBe("0.999999999999");
+    expect(tradeData.totalUsd.lessThan(100)).toBe(true);
+    expect(tradeData.totalUsd.toString()).toBe(
+      tradeMocks.accountUpdate.mock.calls[0][0].data.cashAmount.minus(1_000).toString(),
+    );
+  });
+
   it("books SELL proceeds and realized P&L without changing the remaining cost basis", async () => {
     const position = {
       id: "position-1",

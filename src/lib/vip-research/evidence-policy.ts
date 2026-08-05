@@ -5,6 +5,7 @@ const CATALYST_TIME_PATTERN = /(?:3\s*[-–]\s*12\s*ay|(?:3|4|5|6|7|8|9|10|11|12
 const SOURCE_IDENTIFIER_STOP_WORDS = new Set([
   "abd", "and", "company", "corp", "corporation", "etf", "fund", "inc", "limited", "ltd", "plc", "trust", "usd", "vadeli", "yıl",
 ]);
+const MAX_CATALYST_SOURCE_AGE_MS = 370 * 24 * 60 * 60 * 1000;
 
 export function normalizeVipResearchSource(source: VipSource) {
   try {
@@ -50,9 +51,9 @@ export function sourceMatchesCandidate(source: VipSource, candidate: Pick<VipRes
 }
 
 export function sourceSupportsCandidateCatalyst(source: VipSource, catalysts: string[]) {
-  const evidence = `${source.title} ${source.url} ${source.evidenceText ?? ""}`.trim();
+  const evidence = source.evidenceText?.replace(/\s+/g, " ").trim() ?? "";
 
-  if (!CATALYST_EVENT_PATTERN.test(evidence) || !CATALYST_TIME_PATTERN.test(evidence)) {
+  if (evidence.length < 24 || !CATALYST_EVENT_PATTERN.test(evidence) || !CATALYST_TIME_PATTERN.test(evidence)) {
     return false;
   }
 
@@ -66,19 +67,31 @@ export function sourceSupportsCandidateCatalyst(source: VipSource, catalysts: st
     const catalystTokens = catalyst.toLocaleLowerCase("tr-TR")
       .split(/[^\p{L}\p{N}]+/u)
       .filter((token) => token.length >= 4 && !SOURCE_IDENTIFIER_STOP_WORDS.has(token));
-    const overlap = catalystTokens.filter((token) => evidenceTokens.has(token)).length;
+    const distinctCatalystTokens = Array.from(new Set(catalystTokens));
+    const overlap = distinctCatalystTokens.filter((token) => evidenceTokens.has(token)).length;
 
-    return overlap >= 2;
+    return overlap >= 4 && overlap / Math.max(1, distinctCatalystTokens.length) >= 0.55;
   });
+}
+
+function isRecentCatalystSource(source: VipSource, now: Date) {
+  if (!source.publishedAt) return false;
+  const publishedAt = new Date(source.publishedAt).getTime();
+  const age = now.getTime() - publishedAt;
+  return Number.isFinite(publishedAt) && age >= -5 * 60 * 1000 && age <= MAX_CATALYST_SOURCE_AGE_MS;
 }
 
 export function getVerifiedCandidateSources(
   annotatedSources: VipSource[],
   candidate: Pick<VipResearchCandidate, "symbol" | "providerSymbol" | "displayName">,
   catalysts: string[],
+  now = new Date(),
 ) {
   const verified = annotatedSources
-    .filter((source) => sourceMatchesCandidate(source, candidate) && sourceSupportsCandidateCatalyst(source, catalysts))
+    .filter((source) =>
+      isRecentCatalystSource(source, now)
+      && sourceMatchesCandidate(source, candidate)
+      && sourceSupportsCandidateCatalyst(source, catalysts))
     .map(normalizeVipResearchSource)
     .filter((source): source is VipSource => source !== null);
 
@@ -90,6 +103,7 @@ export function applyVipBuyEvidenceGate(input: {
   riskVeto: boolean;
   catalysts: string[];
   sources: VipSource[];
+  now?: Date;
 }): VipIdeaDraft["stance"] {
   if (input.stance !== "AL") {
     return input.stance;
@@ -99,6 +113,10 @@ export function applyVipBuyEvidenceGate(input: {
     return "UZAK_DUR";
   }
 
-  const hasSafeSource = input.sources.some((source) => normalizeVipResearchSource(source) !== null);
-  return hasSafeSource && hasSpecificThreeToTwelveMonthCatalyst(input.catalysts) ? "AL" : "IZLE";
+  const now = input.now ?? new Date();
+  const hasVerifiedSource = input.sources.some((source) =>
+    normalizeVipResearchSource(source) !== null
+    && isRecentCatalystSource(source, now)
+    && sourceSupportsCandidateCatalyst(source, input.catalysts));
+  return hasVerifiedSource && hasSpecificThreeToTwelveMonthCatalyst(input.catalysts) ? "AL" : "IZLE";
 }

@@ -17,6 +17,8 @@ type ActivateVipInput = {
   currency?: string;
   paidAt?: Date;
   rawPayload?: unknown;
+  actorUserId?: string | null;
+  actorPrincipal?: string;
 };
 
 type RevokeVipInput = {
@@ -24,6 +26,8 @@ type RevokeVipInput = {
   providerReference: string;
   reason: "REFUNDED" | "CHARGEBACK" | "REVOKED";
   rawPayload?: unknown;
+  actorUserId?: string | null;
+  actorPrincipal?: string;
 };
 
 export function addOneClampedCalendarMonth(date: Date) {
@@ -120,8 +124,10 @@ export async function activateVipSubscriptionInTransaction(
     entityType: "VipSubscriptionPayment",
     entityId: payment.id,
     action: "VIP_ACTIVATED",
-    actorUserId: user.id,
+    actorUserId: input.actorUserId ?? null,
     payload: {
+      actorPrincipal: input.actorPrincipal ?? "VIP_SUBSCRIPTION_SERVICE",
+      beneficiaryUserId: user.id,
       provider,
       providerReference,
       amountTry: input.amountTry,
@@ -176,20 +182,42 @@ export async function revokeVipSubscription(input: RevokeVipInput) {
         userId: payment.userId,
         status: "PAID",
         revokedAt: null,
-        paidUntil: { gt: now },
       },
-      orderBy: { paidUntil: "desc" },
-      take: 1,
-      select: { paidUntil: true, paidAt: true },
+      orderBy: [{ paidAt: "asc" }, { id: "asc" }],
+      select: { id: true, paidUntil: true, paidAt: true },
     });
-    const remaining = remainingPayments[0] ?? null;
+    let entitlementCursor: Date | null = null;
+    const recomputedPayments: Array<{ paidAt: Date; paidUntil: Date }> = [];
+
+    for (const remainingPayment of remainingPayments) {
+      const startAt = entitlementCursor && entitlementCursor > remainingPayment.paidAt
+        ? entitlementCursor
+        : remainingPayment.paidAt;
+      const paidUntil = addOneClampedCalendarMonth(startAt);
+
+      if (paidUntil.getTime() !== remainingPayment.paidUntil.getTime()) {
+        await transaction.vipSubscriptionPayment.update({
+          where: { id: remainingPayment.id },
+          data: { paidUntil },
+        });
+      }
+
+      entitlementCursor = paidUntil;
+      recomputedPayments.push({ paidAt: remainingPayment.paidAt, paidUntil });
+    }
+
+    const firstActivePaymentIndex = recomputedPayments.findIndex(({ paidUntil }) => paidUntil > now);
+    const activePayments = firstActivePaymentIndex >= 0
+      ? recomputedPayments.slice(firstActivePaymentIndex)
+      : [];
+    const activeUntil = activePayments.at(-1)?.paidUntil ?? null;
 
     await transaction.user.update({
       where: { id: payment.userId },
       data: {
-        membershipTier: remaining ? "VIP" : "STANDARD",
-        vipStartedAt: remaining?.paidAt ?? null,
-        vipPaidUntil: remaining?.paidUntil ?? null,
+        membershipTier: activeUntil ? "VIP" : "STANDARD",
+        vipStartedAt: activePayments[0]?.paidAt ?? null,
+        vipPaidUntil: activeUntil,
         vipLastReminderSentAt: null,
       },
     });
@@ -198,8 +226,13 @@ export async function revokeVipSubscription(input: RevokeVipInput) {
       entityType: "VipSubscriptionPayment",
       entityId: payment.id,
       action: input.reason,
-      actorUserId: payment.userId,
-      payload: { provider, providerReference },
+      actorUserId: input.actorUserId ?? null,
+      payload: {
+        actorPrincipal: input.actorPrincipal ?? "VIP_SUBSCRIPTION_SERVICE",
+        beneficiaryUserId: payment.userId,
+        provider,
+        providerReference,
+      },
       createdAt: now,
     });
 

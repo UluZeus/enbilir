@@ -3,10 +3,11 @@ import {
   buildInstitutionalOpenAiRequest,
   ensureInstitutionalChatDisclosure,
   ensureInstitutionalResearchCoverageNotice,
-  enforceVipInvestmentEvidence,
+  enforceInstitutionalInvestmentEvidence,
   extractInstitutionalChatResult,
   requiresVipWebResearch,
   type InstitutionalChatCitation,
+  type InstitutionalDeterministicEvidence,
   type InstitutionalChatResult,
 } from "@/lib/ai-market/institutional-chat-policy";
 import { createOpenAiRequestBudget } from "@/lib/ai-market/chat-request-control";
@@ -21,8 +22,10 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import {
   DailyAiQueryLimitReachedError,
+  finalizeAiQueryLease,
   getAiQueryQuota,
-  reserveAiQuery,
+  releaseAiQueryLease,
+  reserveAiQueryLease,
 } from "@/lib/ai-query-quota";
 import type { AiQueryQuota } from "@/lib/ai-query-policy";
 import { consumeVoiceAiQueryReservation } from "@/lib/ai-query-reservation";
@@ -176,6 +179,29 @@ function summarizeReportSource(sourcePayload: unknown) {
     sourceAsOf: typeof payload?.sourceAsOf === "string" ? payload.sourceAsOf : null,
     dataStatus: typeof payload?.dataStatus === "string" ? payload.dataStatus : "unknown",
   };
+}
+
+function buildDeterministicChatEvidence(
+  items: Awaited<ReturnType<typeof getLiveMarketItems>>,
+  report: Awaited<ReturnType<typeof getLatestReport>>,
+): InstitutionalDeterministicEvidence[] {
+  const evidence: InstitutionalDeterministicEvidence[] = [];
+
+  for (const item of items) {
+    if (!item.sourceAsOf || !["binance", "yahoo", "gate"].includes(item.source)) continue;
+    evidence.push({ asset: item.symbol, metric: "price", value: item.price, asOf: item.sourceAsOf, source: item.source });
+  }
+
+  for (const asset of report?.assets ?? []) {
+    if (!asset.sourceAsOf || !asset.provider || ["fallback", "representative", "unknown"].includes(asset.provider)) continue;
+    const source = `enbilir-deterministic:${asset.provider}`;
+    if (asset.lastPrice !== null) evidence.push({ asset: asset.symbol, metric: "price", value: asset.lastPrice, asOf: asset.sourceAsOf, source });
+    if (asset.confidence !== null) evidence.push({ asset: asset.symbol, metric: "confidence", value: asset.confidence, asOf: asset.sourceAsOf, source });
+    if (asset.riskScore !== null) evidence.push({ asset: asset.symbol, metric: "risk", value: asset.riskScore, asOf: asset.sourceAsOf, source });
+    if (asset.opportunityScore !== null) evidence.push({ asset: asset.symbol, metric: "score", value: asset.opportunityScore, asOf: asset.sourceAsOf, source });
+  }
+
+  return evidence;
 }
 
 async function getLatestReport() {
@@ -491,27 +517,41 @@ export async function POST(request: Request) {
           userId: sessionUser.id,
         })
       : false;
+    const reservedAt = usedVoiceReservation ? null : new Date();
+    let leaseToken: string | null = null;
+    let quota: AiQueryQuota;
 
-    if (!usedVoiceReservation) {
-      const preflightQuota = await getAiQueryQuota({
-        userId: sessionUser.id,
-        isPaidVipActive: membership.isPaidVipActive,
-      });
-
-      if (preflightQuota.remaining <= 0) {
-        return getQuotaLimitResponse(locale, preflightQuota);
+    try {
+      quota = usedVoiceReservation
+        ? await getAiQueryQuota({
+            userId: sessionUser.id,
+            isPaidVipActive: membership.isPaidVipActive,
+          })
+        : await reserveAiQueryLease({
+            userId: sessionUser.id,
+            now: reservedAt!,
+          }).then((reservation) => {
+            leaseToken = reservation.leaseToken;
+            return reservation.quota;
+          });
+    } catch (error) {
+      if (error instanceof DailyAiQueryLimitReachedError) {
+        return getQuotaLimitResponse(locale, error.quota);
       }
+
+      throw error;
     }
 
-    const isVip = membership.isVipActive;
-    const tier = isVip ? "VIP" as const : "STANDARD" as const;
-    const [items, latestReport, vipResearch, agentSummaries, economyHeadlines] = await Promise.all([
-      getLiveMarketItems(),
-      getLatestReport(),
-      isVip ? getLatestVipResearch() : Promise.resolve(undefined),
-      getVipAgentSummaries().catch(() => []),
-      isVip ? getEconomyHeadlines(8, locale) : Promise.resolve([]),
-    ]);
+    try {
+      const isVip = membership.isVipActive;
+      const tier = isVip ? "VIP" as const : "STANDARD" as const;
+      const [items, latestReport, vipResearch, agentSummaries, economyHeadlines] = await Promise.all([
+        getLiveMarketItems(),
+        getLatestReport(),
+        isVip ? getLatestVipResearch() : Promise.resolve(undefined),
+        getVipAgentSummaries().catch(() => []),
+        isVip ? getEconomyHeadlines(8, locale) : Promise.resolve([]),
+      ]);
     const agentPerformance = selectMarketChatAgentPerformance(agentSummaries, tier);
     const vipNews = isVip
       ? economyHeadlines.map((headline, index) => ({
@@ -521,7 +561,15 @@ export async function POST(request: Request) {
         }))
       : undefined;
     const context = buildContextFromMarketItems(question, items, latestReport, vipNews, vipResearch, tier, agentPerformance);
-    const fallbackAnswer = ensureInstitutionalChatDisclosure(buildLocalMarketChatAnswer(question, context, locale), locale);
+    const deterministicEvidence = buildDeterministicChatEvidence(items, latestReport);
+    const localEvidenceEnforcement = enforceInstitutionalInvestmentEvidence({
+      answer: buildLocalMarketChatAnswer(question, context, locale),
+      citations: [],
+      webSearchUsed: false,
+      researchCoverage: "none",
+      researched: false,
+    }, locale, deterministicEvidence);
+    const fallbackAnswer = ensureInstitutionalChatDisclosure(localEvidenceEnforcement.answer, locale);
     const contextText = buildMarketChatContextText(context, locale);
     const vipWebResearchRequired = isVip && requiresVipWebResearch(question);
 
@@ -538,9 +586,7 @@ export async function POST(request: Request) {
         Boolean(aiResult?.webSearchUsed && aiResult.citations.length > 0);
 
       if (aiResult && hasRequiredVipEvidence) {
-        const evidenceEnforcement = isVip
-          ? enforceVipInvestmentEvidence(aiResult, locale, contextText)
-          : { answer: aiResult.answer, accepted: true };
+        const evidenceEnforcement = enforceInstitutionalInvestmentEvidence(aiResult, locale, deterministicEvidence);
         const coverageAwareAnswer = vipWebResearchRequired
           ? ensureInstitutionalResearchCoverageNotice(
               evidenceEnforcement.answer,
@@ -569,24 +615,12 @@ export async function POST(request: Request) {
       });
     }
 
-    let quota: AiQueryQuota;
-
-    try {
-      quota = usedVoiceReservation
-        ? await getAiQueryQuota({
-            userId: sessionUser.id,
-            isPaidVipActive: membership.isPaidVipActive,
-          })
-        : await reserveAiQuery({
-            userId: sessionUser.id,
-            isPaidVipActive: membership.isPaidVipActive,
-          });
-    } catch (error) {
-      if (error instanceof DailyAiQueryLimitReachedError) {
-        return getQuotaLimitResponse(locale, error.quota);
-      }
-
-      throw error;
+    if (leaseToken) {
+      await finalizeAiQueryLease({ userId: sessionUser.id, leaseToken }).catch((finalizeError) => {
+        console.error("[ai-market-chat] Quota finalization failed", {
+          name: finalizeError instanceof Error ? finalizeError.name : "UnknownError",
+        });
+      });
     }
 
     await recordSiteAnalyticsEvent({
@@ -634,6 +668,17 @@ export async function POST(request: Request) {
       },
       { headers: { "Cache-Control": "private, no-store" } },
     );
+    } catch (error) {
+      if (reservedAt && leaseToken) {
+        await releaseAiQueryLease({ userId: sessionUser.id, leaseToken, reservedAt }).catch((releaseError) => {
+          console.error("[ai-market-chat] Quota release failed", {
+            name: releaseError instanceof Error ? releaseError.name : "UnknownError",
+          });
+        });
+      }
+
+      throw error;
+    }
   } catch (error) {
     return NextResponse.json(
       {

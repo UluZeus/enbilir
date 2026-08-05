@@ -3,6 +3,7 @@ import { statSync } from "node:fs";
 import path from "node:path";
 
 const IDENTIFIER = /^[A-Za-z0-9_]+$/;
+const LOGIN_PATH = /^[A-Za-z0-9_.-]+$/;
 
 function requireIdentifier(value, label) {
   if (!value || !IDENTIFIER.test(value)) {
@@ -27,11 +28,23 @@ export function requireMysqlDatabase(value = process.env.MYSQL_DATABASE) {
   return requireIdentifier(value, "MYSQL_DATABASE");
 }
 
-export function buildMysqlArguments({ defaultsFile, database, includeDatabase = true }) {
+export function requireMysqlLoginPath(value = process.env.MYSQL_LOGIN_PATH) {
+  if (!value || !LOGIN_PATH.test(value)) {
+    throw new Error("MYSQL_LOGIN_PATH contains invalid characters.");
+  }
+  return value;
+}
+
+export function buildMysqlArguments(options) {
+  const { defaultsFile, loginPath, database, includeDatabase = true } = options;
+  if (Boolean(defaultsFile) === Boolean(loginPath)) {
+    throw new Error("Exactly one protected MySQL credential source is required.");
+  }
   const args = [
-    `--defaults-extra-file=${defaultsFile}`,
+    defaultsFile ? `--defaults-extra-file=${defaultsFile}` : `--login-path=${requireMysqlLoginPath(loginPath)}`,
     "--default-character-set=utf8mb4",
     "--batch",
+    "--column-names",
   ];
   if (includeDatabase) args.push(`--database=${requireIdentifier(database, "database")}`);
   return args;
@@ -48,7 +61,8 @@ function run(command, args, options = {}) {
   });
   if (result.error) throw new Error(`${command} could not be executed.`, { cause: result.error });
   if (result.status !== 0) {
-    throw new Error(`${command} exited unsuccessfully; details were withheld from operational output.`);
+    const errorCode = /(?:ERROR|Error)\s+(\d+)/.exec(String(result.stderr ?? ""))?.[1];
+    throw new Error(`${command} exited unsuccessfully${errorCode ? ` (errorCode=${errorCode})` : ""}; details were withheld from operational output.`);
   }
   return result;
 }
@@ -74,6 +88,61 @@ export function parseMysqlBatch(output) {
     const values = line.split("\t").map(decodeBatchValue);
     return Object.fromEntries(columns.map((column, index) => [column, values[index] ?? null]));
   });
+}
+
+function isProvablyReadOnlyMysqlQuery(sql) {
+  const statement = String(sql ?? "").trim();
+  if (!/^SELECT\b/i.test(statement)) return false;
+  const withoutTrailingSemicolon = statement.replace(/;\s*$/, "");
+  if (withoutTrailingSemicolon.includes(";")) return false;
+  if (/\bINTO\b|\bFOR\s+(?:UPDATE|SHARE)\b|\bLOCK\s+IN\s+SHARE\s+MODE\b/i.test(statement)) {
+    return false;
+  }
+  if (/:=|\b(?:GET_LOCK|RELEASE_LOCK|IS_FREE_LOCK|IS_USED_LOCK|SLEEP|BENCHMARK|LAST_INSERT_ID)\s*\(/i.test(statement)) {
+    return false;
+  }
+  return true;
+}
+
+const RETRY_WAIT_SIGNAL = new Int32Array(new SharedArrayBuffer(4));
+const MYSQL_READ_ONLY_FRAME_HEADER = "__enbilir_cli_frame__";
+const MYSQL_READ_ONLY_FRAME_VALUE = "complete";
+
+function stripMysqlReadOnlyFrame(stdout) {
+  for (const newline of ["\n", "\r\n"]) {
+    const frame = `${MYSQL_READ_ONLY_FRAME_HEADER}${newline}${MYSQL_READ_ONLY_FRAME_VALUE}${newline}`;
+    if (stdout.endsWith(frame)) return stdout.slice(0, -frame.length);
+  }
+  return null;
+}
+
+function waitBeforeMysqlRetry(milliseconds) {
+  Atomics.wait(RETRY_WAIT_SIGNAL, 0, 0, milliseconds);
+}
+
+export function queryMysqlWithRetry({ sql, execute, maxAttempts = 6, wait = waitBeforeMysqlRetry }) {
+  if (typeof execute !== "function") throw new Error("MySQL query executor is required.");
+  if (typeof wait !== "function") throw new Error("MySQL query retry wait function is required.");
+  if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 6) {
+    throw new Error("MySQL read-only query retry limit must be from 1 through 6.");
+  }
+  const retryable = isProvablyReadOnlyMysqlQuery(sql);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = execute();
+    const stdout = String(result.stdout ?? "");
+    const unframedOutput = retryable ? stripMysqlReadOnlyFrame(stdout) : null;
+    if (unframedOutput !== null) return parseMysqlBatch(unframedOutput);
+    if (!retryable && stdout !== "" && stdout.endsWith("\n")) return parseMysqlBatch(stdout);
+    const outputCategory = stdout === "" ? "empty" : "incomplete";
+    if (!retryable) {
+      throw new Error(`MySQL query returned ${outputCategory} output; retry was suppressed because the statement was not provably read-only.`);
+    }
+    if (attempt === maxAttempts) {
+      throw new Error(`MySQL read-only query returned ${outputCategory} output after ${maxAttempts} attempts; query details were withheld.`);
+    }
+    wait(50 * (2 ** (attempt - 1)));
+  }
+  throw new Error("MySQL read-only query retry failed unexpectedly.");
 }
 
 export function mysqlLiteral(value) {
@@ -109,20 +178,33 @@ export function interpolateSql(sql, parameters = []) {
 }
 
 export function createMysqlCli(options = {}) {
-  const defaultsFile = requireMysqlDefaultsFile(options.defaultsFile);
+  const configuredDefaultsFile = options.defaultsFile ?? process.env.MYSQL_DEFAULTS_FILE;
+  const configuredLoginPath = options.loginPath ?? process.env.MYSQL_LOGIN_PATH;
+  if (configuredLoginPath && (process.env.ENBILIR_ENV === "production" || process.env.NODE_ENV === "production")) {
+    throw new Error("Production MySQL requires a protected option file; login paths are local-only.");
+  }
+  const defaultsFile = configuredDefaultsFile ? requireMysqlDefaultsFile(configuredDefaultsFile) : null;
+  const loginPath = defaultsFile ? null : requireMysqlLoginPath(configuredLoginPath);
   const database = requireMysqlDatabase(options.database);
   const executable = options.executable ?? process.env.MYSQL_BINARY ?? "mysql";
-  const args = buildMysqlArguments({ defaultsFile, database });
+  const args = buildMysqlArguments({ defaultsFile, loginPath, database });
 
   return {
     database,
     defaultsFile,
+    loginPath,
     execute(sql) {
       run(executable, [...args, "--skip-column-names"], { input: `SET time_zone = '+00:00';\n${sql}\n` });
     },
     query(sql) {
-      const result = run(executable, args, { input: `SET time_zone = '+00:00';\n${sql}\n` });
-      return parseMysqlBatch(result.stdout);
+      const retryable = isProvablyReadOnlyMysqlQuery(sql);
+      const statement = retryable
+        ? `${String(sql).trim().replace(/;$/, "")};\nSELECT '${MYSQL_READ_ONLY_FRAME_VALUE}' AS \`${MYSQL_READ_ONLY_FRAME_HEADER}\`;`
+        : sql;
+      return queryMysqlWithRetry({
+        sql,
+        execute: () => run(executable, args, { input: `SET time_zone = '+00:00';\n${statement}\n` }),
+      });
     },
     queryScalar(sql) {
       const row = this.query(sql)[0];

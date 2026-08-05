@@ -18,6 +18,13 @@ const NEWS_FEEDS = [
   { category: "fx", query: "US dollar euro Turkish lira forex when:1d" },
 ];
 
+const MYSQL_NEWS_TITLE_MAX_CODE_POINTS = 512;
+const MYSQL_NEWS_SOURCE_MAX_CODE_POINTS = 191;
+
+function truncateUnicodeCodePoints(value: string, maxCodePoints: number) {
+  return Array.from(value).slice(0, maxCodePoints).join("");
+}
+
 function decodeXmlEntities(value: string) {
   return value
     .replace(/&amp;/g, "&")
@@ -69,8 +76,14 @@ async function fetchFeed(category: string, query: string): Promise<AgentNewsItem
 
   return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].slice(0, 8).map((match, index) => {
     const itemXml = match[1];
-    const title = matchTag(itemXml, "title").replace(/\s*-\s*[^-]+$/, "").trim();
-    const source = matchTag(itemXml, "source") || "Google News";
+    const title = truncateUnicodeCodePoints(
+      matchTag(itemXml, "title").replace(/\s*-\s*[^-]+$/, "").trim(),
+      MYSQL_NEWS_TITLE_MAX_CODE_POINTS,
+    );
+    const source = truncateUnicodeCodePoints(
+      matchTag(itemXml, "source") || "Google News",
+      MYSQL_NEWS_SOURCE_MAX_CODE_POINTS,
+    );
     const publishedAt = matchTag(itemXml, "pubDate");
 
     return {

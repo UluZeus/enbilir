@@ -15,6 +15,50 @@ export type RunAiMarketAgentOptions = {
 };
 
 const AI_REPORT_METHODOLOGY_VERSION = "ai-market-report-v3-grounded-deterministic-assets";
+const PUBLIC_AI_REPORT_AUDIENCE = "PUBLIC";
+const AI_REPORT_AUDIENCE_UNIQUE_TARGET = ["audienceKey", "periodKey", "scope"] as const;
+
+function getReportAudienceKey(scope: string, userId?: string | null) {
+  return scope === "USER" && userId ? userId : PUBLIC_AI_REPORT_AUDIENCE;
+}
+
+function isReportAudienceConflict(error: unknown) {
+  if (typeof error !== "object" || error === null || !("code" in error) || error.code !== "P2002") {
+    return false;
+  }
+
+  const meta = "meta" in error && typeof error.meta === "object" && error.meta !== null
+    ? error.meta
+    : null;
+  const target = meta && "target" in meta ? meta.target : undefined;
+
+  if (Array.isArray(target)) {
+    return target.length === AI_REPORT_AUDIENCE_UNIQUE_TARGET.length
+      && AI_REPORT_AUDIENCE_UNIQUE_TARGET.every((field, index) => target[index] === field);
+  }
+
+  if (target === "AiMarketReport_audienceKey_periodKey_scope_key") {
+    return true;
+  }
+
+  const driverAdapterError = meta && "driverAdapterError" in meta ? meta.driverAdapterError : null;
+  const cause = typeof driverAdapterError === "object"
+    && driverAdapterError !== null
+    && "cause" in driverAdapterError
+    && typeof driverAdapterError.cause === "object"
+    && driverAdapterError.cause !== null
+    ? driverAdapterError.cause
+    : null;
+  const constraint = cause && "constraint" in cause && typeof cause.constraint === "object" && cause.constraint !== null
+    ? cause.constraint
+    : null;
+
+  return Boolean(
+    constraint
+    && "index" in constraint
+    && constraint.index === "AiMarketReport_audienceKey_periodKey_scope_key",
+  );
+}
 
 function getPeriodKey(date = new Date()) {
   const year = date.getUTCFullYear();
@@ -246,8 +290,10 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
   const periodKey = weeklyPeriod?.periodKey ?? getPeriodKey();
   const scope = reportMode === "WEEKLY" ? "WEEKLY" : options.userId ? "USER" : "GLOBAL";
   const userId = scope === "USER" ? options.userId ?? null : null;
+  const audienceKey = getReportAudienceKey(scope, userId);
   const existing = await prisma.aiMarketReport.findFirst({
     where: {
+      audienceKey,
       periodKey,
       scope,
       userId,
@@ -298,8 +344,12 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
     draft = deterministicDraft;
   }
 
-  const report = await prisma.aiMarketReport.create({
-    data: {
+  let report: { id: string };
+
+  try {
+    report = await prisma.aiMarketReport.create({
+      data: {
+      audienceKey,
       userId,
       periodKey,
       scope,
@@ -378,9 +428,33 @@ export async function runAiMarketAgent(options: RunAiMarketAgentOptions = {}) {
           relevance: item.relevance,
         })),
       },
-    },
-    select: { id: true },
-  });
+      },
+      select: { id: true },
+    });
+  } catch (error) {
+    if (isReportAudienceConflict(error)) {
+      const concurrentReport = await prisma.aiMarketReport.findFirst({
+        where: {
+          audienceKey,
+          periodKey,
+          scope,
+          userId,
+        },
+        select: { id: true, fallbackUsed: true },
+      });
+
+      if (concurrentReport) {
+        return {
+          reportId: concurrentReport.id,
+          periodKey,
+          reused: true,
+          fallbackUsed: concurrentReport.fallbackUsed,
+        };
+      }
+    }
+
+    throw error;
+  }
 
   return {
     reportId: report.id,

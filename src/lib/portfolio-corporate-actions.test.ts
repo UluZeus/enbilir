@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   fetchQuote: vi.fn(),
   updateMany: vi.fn(),
+  tradeUpdateMany: vi.fn(),
   findUnique: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock("@/lib/ai-market/yahoo-corporate-actions", () => ({
@@ -17,6 +19,10 @@ vi.mock("@/lib/prisma", () => ({
       updateMany: mocks.updateMany,
       findUnique: mocks.findUnique,
     },
+    virtualTrade: {
+      updateMany: mocks.tradeUpdateMany,
+    },
+    $transaction: mocks.transaction,
   },
 }));
 
@@ -32,6 +38,14 @@ describe("portfolio pre-trade stock-split adjustment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.tradeUpdateMany.mockResolvedValue({ count: 2 });
+    mocks.transaction.mockImplementation(async (callback: (transaction: {
+      portfolioPosition: { updateMany: typeof mocks.updateMany };
+      virtualTrade: { updateMany: typeof mocks.tradeUpdateMany };
+    }) => unknown) => callback({
+      portfolioPosition: { updateMany: mocks.updateMany },
+      virtualTrade: { updateMany: mocks.tradeUpdateMany },
+    }));
   });
 
   it("adjusts the existing lot before a post-split buy so the new lot is not multiplied later", () => {
@@ -145,6 +159,8 @@ describe("portfolio pre-trade stock-split adjustment", () => {
     });
     const position = {
       id: "position-2",
+      userId: "user-1",
+      positionCycleId: "cycle-1",
       symbol: "NVDA",
       providerSymbol: "NVDA",
       market: "Nasdaq Hisse",
@@ -171,5 +187,39 @@ describe("portfolio pre-trade stock-split adjustment", () => {
         appliedSplitFactor: 2,
       }),
     }));
+    expect(mocks.tradeUpdateMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", positionCycleId: "cycle-1" },
+      data: { quantity: { multiply: expect.anything() } },
+    });
+    expect(mocks.tradeUpdateMany.mock.calls[0][0].data.quantity.multiply.toString()).toBe("2");
+  });
+
+  it("split-adjusts pre-existing BUY and partial-SELL lot quantities in the same transaction", async () => {
+    mocks.fetchQuote.mockResolvedValue({
+      providerSymbol: "NVDA",
+      splitEvents: [{ factor: 4 }],
+    });
+    const position = {
+      id: "position-3",
+      userId: "user-1",
+      positionCycleId: "cycle-partial",
+      symbol: "NVDA",
+      providerSymbol: "NVDA",
+      market: "Nasdaq Hisse",
+      quantity: 6,
+      averagePriceUsd: 100,
+      appliedSplitFactor: 1,
+      corporateActionsCheckedAt: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    };
+
+    await syncPortfolioCorporateActions([position], new Date("2026-07-28T09:00:00.000Z"));
+
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.tradeUpdateMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", positionCycleId: "cycle-partial" },
+      data: { quantity: { multiply: expect.anything() } },
+    });
+    expect(mocks.tradeUpdateMany.mock.calls[0][0].data.quantity.multiply.toString()).toBe("4");
   });
 });

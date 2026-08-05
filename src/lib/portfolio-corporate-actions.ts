@@ -7,6 +7,8 @@ import { decimal, decimalToNumber } from "@/lib/decimal";
 
 type PositionForCorporateAction = {
   id: string;
+  userId?: string;
+  positionCycleId?: string | null;
   symbol: string;
   providerSymbol: string | null;
   market: string;
@@ -95,19 +97,39 @@ export async function syncPortfolioPositionCorporateAction(
       return { reliable: false, checked: true, updated: false };
     }
 
-    const updateResult = await prisma.portfolioPosition.updateMany({
-      where: {
-        id: position.id,
-        appliedSplitFactor: position.appliedSplitFactor,
-      },
-      data: {
-        providerSymbol: quote.providerSymbol,
-        quantity: adjustment.quantity,
-        averagePriceUsd: adjustment.averagePriceUsd,
-        appliedSplitFactor: adjustment.appliedSplitFactor,
-        corporateActionsCheckedAt: now,
-        delistedAt: null,
-      },
+    const adjustmentFactor = decimal(adjustment.adjustmentFactor);
+    const updateResult = await prisma.$transaction(async (transaction) => {
+      const result = await transaction.portfolioPosition.updateMany({
+        where: {
+          id: position.id,
+          appliedSplitFactor: position.appliedSplitFactor,
+        },
+        data: {
+          providerSymbol: quote.providerSymbol,
+          quantity: adjustment.quantity,
+          averagePriceUsd: adjustment.averagePriceUsd,
+          appliedSplitFactor: adjustment.appliedSplitFactor,
+          corporateActionsCheckedAt: now,
+          delistedAt: null,
+        },
+      });
+
+      if (
+        result.count === 1 &&
+        !adjustmentFactor.equals(1) &&
+        position.userId &&
+        position.positionCycleId
+      ) {
+        await transaction.virtualTrade.updateMany({
+          where: {
+            userId: position.userId,
+            positionCycleId: position.positionCycleId,
+          },
+          data: { quantity: { multiply: adjustmentFactor } },
+        });
+      }
+
+      return result;
     });
     if (updateResult.count === 1) {
       return { reliable: true, checked: true, updated: true };

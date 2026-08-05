@@ -564,14 +564,15 @@ model AiMarketFavorite {
 model AiMarketReport {
   id               String                   @id @default(cuid()) @db.VarChar(191)
   userId           String?                  @db.VarChar(191)
+  audienceKey      String                   @db.VarChar(191)
   periodKey        String                   @db.VarChar(191)
   scope            String                   @default("GLOBAL") @db.VarChar(191)
   status           String                   @default("COMPLETED") @db.VarChar(191)
   model            String?                  @db.VarChar(191)
   generatedAt      DateTime                 @default(now()) @db.DateTime(3)
   macroSummary     String                   @db.LongText
-  marketRegime     String?                  @db.VarChar(191)
-  riskAppetite     String?                  @db.VarChar(191)
+  marketRegime     String?                  @db.VarChar(512)
+  riskAppetite     String?                  @db.VarChar(512)
   keyTakeaways     Json
   requiredCoverage Json
   newsSummary      String?                  @db.LongText
@@ -587,6 +588,7 @@ model AiMarketReport {
   events           AiMarketReportEvent[]
 
   @@unique([userId, periodKey, scope])
+  @@unique([audienceKey, periodKey, scope])
   @@index([generatedAt])
   @@index([userId, generatedAt])
 }
@@ -635,7 +637,7 @@ model AiMarketReportAsset {
 model AiMarketReportNewsItem {
   id          String         @id @default(cuid()) @db.VarChar(191)
   reportId    String         @db.VarChar(191)
-  title       String         @db.VarChar(191)
+  title       String         @db.VarChar(512)
   link        String         @db.Text
   source      String         @db.VarChar(191)
   publishedAt DateTime?      @db.DateTime(3)

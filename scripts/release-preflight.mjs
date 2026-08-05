@@ -81,11 +81,13 @@ try {
   if (!Number.isSafeInteger(completed) || completed < 1 || incomplete !== 0) {
     throw new Error("Disposable MySQL migration history validation failed.");
   }
+  run("production build", npmCommand, [...npmArgumentPrefix, "run", "build"], {
+    env: migrationEnvironment,
+  });
 } finally {
   disposableDatabase.drop();
 }
 
-run("production build", npmCommand, [...npmArgumentPrefix, "run", "build"]);
 run("critical end-to-end tests", npmCommand, [...npmArgumentPrefix, "run", "test:e2e"], {
   env: { ...process.env, E2E_USE_EXISTING_BUILD: "true" },
 });

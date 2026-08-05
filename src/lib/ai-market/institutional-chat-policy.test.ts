@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildInstitutionalChatInstruction,
   buildInstitutionalOpenAiRequest,
-  enforceVipInvestmentEvidence,
+  enforceInstitutionalInvestmentEvidence,
   ensureInstitutionalChatDisclosure,
   extractInstitutionalChatResult,
   getInstitutionalChatDisclosure,
@@ -173,7 +173,7 @@ describe("institutional market chat policy", () => {
     ].join("\n\n");
     const citedText = "ana sayfası";
     const startIndex = answer.indexOf(citedText);
-    const result = enforceVipInvestmentEvidence({
+    const result = enforceInstitutionalInvestmentEvidence({
       answer,
       citations: [{
         title: "Company home page",
@@ -184,7 +184,7 @@ describe("institutional market chat policy", () => {
       webSearchUsed: true,
       researchCoverage: "partial",
       researched: false,
-    }, "tr", "AAPL son fiyat 210 USD.");
+    }, "tr", []);
 
     expect(result.accepted).toBe(false);
     expect(result.answer).toContain("İZLE / KANIT YETERSİZ");
@@ -195,48 +195,74 @@ describe("institutional market chat policy", () => {
     );
   });
 
-  it("allows an actionable numeric claim when that exact claim has claim-level evidence", () => {
-    const answer = "Teknik plan: giriş 198-204 USD, stop 189 USD ve hedef 235 USD.";
-    const result = enforceVipInvestmentEvidence({
+  it("rejects actionable numbers even when an unrelated HTTPS citation covers the sentence", () => {
+    const answer = "AAPL giriş 198-204 USD, stop 189 USD ve hedef 235 USD.";
+    const result = enforceInstitutionalInvestmentEvidence({
       answer,
       citations: [{
-        title: "Exchange evidence",
-        url: "https://exchange.example.test/aapl",
+        title: "Unrelated HTTPS page",
+        url: "https://example.test/weather",
         startIndex: 0,
         endIndex: answer.length,
       }],
       webSearchUsed: true,
       researchCoverage: "substantial",
       researched: true,
-    }, "tr", "");
+    }, "tr", []);
 
-    expect(result.accepted).toBe(true);
-    expect(result.answer).toBe(answer);
-    expect(result.unsupportedClaims).toEqual([]);
+    expect(result.accepted).toBe(false);
+    expect(result.answer).toContain("İZLE / KANIT YETERSİZ");
   });
 
-  it("allows exact deterministic levels already present in verified Enbilir context", () => {
-    const answer = "Karne: güven 76/100, risk 49/100. Giriş 198-204 USD, stop 189 USD ve hedef 235 USD.";
-    const result = enforceVipInvestmentEvidence({
+  it("requires exact asset, metric, value, source, and as-of binding", () => {
+    const answer = "AAPL fiyat 210 USD.";
+    const result = enforceInstitutionalInvestmentEvidence({
       answer,
       citations: [],
-      webSearchUsed: true,
-      researchCoverage: "partial",
+      webSearchUsed: false,
+      researchCoverage: "none",
       researched: false,
-    }, "tr", "confidence=76; risk=49; entry=198-204; stop=189; target=235");
+    }, "tr", [{
+      asset: "AAPL",
+      metric: "price",
+      value: 210,
+      asOf: "2026-08-04T12:00:00.000Z",
+      source: "yahoo",
+    }], new Date("2026-08-04T13:00:00.000Z"));
 
     expect(result.accepted).toBe(true);
     expect(result.answer).toBe(answer);
+  });
+
+  it("fails closed for a mismatched asset, value, or stale deterministic record", () => {
+    const baseResult = {
+      answer: "AAPL fiyat 210 USD.",
+      citations: [],
+      webSearchUsed: false,
+      researchCoverage: "none" as const,
+      researched: false,
+    };
+    const evidence = {
+      asset: "MSFT",
+      metric: "price" as const,
+      value: 210,
+      asOf: "2026-08-04T12:00:00.000Z",
+      source: "yahoo",
+    };
+
+    expect(enforceInstitutionalInvestmentEvidence(baseResult, "tr", [evidence], new Date("2026-08-04T13:00:00.000Z")).accepted).toBe(false);
+    expect(enforceInstitutionalInvestmentEvidence(baseResult, "tr", [{ ...evidence, asset: "AAPL", value: 211 }], new Date("2026-08-04T13:00:00.000Z")).accepted).toBe(false);
+    expect(enforceInstitutionalInvestmentEvidence(baseResult, "tr", [{ ...evidence, asset: "AAPL", asOf: "2026-07-01T00:00:00.000Z" }], new Date("2026-08-04T13:00:00.000Z")).accepted).toBe(false);
   });
 
   it("detects a Turkish entry claim even when it is the only material metric", () => {
-    const result = enforceVipInvestmentEvidence({
+    const result = enforceInstitutionalInvestmentEvidence({
       answer: "Giriş 198 USD.",
       citations: [],
       webSearchUsed: true,
       researchCoverage: "partial",
       researched: false,
-    }, "tr", "");
+    }, "tr", []);
 
     expect(result.accepted).toBe(false);
     expect(result.answer).toContain("İZLE / KANIT YETERSİZ");

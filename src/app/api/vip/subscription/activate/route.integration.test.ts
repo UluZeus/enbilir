@@ -104,6 +104,25 @@ describe("release gate: VIP payment callback authorization", () => {
     expect(paymentMocks.revoke).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {},
+    { event: "SETTLED" },
+    { event: 1 },
+  ])("rejects a missing or unsupported runtime event without mutating entitlement", async (payload) => {
+    const response = await POST(new Request("http://localhost/api/vip/subscription/activate", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-vip-webhook-secret": "release-gate-secret",
+      },
+      body: JSON.stringify(payload),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(paymentMocks.activateClaim).not.toHaveBeenCalled();
+    expect(paymentMocks.revoke).not.toHaveBeenCalled();
+  });
+
   it.each(["REFUNDED", "CHARGEBACK", "REVOKED"] as const)(
     "requires the same webhook authorization before %s cancellation",
     async (event) => {
@@ -142,6 +161,7 @@ describe("release gate: VIP payment callback authorization", () => {
         provider: "PARAM",
         providerReference: "PARAM-123456",
         reason: event,
+        actorPrincipal: "VIP_PAYMENT_WEBHOOK",
       });
     },
   );

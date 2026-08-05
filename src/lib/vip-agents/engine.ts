@@ -12,8 +12,6 @@ import {
 import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import { prisma } from "@/lib/prisma";
 import {
-  calculateVipAgentAccount,
-  calculateVipAgentSplitAdjustment,
   areVipAgentCorporateActionsReliable,
   areVipAgentOpenPositionPricesReliable,
   getVipAgentBuyIneligibilityReason,
@@ -28,6 +26,7 @@ import {
   VIP_AGENT_STRATEGIES,
   type VipAgentStrategy,
 } from "@/lib/vip-agents/config";
+import type { DecimalValue } from "@/lib/decimal";
 import { decimal, decimalToNumber, nullableDecimalToNumber, roundDecimal } from "@/lib/decimal";
 
 type PriceResult = {
@@ -49,12 +48,86 @@ const expectedNonExecutableMarketStates = new Set([
   "SESSION_UNAVAILABLE",
 ]);
 
-function roundMoney(value: number) {
-  return decimalToNumber(roundDecimal(String(value), 2));
+function roundMoneyDecimal(value: DecimalValue) {
+  return roundDecimal(value, 2);
 }
 
-function roundQuantity(value: number) {
-  return decimalToNumber(decimal(String(value)).times(10_000).floor().div(10_000));
+function roundQuantityDecimal(value: DecimalValue) {
+  return decimal(value).times(10_000).floor().div(10_000);
+}
+
+function decimalMin(left: ReturnType<typeof decimal>, right: ReturnType<typeof decimal>) {
+  return left.lessThanOrEqualTo(right) ? left : right;
+}
+
+function decimalMax(left: ReturnType<typeof decimal>, right: ReturnType<typeof decimal>) {
+  return left.greaterThanOrEqualTo(right) ? left : right;
+}
+
+export function calculateVipAgentAccountDecimal(input: {
+  cashUsd: DecimalValue;
+  positionsValueUsd: DecimalValue;
+  reserveUsd: DecimalValue;
+  performanceBaseUsd: DecimalValue;
+}) {
+  const totalBalanceUsd = roundMoneyDecimal(decimal(input.cashUsd).plus(input.positionsValueUsd));
+  const performanceEquityUsd = roundMoneyDecimal(totalBalanceUsd.minus(input.reserveUsd));
+  const pnlUsd = roundMoneyDecimal(performanceEquityUsd.minus(input.performanceBaseUsd));
+  const performanceBaseUsd = decimal(input.performanceBaseUsd);
+  const returnPercent = performanceBaseUsd.greaterThan(0)
+    ? roundDecimal(pnlUsd.div(performanceBaseUsd).times(100), 4)
+    : decimal(0);
+
+  return { totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent };
+}
+
+export function calculateVipAgentSellAccountingDecimal(input: {
+  quantity: DecimalValue;
+  priceUsd: DecimalValue;
+  averagePriceUsd: DecimalValue;
+  cashUsd: DecimalValue;
+}) {
+  const grossUsd = roundMoneyDecimal(decimal(input.quantity).times(input.priceUsd));
+  const costBasisUsd = roundMoneyDecimal(decimal(input.quantity).times(input.averagePriceUsd));
+  const realizedPnlUsd = roundMoneyDecimal(grossUsd.minus(costBasisUsd));
+  const realizedPnlPercent = costBasisUsd.greaterThan(0)
+    ? roundDecimal(realizedPnlUsd.div(costBasisUsd).times(100), 4)
+    : decimal(0);
+  const cashAfterUsd = roundMoneyDecimal(decimal(input.cashUsd).plus(grossUsd));
+
+  return { grossUsd, costBasisUsd, realizedPnlUsd, realizedPnlPercent, cashAfterUsd };
+}
+
+function calculateVipAgentSplitAdjustmentDecimal(
+  position: {
+    quantity: DecimalValue;
+    averagePriceUsd: DecimalValue;
+    lastPriceUsd: DecimalValue;
+    stopLossUsd: DecimalValue;
+    targetPriceUsd: DecimalValue;
+    secondaryTarget: DecimalValue | null;
+    appliedSplitFactor: DecimalValue;
+  },
+  cumulativeSplitFactor: number,
+) {
+  if (!Number.isFinite(cumulativeSplitFactor) || cumulativeSplitFactor <= 0) return null;
+  const appliedSplitFactor = decimal(position.appliedSplitFactor);
+  if (!appliedSplitFactor.isFinite() || appliedSplitFactor.lessThanOrEqualTo(0)) return null;
+  const cumulativeFactor = decimal(String(cumulativeSplitFactor));
+  const adjustmentFactor = cumulativeFactor.div(appliedSplitFactor);
+  if (!adjustmentFactor.isFinite() || adjustmentFactor.lessThanOrEqualTo(0)) return null;
+
+  return {
+    quantity: roundDecimal(decimal(position.quantity).times(adjustmentFactor), 8),
+    averagePriceUsd: roundDecimal(decimal(position.averagePriceUsd).div(adjustmentFactor), 8),
+    lastPriceUsd: roundDecimal(decimal(position.lastPriceUsd).div(adjustmentFactor), 8),
+    stopLossUsd: roundDecimal(decimal(position.stopLossUsd).div(adjustmentFactor), 8),
+    targetPriceUsd: roundDecimal(decimal(position.targetPriceUsd).div(adjustmentFactor), 8),
+    secondaryTarget: position.secondaryTarget === null
+      ? null
+      : roundDecimal(decimal(position.secondaryTarget).div(adjustmentFactor), 8),
+    appliedSplitFactor: cumulativeFactor,
+  };
 }
 
 export function getIstanbulDateKey(date = new Date()) {
@@ -160,19 +233,26 @@ function buildVipAgentPriceRequests(
   return Array.from(requests.values());
 }
 
-function positionValue(
-  position: { symbol: string; quantity: number; lastPriceUsd: number },
+function positionValueDecimal(
+  position: { symbol: string; quantity: DecimalValue; lastPriceUsd: DecimalValue },
   prices: Map<string, PriceResult>,
 ) {
-  return position.quantity * (prices.get(position.symbol)?.price ?? position.lastPriceUsd);
+  const livePrice = prices.get(position.symbol)?.price;
+  const price = livePrice === null || livePrice === undefined
+    ? decimal(position.lastPriceUsd)
+    : decimal(String(livePrice));
+  return decimal(position.quantity).times(price);
 }
 
-function portfolioValue(
-  cashUsd: number,
-  positions: Array<{ symbol: string; quantity: number; lastPriceUsd: number }>,
+function portfolioValueDecimal(
+  cashUsd: DecimalValue,
+  positions: Array<{ symbol: string; quantity: DecimalValue; lastPriceUsd: DecimalValue }>,
   prices: Map<string, PriceResult>,
 ) {
-  return cashUsd + positions.reduce((sum, position) => sum + positionValue(position, prices), 0);
+  return positions.reduce(
+    (sum, position) => sum.plus(positionValueDecimal(position, prices)),
+    decimal(cashUsd),
+  );
 }
 
 async function runAgent(
@@ -214,20 +294,7 @@ async function runAgent(
   }
   const agent = {
     ...storedAgent,
-    startingBalanceUsd: decimalToNumber(storedAgent.startingBalanceUsd),
-    performanceBaseUsd: decimalToNumber(storedAgent.performanceBaseUsd),
-    reserveUsd: decimalToNumber(storedAgent.reserveUsd),
-    cashUsd: decimalToNumber(storedAgent.cashUsd),
-    positions: storedAgent.positions.map((position) => ({
-      ...position,
-      quantity: decimalToNumber(position.quantity),
-      averagePriceUsd: decimalToNumber(position.averagePriceUsd),
-      lastPriceUsd: decimalToNumber(position.lastPriceUsd),
-      stopLossUsd: decimalToNumber(position.stopLossUsd),
-      targetPriceUsd: decimalToNumber(position.targetPriceUsd),
-      secondaryTarget: nullableDecimalToNumber(position.secondaryTarget),
-      appliedSplitFactor: decimalToNumber(position.appliedSplitFactor),
-    })),
+    positions: storedAgent.positions,
   };
   const existingRunDecisions = await prisma.vipTradingAgentDecision.findMany({
     where: { agentId: agent.id, runKey },
@@ -252,7 +319,7 @@ async function runAgent(
         asOf: now,
         timeoutMs: 8_000,
       });
-      const adjustment = calculateVipAgentSplitAdjustment(
+      const adjustment = calculateVipAgentSplitAdjustmentDecimal(
         position,
         getYahooCumulativeSplitFactor(quote.splitEvents),
       );
@@ -309,7 +376,7 @@ async function runAgent(
     agent.positions.map((position) => ({ symbol: position.symbol, providerSymbol: position.providerSymbol })),
   ));
   const ideaBySymbol = new Map(ideas.map((idea) => [idea.symbol, idea]));
-  let cashUsd = agent.cashUsd;
+  let cashUsd = decimal(agent.cashUsd);
   let positions = agent.positions.map((position) => {
     const adjustedData = adjustedDataByPositionId.get(position.id);
     return adjustedData ? { ...position, ...adjustedData } : position;
@@ -362,8 +429,8 @@ async function runAgent(
 
     const sellReason = getVipAgentPositionExitReason({
       price,
-      stopLossUsd: position.stopLossUsd,
-      targetPriceUsd: position.targetPriceUsd,
+      stopLossUsd: decimalToNumber(position.stopLossUsd),
+      targetPriceUsd: decimalToNumber(position.targetPriceUsd),
       currentStance: currentIdea?.stance,
     });
 
@@ -371,26 +438,30 @@ async function runAgent(
       const holdReason = "Stop veya hedef tetiklenmedi; pozisyon korunuyor.";
       const sourceIdeaId = currentIdea?.id ?? position.sourceIdeaId;
       await prisma.$transaction([
-        prisma.vipTradingAgentPosition.update({ where: { id: position.id }, data: { lastPriceUsd: price } }),
+        prisma.vipTradingAgentPosition.update({ where: { id: position.id }, data: { lastPriceUsd: decimal(String(price)) } }),
         prisma.vipTradingAgentDecision.upsert({
           where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: position.symbol } },
-          create: { agentId: agent.id, runKey, symbol: position.symbol, action: "HOLD", priceUsd: price, reason: holdReason, sourceIdeaId },
-          update: { action: "HOLD", priceUsd: price, reason: holdReason, sourceIdeaId },
+          create: { agentId: agent.id, runKey, symbol: position.symbol, action: "HOLD", priceUsd: decimal(String(price)), reason: holdReason, sourceIdeaId },
+          update: { action: "HOLD", priceUsd: decimal(String(price)), reason: holdReason, sourceIdeaId },
         }),
       ]);
-      position.lastPriceUsd = price;
+      position.lastPriceUsd = decimal(String(price));
       decidedSymbols.add(position.symbol);
       decisionCount += 1;
       continue;
     }
 
-    const grossUsd = roundMoney(position.quantity * price);
-    const costBasisUsd = roundMoney(position.quantity * position.averagePriceUsd);
-    const realizedPnlUsd = roundMoney(grossUsd - costBasisUsd);
-    const realizedPnlPercent = costBasisUsd > 0 ? Number(((realizedPnlUsd / costBasisUsd) * 100).toFixed(4)) : 0;
-    cashUsd = roundMoney(cashUsd + grossUsd);
+    const priceUsd = decimal(String(price));
+    const sellAccounting = calculateVipAgentSellAccountingDecimal({
+      quantity: position.quantity,
+      priceUsd,
+      averagePriceUsd: position.averagePriceUsd,
+      cashUsd,
+    });
+    const { grossUsd, costBasisUsd, realizedPnlUsd, realizedPnlPercent } = sellAccounting;
+    cashUsd = sellAccounting.cashAfterUsd;
     positions = positions.filter((item) => item.id !== position.id);
-    const afterValue = roundMoney(portfolioValue(cashUsd, positions, priceMap));
+    const afterValue = roundMoneyDecimal(portfolioValueDecimal(cashUsd, positions, priceMap));
 
     await prisma.$transaction([
       prisma.vipTradingAgent.update({ where: { id: agent.id }, data: { cashUsd } }),
@@ -403,7 +474,7 @@ async function runAgent(
           displayName: position.displayName,
           side: "SELL",
           quantity: position.quantity,
-          priceUsd: price,
+          priceUsd,
           grossUsd,
           costBasisUsd,
           realizedPnlUsd,
@@ -417,8 +488,8 @@ async function runAgent(
       }),
       prisma.vipTradingAgentDecision.upsert({
         where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: position.symbol } },
-        create: { agentId: agent.id, runKey, symbol: position.symbol, action: "SELL", priceUsd: price, reason: sellReason, sourceIdeaId: currentIdea?.id ?? position.sourceIdeaId },
-        update: { action: "SELL", priceUsd: price, reason: sellReason, sourceIdeaId: currentIdea?.id ?? position.sourceIdeaId },
+        create: { agentId: agent.id, runKey, symbol: position.symbol, action: "SELL", priceUsd, reason: sellReason, sourceIdeaId: currentIdea?.id ?? position.sourceIdeaId },
+        update: { action: "SELL", priceUsd, reason: sellReason, sourceIdeaId: currentIdea?.id ?? position.sourceIdeaId },
       }),
     ]);
     tradeCount += 1;
@@ -439,82 +510,84 @@ async function runAgent(
     let reason = price ? getVipAgentBuyIneligibilityReason(strategy, idea, price) : noQuoteDecision.reason;
 
     if (!reason && positions.length >= strategy.maximumPositions) reason = `Azami ${strategy.maximumPositions} açık pozisyon sınırına ulaşıldı.`;
-    const minimumCash = agent.reserveUsd + agent.performanceBaseUsd * (strategy.minimumActiveCashPercent / 100);
-    const spendableCash = Math.max(0, cashUsd - minimumCash);
-    if (!reason && spendableCash <= 0) reason = "Ajanın zorunlu nakit tamponu nedeniyle kullanılabilir sermaye kalmadı.";
+    const minimumCash = decimal(agent.reserveUsd).plus(
+      decimal(agent.performanceBaseUsd).times(strategy.minimumActiveCashPercent).div(100),
+    );
+    const spendableCash = decimalMax(decimal(0), cashUsd.minus(minimumCash));
+    if (!reason && spendableCash.lessThanOrEqualTo(0)) reason = "Ajanın zorunlu nakit tamponu nedeniyle kullanılabilir sermaye kalmadı.";
 
     if (reason || !price) {
       await prisma.vipTradingAgentDecision.upsert({
         where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: idea.symbol } },
-        create: { agentId: agent.id, runKey, symbol: idea.symbol, action: price ? "SKIP" : noQuoteDecision.action, priceUsd: price, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
-        update: { action: price ? "SKIP" : noQuoteDecision.action, priceUsd: price, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
+        create: { agentId: agent.id, runKey, symbol: idea.symbol, action: price ? "SKIP" : noQuoteDecision.action, priceUsd: price ? decimal(String(price)) : null, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
+        update: { action: price ? "SKIP" : noQuoteDecision.action, priceUsd: price ? decimal(String(price)) : null, reason: reason ?? "İşlem koşulları oluşmadı.", sourceIdeaId: idea.id },
       });
       decisionCount += 1;
       continue;
     }
 
     const conviction = Math.min(1, Math.max(0.7, idea.confidenceScore / 100));
-    const budget = Math.min(spendableCash, agent.performanceBaseUsd * (strategy.maximumPositionPercent / 100) * conviction);
-    const quantity = roundQuantity(budget / price);
-    if (quantity <= 0) continue;
-    const grossUsd = roundMoney(quantity * price);
-    cashUsd = roundMoney(cashUsd - grossUsd);
+    const maximumBudget = decimal(agent.performanceBaseUsd)
+      .times(strategy.maximumPositionPercent)
+      .div(100)
+      .times(String(conviction));
+    const budget = decimalMin(spendableCash, maximumBudget);
+    const priceUsd = decimal(String(price));
+    const quantity = roundQuantityDecimal(budget.div(priceUsd));
+    if (quantity.lessThanOrEqualTo(0)) continue;
+    const grossUsd = roundMoneyDecimal(quantity.times(priceUsd));
+    cashUsd = roundMoneyDecimal(cashUsd.minus(grossUsd));
     const positionCycleId = randomUUID();
     const newPosition = {
       id: `pending-${idea.symbol}`,
       agentId: agent.id,
       positionCycleId,
-      appliedSplitFactor: 1,
+      appliedSplitFactor: decimal(1),
       corporateActionsCheckedAt: null,
       symbol: idea.symbol,
       providerSymbol: idea.providerSymbol,
       displayName: idea.displayName,
       quantity,
-      averagePriceUsd: price,
-      lastPriceUsd: price,
-      stopLossUsd: idea.stopLoss,
-      targetPriceUsd: idea.targetPrice,
-      secondaryTarget: idea.secondaryTargetPrice,
+      averagePriceUsd: priceUsd,
+      lastPriceUsd: priceUsd,
+      stopLossUsd: decimal(String(idea.stopLoss)),
+      targetPriceUsd: decimal(String(idea.targetPrice)),
+      secondaryTarget: idea.secondaryTargetPrice === null
+        ? null
+        : decimal(String(idea.secondaryTargetPrice)),
       sourceIdeaId: idea.id,
       openedAt: now,
       updatedAt: now,
     };
     positions.push(newPosition);
-    const afterValue = roundMoney(portfolioValue(cashUsd, positions, priceMap));
+    const afterValue = roundMoneyDecimal(portfolioValueDecimal(cashUsd, positions, priceMap));
     const buyReason = `${strategy.name}, VIP AL notunu ${idea.confidenceScore}/100 güven ve ${idea.riskScore}/100 risk ile kabul etti; giriş bandı doğrulandı.`;
 
     await prisma.$transaction([
       prisma.vipTradingAgent.update({ where: { id: agent.id }, data: { cashUsd } }),
       prisma.vipTradingAgentPosition.create({ data: { ...newPosition, id: undefined } }),
       prisma.vipTradingAgentTrade.create({
-        data: { agentId: agent.id, positionCycleId, symbol: idea.symbol, displayName: idea.displayName, side: "BUY", quantity, priceUsd: price, grossUsd, cashAfterUsd: cashUsd, portfolioAfterUsd: afterValue, reason: buyReason, sourceIdeaId: idea.id, executedAt: now },
+        data: { agentId: agent.id, positionCycleId, symbol: idea.symbol, displayName: idea.displayName, side: "BUY", quantity, priceUsd, grossUsd, cashAfterUsd: cashUsd, portfolioAfterUsd: afterValue, reason: buyReason, sourceIdeaId: idea.id, executedAt: now },
       }),
       prisma.vipTradingAgentDecision.upsert({
         where: { agentId_runKey_symbol: { agentId: agent.id, runKey, symbol: idea.symbol } },
-        create: { agentId: agent.id, runKey, symbol: idea.symbol, action: "BUY", priceUsd: price, reason: buyReason, sourceIdeaId: idea.id },
-        update: { action: "BUY", priceUsd: price, reason: buyReason, sourceIdeaId: idea.id },
+        create: { agentId: agent.id, runKey, symbol: idea.symbol, action: "BUY", priceUsd, reason: buyReason, sourceIdeaId: idea.id },
+        update: { action: "BUY", priceUsd, reason: buyReason, sourceIdeaId: idea.id },
       }),
     ]);
     tradeCount += 1;
     decisionCount += 1;
   }
 
-  const storedPositions = (await prisma.vipTradingAgentPosition.findMany({ where: { agentId: agent.id } }))
-    .map((position) => ({
-      ...position,
-      quantity: decimalToNumber(position.quantity),
-      averagePriceUsd: decimalToNumber(position.averagePriceUsd),
-      lastPriceUsd: decimalToNumber(position.lastPriceUsd),
-      stopLossUsd: decimalToNumber(position.stopLossUsd),
-      targetPriceUsd: decimalToNumber(position.targetPriceUsd),
-      secondaryTarget: nullableDecimalToNumber(position.secondaryTarget),
-      appliedSplitFactor: decimalToNumber(position.appliedSplitFactor),
-    }));
+  const storedPositions = await prisma.vipTradingAgentPosition.findMany({ where: { agentId: agent.id } });
   const snapshotReliable =
     areVipAgentOpenPositionPricesReliable(storedPositions, priceMap) &&
     areVipAgentCorporateActionsReliable(storedPositions, failedCorporateActionPositionIds);
-  const positionsValueUsd = roundMoney(storedPositions.reduce((sum, position) => sum + positionValue(position, priceMap), 0));
-  const { totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent } = calculateVipAgentAccount({
+  const positionsValueUsd = roundMoneyDecimal(storedPositions.reduce(
+    (sum, position) => sum.plus(positionValueDecimal(position, priceMap)),
+    decimal(0),
+  ));
+  const { totalBalanceUsd, performanceEquityUsd, pnlUsd, returnPercent } = calculateVipAgentAccountDecimal({
     cashUsd,
     positionsValueUsd,
     reserveUsd: agent.reserveUsd,
@@ -555,7 +628,16 @@ async function runAgent(
     await prisma.vipTradingAgent.update({ where: { id: agent.id }, data: { cashUsd, lastRunAt: now } });
   }
 
-  return { agent: strategy.name, reused: false, trades: tradeCount, decisions: decisionCount, snapshotReliable, totalBalanceUsd, pnlUsd, returnPercent };
+  return {
+    agent: strategy.name,
+    reused: false,
+    trades: tradeCount,
+    decisions: decisionCount,
+    snapshotReliable,
+    totalBalanceUsd: decimalToNumber(totalBalanceUsd),
+    pnlUsd: decimalToNumber(pnlUsd),
+    returnPercent: decimalToNumber(returnPercent),
+  };
 }
 
 async function getReportForRun(runKey: string) {

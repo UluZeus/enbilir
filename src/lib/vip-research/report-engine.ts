@@ -124,22 +124,15 @@ function outputText(payload: OpenAiResponse) {
     .find((text): text is string => typeof text === "string");
 }
 
-function extractAnnotatedSources(payload: OpenAiResponse): VipSource[] {
+export function extractAnnotatedSources(payload: OpenAiResponse): VipSource[] {
   const sources = new Map<string, VipSource>();
 
   for (const content of payload.output?.flatMap((item) => item.content ?? []) ?? []) {
     for (const annotation of content.annotations ?? []) {
       if (annotation.type === "url_citation" && annotation.url?.startsWith("https://")) {
-        const text = content.text ?? "";
-        const start = typeof annotation.start_index === "number" ? annotation.start_index : -1;
-        const end = typeof annotation.end_index === "number" ? annotation.end_index : -1;
-        const evidenceText = start >= 0 && end > start && end <= text.length
-          ? text.slice(Math.max(0, start - 180), Math.min(text.length, end + 180)).replace(/\s+/g, " ").trim()
-          : undefined;
         sources.set(annotation.url, {
           title: annotation.title ?? new URL(annotation.url).hostname,
           url: annotation.url,
-          evidenceText,
         });
       }
     }

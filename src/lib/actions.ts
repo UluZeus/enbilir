@@ -41,7 +41,7 @@ import { calculateRealizedTradePnlDecimal, getVirtualExecutionCostsDecimal } fro
 import { syncPortfolioPositionCorporateAction } from "@/lib/portfolio-corporate-actions";
 import { isExecutableMarketQuote } from "@/lib/executable-quote";
 import { updateElectronicCommunicationConsent } from "@/lib/communication-consent";
-import { decimal } from "@/lib/decimal";
+import { decimal, roundDecimal } from "@/lib/decimal";
 import { withSerializableTransaction } from "@/lib/serializable-transaction";
 
 export type TradeActionState = {
@@ -624,6 +624,7 @@ export async function reviewVipPaymentClaimAction(formData: FormData) {
   try {
     reviewResult = await reviewVipSubscriptionClaim({
       claimId: normalizeText(formData.get("claimId")),
+      reviewerUserId: admin.id,
       reviewerEmail: admin.email,
       decision,
       amountTry: normalizeOptionalNumber(formData.get("amountTry"), 0),
@@ -755,8 +756,6 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     return { ok: false, message: "Bu alım için yeterli sanal nakdin yok." };
   }
 
-  let quantity = amountUsd / tradePriceUsd;
-
   if (!isExecutableMarketQuote(marketItem)) {
     const refreshedMarketItem = await getLiveMarketItem(symbol, { refresh: true });
 
@@ -775,9 +774,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
     tradePriceUsd = side === "BUY"
       ? marketItem.askPriceUsd ?? marketItem.priceUsd
       : marketItem.bidPriceUsd ?? marketItem.priceUsd;
-    quantity = amountUsd / tradePriceUsd;
-
-    if (!Number.isFinite(tradePriceUsd) || tradePriceUsd <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+    if (!Number.isFinite(tradePriceUsd) || tradePriceUsd <= 0) {
       return { ok: false, message: "Seçilen ürün için geçerli fiyat bulunamadı." };
     }
 
@@ -788,7 +785,18 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       return { ok: false, message: "Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor." };
     }
 
-    if (decimal(existingPosition.quantity).plus("0.000001").lessThan(quantity)) {
+    const previewExecution = getVirtualExecutionCostsDecimal({
+      category: marketItem.category,
+      side,
+      quotePriceUsd: tradePriceUsd,
+      requestedAmountUsd: amountUsdDecimal,
+    });
+    const ownedQuantity = decimal(existingPosition.quantity);
+    const isExactUiRoundedFullSale =
+      amountUsdDecimal.isInteger() &&
+      amountUsdDecimal.equals(roundDecimal(ownedQuantity.times(tradePriceUsd), 0));
+
+    if (previewExecution.quantity.greaterThan(ownedQuantity) && !isExactUiRoundedFullSale) {
       return { ok: false, message: "Satmak istediğiniz miktar portföyünüzdeki miktardan fazla." };
     }
   }
@@ -807,27 +815,49 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
       const currentPosition = await tx.portfolioPosition.findUnique({
         where: { userId_symbol: { userId, symbol } },
       });
-      const execution = getVirtualExecutionCostsDecimal({
+      let execution = getVirtualExecutionCostsDecimal({
         category: marketItem.category,
         side,
         quotePriceUsd: tradePriceUsd,
         requestedAmountUsd: amountUsdDecimal,
       });
-      const currentTradePriceUsd = execution.executionPriceUsd;
-      const currentQuantity = execution.quantity;
-      const nextCashUsd = side === "BUY"
-        ? latestCashUsd.minus(execution.cashDeltaUsd)
-        : latestCashUsd.plus(execution.cashDeltaUsd);
 
       if (side === "SELL") {
         if (!currentPosition || decimal(currentPosition.quantity).lessThanOrEqualTo(0)) {
           throw new Error("Satış işlemi yapılamaz. Seçtiğiniz ürün portföyünüzde bulunmuyor.");
         }
 
-        if (decimal(currentPosition.quantity).plus("0.000001").lessThan(currentQuantity)) {
-          throw new Error("Satmak istediğiniz miktar portföyünüzdeki miktardan fazla.");
+        const ownedQuantity = decimal(currentPosition.quantity);
+        const isExactUiRoundedFullSale =
+          amountUsdDecimal.isInteger() &&
+          amountUsdDecimal.equals(roundDecimal(ownedQuantity.times(tradePriceUsd), 0));
+
+        if (execution.quantity.greaterThan(ownedQuantity)) {
+          if (!isExactUiRoundedFullSale) {
+            throw new Error("Satmak istediğiniz miktar portföyünüzdeki miktardan fazla.");
+          }
+
+          execution = getVirtualExecutionCostsDecimal({
+            category: marketItem.category,
+            side,
+            quotePriceUsd: tradePriceUsd,
+            requestedAmountUsd: ownedQuantity.times(tradePriceUsd),
+          });
+        } else if (execution.quantity.equals(ownedQuantity)) {
+          execution = getVirtualExecutionCostsDecimal({
+            category: marketItem.category,
+            side,
+            quotePriceUsd: tradePriceUsd,
+            requestedAmountUsd: ownedQuantity.times(tradePriceUsd),
+          });
         }
       }
+
+      const currentTradePriceUsd = execution.executionPriceUsd;
+      const currentQuantity = execution.quantity;
+      const nextCashUsd = side === "BUY"
+        ? latestCashUsd.minus(execution.cashDeltaUsd)
+        : latestCashUsd.plus(execution.cashDeltaUsd);
 
       await tx.virtualAccount.update({
         where: { userId },
@@ -881,7 +911,7 @@ export async function tradeAction(previousState: TradeActionState = initialTrade
         realizedPnlUsd = realized.realizedPnlUsd;
         realizedPnlPercent = realized.realizedPnlPercent;
 
-        if (nextQuantity.lessThanOrEqualTo("0.000001")) {
+        if (nextQuantity.equals(0)) {
           await tx.portfolioPosition.delete({ where: { userId_symbol: { userId, symbol } } });
         } else {
           await tx.portfolioPosition.update({

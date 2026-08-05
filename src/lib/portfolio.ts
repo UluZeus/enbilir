@@ -180,60 +180,63 @@ type TradeForCompetitionCost = {
   totalUsd: DecimalValue;
 };
 
-type CompetitionCostLot = {
+type CompetitionCostPosition = {
   quantity: ReturnType<typeof decimal>;
+  accountingCostUsd: ReturnType<typeof decimal>;
   competitionCostUsd: ReturnType<typeof decimal>;
 };
 
-function calculateCompetitionPositionCosts(trades: TradeForCompetitionCost[]) {
-  const lotsBySymbol = new Map<string, CompetitionCostLot[]>();
-  let grossBuySpendingUsd = decimal(0);
+export function calculateCompetitionPositionCosts(trades: TradeForCompetitionCost[]) {
+  const costsBySymbol = new Map<string, CompetitionCostPosition>();
+  let openPositionCostUsd = decimal(0);
 
   for (const trade of trades) {
     const symbol = trade.symbol.trim().toUpperCase();
 
     if (trade.side === "BUY") {
-      const spendingBefore = grossBuySpendingUsd;
+      const spendingBefore = openPositionCostUsd;
       const tradeTotalUsd = decimal(trade.totalUsd);
-      const spendingAfter = grossBuySpendingUsd.plus(tradeTotalUsd);
+      const spendingAfter = openPositionCostUsd.plus(tradeTotalUsd);
       const bonusBefore = decimalMax(decimal(0), spendingBefore.minus(initialCashUsd));
       const bonusAfter = decimalMax(decimal(0), spendingAfter.minus(initialCashUsd));
       const bonusFundedUsd = decimalMax(decimal(0), bonusAfter.minus(bonusBefore));
       const competitionCostUsd = decimalMax(decimal(0), tradeTotalUsd.minus(bonusFundedUsd));
-      const lots = lotsBySymbol.get(symbol) ?? [];
+      const current = costsBySymbol.get(symbol) ?? {
+        quantity: decimal(0),
+        accountingCostUsd: decimal(0),
+        competitionCostUsd: decimal(0),
+      };
 
-      lots.push({ quantity: decimal(trade.quantity), competitionCostUsd });
-      lotsBySymbol.set(symbol, lots);
-      grossBuySpendingUsd = spendingAfter;
+      costsBySymbol.set(symbol, {
+        quantity: current.quantity.plus(trade.quantity),
+        accountingCostUsd: current.accountingCostUsd.plus(tradeTotalUsd),
+        competitionCostUsd: current.competitionCostUsd.plus(competitionCostUsd),
+      });
+      openPositionCostUsd = spendingAfter;
       continue;
     }
 
     if (trade.side === "SELL") {
-      const lots = lotsBySymbol.get(symbol) ?? [];
-      let quantityToRemove = decimal(trade.quantity);
+      const current = costsBySymbol.get(symbol);
+      if (!current || current.quantity.lessThanOrEqualTo(0)) continue;
+      const removedQuantity = decimalMin(decimal(trade.quantity), current.quantity);
+      const remainingRatio = current.quantity.minus(removedQuantity).div(current.quantity);
+      const nextAccountingCostUsd = current.accountingCostUsd.times(remainingRatio);
+      const removedAccountingCostUsd = current.accountingCostUsd.minus(nextAccountingCostUsd);
 
-      while (quantityToRemove.isPositive() && lots.length > 0) {
-        const lot = lots[0];
-        const removedQuantity = decimalMin(quantityToRemove, lot.quantity);
-        const removedRatio = lot.quantity.isPositive() ? removedQuantity.div(lot.quantity) : decimal(0);
-
-        lot.quantity = lot.quantity.minus(removedQuantity);
-        lot.competitionCostUsd = lot.competitionCostUsd.minus(lot.competitionCostUsd.times(removedRatio));
-        quantityToRemove = quantityToRemove.minus(removedQuantity);
-
-        if (lot.quantity.lessThanOrEqualTo("0.000001")) {
-          lots.shift();
-        }
-      }
-
-      lotsBySymbol.set(symbol, lots);
+      costsBySymbol.set(symbol, {
+        quantity: current.quantity.minus(removedQuantity),
+        accountingCostUsd: nextAccountingCostUsd,
+        competitionCostUsd: current.competitionCostUsd.times(remainingRatio),
+      });
+      openPositionCostUsd = decimalMax(decimal(0), openPositionCostUsd.minus(removedAccountingCostUsd));
     }
   }
 
   return new Map(
-    Array.from(lotsBySymbol.entries()).map(([symbol, lots]) => [
+    Array.from(costsBySymbol.entries()).map(([symbol, position]) => [
       symbol,
-      lots.reduce((sum, lot) => sum.plus(decimalMax(decimal(0), lot.competitionCostUsd)), decimal(0)),
+      decimalMax(decimal(0), position.competitionCostUsd),
     ]),
   );
 }
